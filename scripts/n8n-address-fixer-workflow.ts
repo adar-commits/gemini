@@ -3,7 +3,6 @@ import {
   node,
   trigger,
   languageModel,
-  tool,
   outputParser,
   expr,
   newCredential,
@@ -22,7 +21,7 @@ const addressWebhook = trigger({
     },
     position: [240, 400],
   },
-  output: [{ body: { raw_address: "דוגמה רחוב 1 תל אביב" }, headers: {} }],
+  output: [{ body: { raw_address: "test" }, headers: {} }],
 });
 
 const openAiChatModel = languageModel({
@@ -34,8 +33,8 @@ const openAiChatModel = languageModel({
       model: {
         __rl: true,
         mode: "list",
-        value: "gpt-4o",
-        cachedResultName: "gpt-4o",
+        value: "gpt-4.1-mini",
+        cachedResultName: "gpt-4.1-mini",
       },
       options: { temperature: 0.2 },
     },
@@ -66,104 +65,13 @@ const structuredParser = outputParser({
   },
 });
 
-const googleSheetCityVerify = tool({
-  type: "n8n-nodes-base.googleSheetsTool",
-  version: 4.7,
-  config: {
-    name: "Verify city in sheet",
-    parameters: {
-      resource: "sheet",
-      operation: "read",
-      documentId: {
-        __rl: true,
-        mode: "list",
-        value: "1eVFTSrsMQd-4KF7lcHP7AtANseNSLVaA-Sj5O3x_Gl0",
-        cachedResultName: "Goverment Cities",
-      },
-      sheetName: {
-        __rl: true,
-        mode: "list",
-        value: "gid=0",
-        cachedResultName: "Sheet1",
-      },
-      filtersUI: {
-        values: [
-          {
-            lookupColumn: "City",
-            lookupValue:
-              "={{ $fromAI('city_match', 'Normalized official city name to match the City column exactly', 'string') }}",
-          },
-        ],
-      },
-      combineFilters: "AND",
-      options: {
-        returnAllMatches: "returnFirstMatch",
-      },
-    },
-    credentials: {
-      googleSheetsOAuth2Api: newCredential("Google Sheets account"),
-    },
-    position: [520, 560],
-  },
-});
+const systemMsg = `You are a specialist in Israeli geography and address parsing. Return ONE structured JSON only (no tools). Input is raw_address from the user message.
 
-const googleSheetStreets = tool({
-  type: "n8n-nodes-base.googleSheetsTool",
-  version: 4.7,
-  config: {
-    name: "List streets for city",
-    parameters: {
-      resource: "sheet",
-      operation: "read",
-      documentId: {
-        __rl: true,
-        mode: "list",
-        value: "1eVFTSrsMQd-4KF7lcHP7AtANseNSLVaA-Sj5O3x_Gl0",
-        cachedResultName: "Goverment Cities",
-      },
-      sheetName: {
-        __rl: true,
-        mode: "list",
-        value: "gid=0",
-        cachedResultName: "Sheet1",
-      },
-      filtersUI: {
-        values: [
-          {
-            lookupColumn: "City",
-            lookupValue:
-              "={{ $fromAI('city_for_streets', 'Confirmed official city name; returns all sheet rows so you can read the Street column', 'string') }}",
-          },
-        ],
-      },
-      combineFilters: "AND",
-      options: {
-        returnAllMatches: "returnAllMatches",
-      },
-    },
-    credentials: {
-      googleSheetsOAuth2Api: newCredential("Google Sheets account"),
-    },
-    position: [680, 560],
-  },
-});
+Normalize Hebrew shortcuts and spelling variants to conventional Israeli city and street forms. Extract street, streetNo, floor, apartment, city; parse patterns like 4/12 as floor/apartment when apartment > floor; map Hebrew letter floors when present.
 
-const systemMsg = `You are a specialist in Israeli geography and address parsing. Take the raw_address from the user message JSON and return structured fields.
+Set confidence_score between 0 and 1 and confidence_low true when unsure. Populate original_input with the same raw address string.
 
-Extraction rules:
-- Normalization: Map Hebrew shortcuts to official names (Tel Aviv variants including Tel-Aviv-Yafo, Ramat Gan, etc.).
-- City/street validation: First infer the city. Use "Verify city in sheet" with the official City column value you want to verify. Use City_Synonyms from returned rows when variants appear in the sheet.
-- After the city is confirmed, call "List streets for city" with that same official city name and fuzzy-match the street against the Street column only within those rows.
-- Never invent a city or street that is not supported by tool results.
-
-Numbers:
-- streetNo follows the street name when present.
-- Floor and apartment: patterns like 6/18 mean floor 6, apartment 18 when apartment > floor; Hebrew letters like ב for floor 2 map to integers.
-
-Uncertainty:
-- If match confidence is below 90 percent or data is missing from the sheet, set confidence_low true and set confidence_score below 0.9.
-
-Populate original_input with the same raw_address string from the input JSON.`;
+The next workflow steps validate your city and street against a spreadsheet — produce the best normalized strings you can; do not invent confidence above what you truly believe.`;
 
 const addressAgent = node({
   type: "@n8n/n8n-nodes-langchain.agent",
@@ -178,14 +86,13 @@ const addressAgent = node({
       hasOutputParser: true,
       options: {
         systemMessage: systemMsg,
-        maxIterations: 15,
+        maxIterations: 1,
         returnIntermediateSteps: false,
         enableStreaming: false,
       },
     },
     subnodes: {
       model: openAiChatModel,
-      tools: [googleSheetCityVerify, googleSheetStreets],
       outputParser: structuredParser,
     },
     position: [520, 400],
@@ -206,6 +113,50 @@ const addressAgent = node({
   ],
 });
 
+const fetchRowsForCity = node({
+  type: "n8n-nodes-base.googleSheets",
+  version: 4.7,
+  config: {
+    name: "Fetch rows for city",
+    parameters: {
+      resource: "sheet",
+      operation: "read",
+      documentId: {
+        __rl: true,
+        mode: "list",
+        value: "1eVFTSrsMQd-4KF7lcHP7AtANseNSLVaA-Sj5O3x_Gl0",
+        cachedResultName: "Goverment Cities",
+      },
+      sheetName: {
+        __rl: true,
+        mode: "list",
+        value: "gid=0",
+        cachedResultName: "Sheet1",
+      },
+      filtersUI: {
+        values: [
+          {
+            lookupColumn: "city_name",
+            lookupValue: expr(
+              '{{ $("AI Agent").first().json.output.city }}'
+            ),
+          },
+        ],
+      },
+      combineFilters: "AND",
+      options: {
+        returnAllMatches: "returnAllMatches",
+      },
+    },
+    credentials: {
+      googleSheetsOAuth2Api: newCredential("Google Sheets account"),
+    },
+    alwaysOutputData: true,
+    position: [720, 400],
+  },
+  output: [{ city_name: "תל אביב-יפו", street_name: "הרצל" }],
+});
+
 const gatekeeperCode = node({
   type: "n8n-nodes-base.code",
   version: 2,
@@ -214,36 +165,71 @@ const gatekeeperCode = node({
     parameters: {
       mode: "runOnceForAllItems",
       language: "javaScript",
-      jsCode: `const items = $input.all();
-const first = items[0].json;
-const parsed = first.output && typeof first.output === "object" ? first.output : first;
-const webhookBody = $("Webhook").first().json.body || {};
-const rawInput = parsed.original_input || webhookBody.raw_address || "";
+      jsCode: `const agent = $('AI Agent').first().json;
+const parsed = agent.output && typeof agent.output === 'object' ? agent.output : agent;
+const webhookBody = $('Webhook').first().json.body || {};
+const rawInput = String(parsed.original_input || webhookBody.raw_address || '');
+const rows = $('Fetch rows for city').all().map((i) => i.json);
+
+function norm(s) {
+  return String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+}
+
+function streetCell(row) {
+  return row.street_name ?? row.Street ?? row.street ?? '';
+}
+
+function fuzzyStreetMatch(candidate, rowList) {
+  const c = norm(candidate);
+  if (!c) return { ok: false };
+  for (const row of rowList) {
+    const st = streetCell(row);
+    const n = norm(st);
+    if (!n) continue;
+    if (c === n || c.includes(n) || n.includes(c)) return { ok: true, official: st };
+  }
+  return { ok: false };
+}
+
+const cityOk = rows.length > 0;
+const sm = fuzzyStreetMatch(parsed.street, rows);
+const sheetOk = cityOk && sm.ok;
+
+let conf = typeof parsed.confidence_score === 'number' ? parsed.confidence_score : 0;
+let low = parsed.confidence_low === true;
+
+if (!sheetOk) {
+  low = true;
+  conf = Math.min(conf, 0.85);
+}
+
+let streetOut = sm.ok && sm.official ? sm.official : parsed.street;
+
 let floor = parsed.floor;
 let apartment = parsed.apartment;
-if (floor != null && apartment != null && typeof floor === "number" && typeof apartment === "number" && apartment < floor) {
+if (floor != null && apartment != null && typeof floor === 'number' && typeof apartment === 'number' && apartment < floor) {
   const t = floor;
   floor = apartment;
   apartment = t;
 }
-const conf = typeof parsed.confidence_score === "number" ? parsed.confidence_score : 0;
-const low = parsed.confidence_low === true;
+
 if (conf < 0.9 || low) {
-  return [{ json: { original_input: String(rawInput) } }];
+  return [{ json: { original_input: rawInput } }];
 }
+
 return [{
   json: {
-    street: parsed.street,
+    street: streetOut,
     streetNo: parsed.streetNo,
     floor: floor ?? null,
     apartment: apartment ?? null,
     city: parsed.city,
-    original_input: String(rawInput),
+    original_input: rawInput,
     confidence_score: conf
   }
 }];`,
     },
-    position: [880, 400],
+    position: [920, 400],
   },
   output: [
     {
@@ -268,15 +254,16 @@ const respondWebhook = node({
       responseBody: expr("{{ $json }}"),
       options: { responseCode: 200 },
     },
-    position: [1120, 400],
+    position: [1160, 400],
   },
 });
 
 export default workflow(
-  "address-fixer-shipping-webhook",
+  "address-fixer-fast-v1",
   "Address Fixer v2 — shipping parse"
 )
   .add(addressWebhook)
   .to(addressAgent)
+  .to(fetchRowsForCity)
   .to(gatekeeperCode)
   .to(respondWebhook);
