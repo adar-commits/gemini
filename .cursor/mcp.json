@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "url": "https://redcarpet.app.n8n.cloud/mcp-server/http",
+      "headers": {
+        "Authorization": "Bearer ${env:N8N_MCP_TOKEN}"
+      }
+    }
+  }
+}
