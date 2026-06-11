@@ -40,6 +40,8 @@ const setConfig = node({
           { id: 'tb', name: 'tigerBaseUrl', value: 'tiger.xsyspro.net:8022/Baldarp/service.asmx', type: 'string' },
           { id: 'mpd', name: 'marketplaceDaysBack', value: 35, type: 'number' },
           { id: 'rd', name: 'regularDaysBack', value: 40, type: 'number' },
+          { id: 'ctx', name: 'cheetahTxBearer', value: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwczovL3J1bmNvbS5jby5pbC9jbGFpbXMvY2xpZW50bm8iOiIzMTQyMyIsImh0dHBzOi8vcnVuY29tLmNvLmlsL2NsYWltcy9waHJhc2UiOiI0MDcwMWFhNi1lZjI2LTQxOTYtODUwNi01NzNkOGM4MDcxNmQiLCJleHAiOjE3ODA1NTQwMDcsImlzcyI6Imh0dHBzOi8vcnVuY29tLmNvLmlsIiwiYXVkIjoiaHR0cHM6Ly9ydW5jb20uY28uaWwifQ.2QPPq7Tmi2BToOdee6hpYg9zIbxkZf-SpT_pDXxiYhk', type: 'string' },
+          { id: 'crc', name: 'cheetahRcBearer', value: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwczovL3J1bmNvbS5jby5pbC9jbGFpbXMvY2xpZW50bm8iOiIzMTIzNCIsImh0dHBzOi8vcnVuY29tLmNvLmlsL2NsYWltcy9waHJhc2UiOiIyYWY2ZjA0My03ZDIyLTRjZTUtYTZhYS05NWYyODFiMTI5OGQiLCJleHAiOjE4MDA5NTE3NTgsImlzcyI6Imh0dHBzOi8vcnVuY29tLmNvLmlsIiwiYXVkIjoiaHR0cHM6Ly9ydW5jb20uY28uaWwifQ.URw_G0PwM3Az7LJiXKQNKWwB8FBsk1Jz0yXzdvalSdg', type: 'string' },
         ],
       },
     },
@@ -253,11 +255,15 @@ const cheetahGetDelivery = node({
     parameters: {
       method: 'GET',
       url: expr('={{ "https://" + $("Config").item.json.cheetahBaseUrl + "?APPNAME=run&PRGNAME=ship_status_xml&ARGUMENTS=-N" + $json.LTRN_BALDARTRCK }}'),
-      authentication: 'genericCredentialType',
-      genericAuthType: 'httpBearerAuth',
+      authentication: 'none',
+      sendHeaders: true,
+      headerParameters: {
+        parameters: [
+          { name: 'Authorization', value: expr('={{ $("Build Query Dates").item.json.cheetahTxBearer }}') },
+        ],
+      },
       options: { response: { response: { responseFormat: 'text' } } },
     },
-    credentials: { httpBearerAuth: newCredential('Cheetah TX Bearer') },
   },
   output: [{ data: '<root><mydata><status><status_code>21</status_code><status_date>2026-06-01</status_date><status_time>14:30:00</status_time></status></mydata></root>' }],
 });
@@ -271,11 +277,15 @@ const cheetahBackup = node({
     parameters: {
       method: 'GET',
       url: expr('={{ "https://" + $("Config").item.json.cheetahBaseUrl + "?APPNAME=run&PRGNAME=ship_status_xml&ARGUMENTS=-N" + $("Each Order").item.json.LTRN_BALDARTRCK }}'),
-      authentication: 'genericCredentialType',
-      genericAuthType: 'httpBearerAuth',
+      authentication: 'none',
+      sendHeaders: true,
+      headerParameters: {
+        parameters: [
+          { name: 'Authorization', value: expr('={{ $("Build Query Dates").item.json.cheetahRcBearer }}') },
+        ],
+      },
       options: { response: { response: { responseFormat: 'text' } } },
     },
-    credentials: { httpBearerAuth: newCredential('Cheetah RC Bearer') },
   },
   output: [{ data: '<root><mydata><status><status_code>21</status_code></status></mydata></root>' }],
 });
@@ -441,7 +451,7 @@ const callPart2 = node({
     onError: 'continueRegularOutput',
     parameters: {
       source: 'database',
-      workflowId: { __rl: true, mode: 'list', value: 'mJIwVnJk6YQt4r6k', cachedResultName: 'Courier & Shopify Fulfillments' },
+      workflowId: { __rl: true, mode: 'list', value: 'f2QJ3Gj47tB3JTA8', cachedResultName: 'Courier & Shopify Fulfillments' },
       mode: 'each',
       workflowInputs: {
         mappingMode: 'defineBelow',
