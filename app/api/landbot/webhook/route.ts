@@ -31,7 +31,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     method: "POST",
-    note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after ~3s silence.",
+    note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after ~3.5s silence since the last customer message.",
     policy: landbotPhonePolicy(),
   })
 }
@@ -79,7 +79,8 @@ export async function POST(request: Request) {
       inbound.conversationId,
       inbound.turn
     )
-    const turn = await waitAndTakeBufferedTurn(inbound.conversationId, enqueuedAt)
+    void enqueuedAt
+    const turn = await waitAndTakeBufferedTurn(inbound.conversationId)
     if (!turn) {
       return NextResponse.json({ ok: true, skipped: "debouncing" })
     }

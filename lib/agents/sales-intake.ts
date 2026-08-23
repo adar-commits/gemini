@@ -29,7 +29,7 @@ const UNVERIFIED_PRODUCT_OPENER =
 
 /** Named model/collection in a purchase message (not verified against any catalog). */
 const REQUESTED_MODEL_RE =
-  /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9\s\-]{1,35}?)(?:\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|$|[,.!?])/i
+  /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9 \-]{1,30}?)(?=\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|[\n,.!?]|$)/i
 
 const PRODUCT_Q =
   "באיזה מוצר מדובר – שטיח, פוף, תמונה, כרית או מוצר אחר?"
@@ -63,10 +63,14 @@ function lastAssistantText(history: HistoryMessage[]) {
   return ""
 }
 
+const ROOM_TARGET_RE =
+  /^(?:לחדר\s+ילדים|חדר\s+(?:ילדים|שינה|ילד|נוער|תינוקות)|לסלון|סלון|למסדרון|מסדרון|מטבח|מרפסת|כניסה)(?:\s|$)/i
+
 export function extractRequestedModel(text: string): string | null {
   const match = text.trim().match(REQUESTED_MODEL_RE)
   if (!match) return null
-  const name = match[1].trim().replace(/\s+/g, " ")
+  const name = match[1].trim().split(/\n/)[0].trim().replace(/\s+/g, " ")
+  if (ROOM_TARGET_RE.test(name)) return null
   if (/^(סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(name)) {
     return null
   }
@@ -123,13 +127,14 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
     undefined
   if (requestedModel) intake.requestedModel = requestedModel
 
-  if (/סלון/.test(text)) intake.targetSpace = "סלון"
-  else if (/חדר שינה/.test(text)) intake.targetSpace = "חדר שינה"
-  else if (/חדר ילדים/.test(text)) intake.targetSpace = "חדר ילדים"
+  if (/חדר\s+ילדים/.test(text)) intake.targetSpace = "חדר ילדים"
+  else if (/חדר\s+שינה/.test(text)) intake.targetSpace = "חדר שינה"
+  else if (/סלון/.test(text)) intake.targetSpace = "סלון"
   else if (/מסדרון/.test(text)) intake.targetSpace = "מסדרון"
 
   const budgetMatch =
-    text.match(/עד\s+([\d,]+)\s*(?:ש[\"״']?ח|₪)?/i) ||
+    text.match(/עד\s+([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)/i) ||
+    text.match(/(\d{2,4})\s*שקל/i) ||
     text.match(/תקציב(?:\s+של)?\s+([\d,]+)/i)
   if (budgetMatch) intake.budget = budgetMatch[1].replace(/,/g, "")
 
