@@ -7,9 +7,10 @@ import { guessMasterRoute, stickySpecialist } from "@/lib/agents/route-intent"
 import {
   buildGreetingReply,
   hasImmediateBusinessAsk,
-  isCasualGreeting,
+  isCasualGreetingWithLearned,
   isOpeningTurn,
 } from "@/lib/agents/greeting"
+import { guessLearnedRoute, learnedPromptRules, loadLearnedRules } from "@/lib/agents/learned-rules"
 import {
   ACTIONS_BY_AGENT,
   CUSTOMER_HEADER,
@@ -76,10 +77,11 @@ export async function runAgent(
   const allowed = ACTIONS_BY_AGENT[agent]
   const isMaster = agent === "master"
   const model = isMaster ? routerModel() : specialistModel()
+  const learnedRules = isMaster ? "" : await learnedPromptRules(agent)
 
   const result = await generateText({
     model,
-    system: getSystemPrompt(agent, body),
+    system: `${getSystemPrompt(agent, body)}${learnedRules}`,
     messages: toModelMessages(history, turn),
     maxOutputTokens: isMaster ? 80 : 800,
     output: Output.object({
@@ -153,7 +155,7 @@ async function resolveSpecialist(
 
   if (
     specialist === "faq" &&
-    isCasualGreeting(body) &&
+    (await isCasualGreetingWithLearned(body)) &&
     !hasImmediateBusinessAsk(body) &&
     isOpeningTurn(persistUser ? userTurns : userTurns + 1)
   ) {
@@ -201,6 +203,7 @@ export async function runMasterConversation(
   options?: { customerName?: string }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
+  await loadLearnedRules()
   const { history, lastAgent, lastAction } =
     await getConversationContext(conversationId)
   const route: AgentId[] = []
@@ -218,7 +221,8 @@ export async function runMasterConversation(
     )
   }
 
-  const guessed = guessMasterRoute(body)
+  const learned = await guessLearnedRoute(body)
+  const guessed = learned ?? guessMasterRoute(body)
   let masterAction: MasterAction
 
   if (guessed) {

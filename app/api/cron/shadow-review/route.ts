@@ -5,6 +5,8 @@ import {
   runShadowReviewBatch,
   shadowReviewStats,
 } from "@/lib/landbot/shadow-review"
+import { runShadowAutofixBatch } from "@/lib/landbot/shadow-autofix"
+import { learnedRuleStats } from "@/lib/agents/learned-rules"
 
 export const maxDuration = 300
 export const runtime = "nodejs"
@@ -17,8 +19,9 @@ function isCronAuthorized(request: Request) {
 }
 
 async function handleRun() {
-  const result = await runShadowReviewBatch()
-  return NextResponse.json(result)
+  const review = await runShadowReviewBatch()
+  const autofix = await runShadowAutofixBatch()
+  return NextResponse.json({ review, autofix })
 }
 
 /** Vercel Cron (GET + CRON_SECRET) or manual POST with AGENT_API_KEY */
@@ -32,15 +35,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [stats, issues] = await Promise.all([
+    const [stats, issues, learned] = await Promise.all([
       shadowReviewStats(),
       listRecentShadowIssues(15),
+      learnedRuleStats(),
     ])
     return NextResponse.json({
       ok: true,
       stats,
+      learned,
       recent_issues: issues,
-      run: "POST /api/cron/shadow-review to process pending logs now",
+      run: "POST /api/cron/shadow-review to review shadow logs and auto-apply learned rules",
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow review status failed"

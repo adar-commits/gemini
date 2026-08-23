@@ -18,6 +18,12 @@ export function isCasualGreeting(text: string) {
   return false
 }
 
+export async function isCasualGreetingWithLearned(text: string) {
+  if (isCasualGreeting(text)) return true
+  const { matchesLearnedGreeting } = await import("@/lib/agents/learned-rules")
+  return matchesLearnedGreeting(text)
+}
+
 function firstName(name: string | undefined) {
   const part = name?.trim().split(/\s+/)[0]?.replace(/[^\p{L}'-]/gu, "")
   return part || ""

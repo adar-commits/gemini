@@ -89,3 +89,29 @@ create index if not exists hom_agent_shadow_reviews_verdict_reviewed_idx
 alter table public.hom_agent_shadow_reviews enable row level security;
 
 revoke all on table public.hom_agent_shadow_reviews from anon, authenticated, public;
+
+create table if not exists public.hom_agent_learned_rules (
+  id uuid primary key default gen_random_uuid(),
+  shadow_review_id uuid references public.hom_agent_shadow_reviews(id) on delete set null,
+  rule_kind text not null check (
+    rule_kind in ('route_regex', 'greeting_pattern', 'prompt_rule', 'off_topic_exception')
+  ),
+  agent text not null default 'all',
+  pattern text,
+  route_action text,
+  rule_text text not null,
+  source_user_text text,
+  status text not null default 'active' check (status in ('active', 'disabled')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists hom_agent_learned_rules_status_created_idx
+  on public.hom_agent_learned_rules (status, created_at desc);
+
+create unique index if not exists hom_agent_learned_rules_kind_pattern_uidx
+  on public.hom_agent_learned_rules (rule_kind, pattern)
+  where pattern is not null and status = 'active';
+
+alter table public.hom_agent_learned_rules enable row level security;
+
+revoke all on table public.hom_agent_learned_rules from anon, authenticated, public;
