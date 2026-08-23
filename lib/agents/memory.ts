@@ -76,6 +76,29 @@ export async function getHistory(conversationId: string): Promise<HistoryMessage
   return (await getConversationContext(conversationId)).history
 }
 
+export type ConversationTail = {
+  latestRole: "user" | "assistant" | null
+  latestContent: string | null
+  latestUserMessage: string | null
+}
+
+export async function getConversationTail(
+  conversationId: string
+): Promise<ConversationTail> {
+  const { history } = await getConversationContext(conversationId)
+  const last = history[history.length - 1]
+  const lastUser = [...history].reverse().find((message) => message.role === "user")
+  return {
+    latestRole: last?.role ?? null,
+    latestContent: last?.content?.trim() || null,
+    latestUserMessage: lastUser?.content?.trim() || null,
+  }
+}
+
+export function normalizeMessageText(text: string) {
+  return text.replace(/\s+/g, " ").trim()
+}
+
 function dedupeHistory(items: HistoryMessage[]) {
   const unique: HistoryMessage[] = []
   for (const item of items) {
@@ -154,7 +177,10 @@ export async function appendTurn(input: {
   assistantText: string
   action: string
   persistUser?: boolean
+  preview?: boolean
 }) {
+  if (input.preview) return
+
   const conversationId = safeId(input.conversationId)
   const persistUser = input.persistUser !== false
   const supabase = getAgentSupabase()

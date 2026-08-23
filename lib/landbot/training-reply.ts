@@ -1,5 +1,9 @@
 import { runMasterConversation } from "@/lib/agents/run-agent"
 import type { UserTurn } from "@/lib/agents/user-turn"
+import {
+  getConversationTail,
+  normalizeMessageText,
+} from "@/lib/agents/memory"
 import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
 import {
   resetAgentSession,
@@ -13,6 +17,20 @@ export type TrainingReplyInput = {
   note?: string
   reset?: boolean
   previewLabel?: string
+  force?: boolean
+}
+
+export type TrainingReplyResult = {
+  ok: boolean
+  skipped?: boolean
+  reason?: string
+  phone?: string
+  customerId?: number
+  conversationId?: string
+  agent?: string
+  action?: string
+  sent?: string
+  latest_user_message?: string | null
 }
 
 function formatTrainingMessage(input: {
@@ -35,7 +53,46 @@ function formatTrainingMessage(input: {
   return parts.join("\n")
 }
 
-export async function sendTrainingReply(input: TrainingReplyInput) {
+function shouldSkipTrainingPreview(input: {
+  latestUserMessage: string | null
+  latestRole: "user" | "assistant" | null
+  latestContent: string | null
+  userText: string
+}) {
+  const target = normalizeMessageText(input.userText)
+  const latestUser = input.latestUserMessage
+    ? normalizeMessageText(input.latestUserMessage)
+    : null
+
+  if (latestUser && latestUser !== target) {
+    return {
+      skip: true,
+      reason:
+        "Conversation has a newer or different latest user message — not sending training preview.",
+    }
+  }
+
+  if (input.latestRole === "assistant") {
+    return {
+      skip: true,
+      reason:
+        "Latest conversation turn is already a bot reply — not sending training preview.",
+    }
+  }
+
+  if (input.latestContent?.includes("תצוגה אחרי תיקון")) {
+    return {
+      skip: true,
+      reason: "A training preview was already sent recently.",
+    }
+  }
+
+  return { skip: false as const }
+}
+
+export async function sendTrainingReply(
+  input: TrainingReplyInput
+): Promise<TrainingReplyResult> {
   const phone = input.phone?.trim() || trainerPhone()
   const userText = input.userText.trim()
   if (!userText) {
@@ -48,6 +105,28 @@ export async function sendTrainingReply(input: TrainingReplyInput) {
   }
 
   const conversationId = String(customerId)
+  const tail = await getConversationTail(conversationId)
+
+  if (!input.force) {
+    const guard = shouldSkipTrainingPreview({
+      latestUserMessage: tail.latestUserMessage,
+      latestRole: tail.latestRole,
+      latestContent: tail.latestContent,
+      userText,
+    })
+    if (guard.skip) {
+      return {
+        ok: false,
+        skipped: true,
+        reason: guard.reason,
+        phone,
+        customerId,
+        conversationId,
+        latest_user_message: tail.latestUserMessage,
+      }
+    }
+  }
+
   if (input.reset) {
     await resetAgentSession(conversationId)
   }
@@ -56,6 +135,7 @@ export async function sendTrainingReply(input: TrainingReplyInput) {
   const turn: UserTurn = { text: userText, media: [] }
   const result = await runMasterConversation(conversationId, turn, {
     customerName: customer?.name?.trim() || undefined,
+    preview: true,
   })
 
   const replyBody =

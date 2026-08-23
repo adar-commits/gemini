@@ -1,4 +1,5 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
+import { isFaqTopicSwitch, isSalesQuizAffirmation } from "@/lib/agents/topic-switch"
 
 export type SalesIntake = {
   product?: string
@@ -71,9 +72,12 @@ export function shouldUseSalesIntakeFastPath(
   history: HistoryMessage[],
   lastAgent: AgentId | null
 ) {
+  if (isFaqTopicSwitch(body)) return false
   if (isSpecificProductQuery(body)) return false
   if (isSalesConsultationTrigger(body)) return true
-  if (lastAgent === "sales" && hasOngoingSalesIntake(history)) return true
+  if (lastAgent === "sales" && hasOngoingSalesIntake(history)) {
+    return isSalesQuizAffirmation(body) || !isFaqTopicSwitch(body)
+  }
   return false
 }
 

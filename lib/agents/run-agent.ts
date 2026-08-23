@@ -4,6 +4,7 @@ import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { guessMasterRoute, stickySpecialist } from "@/lib/agents/route-intent"
+import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 import {
   buildGreetingReply,
   hasImmediateBusinessAsk,
@@ -77,7 +78,7 @@ export async function runAgent(
   agent: AgentId,
   conversationId: string,
   turn: UserTurn,
-  options?: { persistUser?: boolean; history?: HistoryMessage[] }
+  options?: { persistUser?: boolean; history?: HistoryMessage[]; preview?: boolean }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
   const history = options?.history ?? (await getConversationContext(conversationId)).history
@@ -137,6 +138,7 @@ export async function runAgent(
     assistantText: reply,
     action,
     persistUser: options?.persistUser,
+    preview: options?.preview,
   })
 
   return {
@@ -154,11 +156,46 @@ async function resolveSpecialist(
   history: HistoryMessage[],
   persistUser: boolean,
   route: AgentId[],
-  options?: { customerName?: string; lastAgent?: AgentId | null }
+  options?: { customerName?: string; lastAgent?: AgentId | null; preview?: boolean }
 ): Promise<AgentResponse> {
   route.push(specialist)
   const body = summarizeTurn(turn)
   const userTurns = history.filter((message) => message.role === "user").length
+  const preview = options?.preview
+
+  if (isFaqTopicSwitch(body)) {
+    const replyAgent = "faq"
+    if (isBranchListQuestion(body)) {
+      const reply = normalizeReply(replyAgent, "reply", buildBranchListReply())
+      await appendTurn({
+        conversationId,
+        agent: replyAgent,
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        persistUser,
+        preview,
+      })
+      return { ok: true, agent: replyAgent, reply, action: "reply", route: [...route, replyAgent] }
+    }
+
+    let result = await runAgent(replyAgent, conversationId, turn, {
+      persistUser,
+      history,
+      preview,
+    })
+
+    if (isSpecialistId(result.action) && result.action !== replyAgent) {
+      route.push(result.action)
+      result = await runAgent(result.action, conversationId, turn, {
+        persistUser: false,
+        history,
+        preview,
+      })
+    }
+
+    return { ...result, route }
+  }
 
   if (isBranchListQuestion(body)) {
     const reply = normalizeReply("faq", "reply", buildBranchListReply())
@@ -169,6 +206,7 @@ async function resolveSpecialist(
       assistantText: reply,
       action: "reply",
       persistUser,
+      preview,
     })
     return { ok: true, agent: "faq", reply, action: "reply", route }
   }
@@ -191,6 +229,7 @@ async function resolveSpecialist(
       assistantText: reply,
       action: "reply",
       persistUser,
+      preview,
     })
     return { ok: true, agent: "sales", reply, action: "reply", route }
   }
@@ -209,6 +248,7 @@ async function resolveSpecialist(
       assistantText: reply,
       action: "reply",
       persistUser,
+      preview,
     })
     return { ok: true, agent: "faq", reply, action: "reply", route }
   }
@@ -216,6 +256,7 @@ async function resolveSpecialist(
   let result = await runAgent(specialist, conversationId, turn, {
     persistUser,
     history,
+    preview,
   })
 
   if (isSpecialistId(result.action) && result.action !== specialist) {
@@ -223,6 +264,7 @@ async function resolveSpecialist(
     result = await runAgent(result.action, conversationId, turn, {
       persistUser: false,
       history,
+      preview,
     })
   }
 
@@ -242,13 +284,28 @@ function shippingResult(route: AgentId[]): AgentResponse {
 export async function runMasterConversation(
   conversationId: string,
   turn: UserTurn,
-  options?: { customerName?: string }
+  options?: { customerName?: string; preview?: boolean }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
   await loadLearnedRules()
   const { history, lastAgent, lastAction } =
     await getConversationContext(conversationId)
   const route: AgentId[] = []
+  const preview = options?.preview
+  const sharedOptions = { ...options, lastAgent, preview }
+
+  if (isFaqTopicSwitch(body)) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "faq",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
   const sticky = stickySpecialist(lastAgent, lastAction)
 
   if (sticky) {
@@ -259,7 +316,7 @@ export async function runMasterConversation(
       history,
       true,
       route,
-      { ...options, lastAgent }
+      sharedOptions
     )
   }
 
@@ -276,9 +333,10 @@ export async function runMasterConversation(
       userText: body,
       assistantText: "",
       action: masterAction,
+      preview,
     })
   } else {
-    const master = await runAgent("master", conversationId, turn, { history })
+    const master = await runAgent("master", conversationId, turn, { history, preview })
     route.push("master")
     masterAction = (MASTER_ROUTE_MAP[master.action as MasterAction]
       ? master.action
@@ -295,6 +353,6 @@ export async function runMasterConversation(
     history,
     false,
     route,
-    { ...options, lastAgent }
+    sharedOptions
   )
 }

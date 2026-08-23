@@ -4,6 +4,7 @@ import {
   type MasterAction,
   type SpecialistId,
 } from "@/lib/agents/types"
+import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 
 const BREAK_STICKY = new Set([
   "reset",
@@ -35,6 +36,10 @@ export function guessMasterRoute(body: string): MasterAction | null {
   const text = body.trim()
   if (!text) return null
 
+  if (isFaqTopicSwitch(text)) {
+    return "ROUTE_TO_INFO_AGENT"
+  }
+
   if (
     has(text, /איפה\s+(ה)?משלוח(\s+שלי)?/) ||
     has(text, /סטטוס\s+(ה)?(משלוח|הזמנה)/) ||
@@ -62,6 +67,7 @@ export function guessMasterRoute(body: string): MasterAction | null {
 
   if (
     has(text, /רוצה\s+לקנות|במלאי|כמה\s+עולה|מחיר\s+של/) ||
+    has(text, /הנחה|מבצע|ייעוץ\s+עיצוב|עוזר\s+לבחור/) ||
     has(text, /תקציב|עד\s+[\d,]+|טווח\s+מחיר|מחפש(?:ים|ת|ים)?\s+שטיח/) ||
     has(text, /שטיח\s+ל(סלון|חדר|מטבח|כניסה|מרפסת)/)
   ) {
