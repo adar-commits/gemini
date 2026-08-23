@@ -1,30 +1,9 @@
 import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
 import { landbotPhonePolicy } from "@/lib/landbot/allowlist"
-import {
-  createMessageHook,
-  listChannels,
-  listMessageHooks,
-} from "@/lib/landbot/client"
+import { inspectMessageHooks, syncMessageHook } from "@/lib/landbot/sync-hook"
 
 export const runtime = "nodejs"
-
-function webhookUrl() {
-  if (process.env.LANDBOT_WEBHOOK_URL?.trim()) {
-    return process.env.LANDBOT_WEBHOOK_URL.trim()
-  }
-  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
-  if (host) return `https://${host}/api/landbot/webhook`
-  return "https://gemini-xi-one-77.vercel.app/api/landbot/webhook"
-}
-
-function hookToken() {
-  return (
-    process.env.LANDBOT_WEBHOOK_TOKEN?.trim() ||
-    process.env.AGENT_API_KEY?.trim() ||
-    ""
-  )
-}
 
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
@@ -32,12 +11,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const channels = await listChannels()
+    const hooks = await inspectMessageHooks()
     return NextResponse.json({
       ok: true,
-      webhook_url: webhookUrl(),
       policy: landbotPhonePolicy(),
-      channels: channels.channels ?? [],
+      ...hooks,
+      sync: 'POST {"force":true} to recreate hook with current LANDBOT_WEBHOOK_TOKEN',
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Setup failed"
@@ -50,47 +29,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
   }
 
+  let force = false
   try {
-    const channels = (await listChannels()).channels ?? []
-    const configured = process.env.LANDBOT_CHANNEL_ID?.trim()
-    const channel =
-      channels.find((item) => String(item.id) === configured) ??
-      channels.find((item) => item.type === "whatsapp") ??
-      channels[0]
+    const body = await request.json()
+    force = Boolean(body?.force)
+  } catch {
+    force = false
+  }
 
-    if (!channel) {
-      return NextResponse.json(
-        { ok: false, error: "No Landbot channel found. Set LANDBOT_CHANNEL_ID." },
-        { status: 400 }
-      )
-    }
-
-    const url = webhookUrl()
-    const existing = (await listMessageHooks(channel.id)).hooks ?? []
-    const already = existing.find((hook) => hook.url === url)
-    if (already) {
-      return NextResponse.json({
-        ok: true,
-        created: false,
-        channel,
-        hook: already,
-        webhook_url: url,
-      })
-    }
-
-    const created = await createMessageHook(channel.id, {
-      url,
-      token: hookToken() || undefined,
-      name: "HoM agents",
-    })
-
-    return NextResponse.json({
-      ok: true,
-      created: true,
-      channel,
-      hook: created.hook,
-      webhook_url: url,
-    })
+  try {
+    const result = await syncMessageHook(force)
+    return NextResponse.json({ ok: true, ...result })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Hook registration failed"
     return NextResponse.json({ ok: false, error: message }, { status: 500 })

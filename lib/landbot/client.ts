@@ -55,6 +55,12 @@ export async function listMessageHooks(channelId: number) {
   }>(`/channels/${channelId}/message_hooks/`)
 }
 
+export async function deleteMessageHook(channelId: number, hookId: number) {
+  await landbotFetch(`/channels/${channelId}/message_hooks/${hookId}/`, {
+    method: "DELETE",
+  })
+}
+
 export async function createMessageHook(
   channelId: number,
   input: { url: string; token?: string; name?: string }
