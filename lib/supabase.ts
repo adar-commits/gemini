@@ -601,7 +601,28 @@ export interface Database {
   }
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+function getSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url?.trim()) {
+    throw new Error(
+      "Missing Supabase URL. Set NEXT_PUBLIC_SUPABASE_URL in .env.local"
+    )
+  }
+  if (!anonKey?.trim()) {
+    throw new Error(
+      "Missing Supabase anon key. Set NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local"
+    )
+  }
+  return { url, anonKey }
+}
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+let client: ReturnType<typeof createClient<Database>> | null = null
+
+export function getSupabase() {
+  if (!client) {
+    const { url, anonKey } = getSupabaseConfig()
+    client = createClient<Database>(url, anonKey)
+  }
+  return client
+}

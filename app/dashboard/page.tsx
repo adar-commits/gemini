@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
+import { getSupabase, type Database } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -13,6 +13,10 @@ import {
 
 const PAGE_SIZE = 20
 
+type ProductRow = Database["public"]["Tables"]["products"]["Row"]
+
+export const dynamic = "force-dynamic"
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -23,11 +27,24 @@ export default async function DashboardPage({
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  const { data: products, count, error } = await supabase
-    .from("products")
-    .select("*", { count: "exact" })
-    .order("sku", { ascending: true })
-    .range(from, to)
+  let products: ProductRow[] = []
+  let count: number | null = 0
+  let error: { message: string } | null = null
+
+  try {
+    const result = await getSupabase()
+      .from("products")
+      .select("*", { count: "exact" })
+      .order("sku", { ascending: true })
+      .range(from, to)
+    products = (result.data ?? []) as ProductRow[]
+    count = result.count
+    error = result.error
+  } catch (err) {
+    error = {
+      message: err instanceof Error ? err.message : "Failed to load products",
+    }
+  }
 
   if (error) {
     return (
