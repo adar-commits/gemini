@@ -46,6 +46,13 @@ export function guessMasterRoute(body: string): MasterAction | null {
   }
 
   if (
+    has(text, /לא\s+מרוצ|לא\s+אהב|לא\s+מתאים|לא\s+מתאים\s+לי/) ||
+    has(text, /(קיבלתי|הגיע).*(שטיח|פוף|מוצר).*(לא\s+מרוצ|לא\s+אהב|לא\s+מתאים)/)
+  ) {
+    return "ROUTE_TO_INFO_AGENT"
+  }
+
+  if (
     has(text, /קרוע|פגום|שבור|סדוק|תלונה/) ||
     has(text, /לא\s+קיבלתי|מוצר\s+לא\s+נכון|חסר(ים)?\s+ב/) ||
     has(text, /הגיע\s+(קרוע|פגום|שבור|לא\s+נכון)/)

@@ -14,6 +14,17 @@ function humanAgentId() {
   return Number.isFinite(id) ? id : null
 }
 
+function outboundReply(result: AgentResponse) {
+  if (result.reply) return result.reply
+  if (result.action === "human_service") {
+    return "*הום בוט :)*\nהפנייה הועברה לנציג שירות. ניצור קשר בהקדם."
+  }
+  if (result.action === "human_sales") {
+    return "*הום בוט :)*\nהפנייה הועברה ליועץ מכירות. ניצור קשר בהקדם."
+  }
+  return ""
+}
+
 export async function handleLandbotInbound(
   customerId: number,
   conversationId: string,
@@ -22,8 +33,9 @@ export async function handleLandbotInbound(
   await assignToApiAgent(customerId)
   const result = await runMasterConversation(conversationId, turn)
 
-  if (result.reply) {
-    await sendCustomerText(customerId, result.reply)
+  const reply = outboundReply(result)
+  if (reply) {
+    await sendCustomerText(customerId, reply)
   }
 
   if (result.action === "human_sales" || result.action === "human_service") {
