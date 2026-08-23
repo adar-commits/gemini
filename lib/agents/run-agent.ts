@@ -4,6 +4,16 @@ import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { guessMasterRoute, stickySpecialist } from "@/lib/agents/route-intent"
+import {
+  buildHumanHandoffConfirmedReply,
+  buildHumanHandoffDeclinedReply,
+  inferHumanHandoffAction,
+  isHumanHandoffAffirmation,
+  isHumanHandoffDecline,
+  isHumanHandoffPending,
+  isOffTopicQuestion,
+  OFF_TOPIC_HANDOFF_OFFER,
+} from "@/lib/agents/off-topic"
 import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 import {
   buildGreetingReply,
@@ -162,6 +172,52 @@ async function resolveSpecialist(
   const body = summarizeTurn(turn)
   const userTurns = history.filter((message) => message.role === "user").length
   const preview = options?.preview
+
+  if (isHumanHandoffPending(history)) {
+    const agent = specialist === "master" ? "faq" : specialist
+    if (isHumanHandoffAffirmation(body)) {
+      const action = inferHumanHandoffAction(history, options?.lastAgent ?? null)
+      const reply = `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`
+      await appendTurn({
+        conversationId,
+        agent,
+        userText: body,
+        assistantText: reply,
+        action,
+        persistUser,
+        preview,
+      })
+      return { ok: true, agent, reply, action, route }
+    }
+    if (isHumanHandoffDecline(body)) {
+      const reply = normalizeReply(agent, "reply", buildHumanHandoffDeclinedReply())
+      await appendTurn({
+        conversationId,
+        agent,
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        persistUser,
+        preview,
+      })
+      return { ok: true, agent, reply, action: "reply", route }
+    }
+  }
+
+  if (isOffTopicQuestion(body)) {
+    const agent = specialist === "master" ? "faq" : specialist
+    const reply = normalizeReply(agent, "reply", OFF_TOPIC_HANDOFF_OFFER)
+    await appendTurn({
+      conversationId,
+      agent,
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent, reply, action: "reply", route }
+  }
 
   if (isFaqTopicSwitch(body)) {
     const replyAgent = "faq"

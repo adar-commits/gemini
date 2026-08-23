@@ -18,12 +18,15 @@ const OFF_TOPIC_RULE = `
 ### OFF-TOPIC / UNRELATED MESSAGES
 Never treat casual greetings or small-talk openers as off-topic (for example: שלום, היי, אהלן, מה נשמע, מה קורה, בוקר טוב). Use the Initial Welcome / greeting rule instead.
 
-If the message is clearly unrelated to HoM GROUP business (שטיחים, פופים, אביזרי בית, רכישה, מחיר, מלאי, משלוח, החזרה, ביטול, סניפים, שעות, תקנון, תלונה, הזמנה, מסמכים) — for example general trivia, history, politics, homework, jokes, or random chat that does not fit the current service context — reply with action=reply and EXACTLY this customer text (header included):
+If the message is clearly unrelated to HoM GROUP business (שטיחים, פופים, אביזרי בית, רכישה, מחיר, מלאי, משלוח, החזרה, ביטול, סניפים, שעות, תקנון, תלונה, הזמנה, מסמכים) — for example general trivia, history, politics, homework, jokes, meta questions ("אתה רובוט?", "מי אתה?"), or random chat that does not fit the current service context — reply with action=reply and EXACTLY:
 
 *הום בוט :)*
-לא הצלחתי להבין את השאלה, נסה שוב
+אני לא בטוח איך להגיב לזה, שנעביר את השיחה לנציג אנושי?
 
-Do not guess, do not answer the off-topic question, do not route silently, and do not use the unrelated-products deflection for these cases.
+Wait for the customer's answer. If they agree (כן / בטח / אשמח) → action=human_sales or human_service based on context (sales/purchase thread → human_sales; service/order thread → human_service). Include one short confirmation line in reply when transferring.
+If they decline → action=reply: "אין בעיה. אפשר להמשיך מכאן."
+
+Do not guess, do not answer the off-topic question, do not continue intake/quiz, and do not use "לא הצלחתי להבין את השאלה".
 `
 
 const UNCERTAINTY_RULE = `
