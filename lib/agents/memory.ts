@@ -1,5 +1,9 @@
 import { getAgentSupabase } from "@/lib/agents/supabase"
-import type { AgentId, HistoryMessage } from "@/lib/agents/types"
+import {
+  isSpecialistId,
+  type AgentId,
+  type HistoryMessage,
+} from "@/lib/agents/types"
 
 const HISTORY_LIMIT = 10
 
@@ -11,37 +15,82 @@ function safeId(value: string) {
   return value.replace(/[,()]/g, "").slice(0, 200)
 }
 
-export async function getHistory(conversationId: string): Promise<HistoryMessage[]> {
+export type ConversationContext = {
+  history: HistoryMessage[]
+  lastAgent: AgentId | null
+  lastAction: string | null
+}
+
+function asAgentId(value: unknown): AgentId | null {
+  const text = asText(value)
+  if (
+    text === "master" ||
+    text === "sales" ||
+    text === "faq" ||
+    text === "service"
+  ) {
+    return text
+  }
+  return null
+}
+
+export async function getConversationContext(
+  conversationId: string
+): Promise<ConversationContext> {
   conversationId = safeId(conversationId)
   const supabase = getAgentSupabase()
   const { data: session } = await supabase
     .from("hom_agent_sessions")
-    .select("reset_at")
+    .select("reset_at, last_agent")
     .eq("conversation_id", conversationId)
     .maybeSingle()
 
   const resetAt = asText(session?.reset_at) || null
+  const stored = await loadStoredMessages(conversationId, resetAt)
+  const lastStored = [...stored].reverse().find((row) => row.action || row.agent)
+  const lastAgent =
+    asAgentId(lastStored?.agent) ?? asAgentId(session?.last_agent)
+  const lastAction = asText(lastStored?.action) || null
 
-  const [stored, landbot] = await Promise.all([
-    loadStoredMessages(conversationId, resetAt),
-    loadLandbotMessages(conversationId, resetAt),
-  ])
+  const storedHistory = stored
+    .filter((item) => item.content)
+    .map((item) => ({ role: item.role, content: item.content }))
 
-  const merged = [...landbot, ...stored].filter((item) => item.content)
+  if (storedHistory.length >= 2 || (lastAgent && isSpecialistId(lastAgent))) {
+    return {
+      history: dedupeHistory(storedHistory).slice(-HISTORY_LIMIT),
+      lastAgent,
+      lastAction,
+    }
+  }
+
+  const landbot = await loadLandbotMessages(conversationId, resetAt)
+  return {
+    history: dedupeHistory([...landbot, ...storedHistory]).slice(-HISTORY_LIMIT),
+    lastAgent,
+    lastAction,
+  }
+}
+
+export async function getHistory(conversationId: string): Promise<HistoryMessage[]> {
+  return (await getConversationContext(conversationId)).history
+}
+
+function dedupeHistory(items: HistoryMessage[]) {
   const unique: HistoryMessage[] = []
-  for (const item of merged) {
+  for (const item of items) {
     const prev = unique[unique.length - 1]
     if (prev && prev.role === item.role && prev.content === item.content) continue
     unique.push(item)
   }
-  return unique.slice(-HISTORY_LIMIT)
+  return unique
 }
 
 async function loadStoredMessages(conversationId: string, resetAt: string | null) {
   const supabase = getAgentSupabase()
   let query = supabase
     .from("hom_agent_messages")
-    .select("role, content, created_at")
+    .select("role, content, created_at, agent, action")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
     .limit(40)
@@ -56,6 +105,8 @@ async function loadStoredMessages(conversationId: string, resetAt: string | null
     .map((row) => ({
       role: row.role as "user" | "assistant",
       content: asText(row.content),
+      agent: asText(row.agent),
+      action: asText(row.action),
     }))
 }
 
@@ -153,21 +204,20 @@ export async function appendTurn(input: {
     if (error) throw error
   }
 
+  const clearSticky =
+    input.action === "reset" ||
+    input.action === "end" ||
+    input.action === "shipping"
+
+  const session: Record<string, string> = {
+    conversation_id: conversationId,
+    last_agent: clearSticky ? "master" : input.agent,
+    updated_at: new Date().toISOString(),
+  }
   if (input.action === "reset") {
-    const { error } = await supabase.from("hom_agent_sessions").upsert({
-      conversation_id: conversationId,
-      reset_at: new Date().toISOString(),
-      last_agent: input.agent,
-      updated_at: new Date().toISOString(),
-    })
-    if (error) throw error
-    return
+    session.reset_at = new Date().toISOString()
   }
 
-  const { error } = await supabase.from("hom_agent_sessions").upsert({
-    conversation_id: conversationId,
-    last_agent: input.agent,
-    updated_at: new Date().toISOString(),
-  })
+  const { error } = await supabase.from("hom_agent_sessions").upsert(session)
   if (error) throw error
 }

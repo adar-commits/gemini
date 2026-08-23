@@ -1,11 +1,17 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { selectFaqKb } from "@/lib/agents/kb"
 import type { AgentId } from "@/lib/agents/types"
 
 const root = join(process.cwd(), "lib/agents")
+const fileCache = new Map<string, string>()
 
 function readAgentFile(relativePath: string) {
-  return readFileSync(join(root, relativePath), "utf8")
+  const cached = fileCache.get(relativePath)
+  if (cached) return cached
+  const text = readFileSync(join(root, relativePath), "utf8")
+  fileCache.set(relativePath, text)
+  return text
 }
 
 const OUTPUT_CONTRACT = `
@@ -20,15 +26,22 @@ Customer-facing replies for sales/faq/service must start with:
 then a single newline and the message.
 `
 
-export function getSystemPrompt(agent: AgentId) {
+const MASTER_OUTPUT_CONTRACT = `
+### MACHINE OUTPUT CONTRACT
+Return a JSON object with exactly:
+- action: one of ROUTE_TO_INFO_AGENT, ROUTE_TO_SALES_AGENT, ROUTE_TO_SERVICE_AGENT, ROUTE_TO_SHIPPING_STATUS
+Do not write customer-facing text.
+`
+
+export function getSystemPrompt(agent: AgentId, userText = "") {
   if (agent === "master") {
-    return `${readAgentFile("prompts/master.md")}\n${OUTPUT_CONTRACT}`
+    return `${readAgentFile("prompts/master.md")}\n${MASTER_OUTPUT_CONTRACT}`
   }
   if (agent === "sales") {
     return `${readAgentFile("prompts/sales.md")}\n${OUTPUT_CONTRACT}`
   }
   if (agent === "faq") {
-    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${readAgentFile("kb/faq.md")}\n${OUTPUT_CONTRACT}`
+    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText)}\n${OUTPUT_CONTRACT}`
   }
   return `${readAgentFile("prompts/service.md")}\n${OUTPUT_CONTRACT}`
 }

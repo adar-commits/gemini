@@ -45,7 +45,7 @@ export async function GET(
     expect: ["conversation_id", "body"],
     note:
       agent === "master"
-        ? "Landbot should POST here only. Master routes internally to faq, sales, or service and returns their reply."
+        ? "Landbot should POST here only. Follow-up messages stay on the last specialist; master runs only when the topic is unknown."
         : "Direct specialist endpoint for debugging. Production should POST /api/agents/master.",
   })
 }
