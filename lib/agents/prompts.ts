@@ -16,6 +16,8 @@ function readAgentFile(relativePath: string) {
 
 const OFF_TOPIC_RULE = `
 ### OFF-TOPIC / UNRELATED MESSAGES
+Never treat casual greetings or small-talk openers as off-topic (for example: שלום, היי, אהלן, מה נשמע, מה קורה, בוקר טוב). Use the Initial Welcome / greeting rule instead.
+
 If the message is clearly unrelated to HoM GROUP business (שטיחים, פופים, אביזרי בית, רכישה, מחיר, מלאי, משלוח, החזרה, ביטול, סניפים, שעות, תקנון, תלונה, הזמנה, מסמכים) — for example general trivia, history, politics, homework, jokes, or random chat that does not fit the current service context — reply with action=reply and EXACTLY this customer text (header included):
 
 *הום בוט :)*

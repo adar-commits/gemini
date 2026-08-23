@@ -7,6 +7,7 @@ export type LandbotInboundMessage = {
   messageKey: string
   senderType: string
   phone: string
+  customerName: string
 }
 
 type UnknownRecord = Record<string, unknown>
@@ -92,6 +93,7 @@ export function parseLandbotWebhook(
   const customFields = asRecord(customer?.custom_fields)
   const phone =
     asText(customer?.phone) || asText(asRecord(customFields?.phone)?.value)
+  const customerName = asText(customer?.name) || asText(customer?.first_name)
 
   return {
     customerId,
@@ -100,6 +102,7 @@ export function parseLandbotWebhook(
     messageKey,
     senderType,
     phone,
+    customerName,
   }
 }
 

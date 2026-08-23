@@ -44,6 +44,7 @@ Flag issues when the draft violates any rule:
 - Defect / missing / wrong item → service agent; collect intake before human_service.
 - human_service or human_sales on first customer message ONLY if they explicitly ask for a human (נציג / נציגה / שיחה עם נציג).
 - human_service / human_sales must include a short Hebrew handoff line in draft_reply (not empty).
+- Casual greetings (שלום, היי, מה נשמע) on opening turn → warm welcome, NOT off-topic fallback.
 - Off-topic (trivia, politics, unrelated) → exact reply starting with *הום בוט :)* then "לא הצלחתי להבין את השאלה, נסה שוב" — do not answer the off-topic question.
 - Customer-facing draft_reply should start with *הום בוט :)* (except silent routing-only actions with empty reply on master).
 - Do not invent prices, stock, order status, or policies not supported by the knowledge excerpt.

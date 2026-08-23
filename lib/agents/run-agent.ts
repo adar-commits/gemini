@@ -5,6 +5,12 @@ import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { guessMasterRoute, stickySpecialist } from "@/lib/agents/route-intent"
 import {
+  buildGreetingReply,
+  hasImmediateBusinessAsk,
+  isCasualGreeting,
+  isOpeningTurn,
+} from "@/lib/agents/greeting"
+import {
   ACTIONS_BY_AGENT,
   CUSTOMER_HEADER,
   MASTER_ACTIONS,
@@ -138,9 +144,31 @@ async function resolveSpecialist(
   specialist: AgentId,
   history: HistoryMessage[],
   persistUser: boolean,
-  route: AgentId[]
+  route: AgentId[],
+  options?: { customerName?: string }
 ): Promise<AgentResponse> {
   route.push(specialist)
+  const body = summarizeTurn(turn)
+  const userTurns = history.filter((message) => message.role === "user").length
+
+  if (
+    specialist === "faq" &&
+    isCasualGreeting(body) &&
+    !hasImmediateBusinessAsk(body) &&
+    isOpeningTurn(persistUser ? userTurns : userTurns + 1)
+  ) {
+    const reply = normalizeReply("faq", "reply", buildGreetingReply(options?.customerName))
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route }
+  }
+
   let result = await runAgent(specialist, conversationId, turn, {
     persistUser,
     history,
@@ -169,7 +197,8 @@ function shippingResult(route: AgentId[]): AgentResponse {
 
 export async function runMasterConversation(
   conversationId: string,
-  turn: UserTurn
+  turn: UserTurn,
+  options?: { customerName?: string }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
   const { history, lastAgent, lastAction } =
@@ -178,7 +207,15 @@ export async function runMasterConversation(
   const sticky = stickySpecialist(lastAgent, lastAction)
 
   if (sticky) {
-    return resolveSpecialist(conversationId, turn, sticky, history, true, route)
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      sticky,
+      history,
+      true,
+      route,
+      options
+    )
   }
 
   const guessed = guessMasterRoute(body)
@@ -211,6 +248,7 @@ export async function runMasterConversation(
     next,
     history,
     false,
-    route
+    route,
+    options
   )
 }

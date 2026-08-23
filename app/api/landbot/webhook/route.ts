@@ -88,7 +88,11 @@ export async function POST(request: Request) {
       inbound.customerId,
       inbound.conversationId,
       turn,
-      { replyEnabled, phone }
+      {
+        replyEnabled,
+        phone,
+        customerName: inbound.customerName,
+      }
     )
     return NextResponse.json(result)
   } catch (error) {

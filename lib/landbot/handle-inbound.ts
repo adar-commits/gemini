@@ -4,6 +4,7 @@ import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
   assignToApiAgent,
   assignToHuman,
+  getCustomer,
   sendCustomerText,
   unassignCustomer,
 } from "@/lib/landbot/client"
@@ -33,16 +34,24 @@ export async function handleLandbotInbound(
   customerId: number,
   conversationId: string,
   turn: UserTurn,
-  options?: { replyEnabled?: boolean; phone?: string }
+  options?: { replyEnabled?: boolean; phone?: string; customerName?: string }
 ): Promise<LandbotInboundResult> {
   const replyEnabled = options?.replyEnabled !== false
   const mode: InboundMode = replyEnabled ? "reply" : "shadow"
+
+  let customerName = options?.customerName?.trim() || ""
+  if (!customerName) {
+    const customer = await getCustomer(customerId).catch(() => null)
+    customerName = customer?.name?.trim() || ""
+  }
 
   if (replyEnabled) {
     await assignToApiAgent(customerId)
   }
 
-  const result = await runMasterConversation(conversationId, turn)
+  const result = await runMasterConversation(conversationId, turn, {
+    customerName: customerName || undefined,
+  })
   const draftReply = outboundReply(result)
 
   if (replyEnabled) {
