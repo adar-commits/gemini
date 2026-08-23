@@ -240,7 +240,7 @@ async function resolveSpecialist(
     !hasImmediateBusinessAsk(body) &&
     isOpeningTurn(persistUser ? userTurns : userTurns + 1)
   ) {
-    const reply = normalizeReply("faq", "reply", buildGreetingReply(options?.customerName))
+    const reply = buildGreetingReply(options?.customerName)
     await appendTurn({
       conversationId,
       agent: "faq",

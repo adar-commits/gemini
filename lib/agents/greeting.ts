@@ -24,16 +24,10 @@ export async function isCasualGreetingWithLearned(text: string) {
   return matchesLearnedGreeting(text)
 }
 
-function firstName(name: string | undefined) {
-  const part = name?.trim().split(/\s+/)[0]?.replace(/[^\p{L}'-]/gu, "")
-  return part || ""
-}
-
 /** Warm opening when the customer says hello before stating a need. */
-export function buildGreetingReply(customerName?: string) {
-  const name = firstName(customerName)
-  const nameBit = name ? ` ${name}` : ""
-  return `שלומי טוב, תודה רבה! איך אוכל לעזור לך היום${nameBit}? 🙂`
+export function buildGreetingReply(_customerName?: string) {
+  return `שלום! כאן הום בוט :)
+אצלי הכל מצוין, תודה! איך אוכל לעזור לך היום? 🙂`
 }
 
 export function isOpeningTurn(historyUserMessages: number) {
