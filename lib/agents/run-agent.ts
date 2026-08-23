@@ -11,6 +11,7 @@ import {
   isOpeningTurn,
 } from "@/lib/agents/greeting"
 import { guessLearnedRoute, learnedPromptRules, loadLearnedRules } from "@/lib/agents/learned-rules"
+import { buildBranchListReply, isBranchListQuestion } from "@/lib/agents/branches"
 import {
   ACTIONS_BY_AGENT,
   CUSTOMER_HEADER,
@@ -152,6 +153,22 @@ async function resolveSpecialist(
   route.push(specialist)
   const body = summarizeTurn(turn)
   const userTurns = history.filter((message) => message.role === "user").length
+
+  if (
+    specialist === "faq" &&
+    isBranchListQuestion(body)
+  ) {
+    const reply = normalizeReply("faq", "reply", buildBranchListReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route }
+  }
 
   if (
     specialist === "faq" &&

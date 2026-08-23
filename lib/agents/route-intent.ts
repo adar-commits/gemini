@@ -76,8 +76,9 @@ export function guessMasterRoute(body: string): MasterAction | null {
   }
 
   if (
+    has(text, /(?:איזה|מה\s+ה|רשימ(?:ת|ה)\s+)?(?:ה)?סניפ|סניפים\s+יש|לסניף|כתובות?\s+(?:ה)?סניפ/) ||
     has(text, /שעות\s+(פעילות|פתיחה)|מתי\s+פתוח/) ||
-    has(text, /מדיניות|איך\s+מחזיר|סניפ/) ||
+    has(text, /מדיניות|איך\s+מחזיר/) ||
     has(text, /אמצעי\s+תשלום|תשלומים|משלוח\s+חינם/)
   ) {
     return "ROUTE_TO_INFO_AGENT"

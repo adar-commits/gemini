@@ -63,6 +63,8 @@ const ALWAYS = new Set([
   "Policy URLs to include when relevant",
 ])
 
+const BRANCH_SECTION = "Branches — השטיח האדום / shared network"
+
 export function selectFaqKb(userText: string) {
   const { header, sections } = parseSections(rawKb())
   const wanted = new Set(ALWAYS)
@@ -71,6 +73,15 @@ export function selectFaqKb(userText: string) {
     if (topic.keys.test(userText)) {
       for (const title of topic.titles) wanted.add(title)
     }
+  }
+
+  if (/סניפ|לסניף|כתובת|branch/i.test(userText)) {
+    wanted.add(BRANCH_SECTION)
+    wanted.add("Store hours")
+  }
+
+  if (/החזר|החלפ|return|exchange/i.test(userText)) {
+    wanted.add(BRANCH_SECTION)
   }
 
   const matched = sections.filter((section) => wanted.has(section.title))
