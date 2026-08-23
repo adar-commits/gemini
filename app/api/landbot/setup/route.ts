@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
+import { allowlistPhones } from "@/lib/landbot/allowlist"
 import {
   createMessageHook,
   listChannels,
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       webhook_url: webhookUrl(),
+      allowlist: allowlistPhones() ?? "all",
       channels: channels.channels ?? [],
     })
   } catch (error) {

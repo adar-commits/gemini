@@ -34,6 +34,14 @@ async function landbotFetch<T>(path: string, init: RequestInit = {}): Promise<T>
   return payload as T
 }
 
+export async function getCustomer(customerId: number) {
+  const payload = await landbotFetch<{
+    success?: boolean
+    customer?: { id?: number; phone?: string; name?: string }
+  }>(`/customers/${customerId}/`)
+  return payload.customer ?? null
+}
+
 export async function listChannels() {
   return landbotFetch<{ success: boolean; channels?: Array<{ id: number; name?: string; type?: string }> }>(
     "/channels/"
