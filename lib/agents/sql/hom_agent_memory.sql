@@ -70,3 +70,22 @@ create index if not exists hom_agent_shadow_logs_phone_created_idx
 alter table public.hom_agent_shadow_logs enable row level security;
 
 revoke all on table public.hom_agent_shadow_logs from anon, authenticated, public;
+
+create table if not exists public.hom_agent_shadow_reviews (
+  id uuid primary key default gen_random_uuid(),
+  shadow_log_id uuid not null references public.hom_agent_shadow_logs(id) on delete cascade,
+  verdict text not null check (verdict in ('ok', 'issue')),
+  issue_types text[] not null default '{}',
+  reason text not null default '',
+  suggested_fix text not null default '',
+  model text,
+  reviewed_at timestamptz not null default now(),
+  unique (shadow_log_id)
+);
+
+create index if not exists hom_agent_shadow_reviews_verdict_reviewed_idx
+  on public.hom_agent_shadow_reviews (verdict, reviewed_at desc);
+
+alter table public.hom_agent_shadow_reviews enable row level security;
+
+revoke all on table public.hom_agent_shadow_reviews from anon, authenticated, public;

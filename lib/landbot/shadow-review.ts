@@ -1,0 +1,284 @@
+import { generateText, jsonSchema, Output } from "ai"
+import { getAgentSupabase } from "@/lib/agents/supabase"
+import { selectFaqKb } from "@/lib/agents/kb"
+
+export const SHADOW_ISSUE_TYPES = [
+  "route_wrong",
+  "handoff_early",
+  "empty_reply",
+  "kb_missing",
+  "tone",
+  "policy_risk",
+  "off_topic_leak",
+  "wrong_action",
+  "too_long",
+] as const
+
+export type ShadowIssueType = (typeof SHADOW_ISSUE_TYPES)[number]
+
+export type ShadowReviewVerdict = {
+  verdict: "ok" | "issue"
+  issue_types: ShadowIssueType[]
+  reason: string
+  suggested_fix: string
+}
+
+export type ShadowLogRow = {
+  id: string
+  conversation_id: string
+  customer_id: number | null
+  phone: string | null
+  user_text: string
+  agent: string
+  action: string | null
+  draft_reply: string
+  replied: boolean
+  created_at: string
+}
+
+const REVIEW_RULES = `
+You review HoM GROUP WhatsApp bot SHADOW drafts (what the bot would have sent; customer did NOT receive it).
+
+Flag issues when the draft violates any rule:
+- Dissatisfaction without defect ("לא מרוצה", "לא מתאים") → FAQ agent + exchange/return info, NOT service/human_service on first turn.
+- Defect / missing / wrong item → service agent; collect intake before human_service.
+- human_service or human_sales on first customer message ONLY if they explicitly ask for a human (נציג / נציגה / שיחה עם נציג).
+- human_service / human_sales must include a short Hebrew handoff line in draft_reply (not empty).
+- Off-topic (trivia, politics, unrelated) → exact reply starting with *הום בוט :)* then "לא הצלחתי להבין את השאלה, נסה שוב" — do not answer the off-topic question.
+- Customer-facing draft_reply should start with *הום בוט :)* (except silent routing-only actions with empty reply on master).
+- Do not invent prices, stock, order status, or policies not supported by the knowledge excerpt.
+- action=shipping is OK only for clear shipment-status questions; bot cannot look up orders yet — reply should set expectation or ask for order details, not invent tracking.
+- Hebrew, concise, professional tone for Israeli retail.
+
+verdict=ok when the draft is reasonable for the message and rules above.
+verdict=issue when any material problem exists.
+
+issue_types: use only from: ${SHADOW_ISSUE_TYPES.join(", ")} (empty array if ok).
+reason: one short sentence in Hebrew for the operator.
+suggested_fix: one short sentence — what to change (prompt / kb / route-intent / none).
+`.trim()
+
+function reviewModel() {
+  return (
+    process.env.SHADOW_REVIEW_MODEL?.trim() ||
+    process.env.AGENT_ROUTER_MODEL?.trim() ||
+    process.env.AGENT_MODEL?.trim() ||
+    "google/gemini-2.5-flash-lite"
+  )
+}
+
+function batchSize() {
+  const raw = Number(process.env.SHADOW_REVIEW_BATCH_SIZE ?? "25")
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 50) : 25
+}
+
+function reviewEnabled() {
+  const raw = process.env.SHADOW_REVIEW_ENABLED?.trim().toLowerCase()
+  return raw !== "0" && raw !== "false" && raw !== "off"
+}
+
+async function conversationTurnCount(conversationId: string) {
+  const supabase = getAgentSupabase()
+  const { count, error } = await supabase
+    .from("hom_agent_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversationId)
+    .eq("role", "user")
+
+  if (error) return 0
+  return count ?? 0
+}
+
+export async function reviewShadowLog(
+  log: ShadowLogRow,
+  turnNumber: number
+): Promise<ShadowReviewVerdict & { model: string }> {
+  const model = reviewModel()
+  const kbExcerpt = selectFaqKb(log.user_text).slice(0, 6000)
+
+  const result = await generateText({
+    model,
+    system: REVIEW_RULES,
+    messages: [
+      {
+        role: "user",
+        content: [
+          `Customer turn #${turnNumber} in conversation ${log.conversation_id}`,
+          `Phone: ${log.phone ?? "unknown"}`,
+          `User message:\n${log.user_text}`,
+          `Chosen agent: ${log.agent}`,
+          `Action: ${log.action ?? "(none)"}`,
+          `Draft reply:\n${log.draft_reply || "(empty)"}`,
+          `\nKnowledge excerpt:\n${kbExcerpt}`,
+        ].join("\n\n"),
+      },
+    ],
+    maxOutputTokens: 300,
+    output: Output.object({
+      name: "shadow_log_review",
+      schema: jsonSchema<ShadowReviewVerdict>({
+        type: "object",
+        additionalProperties: false,
+        required: ["verdict", "issue_types", "reason", "suggested_fix"],
+        properties: {
+          verdict: { type: "string", enum: ["ok", "issue"] },
+          issue_types: {
+            type: "array",
+            items: { type: "string", enum: [...SHADOW_ISSUE_TYPES] },
+          },
+          reason: { type: "string" },
+          suggested_fix: { type: "string" },
+        },
+      }),
+    }),
+  })
+
+  let verdict: ShadowReviewVerdict = {
+    verdict: "ok",
+    issue_types: [],
+    reason: "",
+    suggested_fix: "",
+  }
+  try {
+    verdict = result.output as ShadowReviewVerdict
+  } catch {
+    verdict = {
+      verdict: "issue",
+      issue_types: ["policy_risk"],
+      reason: "לא ניתן לפרסר את תוצאת הביקורת האוטומטית.",
+      suggested_fix: "none",
+    }
+  }
+
+  if (verdict.verdict === "ok") {
+    verdict.issue_types = []
+  } else if (!verdict.issue_types.length) {
+    verdict.issue_types = ["policy_risk"]
+  }
+
+  return { ...verdict, model }
+}
+
+async function fetchUnreviewedLogs(limit: number) {
+  const supabase = getAgentSupabase()
+  const { data: logs, error } = await supabase
+    .from("hom_agent_shadow_logs")
+    .select(
+      "id, conversation_id, customer_id, phone, user_text, agent, action, draft_reply, replied, created_at"
+    )
+    .order("created_at", { ascending: true })
+    .limit(limit * 3)
+
+  if (error) throw error
+  const rows = (logs ?? []) as ShadowLogRow[]
+  if (!rows.length) return []
+
+  const ids = rows.map((row) => row.id)
+  const { data: reviewed, error: reviewedError } = await supabase
+    .from("hom_agent_shadow_reviews")
+    .select("shadow_log_id")
+    .in("shadow_log_id", ids)
+
+  if (reviewedError) throw reviewedError
+  const done = new Set((reviewed ?? []).map((row) => row.shadow_log_id))
+  return rows.filter((row) => !done.has(row.id)).slice(0, limit)
+}
+
+export async function runShadowReviewBatch() {
+  if (!reviewEnabled()) {
+    return { ok: true, skipped: "disabled", reviewed: 0, issues: 0 }
+  }
+
+  const logs = await fetchUnreviewedLogs(batchSize())
+  if (!logs.length) {
+    return { ok: true, reviewed: 0, issues: 0, pending: 0 }
+  }
+
+  const supabase = getAgentSupabase()
+  let reviewed = 0
+  let issues = 0
+  const issueIds: string[] = []
+
+  for (const log of logs) {
+    const turnNumber = (await conversationTurnCount(log.conversation_id)) || 1
+    const review = await reviewShadowLog(log, turnNumber)
+
+    const { error } = await supabase.from("hom_agent_shadow_reviews").insert({
+      shadow_log_id: log.id,
+      verdict: review.verdict,
+      issue_types: review.issue_types,
+      reason: review.reason.slice(0, 500),
+      suggested_fix: review.suggested_fix.slice(0, 500),
+      model: review.model,
+    })
+
+    if (error) {
+      if (error.code === "23505") continue
+      throw error
+    }
+
+    reviewed += 1
+    if (review.verdict === "issue") {
+      issues += 1
+      issueIds.push(log.id)
+    }
+  }
+
+  return { ok: true, reviewed, issues, issue_ids: issueIds }
+}
+
+export async function listRecentShadowIssues(limit = 20) {
+  const supabase = getAgentSupabase()
+  const { data: reviews, error } = await supabase
+    .from("hom_agent_shadow_reviews")
+    .select("id, shadow_log_id, verdict, issue_types, reason, suggested_fix, reviewed_at, model")
+    .eq("verdict", "issue")
+    .order("reviewed_at", { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  if (!reviews?.length) return []
+
+  const logIds = reviews.map((row) => row.shadow_log_id)
+  const { data: logs, error: logsError } = await supabase
+    .from("hom_agent_shadow_logs")
+    .select("id, user_text, agent, action, draft_reply, phone, created_at")
+    .in("id", logIds)
+
+  if (logsError) throw logsError
+  const byId = new Map((logs ?? []).map((log) => [log.id, log]))
+
+  return reviews.map((review) => ({
+    ...review,
+    log: byId.get(review.shadow_log_id) ?? null,
+  }))
+}
+
+export async function shadowReviewStats() {
+  const supabase = getAgentSupabase()
+  const [{ count: pending }, { count: issues }, { count: reviewed }] =
+    await Promise.all([
+      supabase
+        .from("hom_agent_shadow_logs")
+        .select("id", { count: "exact", head: true }),
+      supabase
+        .from("hom_agent_shadow_reviews")
+        .select("id", { count: "exact", head: true })
+        .eq("verdict", "issue"),
+      supabase
+        .from("hom_agent_shadow_reviews")
+        .select("id", { count: "exact", head: true }),
+    ])
+
+  const totalLogs = pending ?? 0
+  const totalReviewed = reviewed ?? 0
+  return {
+    shadow_logs: totalLogs,
+    reviewed: totalReviewed,
+    pending: Math.max(totalLogs - totalReviewed, 0),
+    flagged_issues: issues ?? 0,
+    enabled: reviewEnabled(),
+    batch_size: batchSize(),
+    model: reviewModel(),
+  }
+}
