@@ -3,6 +3,7 @@ import { isFaqTopicSwitch, isSalesQuizAffirmation } from "@/lib/agents/topic-swi
 
 export type SalesIntake = {
   product?: string
+  requestedModel?: string
   targetSpace?: string
   household?: string
   childrenAge?: string
@@ -21,7 +22,14 @@ const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|למי הסלון משמש|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|למי הסלון משמש|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאן השטיח מיועד|אצטרך לבדוק אם יש/i
+
+const UNVERIFIED_PRODUCT_OPENER =
+  "אני מבין, אצטרך לבדוק אם יש לי את שטיח שיכול לענות למה שאהבת בו - נתחיל מהשאלה הקלה, לאן השטיח מיועד?"
+
+/** Named model/collection in a purchase message (not verified against any catalog). */
+const REQUESTED_MODEL_RE =
+  /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9\s\-]{1,35}?)(?:\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|$|[,.!?])/i
 
 const PRODUCT_Q =
   "באיזה מוצר מדובר – שטיח, פוף, תמונה, כרית או מוצר אחר?"
@@ -55,7 +63,25 @@ function lastAssistantText(history: HistoryMessage[]) {
   return ""
 }
 
+export function extractRequestedModel(text: string): string | null {
+  const match = text.trim().match(REQUESTED_MODEL_RE)
+  if (!match) return null
+  const name = match[1].trim().replace(/\s+/g, " ")
+  if (/^(סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(name)) {
+    return null
+  }
+  return name
+}
+
+export function hasUnverifiedProductRequest(text: string) {
+  if (/carpetshop\.co\.il\/products|pozitiveshop\.co\.il\/products/i.test(text)) {
+    return false
+  }
+  return extractRequestedModel(text) != null
+}
+
 export function isSpecificProductQuery(text: string) {
+  if (hasUnverifiedProductRequest(text)) return false
   return SPECIFIC_PRODUCT_RE.test(text.trim())
 }
 
@@ -73,6 +99,7 @@ export function shouldUseSalesIntakeFastPath(
   lastAgent: AgentId | null
 ) {
   if (isFaqTopicSwitch(body)) return false
+  if (hasUnverifiedProductRequest(body)) return true
   if (isSpecificProductQuery(body)) return false
   if (isSalesConsultationTrigger(body)) return true
   if (lastAgent === "sales" && hasOngoingSalesIntake(history)) {
@@ -89,6 +116,12 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   else if (/פוף/.test(text)) intake.product = "פוף"
   else if (/כרית/.test(text)) intake.product = "כרית"
   else if (/תמונה/.test(text)) intake.product = "תמונה"
+
+  const requestedModel =
+    extractRequestedModel(body) ||
+    extractRequestedModel(text) ||
+    undefined
+  if (requestedModel) intake.requestedModel = requestedModel
 
   if (/סלון/.test(text)) intake.targetSpace = "סלון"
   else if (/חדר שינה/.test(text)) intake.targetSpace = "חדר שינה"
@@ -163,9 +196,12 @@ function isPriceFirstFlow(text: string) {
   return /תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש\s+ב/.test(text)
 }
 
-function introForFlow(text: string, history: HistoryMessage[]) {
+function introForFlow(text: string, history: HistoryMessage[], intake: SalesIntake) {
   const started = hasOngoingSalesIntake(history)
   if (started) return ""
+  if (intake.requestedModel || hasUnverifiedProductRequest(text)) {
+    return UNVERIFIED_PRODUCT_OPENER
+  }
   if (isPriceFirstFlow(text)) {
     return "לפני שנגיע למחיר, אשמח לשאול כמה שאלות קצרות של התאמת שטיח."
   }
@@ -193,6 +229,10 @@ export function buildConfirmationSummary(intake: SalesIntake) {
 
   if (intake.product && intake.targetSpace) {
     parts.push(`אנחנו מחפשים ${intake.product} ל${intake.targetSpace}`)
+  }
+
+  if (intake.requestedModel) {
+    parts.push(`עם עניין בדגם/רעיון "${intake.requestedModel}" (לבדיקה ע"י יועץ)`)
   }
 
   if (intake.style) {
@@ -234,7 +274,12 @@ export function isConfirmationPending(history: HistoryMessage[]) {
 
 export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const intake = extractSalesIntake(history, body)
-  const intro = introForFlow(body, history)
+  const intro = introForFlow(body, history, intake)
+
+  if (intro === UNVERIFIED_PRODUCT_OPENER) {
+    return intro
+  }
+
   const next = nextIntakeQuestion(intake)
 
   if (!next) {
