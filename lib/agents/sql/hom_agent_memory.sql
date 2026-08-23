@@ -24,3 +24,16 @@ alter table public.hom_agent_sessions enable row level security;
 
 revoke all on table public.hom_agent_messages from anon, authenticated, public;
 revoke all on table public.hom_agent_sessions from anon, authenticated, public;
+
+create table if not exists public.hom_agent_inbound (
+  message_key text primary key,
+  conversation_id text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists hom_agent_inbound_created_idx
+  on public.hom_agent_inbound (created_at desc);
+
+alter table public.hom_agent_inbound enable row level security;
+
+revoke all on table public.hom_agent_inbound from anon, authenticated, public;
