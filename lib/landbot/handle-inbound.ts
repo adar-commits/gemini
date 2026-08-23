@@ -7,12 +7,7 @@ import {
   unassignCustomer,
 } from "@/lib/landbot/client"
 import type { AgentResponse } from "@/lib/agents/types"
-
-function humanAgentId() {
-  const raw = process.env.LANDBOT_HUMAN_AGENT_ID?.trim()
-  const id = raw ? Number(raw) : NaN
-  return Number.isFinite(id) ? id : null
-}
+import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 
 function outboundReply(result: AgentResponse) {
   if (result.reply) return result.reply
@@ -39,7 +34,7 @@ export async function handleLandbotInbound(
   }
 
   if (result.action === "human_sales" || result.action === "human_service") {
-    const human = humanAgentId()
+    const human = pickHumanAgentId(result.action, customerId)
     if (human) await assignToHuman(customerId, human)
     else await unassignCustomer(customerId)
   }
