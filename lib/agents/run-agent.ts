@@ -154,10 +154,7 @@ async function resolveSpecialist(
   const body = summarizeTurn(turn)
   const userTurns = history.filter((message) => message.role === "user").length
 
-  if (
-    specialist === "faq" &&
-    isBranchListQuestion(body)
-  ) {
+  if (isBranchListQuestion(body)) {
     const reply = normalizeReply("faq", "reply", buildBranchListReply())
     await appendTurn({
       conversationId,
