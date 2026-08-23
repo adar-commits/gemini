@@ -75,11 +75,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const enqueuedAt = await enqueueCustomerTurn(
-      inbound.conversationId,
-      inbound.turn
-    )
-    void enqueuedAt
+    await enqueueCustomerTurn(inbound.conversationId, inbound.turn)
     const turn = await waitAndTakeBufferedTurn(inbound.conversationId)
     if (!turn) {
       return NextResponse.json({ ok: true, skipped: "debouncing" })
