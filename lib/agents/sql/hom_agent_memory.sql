@@ -47,3 +47,26 @@ create table if not exists public.hom_agent_message_buffer (
 alter table public.hom_agent_message_buffer enable row level security;
 
 revoke all on table public.hom_agent_message_buffer from anon, authenticated, public;
+
+create table if not exists public.hom_agent_shadow_logs (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id text not null,
+  customer_id bigint,
+  phone text,
+  user_text text not null default '',
+  agent text not null,
+  action text,
+  draft_reply text not null default '',
+  replied boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists hom_agent_shadow_logs_created_idx
+  on public.hom_agent_shadow_logs (created_at desc);
+
+create index if not exists hom_agent_shadow_logs_phone_created_idx
+  on public.hom_agent_shadow_logs (phone, created_at desc);
+
+alter table public.hom_agent_shadow_logs enable row level security;
+
+revoke all on table public.hom_agent_shadow_logs from anon, authenticated, public;

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server"
-import { isPhoneAllowed } from "@/lib/landbot/allowlist"
+import {
+  landbotPhonePolicy,
+  shouldProcessPhone,
+  shouldReplyPhone,
+} from "@/lib/landbot/allowlist"
 import { getCustomer } from "@/lib/landbot/client"
 import { handleLandbotInbound } from "@/lib/landbot/handle-inbound"
 import { claimInbound, releaseInbound } from "@/lib/landbot/inbound"
@@ -27,7 +31,8 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     method: "POST",
-    note: "Landbot message hook. Allowlisted phones only. Bursts are merged after ~3s silence.",
+    note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after ~3s silence.",
+    policy: landbotPhonePolicy(),
   })
 }
 
@@ -53,13 +58,15 @@ export async function POST(request: Request) {
     const customer = await getCustomer(inbound.customerId).catch(() => null)
     phone = customer?.phone?.trim() || ""
   }
-  if (!isPhoneAllowed(phone)) {
+  if (!shouldProcessPhone(phone)) {
     return NextResponse.json({
       ok: true,
-      skipped: "not_allowlisted",
+      skipped: "not_processed",
       phone: phone || null,
     })
   }
+
+  const replyEnabled = shouldReplyPhone(phone)
 
   const claimed = await claimInbound(inbound.messageKey, inbound.conversationId)
   if (!claimed) {
@@ -79,7 +86,8 @@ export async function POST(request: Request) {
     const result = await handleLandbotInbound(
       inbound.customerId,
       inbound.conversationId,
-      turn
+      turn,
+      { replyEnabled, phone }
     )
     return NextResponse.json(result)
   } catch (error) {

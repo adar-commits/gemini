@@ -24,26 +24,73 @@ function variants(phone: string) {
   return set
 }
 
-export function allowlistPhones() {
-  const raw = process.env.LANDBOT_ALLOWLIST_PHONES?.trim()
-  if (raw === "*" || raw?.toLowerCase() === "all") return null
-  const listed = (raw || DEFAULT_TEST_PHONE)
-    .split(/[,\s]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-  return listed
+type PhoneList = string[] | "all"
+
+function parsePhoneEnv(...keys: string[]): PhoneList | undefined {
+  for (const key of keys) {
+    const raw = process.env[key]?.trim()
+    if (!raw) continue
+    if (raw === "*" || raw.toLowerCase() === "all") return "all"
+    const list = raw
+      .split(/[,\s]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+    if (list.length) return list
+  }
+  return undefined
 }
 
-export function isPhoneAllowed(phone: string | null | undefined) {
-  const allowed = allowlistPhones()
-  if (allowed === null) return true
+function displayList(list: PhoneList | undefined) {
+  if (list === "all") return "all"
+  if (!list) return [DEFAULT_TEST_PHONE]
+  return list
+}
+
+function matchesPhone(phone: string | null | undefined, list: PhoneList) {
   if (!phone?.trim()) return false
+  if (list === "all") return true
   const incoming = variants(phone)
-  return allowed.some((item) => {
+  return list.some((item) => {
     const listed = variants(item)
     for (const value of incoming) {
       if (listed.has(value)) return true
     }
     return false
   })
+}
+
+/** Phones we run the agent for (shadow + reply). */
+export function shouldProcessPhone(phone: string | null | undefined) {
+  const process = parsePhoneEnv("LANDBOT_PROCESS_PHONES")
+  if (process) return matchesPhone(phone, process)
+  return shouldReplyPhone(phone)
+}
+
+/** Phones that receive WhatsApp replies and Landbot assignments. */
+export function shouldReplyPhone(phone: string | null | undefined) {
+  const reply = parsePhoneEnv("LANDBOT_REPLY_PHONES", "LANDBOT_ALLOWLIST_PHONES")
+  if (reply === "all") return true
+  if (!reply) return matchesPhone(phone, [DEFAULT_TEST_PHONE])
+  return matchesPhone(phone, reply)
+}
+
+/** @deprecated Use shouldProcessPhone or landbotPhonePolicy(). */
+export function allowlistPhones() {
+  const reply = parsePhoneEnv("LANDBOT_REPLY_PHONES", "LANDBOT_ALLOWLIST_PHONES")
+  if (reply === "all") return null
+  return displayList(reply)
+}
+
+/** @deprecated Use shouldProcessPhone(). */
+export function isPhoneAllowed(phone: string | null | undefined) {
+  return shouldProcessPhone(phone)
+}
+
+export function landbotPhonePolicy() {
+  const process = parsePhoneEnv("LANDBOT_PROCESS_PHONES")
+  const reply = parsePhoneEnv("LANDBOT_REPLY_PHONES", "LANDBOT_ALLOWLIST_PHONES")
+  return {
+    process: displayList(process ?? reply),
+    reply: displayList(reply),
+  }
 }
