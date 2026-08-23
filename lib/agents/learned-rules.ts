@@ -126,7 +126,7 @@ export function isSafeLearnedPattern(pattern: string) {
 }
 
 export async function insertLearnedRule(input: {
-  shadowReviewId: string
+  shadowReviewId?: string | null
   ruleKind: LearnedRuleKind
   agent?: string | null
   pattern?: string | null
@@ -142,7 +142,7 @@ export async function insertLearnedRule(input: {
   const { data, error } = await supabase
     .from("hom_agent_learned_rules")
     .insert({
-      shadow_review_id: input.shadowReviewId,
+      shadow_review_id: input.shadowReviewId ?? null,
       rule_kind: input.ruleKind,
       agent: input.agent ?? "all",
       pattern: input.pattern ?? null,

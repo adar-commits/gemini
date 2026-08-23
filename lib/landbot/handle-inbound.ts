@@ -15,6 +15,14 @@ import {
   isTrainerResetCommand,
   resetTrainerConversation,
 } from "@/lib/landbot/trainer-reset"
+import {
+  isTrainerCorrectionCommand,
+} from "@/lib/landbot/training-guards"
+import {
+  processTrainerCorrection,
+  TRAINER_CORRECTION_ACK,
+  TRAINER_CORRECTION_DONE,
+} from "@/lib/landbot/trainer-correction"
 import { isTrainerPhone } from "@/lib/landbot/trainer"
 import type { AgentResponse } from "@/lib/agents/types"
 
@@ -56,6 +64,34 @@ export async function handleLandbotInbound(
   }
 
   const body = summarizeTurn(turn)
+  if (isTrainerPhone(options?.phone) && isTrainerCorrectionCommand(body)) {
+    if (replyEnabled) {
+      await sendCustomerText(customerId, TRAINER_CORRECTION_ACK)
+    }
+
+    const correction = await processTrainerCorrection({
+      conversationId,
+      correctionText: body,
+      customerName: customerName || undefined,
+    })
+
+    if (replyEnabled) {
+      await sendCustomerText(customerId, TRAINER_CORRECTION_DONE)
+      if (correction.sendFixed && correction.fixedReply) {
+        await sendCustomerText(customerId, correction.fixedReply)
+      }
+    }
+
+    return {
+      ok: true,
+      agent: "master",
+      reply: TRAINER_CORRECTION_DONE,
+      action: "reply",
+      mode,
+      draft_reply: correction.fixedReply,
+    }
+  }
+
   if (
     isTrainerPhone(options?.phone) &&
     isTrainerResetCommand(body)
