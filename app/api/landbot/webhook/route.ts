@@ -38,6 +38,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!isHookAuthorized(request)) {
+    console.error("landbot webhook unauthorized")
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
   }
 

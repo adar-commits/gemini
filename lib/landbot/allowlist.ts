@@ -47,8 +47,8 @@ function displayList(list: PhoneList | undefined) {
 }
 
 function matchesPhone(phone: string | null | undefined, list: PhoneList) {
-  if (!phone?.trim()) return false
   if (list === "all") return true
+  if (!phone?.trim()) return false
   const incoming = variants(phone)
   return list.some((item) => {
     const listed = variants(item)

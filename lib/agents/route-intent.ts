@@ -69,6 +69,13 @@ export function guessMasterRoute(body: string): MasterAction | null {
   }
 
   if (
+    has(text, /^(שלום|היי|הי|אהלן|מה\s+נשמע|מה\s+קורה|בוקר\s+טוב|ערב\s+טוב)/) ||
+    has(text, /^(שלום|היי|אהלן)[\s,!?.]*$/i)
+  ) {
+    return "ROUTE_TO_INFO_AGENT"
+  }
+
+  if (
     has(text, /שעות\s+(פעילות|פתיחה)|מתי\s+פתוח/) ||
     has(text, /מדיניות|איך\s+מחזיר|סניפ/) ||
     has(text, /אמצעי\s+תשלום|תשלומים|משלוח\s+חינם/)
