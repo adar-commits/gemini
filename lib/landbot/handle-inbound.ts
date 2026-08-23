@@ -10,6 +10,12 @@ import {
 } from "@/lib/landbot/client"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
+import {
+  buildTrainerResetReply,
+  isTrainerResetCommand,
+  resetTrainerConversation,
+} from "@/lib/landbot/trainer-reset"
+import { isTrainerPhone } from "@/lib/landbot/trainer"
 import type { AgentResponse } from "@/lib/agents/types"
 
 export type InboundMode = "reply" | "shadow"
@@ -47,6 +53,26 @@ export async function handleLandbotInbound(
 
   if (replyEnabled) {
     await assignToApiAgent(customerId)
+  }
+
+  const body = summarizeTurn(turn)
+  if (
+    isTrainerPhone(options?.phone) &&
+    isTrainerResetCommand(body)
+  ) {
+    await resetTrainerConversation(conversationId)
+    const reply = buildTrainerResetReply()
+    if (replyEnabled) {
+      await sendCustomerText(customerId, reply)
+    }
+    return {
+      ok: true,
+      agent: "master",
+      reply,
+      action: "reset",
+      mode,
+      draft_reply: reply,
+    }
   }
 
   const result = await runMasterConversation(conversationId, turn, {
