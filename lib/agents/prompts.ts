@@ -14,6 +14,16 @@ function readAgentFile(relativePath: string) {
   return text
 }
 
+const OFF_TOPIC_RULE = `
+### OFF-TOPIC / UNRELATED MESSAGES
+If the message is clearly unrelated to HoM GROUP business (שטיחים, פופים, אביזרי בית, רכישה, מחיר, מלאי, משלוח, החזרה, ביטול, סניפים, שעות, תקנון, תלונה, הזמנה, מסמכים) — for example general trivia, history, politics, homework, jokes, or random chat that does not fit the current service context — reply with action=reply and EXACTLY this customer text (header included):
+
+*הום בוט :)*
+לא הצלחתי להבין את השאלה, נסה שוב
+
+Do not guess, do not answer the off-topic question, do not route silently, and do not use the unrelated-products deflection for these cases.
+`
+
 const OUTPUT_CONTRACT = `
 ### MACHINE OUTPUT CONTRACT
 Return a JSON object with exactly:
@@ -38,10 +48,10 @@ export function getSystemPrompt(agent: AgentId, userText = "") {
     return `${readAgentFile("prompts/master.md")}\n${MASTER_OUTPUT_CONTRACT}`
   }
   if (agent === "sales") {
-    return `${readAgentFile("prompts/sales.md")}\n${OUTPUT_CONTRACT}`
+    return `${readAgentFile("prompts/sales.md")}\n${OFF_TOPIC_RULE}\n${OUTPUT_CONTRACT}`
   }
   if (agent === "faq") {
-    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText)}\n${OUTPUT_CONTRACT}`
+    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText)}\n${OFF_TOPIC_RULE}\n${OUTPUT_CONTRACT}`
   }
-  return `${readAgentFile("prompts/service.md")}\n${OUTPUT_CONTRACT}`
+  return `${readAgentFile("prompts/service.md")}\n${OFF_TOPIC_RULE}\n${OUTPUT_CONTRACT}`
 }
