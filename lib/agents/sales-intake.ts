@@ -23,21 +23,21 @@ const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|למי הסלון משמש|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאן השטיח מיועד|אצטרך לבדוק אם יש/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאיזה חלל|לאן השטיח מיועד|אצטרך לבדוק אם יש/i
 
 const UNVERIFIED_PRODUCT_OPENER =
-  "אני מבין, אצטרך לבדוק אם יש לי את שטיח שיכול לענות למה שאהבת בו - נתחיל מהשאלה הקלה, לאן השטיח מיועד?"
+  "אני מבין, אצטרך לבדוק אם יש לי את שטיח שיכול לענות למה שאהבת בו - נתחיל מהשאלה הקלה, לאיזה חלל מיועד השטיח? – סלון, חדר שינה, חדר ילדים, מסדרון או חלל אחר?"
 
 /** Named model/collection in a purchase message (not verified against any catalog). */
 const REQUESTED_MODEL_RE =
   /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9 \-]{1,30}?)(?=\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|[\n,.!?]|$)/i
 
 const PRODUCT_Q =
-  "באיזה מוצר מדובר – שטיח, פוף, תמונה, כרית או מוצר אחר?"
-const SPACE_Q =
-  "לאיזה חלל השטיח מיועד – סלון, חדר שינה, חדר ילדים, מסדרון או חלל אחר?"
-const HOUSEHOLD_Q =
-  "למי הסלון משמש ביום־יום – לזוג, למשפחה עם ילדים, לאדם מבוגר או להרכב אחר?"
+  "באיזה מוצר מדובר – שטיח, פוף, תמונת קיר, אביזר לעיצוב הבית או מוצר אחר?"
+const SPACE_Q_RUG =
+  "לאיזה חלל מיועד השטיח? – סלון, חדר שינה, חדר ילדים, מסדרון או חלל אחר?"
+const SPACE_Q_OTHER =
+  "לאיזה חלל מיועד המוצר? – סלון, חדר שינה, חדר ילדים, מסדרון או חלל אחר?"
 const CHILDREN_Q = "מדובר בילדים קטנים, ילדים גדולים או גם וגם?"
 const PETS_Q = "יש בעלי חיים שנכנסים לחלל?"
 const STYLE_Q =
@@ -120,9 +120,10 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   const intake: SalesIntake = {}
 
   if (/שטיח/.test(text)) intake.product = "שטיח"
-  else if (/פוף/.test(text)) intake.product = "פוף"
+  else if (/פוף|bean\s*bag/i.test(text)) intake.product = "פוף"
+  else if (/תמונ(?:ה|ת)|wall[\s-]?art/i.test(text)) intake.product = "תמונת קיר"
+  else if (/אביזר|accessories?/i.test(text)) intake.product = "אביזר לעיצוב"
   else if (/כרית/.test(text)) intake.product = "כרית"
-  else if (/תמונה/.test(text)) intake.product = "תמונה"
 
   const requestedModel =
     extractRequestedModel(body) ||
@@ -185,14 +186,18 @@ function needsPracticalNeeds(intake: SalesIntake) {
   )
 }
 
+function spaceQuestion(intake: SalesIntake) {
+  if (intake.product === "שטיח" || !intake.product) return SPACE_Q_RUG
+  return SPACE_Q_OTHER
+}
+
 function nextIntakeQuestion(intake: SalesIntake): string | null {
   if (!intake.product) return PRODUCT_Q
-  if (!intake.targetSpace) return SPACE_Q
-  if (intake.targetSpace === "סלון" && !intake.household) return HOUSEHOLD_Q
+  if (!intake.targetSpace) return spaceQuestion(intake)
   if (intake.household?.includes("ילד") && !intake.childrenAge) return CHILDREN_Q
-  if (intake.pets == null) return PETS_Q
+  if (intake.pets == null && intake.product === "שטיח") return PETS_Q
   if (!intake.style) return STYLE_Q
-  if (intake.targetSpace === "סלון" && !intake.rugSize && !intake.sofaSize) {
+  if (intake.targetSpace === "סלון" && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
     return SOFA_SIZE_Q
   }
   if (!intake.budget) return BUDGET_Q
