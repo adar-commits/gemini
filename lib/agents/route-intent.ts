@@ -62,7 +62,7 @@ export function guessMasterRoute(body: string): MasterAction | null {
 
   if (
     has(text, /רוצה\s+לקנות|במלאי|כמה\s+עולה|מחיר\s+של/) ||
-    has(text, /הנחה|מבצע|ייעוץ\s+עיצוב|עוזר\s+לבחור/) ||
+    has(text, /תקציב|עד\s+[\d,]+|טווח\s+מחיר|מחפש(?:ים|ת|ים)?\s+שטיח/) ||
     has(text, /שטיח\s+ל(סלון|חדר|מטבח|כניסה|מרפסת)/)
   ) {
     return "ROUTE_TO_SALES_AGENT"
