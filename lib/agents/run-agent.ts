@@ -13,6 +13,12 @@ import {
 import { guessLearnedRoute, learnedPromptRules, loadLearnedRules } from "@/lib/agents/learned-rules"
 import { buildBranchListReply, isBranchListQuestion } from "@/lib/agents/branches"
 import {
+  buildPostConfirmationReply,
+  buildSalesIntakeReply,
+  isConfirmationPending,
+  shouldUseSalesIntakeFastPath,
+} from "@/lib/agents/sales-intake"
+import {
   ACTIONS_BY_AGENT,
   CUSTOMER_HEADER,
   MASTER_ACTIONS,
@@ -148,7 +154,7 @@ async function resolveSpecialist(
   history: HistoryMessage[],
   persistUser: boolean,
   route: AgentId[],
-  options?: { customerName?: string }
+  options?: { customerName?: string; lastAgent?: AgentId | null }
 ): Promise<AgentResponse> {
   route.push(specialist)
   const body = summarizeTurn(turn)
@@ -165,6 +171,28 @@ async function resolveSpecialist(
       persistUser,
     })
     return { ok: true, agent: "faq", reply, action: "reply", route }
+  }
+
+  if (
+    specialist === "sales" &&
+    shouldUseSalesIntakeFastPath(body, history, options?.lastAgent ?? null)
+  ) {
+    const reply = normalizeReply(
+      "sales",
+      "reply",
+      isConfirmationPending(history)
+        ? buildPostConfirmationReply(body, history)
+        : buildSalesIntakeReply(history, body)
+    )
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route }
   }
 
   if (
@@ -231,7 +259,7 @@ export async function runMasterConversation(
       history,
       true,
       route,
-      options
+      { ...options, lastAgent }
     )
   }
 
@@ -267,6 +295,6 @@ export async function runMasterConversation(
     history,
     false,
     route,
-    options
+    { ...options, lastAgent }
   )
 }
