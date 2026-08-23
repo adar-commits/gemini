@@ -102,8 +102,10 @@ export async function appendTurn(input: {
   userText: string
   assistantText: string
   action: string
+  persistUser?: boolean
 }) {
   const conversationId = safeId(input.conversationId)
+  const persistUser = input.persistUser !== false
   const supabase = getAgentSupabase()
   const rows: Array<{
     conversation_id: string
@@ -111,15 +113,17 @@ export async function appendTurn(input: {
     content: string
     agent: AgentId
     action: string | null
-  }> = [
-    {
-      conversation_id: conversationId,
-      role: "user",
-      content: input.userText,
-      agent: input.agent,
-      action: null,
-    },
-  ]
+  }> = persistUser
+    ? [
+        {
+          conversation_id: conversationId,
+          role: "user",
+          content: input.userText,
+          agent: input.agent,
+          action: null,
+        },
+      ]
+    : []
 
   if (input.assistantText || input.action !== "reply") {
     rows.push({

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
-import { runAgent } from "@/lib/agents/run-agent"
+import { runAgent, runMasterConversation } from "@/lib/agents/run-agent"
 import { AGENT_IDS, type AgentId } from "@/lib/agents/types"
 
 export const maxDuration = 60
@@ -43,6 +43,10 @@ export async function GET(
     agent,
     method: "POST",
     expect: ["conversation_id", "body"],
+    note:
+      agent === "master"
+        ? "Landbot should POST here only. Master routes internally to faq, sales, or service and returns their reply."
+        : "Direct specialist endpoint for debugging. Production should POST /api/agents/master.",
   })
 }
 
@@ -78,7 +82,10 @@ export async function POST(
   }
 
   try {
-    const result = await runAgent(agent, conversationId, body)
+    const result =
+      agent === "master"
+        ? await runMasterConversation(conversationId, body)
+        : await runAgent(agent, conversationId, body)
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Agent failed"

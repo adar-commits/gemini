@@ -85,4 +85,19 @@ export type AgentResponse = {
   agent: AgentId
   reply: string
   action: AgentAction
+  route?: AgentId[]
+}
+
+export const MASTER_ROUTE_MAP: Record<MasterAction, AgentId | "shipping"> = {
+  ROUTE_TO_INFO_AGENT: "faq",
+  ROUTE_TO_SALES_AGENT: "sales",
+  ROUTE_TO_SERVICE_AGENT: "service",
+  ROUTE_TO_SHIPPING_STATUS: "shipping",
+}
+
+export const SPECIALIST_IDS = ["faq", "sales", "service"] as const
+export type SpecialistId = (typeof SPECIALIST_IDS)[number]
+
+export function isSpecialistId(value: string): value is SpecialistId {
+  return (SPECIALIST_IDS as readonly string[]).includes(value)
 }
