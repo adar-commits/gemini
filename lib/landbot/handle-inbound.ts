@@ -1,4 +1,5 @@
 import { runMasterConversation } from "@/lib/agents/run-agent"
+import type { UserTurn } from "@/lib/agents/user-turn"
 import {
   assignToApiAgent,
   assignToHuman,
@@ -16,10 +17,10 @@ function humanAgentId() {
 export async function handleLandbotInbound(
   customerId: number,
   conversationId: string,
-  body: string
+  turn: UserTurn
 ): Promise<AgentResponse> {
   await assignToApiAgent(customerId)
-  const result = await runMasterConversation(conversationId, body)
+  const result = await runMasterConversation(conversationId, turn)
 
   if (result.reply) {
     await sendCustomerText(customerId, result.reply)

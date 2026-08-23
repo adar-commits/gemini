@@ -37,3 +37,13 @@ create index if not exists hom_agent_inbound_created_idx
 alter table public.hom_agent_inbound enable row level security;
 
 revoke all on table public.hom_agent_inbound from anon, authenticated, public;
+
+create table if not exists public.hom_agent_message_buffer (
+  conversation_id text primary key,
+  parts jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.hom_agent_message_buffer enable row level security;
+
+revoke all on table public.hom_agent_message_buffer from anon, authenticated, public;

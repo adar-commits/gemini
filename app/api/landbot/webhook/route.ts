@@ -3,6 +3,10 @@ import { isPhoneAllowed } from "@/lib/landbot/allowlist"
 import { getCustomer } from "@/lib/landbot/client"
 import { handleLandbotInbound } from "@/lib/landbot/handle-inbound"
 import { claimInbound, releaseInbound } from "@/lib/landbot/inbound"
+import {
+  enqueueCustomerTurn,
+  waitAndTakeBufferedTurn,
+} from "@/lib/landbot/message-buffer"
 import { isCustomerChat, parseLandbotWebhook } from "@/lib/landbot/parse-webhook"
 
 export const maxDuration = 60
@@ -23,7 +27,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     method: "POST",
-    note: "Landbot message hook. Only allowlisted phones are processed; others are ignored.",
+    note: "Landbot message hook. Allowlisted phones only. Bursts are merged after ~3s silence.",
   })
 }
 
@@ -41,7 +45,7 @@ export async function POST(request: Request) {
 
   const inbound = parseLandbotWebhook(payload, request.headers.get("sentry-trace"))
   if (!inbound || !isCustomerChat(inbound)) {
-    return NextResponse.json({ ok: true, skipped: "not_customer_text" })
+    return NextResponse.json({ ok: true, skipped: "not_customer_message" })
   }
 
   let phone = inbound.phone
@@ -63,10 +67,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    const enqueuedAt = await enqueueCustomerTurn(
+      inbound.conversationId,
+      inbound.turn
+    )
+    const turn = await waitAndTakeBufferedTurn(inbound.conversationId, enqueuedAt)
+    if (!turn) {
+      return NextResponse.json({ ok: true, skipped: "debouncing" })
+    }
+
     const result = await handleLandbotInbound(
       inbound.customerId,
       inbound.conversationId,
-      inbound.body
+      turn
     )
     return NextResponse.json(result)
   } catch (error) {

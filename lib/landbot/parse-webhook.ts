@@ -1,7 +1,9 @@
+import type { UserMediaPart, UserTurn } from "@/lib/agents/user-turn"
+
 export type LandbotInboundMessage = {
   customerId: number
   conversationId: string
-  body: string
+  turn: UserTurn
   messageKey: string
   senderType: string
   phone: string
@@ -24,6 +26,38 @@ function asNumber(value: unknown) {
   return Number.isFinite(n) ? n : null
 }
 
+function mediaKind(type: string): UserMediaPart["kind"] | null {
+  if (type === "image" || type === "audio" || type === "video" || type === "document") {
+    return type
+  }
+  return null
+}
+
+function extractTurn(message: UnknownRecord): UserTurn | null {
+  const type = asText(message.type).toLowerCase()
+  const data = asRecord(message.data)
+  const raw = asRecord(message._raw)
+
+  if (type === "text" || type === "button") {
+    const body =
+      asText(data?.body) ||
+      asText(raw?.message) ||
+      asText(message.body)
+    return body ? { text: body, media: [] } : null
+  }
+
+  const kind = mediaKind(type)
+  if (!kind) return null
+
+  const url = asText(data?.url) || asText(raw?.url)
+  if (!url) return null
+
+  return {
+    text: asText(data?.caption),
+    media: [{ kind, url, caption: asText(data?.caption) || undefined }],
+  }
+}
+
 export function parseLandbotWebhook(
   payload: unknown,
   sentryTrace: string | null
@@ -42,21 +76,18 @@ export function parseLandbotWebhook(
 
   const sender = asRecord(first.sender)
   const customer = asRecord(first.customer)
-  const data = asRecord(first.data)
   const raw = asRecord(first._raw)
   const senderType = asText(sender?.type).toLowerCase()
   const customerId = asNumber(customer?.id) ?? asNumber(sender?.id)
   if (!customerId) return null
 
-  const body =
-    asText(data?.body) ||
-    asText(raw?.message) ||
-    asText(first.body)
+  const turn = extractTurn(first)
+  if (!turn) return null
 
   const messageKey =
     asText(raw?.uuid) ||
     asText(sentryTrace) ||
-    `${customerId}:${asText(first.timestamp)}:${body}`
+    `${customerId}:${asText(first.timestamp)}:${turn.text}:${turn.media[0]?.url ?? ""}`
 
   const customFields = asRecord(customer?.custom_fields)
   const phone =
@@ -65,7 +96,7 @@ export function parseLandbotWebhook(
   return {
     customerId,
     conversationId: String(customerId),
-    body,
+    turn,
     messageKey,
     senderType,
     phone,
@@ -73,5 +104,8 @@ export function parseLandbotWebhook(
 }
 
 export function isCustomerChat(message: LandbotInboundMessage) {
-  return message.senderType === "customer" && Boolean(message.body)
+  return (
+    message.senderType === "customer" &&
+    (Boolean(message.turn.text.trim()) || message.turn.media.length > 0)
+  )
 }

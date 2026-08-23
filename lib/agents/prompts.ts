@@ -24,6 +24,13 @@ If the message is clearly unrelated to HoM GROUP business (שטיחים, פופ�
 Do not guess, do not answer the off-topic question, do not route silently, and do not use the unrelated-products deflection for these cases.
 `
 
+const MEDIA_RULE = `
+### CUSTOMER MEDIA (images / audio / video / documents)
+When the customer sends images, use them only for the active flow (room photo for sales, damage photo for service). Do not invent product facts from an image.
+When the customer sends audio or video and you cannot rely on it, ask briefly for a short text description or a photo instead.
+Never claim you watched/listened if you did not understand the media.
+`
+
 const OUTPUT_CONTRACT = `
 ### MACHINE OUTPUT CONTRACT
 Return a JSON object with exactly:
@@ -48,10 +55,10 @@ export function getSystemPrompt(agent: AgentId, userText = "") {
     return `${readAgentFile("prompts/master.md")}\n${MASTER_OUTPUT_CONTRACT}`
   }
   if (agent === "sales") {
-    return `${readAgentFile("prompts/sales.md")}\n${OFF_TOPIC_RULE}\n${OUTPUT_CONTRACT}`
+    return `${readAgentFile("prompts/sales.md")}\n${OFF_TOPIC_RULE}\n${MEDIA_RULE}\n${OUTPUT_CONTRACT}`
   }
   if (agent === "faq") {
     return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText)}\n${OFF_TOPIC_RULE}\n${OUTPUT_CONTRACT}`
   }
-  return `${readAgentFile("prompts/service.md")}\n${OFF_TOPIC_RULE}\n${OUTPUT_CONTRACT}`
+  return `${readAgentFile("prompts/service.md")}\n${OFF_TOPIC_RULE}\n${MEDIA_RULE}\n${OUTPUT_CONTRACT}`
 }

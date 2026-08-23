@@ -1,4 +1,6 @@
 import { generateText, jsonSchema, Output } from "ai"
+import { buildUserContent } from "@/lib/agents/multimodal"
+import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { guessMasterRoute, stickySpecialist } from "@/lib/agents/route-intent"
@@ -47,22 +49,23 @@ function normalizeReply(agent: AgentId, action: AgentAction, reply: string) {
   return `${CUSTOMER_HEADER}\n${trimmed}`
 }
 
-function toModelMessages(history: HistoryMessage[], body: string) {
+function toModelMessages(history: HistoryMessage[], turn: UserTurn) {
   return [
     ...history.map((message) => ({
       role: message.role,
       content: message.content,
     })),
-    { role: "user" as const, content: body },
+    { role: "user" as const, content: buildUserContent(turn) },
   ]
 }
 
 export async function runAgent(
   agent: AgentId,
   conversationId: string,
-  body: string,
+  turn: UserTurn,
   options?: { persistUser?: boolean; history?: HistoryMessage[] }
 ): Promise<AgentResponse> {
+  const body = summarizeTurn(turn)
   const history = options?.history ?? (await getConversationContext(conversationId)).history
   const allowed = ACTIONS_BY_AGENT[agent]
   const isMaster = agent === "master"
@@ -71,7 +74,7 @@ export async function runAgent(
   const result = await generateText({
     model,
     system: getSystemPrompt(agent, body),
-    messages: toModelMessages(history, body),
+    messages: toModelMessages(history, turn),
     maxOutputTokens: isMaster ? 80 : 800,
     output: Output.object({
       name: "landbot_agent_turn",
@@ -131,21 +134,21 @@ export async function runAgent(
 
 async function resolveSpecialist(
   conversationId: string,
-  body: string,
+  turn: UserTurn,
   specialist: AgentId,
   history: HistoryMessage[],
   persistUser: boolean,
   route: AgentId[]
 ): Promise<AgentResponse> {
   route.push(specialist)
-  let result = await runAgent(specialist, conversationId, body, {
+  let result = await runAgent(specialist, conversationId, turn, {
     persistUser,
     history,
   })
 
   if (isSpecialistId(result.action) && result.action !== specialist) {
     route.push(result.action)
-    result = await runAgent(result.action, conversationId, body, {
+    result = await runAgent(result.action, conversationId, turn, {
       persistUser: false,
       history,
     })
@@ -166,15 +169,16 @@ function shippingResult(route: AgentId[]): AgentResponse {
 
 export async function runMasterConversation(
   conversationId: string,
-  body: string
+  turn: UserTurn
 ): Promise<AgentResponse> {
+  const body = summarizeTurn(turn)
   const { history, lastAgent, lastAction } =
     await getConversationContext(conversationId)
   const route: AgentId[] = []
   const sticky = stickySpecialist(lastAgent, lastAction)
 
   if (sticky) {
-    return resolveSpecialist(conversationId, body, sticky, history, true, route)
+    return resolveSpecialist(conversationId, turn, sticky, history, true, route)
   }
 
   const guessed = guessMasterRoute(body)
@@ -191,7 +195,7 @@ export async function runMasterConversation(
       action: masterAction,
     })
   } else {
-    const master = await runAgent("master", conversationId, body, { history })
+    const master = await runAgent("master", conversationId, turn, { history })
     route.push("master")
     masterAction = (MASTER_ROUTE_MAP[master.action as MasterAction]
       ? master.action
@@ -203,7 +207,7 @@ export async function runMasterConversation(
 
   return resolveSpecialist(
     conversationId,
-    body,
+    turn,
     next,
     history,
     false,
