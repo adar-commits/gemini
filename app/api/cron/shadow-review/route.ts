@@ -19,18 +19,20 @@ function isCronAuthorized(request: Request) {
   return header === `Bearer ${secret}`
 }
 
-async function handleRun() {
+async function handleRun(request?: Request) {
   try {
+    const autofixOnly =
+      request != null && new URL(request.url).searchParams.get("mode") === "autofix"
     const reset =
       process.env.SHADOW_RESET_FAILED_REVIEWS?.trim() === "1"
         ? await resetFailedShadowReviews()
         : { deleted: 0 }
-    const reviewOnly = process.env.SHADOW_AUTOFIX_ONLY?.trim() === "1"
-    const review = reviewOnly
-      ? { ok: true, skipped: "autofix_only", reviewed: 0, issues: 0 }
-      : await runShadowReviewBatch()
     const autofix = await runShadowAutofixDrain()
-    return NextResponse.json({ ok: true, reset, review, autofix })
+    const review =
+      autofixOnly || process.env.SHADOW_AUTOFIX_ONLY?.trim() === "1"
+        ? { ok: true, skipped: "autofix_only", reviewed: 0, issues: 0 }
+        : await runShadowReviewBatch()
+    return NextResponse.json({ ok: true, reset, autofix, review })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow review failed"
     console.error("[shadow-review] batch failed", message)
@@ -41,7 +43,7 @@ async function handleRun() {
 /** Vercel Cron (GET + CRON_SECRET) or manual POST with AGENT_API_KEY */
 export async function GET(request: Request) {
   if (isCronAuthorized(request)) {
-    return handleRun()
+    return handleRun(request)
   }
 
   if (!isAuthorized(request)) {
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return await handleRun()
+    return await handleRun(request)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow review failed"
     return NextResponse.json({ ok: false, error: message }, { status: 500 })

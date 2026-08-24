@@ -74,8 +74,8 @@ function reviewModel() {
 }
 
 function batchSize() {
-  const raw = Number(process.env.SHADOW_REVIEW_BATCH_SIZE ?? "25")
-  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 50) : 25
+  const raw = Number(process.env.SHADOW_REVIEW_BATCH_SIZE ?? "10")
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 30) : 10
 }
 
 function reviewEnabled() {
