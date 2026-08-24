@@ -1,6 +1,10 @@
 import { generateText, jsonSchema, Output } from "ai"
 import { getAgentSupabase } from "@/lib/agents/supabase"
-import { selectFaqKb } from "@/lib/agents/kb"
+import {
+  deterministicShadowVerdict,
+  isReviewFailureReason,
+  kbExcerptForLog,
+} from "@/lib/landbot/shadow-deterministic"
 
 export const SHADOW_ISSUE_TYPES = [
   "route_wrong",
@@ -91,74 +95,101 @@ async function conversationTurnCount(conversationId: string) {
   return count ?? 0
 }
 
+function reviewRetryDelayMs(attempt: number) {
+  return Math.min(2000 * 2 ** attempt, 15000)
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function reviewShadowLog(
   log: ShadowLogRow,
   turnNumber: number
-): Promise<ShadowReviewVerdict & { model: string }> {
-  const model = reviewModel()
-  const kbExcerpt = selectFaqKb(log.user_text).slice(0, 6000)
-
-  const result = await generateText({
-    model,
-    system: REVIEW_RULES,
-    messages: [
-      {
-        role: "user",
-        content: [
-          `Customer turn #${turnNumber} in conversation ${log.conversation_id}`,
-          `Phone: ${log.phone ?? "unknown"}`,
-          `User message:\n${log.user_text}`,
-          `Chosen agent: ${log.agent}`,
-          `Action: ${log.action ?? "(none)"}`,
-          `Draft reply:\n${log.draft_reply || "(empty)"}`,
-          `\nKnowledge excerpt:\n${kbExcerpt}`,
-        ].join("\n\n"),
-      },
-    ],
-    maxOutputTokens: 300,
-    output: Output.object({
-      name: "shadow_log_review",
-      schema: jsonSchema<ShadowReviewVerdict>({
-        type: "object",
-        additionalProperties: false,
-        required: ["verdict", "issue_types", "reason", "suggested_fix"],
-        properties: {
-          verdict: { type: "string", enum: ["ok", "issue"] },
-          issue_types: {
-            type: "array",
-            items: { type: "string", enum: [...SHADOW_ISSUE_TYPES] },
-          },
-          reason: { type: "string" },
-          suggested_fix: { type: "string" },
-        },
-      }),
-    }),
-  })
-
-  let verdict: ShadowReviewVerdict = {
-    verdict: "ok",
-    issue_types: [],
-    reason: "",
-    suggested_fix: "",
+): Promise<ShadowReviewVerdict & { model: string; deterministic?: boolean }> {
+  const deterministic = deterministicShadowVerdict(log)
+  if (deterministic) {
+    return { ...deterministic, model: "deterministic" }
   }
-  try {
-    verdict = result.output as ShadowReviewVerdict
-  } catch {
-    verdict = {
-      verdict: "issue",
-      issue_types: ["policy_risk"],
-      reason: "לא ניתן לפרסר את תוצאת הביקורת האוטומטית.",
-      suggested_fix: "none",
+
+  const model = reviewModel()
+  const kbExcerpt = kbExcerptForLog(log)
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const result = await generateText({
+        model,
+        system: REVIEW_RULES,
+        messages: [
+          {
+            role: "user",
+            content: [
+              `Customer turn #${turnNumber} in conversation ${log.conversation_id}`,
+              `Phone: ${log.phone ?? "unknown"}`,
+              `User message:\n${log.user_text}`,
+              `Chosen agent: ${log.agent}`,
+              `Action: ${log.action ?? "(none)"}`,
+              `Draft reply:\n${log.draft_reply || "(empty)"}`,
+              `\nKnowledge excerpt:\n${kbExcerpt}`,
+            ].join("\n\n"),
+          },
+        ],
+        maxOutputTokens: 300,
+        output: Output.object({
+          name: "shadow_log_review",
+          schema: jsonSchema<ShadowReviewVerdict>({
+            type: "object",
+            additionalProperties: false,
+            required: ["verdict", "issue_types", "reason", "suggested_fix"],
+            properties: {
+              verdict: { type: "string", enum: ["ok", "issue"] },
+              issue_types: {
+                type: "array",
+                items: { type: "string", enum: [...SHADOW_ISSUE_TYPES] },
+              },
+              reason: { type: "string" },
+              suggested_fix: { type: "string" },
+            },
+          }),
+        }),
+      })
+
+      let verdict: ShadowReviewVerdict = {
+        verdict: "ok",
+        issue_types: [],
+        reason: "",
+        suggested_fix: "",
+      }
+      try {
+        verdict = result.output as ShadowReviewVerdict
+      } catch {
+        verdict = {
+          verdict: "issue",
+          issue_types: ["policy_risk"],
+          reason: "לא ניתן לפרסר את תוצאת הביקורת האוטומטית.",
+          suggested_fix: "none",
+        }
+      }
+
+      if (verdict.verdict === "ok") {
+        verdict.issue_types = []
+      } else if (!verdict.issue_types.length) {
+        verdict.issue_types = ["policy_risk"]
+      }
+
+      return { ...verdict, model }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const rateLimited = /rate limit|429|GatewayRateLimit/i.test(message)
+      if (rateLimited && attempt < 3) {
+        await sleep(reviewRetryDelayMs(attempt))
+        continue
+      }
+      throw error
     }
   }
 
-  if (verdict.verdict === "ok") {
-    verdict.issue_types = []
-  } else if (!verdict.issue_types.length) {
-    verdict.issue_types = ["policy_risk"]
-  }
-
-  return { ...verdict, model }
+  throw new Error("Shadow review exhausted retries")
 }
 
 async function fetchUnreviewedLogs(limit: number) {
@@ -248,6 +279,11 @@ export async function runShadowReviewBatch() {
         error instanceof Error ? error.message : "Shadow review failed for log"
       console.error("[shadow-review] log failed", log.id, message)
 
+      // Do not store rate-limit failures as policy_risk — leave log unreviewed for retry
+      if (/rate limit|429|GatewayRateLimit/i.test(message)) {
+        continue
+      }
+
       const { error: insertError } = await supabase
         .from("hom_agent_shadow_reviews")
         .insert({
@@ -295,6 +331,28 @@ export async function listRecentShadowIssues(limit = 20) {
     ...review,
     log: byId.get(review.shadow_log_id) ?? null,
   }))
+}
+
+export async function resetFailedShadowReviews() {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_shadow_reviews")
+    .select("id, reason")
+    .like("reason", "ביקורת אוטומטית נכשלה%")
+
+  if (error) throw error
+  const ids = (data ?? [])
+    .filter((row) => isReviewFailureReason(String(row.reason ?? "")))
+    .map((row) => row.id)
+  if (!ids.length) return { deleted: 0 }
+
+  const { error: deleteError } = await supabase
+    .from("hom_agent_shadow_reviews")
+    .delete()
+    .in("id", ids)
+
+  if (deleteError) throw deleteError
+  return { deleted: ids.length }
 }
 
 export async function shadowReviewStats() {

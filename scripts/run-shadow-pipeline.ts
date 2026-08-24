@@ -30,9 +30,14 @@ loadEnvFile(".env.production.local")
 
 async function main() {
   const { runShadowReviewBatch } = await import("../lib/landbot/shadow-review")
-  const { runShadowAutofixBatch } = await import("../lib/landbot/shadow-autofix")
-  const { shadowReviewStats } = await import("../lib/landbot/shadow-review")
+  const { runShadowAutofixDrain } = await import("../lib/landbot/shadow-autofix")
+  const { shadowReviewStats, resetFailedShadowReviews } = await import(
+    "../lib/landbot/shadow-review"
+  )
   const { learnedRuleStats } = await import("../lib/agents/learned-rules")
+
+  const reset = await resetFailedShadowReviews()
+  console.log(`Reset failed reviews: ${reset.deleted}`)
 
   let reviewTotal = 0
   let issueTotal = 0
@@ -57,12 +62,14 @@ async function main() {
   let autofixTotal = 0
   let autofixRuns = 0
 
-  for (let i = 0; i < 20; i += 1) {
-    const autofix = await runShadowAutofixBatch()
+  for (let i = 0; i < 30; i += 1) {
+    const autofix = await runShadowAutofixDrain()
     autofixRuns += 1
-    autofixTotal += autofix.applied ?? 0
-    console.log(`Autofix run ${autofixRuns}: applied=${autofix.applied ?? 0}`)
-    if ((autofix.applied ?? 0) === 0) break
+    autofixTotal += autofix.total_applied ?? 0
+    console.log(
+      `Autofix drain ${autofixRuns}: applied=${autofix.total_applied ?? 0} loops=${autofix.loops ?? 0}`
+    )
+    if ((autofix.last_batch?.processed_issues ?? 0) === 0) break
   }
 
   const [finalStats, learned] = await Promise.all([
@@ -74,6 +81,7 @@ async function main() {
     JSON.stringify(
       {
         ok: true,
+        reset_deleted: reset.deleted,
         review_runs: reviewRuns,
         reviewed_total: reviewTotal,
         issues_total: issueTotal,

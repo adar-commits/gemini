@@ -7,6 +7,8 @@ export type LearnedRuleKind =
   | "greeting_pattern"
   | "prompt_rule"
   | "off_topic_exception"
+  | "fast_reply"
+  | "reply_guard"
 
 export type LearnedRuleRow = {
   id: string
@@ -53,6 +55,42 @@ export async function loadLearnedRules(force = false) {
 export function invalidateLearnedRulesCache() {
   cachedAt = 0
   cachedRules = []
+}
+
+export async function guessLearnedFastReply(body: string): Promise<string | null> {
+  const rules = await loadLearnedRules()
+  const text = body.trim()
+  if (!text) return null
+
+  for (const rule of rules) {
+    if (rule.rule_kind !== "fast_reply" || !rule.pattern) continue
+    try {
+      if (new RegExp(rule.pattern, "iu").test(text)) {
+        return rule.rule_text.trim()
+      }
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+export async function matchesLearnedReplyGuard(agent: AgentId, reply: string) {
+  const rules = await loadLearnedRules()
+  const text = reply.trim()
+  if (!text) return false
+
+  for (const rule of rules) {
+    if (rule.rule_kind !== "reply_guard" || !rule.pattern) continue
+    const target = rule.agent?.trim() || "all"
+    if (target !== "all" && target !== agent) continue
+    try {
+      if (new RegExp(rule.pattern, "iu").test(text)) return true
+    } catch {
+      continue
+    }
+  }
+  return false
 }
 
 export async function guessLearnedRoute(body: string): Promise<MasterAction | null> {

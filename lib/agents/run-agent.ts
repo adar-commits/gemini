@@ -32,7 +32,7 @@ import {
   isOpeningTurn,
   shouldWelcomeAfterReset,
 } from "@/lib/agents/greeting"
-import { guessLearnedRoute, learnedPromptRules, loadLearnedRules } from "@/lib/agents/learned-rules"
+import { guessLearnedRoute, guessLearnedFastReply, learnedPromptRules, loadLearnedRules, matchesLearnedReplyGuard } from "@/lib/agents/learned-rules"
 import {
   buildBranchListReply,
   buildBranchReplyForText,
@@ -377,8 +377,11 @@ async function resolveSpecialist(
   })
 
   if (specialist === "sales" && result.reply) {
-    const sanitized = sanitizeSalesReply(result.reply, history, body)
-    if (sanitized !== result.reply) {
+    const needsSanitize =
+      (await matchesLearnedReplyGuard("sales", result.reply)) ||
+      /למי\s+הסלון\s+משמש/i.test(result.reply)
+    if (needsSanitize) {
+      const sanitized = sanitizeSalesReply(result.reply, history, body)
       result = { ...result, reply: normalizeReply("sales", "reply", sanitized) }
     }
   }
@@ -506,6 +509,20 @@ export async function runMasterConversation(
   const route: AgentId[] = []
   const preview = options?.preview
   const sharedOptions = { ...options, lastAgent, lastAction, resetAt, preview }
+
+  const learnedFast = await guessLearnedFastReply(body)
+  if (learnedFast) {
+    const reply = normalizeReply("faq", "reply", learnedFast)
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
 
   const welcome = await tryWelcomeGreeting(
     conversationId,

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
 import {
   listRecentShadowIssues,
+  resetFailedShadowReviews,
   runShadowReviewBatch,
   shadowReviewStats,
 } from "@/lib/landbot/shadow-review"
-import { runShadowAutofixBatch } from "@/lib/landbot/shadow-autofix"
+import { runShadowAutofixDrain } from "@/lib/landbot/shadow-autofix"
 import { learnedRuleStats } from "@/lib/agents/learned-rules"
 
 export const maxDuration = 300
@@ -20,9 +21,13 @@ function isCronAuthorized(request: Request) {
 
 async function handleRun() {
   try {
+    const reset =
+      process.env.SHADOW_RESET_FAILED_REVIEWS?.trim() === "1"
+        ? await resetFailedShadowReviews()
+        : { deleted: 0 }
     const review = await runShadowReviewBatch()
-    const autofix = await runShadowAutofixBatch()
-    return NextResponse.json({ ok: true, review, autofix })
+    const autofix = await runShadowAutofixDrain()
+    return NextResponse.json({ ok: true, reset, review, autofix })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow review failed"
     console.error("[shadow-review] batch failed", message)
