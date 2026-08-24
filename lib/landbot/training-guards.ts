@@ -5,14 +5,24 @@ import {
 import type { HistoryMessage } from "@/lib/agents/types"
 
 export const TRAINER_CORRECTION_PREFIX = "לתיקון:"
+export const TRAINER_QUESTION_PREFIX = "שאלה:"
 
 /** Trainer-only correction command — message must start with this prefix. */
 export function isTrainerCorrectionCommand(text: string) {
   return normalizeMessageText(text).startsWith(TRAINER_CORRECTION_PREFIX)
 }
 
+/** Trainer-only direct AI chat — message must start with this prefix. */
+export function isTrainerQuestionCommand(text: string) {
+  return normalizeMessageText(text).startsWith(TRAINER_QUESTION_PREFIX)
+}
+
 export function stripTrainerCorrectionPrefix(text: string) {
   return text.trim().replace(/^לתיקון:\s*/, "").trim()
+}
+
+export function stripTrainerQuestionPrefix(text: string) {
+  return text.trim().replace(/^שאלה:\s*/, "").trim()
 }
 
 /**

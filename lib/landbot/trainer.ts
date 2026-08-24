@@ -8,15 +8,27 @@ function phoneKey(phone: string) {
   return value
 }
 
+function trainerPhones() {
+  const multi = process.env.LANDBOT_TRAINER_PHONES?.trim()
+  if (multi) {
+    return multi
+      .split(/[,\s]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+  const single = process.env.LANDBOT_TRAINER_PHONE?.trim()
+  if (single) return [single]
+  const replyFirst = process.env.LANDBOT_REPLY_PHONES?.trim()?.split(/[,\s]+/)[0]
+  if (replyFirst) return [replyFirst.trim()]
+  return [DEFAULT_TRAINER_PHONE]
+}
+
 export function trainerPhone() {
-  return (
-    process.env.LANDBOT_TRAINER_PHONE?.trim() ||
-    process.env.LANDBOT_REPLY_PHONES?.trim()?.split(/[,\s]+/)[0] ||
-    DEFAULT_TRAINER_PHONE
-  )
+  return trainerPhones()[0]
 }
 
 export function isTrainerPhone(phone: string | null | undefined) {
   if (!phone?.trim()) return false
-  return phoneKey(phone) === phoneKey(trainerPhone())
+  const key = phoneKey(phone)
+  return trainerPhones().some((item) => phoneKey(item) === key)
 }

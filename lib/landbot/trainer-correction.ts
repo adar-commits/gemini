@@ -12,10 +12,12 @@ import {
   shouldSendTrainerFixedPreview,
   stripTrainerCorrectionPrefix,
   TRAINER_CORRECTION_PREFIX,
+  TRAINER_QUESTION_PREFIX,
 } from "@/lib/landbot/training-guards"
 
 export const TRAINER_CORRECTION_ACK = "קיבלתי מאמן, מייד אבצע תיקונים..."
-export const TRAINER_CORRECTION_DONE = "מצוין אני מתוקן עכשיו"
+export const TRAINER_CORRECTION_DONE =
+  "מצוין — הוספתי כלל למערכת והוא פעיל עכשיו (ללא deploy)."
 
 const CORRECTION_PARSE_RE =
   /במקום\s+(?:לענות(?:\s+לי)?\s+)?([\s\S]+?)\s+הי(?:ית|יה)\s+צריך\s+לענות(?:\s+לי)?\s+([\s\S]+)/i
@@ -39,6 +41,7 @@ function findTargetUserQuestion(
     if (message.role !== "user") continue
     const content = message.content.replace(/\s+/g, " ").trim()
     if (content.startsWith(TRAINER_CORRECTION_PREFIX)) continue
+    if (content.startsWith(TRAINER_QUESTION_PREFIX)) continue
     if (content === correctionNorm) continue
     return content
   }
