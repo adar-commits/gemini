@@ -68,24 +68,30 @@ const BRANCH_SECTION = "Branches — השטיח האדום / shared network"
 export function selectFaqKb(userText: string) {
   const { header, sections } = parseSections(rawKb())
   const wanted = new Set(ALWAYS)
+  let topicMatched = false
 
   for (const topic of TOPIC_TITLES) {
     if (topic.keys.test(userText)) {
+      topicMatched = true
       for (const title of topic.titles) wanted.add(title)
     }
   }
 
   if (/סניפ|לסניף|כתובת|branch/i.test(userText)) {
+    topicMatched = true
     wanted.add(BRANCH_SECTION)
     wanted.add("Store hours")
   }
 
   if (/החזר|החלפ|return|exchange/i.test(userText)) {
+    topicMatched = true
     wanted.add(BRANCH_SECTION)
   }
 
-  const matched = sections.filter((section) => wanted.has(section.title))
-  const picked = matched.length ? matched : sections
+  // No keyword hit → inject full KB so vague questions still have all policies in context.
+  const picked = topicMatched
+    ? sections.filter((section) => wanted.has(section.title))
+    : sections
 
   return `${header}\n\n${picked.map((section) => section.body).join("\n\n")}`
 }
