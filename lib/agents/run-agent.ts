@@ -59,6 +59,12 @@ import {
   shouldUseSalesIntakeFastPath,
 } from "@/lib/agents/sales-intake"
 import {
+  formatOrchestraBrief,
+  orchestraMasterRoute,
+  runConversationOrchestra,
+  type OrchestraResult,
+} from "@/lib/agents/orchestra"
+import {
   buildShippingPolicyReply,
   buildShippingStatusReply,
   isShippingPolicyQuestion,
@@ -122,7 +128,12 @@ export async function runAgent(
   agent: AgentId,
   conversationId: string,
   turn: UserTurn,
-  options?: { persistUser?: boolean; history?: HistoryMessage[]; preview?: boolean }
+  options?: {
+    persistUser?: boolean
+    history?: HistoryMessage[]
+    preview?: boolean
+    orchestraBrief?: string
+  }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
   const history = options?.history ?? (await getConversationContext(conversationId)).history
@@ -130,10 +141,11 @@ export async function runAgent(
   const isMaster = agent === "master"
   const model = isMaster ? routerModel() : specialistModel()
   const learnedRules = isMaster ? "" : await learnedPromptRules(agent)
+  const orchestraBrief = options?.orchestraBrief ?? ""
 
   const result = await generateText({
     model,
-    system: `${getSystemPrompt(agent, body)}${learnedRules}`,
+    system: `${getSystemPrompt(agent, body)}${learnedRules}${orchestraBrief}`,
     messages: toModelMessages(history, turn),
     maxOutputTokens: isMaster ? 80 : 800,
     output: Output.object({
@@ -200,7 +212,15 @@ async function resolveSpecialist(
   history: HistoryMessage[],
   persistUser: boolean,
   route: AgentId[],
-  options?: { customerName?: string; lastAgent?: AgentId | null; lastAction?: string | null; resetAt?: string | null; preview?: boolean }
+  options?: {
+    customerName?: string
+    lastAgent?: AgentId | null
+    lastAction?: string | null
+    resetAt?: string | null
+    preview?: boolean
+    orchestraBrief?: string
+    orchestra?: OrchestraResult
+  }
 ): Promise<AgentResponse> {
   route.push(specialist)
   const body = summarizeTurn(turn)
@@ -302,6 +322,7 @@ async function resolveSpecialist(
       persistUser,
       history,
       preview,
+      orchestraBrief: options?.orchestraBrief,
     })
 
     if (isSpecialistId(result.action) && result.action !== replyAgent) {
@@ -310,6 +331,7 @@ async function resolveSpecialist(
         persistUser: false,
         history,
         preview,
+        orchestraBrief: options?.orchestraBrief,
       })
     }
 
@@ -381,6 +403,7 @@ async function resolveSpecialist(
     persistUser,
     history,
     preview,
+    orchestraBrief: options?.orchestraBrief,
   })
 
   if (specialist === "sales" && result.reply) {
@@ -399,6 +422,7 @@ async function resolveSpecialist(
       persistUser: false,
       history,
       preview,
+      orchestraBrief: options?.orchestraBrief,
     })
   }
 
@@ -515,7 +539,22 @@ export async function runMasterConversation(
     await getConversationContext(conversationId)
   const route: AgentId[] = []
   const preview = options?.preview
-  const sharedOptions = { ...options, lastAgent, lastAction, resetAt, preview }
+  const userTurnCount = history.filter((m) => m.role === "user").length + 1
+  let sharedOptions: {
+    customerName?: string
+    preview?: boolean
+    lastAgent: AgentId | null
+    lastAction: string | null
+    resetAt: string | null
+    orchestraBrief?: string
+    orchestra?: OrchestraResult
+  } = {
+    ...options,
+    lastAgent,
+    lastAction,
+    resetAt,
+    preview,
+  }
 
   const learnedFast = await guessLearnedFastReply(body)
   if (learnedFast) {
@@ -680,6 +719,20 @@ export async function runMasterConversation(
     )
   }
 
+  const orchestra = await runConversationOrchestra({
+    body,
+    history,
+    lastAgent,
+    lastAction,
+    userTurnCount,
+    customerName: options?.customerName,
+  })
+  sharedOptions = {
+    ...sharedOptions,
+    orchestraBrief: formatOrchestraBrief(orchestra),
+    orchestra,
+  }
+
   const sticky = stickySpecialist(lastAgent, lastAction)
 
   if (sticky && shouldContinueWithSpecialist(body, history, sticky)) {
@@ -695,7 +748,8 @@ export async function runMasterConversation(
   }
 
   const learned = await guessLearnedRoute(body)
-  const guessed = learned ?? guessMasterRoute(body)
+  const guessed =
+    learned ?? guessMasterRoute(body) ?? orchestraMasterRoute(orchestra)
   let masterAction: MasterAction
 
   if (guessed) {
@@ -710,7 +764,11 @@ export async function runMasterConversation(
       preview,
     })
   } else {
-    const master = await runAgent("master", conversationId, turn, { history, preview })
+    const master = await runAgent("master", conversationId, turn, {
+      history,
+      preview,
+      orchestraBrief: sharedOptions.orchestraBrief,
+    })
     route.push("master")
     masterAction = (MASTER_ROUTE_MAP[master.action as MasterAction]
       ? master.action
