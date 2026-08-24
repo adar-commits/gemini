@@ -1,6 +1,12 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isProductInventoryQuestion, isSpecificProductMention } from "@/lib/agents/product-handoff"
-import { isFaqTopicSwitch, isSalesQuizAffirmation } from "@/lib/agents/topic-switch"
+import {
+  isFaqTopicSwitch,
+  isSalesQuizAffirmation,
+  isSalesTopicSwitch,
+  isServiceTopicSwitch,
+  isTopicPivotPhrase,
+} from "@/lib/agents/topic-switch"
 import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
 import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
 
@@ -12,6 +18,7 @@ export type SalesIntake = {
   household?: string
   childrenAge?: string
   pets?: "none" | "yes"
+  petsDetail?: string
   style?: string
   rugSize?: string
   sofaSize?: string
@@ -29,6 +36,12 @@ const INTAKE_SHORT_ANSWER_RE =
   /^(?:סלון|חדר\s+שינה|חדר\s+ילדים|מסדרון|חלל\s+אחר|חצר|לחצר|מרפס(?:ה|ת)?|גינ(?:ה|ה)?|זוג|לזוג|משפחה|מבוגר|יש\s+(?:כלב|חתול|חיות)|אין\s+חיות|ללא\s+חיות|יוקרתי|מודרני|כפרי|\d[\d.,\s]*(?:מ(?:טר)?)?)$/i
 
 const OUTDOOR_SPACE_RE = /חצר|מרפס(?:ה|ת)|גינ(?:ה|ה)|patio|terrace|balcony/i
+
+const PET_ANIMAL_RE =
+  /תוכי|ציפור(?:ים)?|כלב(?:ה)?|חתול(?:ה)?|ארנב|ג(?:'|׳|)ר(?:י)?ז(?:י)?|ח(?:ו(?:מ)?)?ס(?:ת)?(?:ר)?|דג(?:ים)?|נחש|פר(?:ט|ט)|hamster|guinea|pets?/i
+
+const PET_CLARIFICATION_RE =
+  /^(?:אבל|רק|הוא|היא|לא\s+נכנס|בסדר|בכל\s+זאת)/i
 
 const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
@@ -127,33 +140,64 @@ function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
   return null
 }
 
+function questionKindForText(question: string): string | null {
+  if (/לאיזה חלל|לאן השטיח/.test(question)) return "space"
+  if (/באיזה מוצר/.test(question)) return "product"
+  if (/איך חדר השינה/.test(question)) return "bedroom"
+  if (/ילדים קטנים/.test(question)) return "children"
+  if (/בעלי חיים/.test(question)) return "pets"
+  if (/סגנון/.test(question)) return "style"
+  if (/מידת הספה/.test(question)) return "sofa"
+  if (/תקציב/.test(question)) return "budget"
+  if (/דרישות מיוחדות/.test(question)) return "practical"
+  if (/האם זה נכון/.test(question)) return "confirm"
+  return null
+}
+
+/** Consecutive user messages at the end of the thread (rapid follow-ups). */
+function recentUserReplies(history: HistoryMessage[], body: string) {
+  const replies = [body.trim()]
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") break
+    replies.unshift(message.content.trim())
+  }
+  return replies.filter(Boolean)
+}
+
+/** Customer changed subject — leave intake and route elsewhere. */
+export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
+  const trimmed = body.trim()
+  if (!trimmed) return false
+  if (isTopicPivotPhrase(trimmed)) return true
+  if (isFaqTopicSwitch(trimmed)) return true
+  if (isServiceTopicSwitch(trimmed)) return true
+  if (isShippingPolicyQuestion(trimmed) || isShippingStatusQuestion(trimmed)) return true
+  if (isProductInventoryQuestion(trimmed) || isSpecificProductMention(trimmed)) return true
+  if (
+    isSalesConsultationTrigger(trimmed) &&
+    !hasOngoingSalesIntake(history) &&
+    trimmed.split(/\s+/).length >= 4
+  ) {
+    return true
+  }
+  if (isSalesTopicSwitch(trimmed) && lastIntakeQuestionKind(history) !== null) {
+    return true
+  }
+  return false
+}
+
+/** Answer to current quiz question vs pivot to another topic. */
+export function classifySalesIntakeReply(body: string, history: HistoryMessage[]) {
+  if (isIntakeTopicPivot(body, history)) return "pivot" as const
+  return "answer" as const
+}
+
 /** Accept free-form quiz answers — examples in questions are hints, not an exhaustive list. */
 export function isSalesIntakeAnswer(body: string, history: HistoryMessage[]) {
   const trimmed = body.trim()
-  if (!trimmed || trimmed.length > 100) return false
-
-  const kind = lastIntakeQuestionKind(history)
-
-  if (kind === "space") {
-    return trimmed.length >= 2 && !/^(?:לא|לא\s+יודע|לא\s+בטוח)$/i.test(trimmed)
-  }
-  if (kind === "product") {
-    return trimmed.length >= 2
-  }
-  if (kind === "confirm") {
-    return (
-      isSalesQuizAffirmation(trimmed) ||
-      trimmed.length <= 60
-    )
-  }
-  if (kind) {
-    return trimmed.length >= 1 && trimmed.length <= 80
-  }
-
-  if (INTAKE_SHORT_ANSWER_RE.test(trimmed)) return true
-  if (isSalesQuizAffirmation(trimmed)) return true
-  if (trimmed.split(/\s+/).length <= 8 && trimmed.length <= 60) return true
-  return false
+  if (!trimmed || trimmed.length > 120) return false
+  return classifySalesIntakeReply(body, history) === "answer"
 }
 
 export function shouldUseSalesIntakeFastPath(
@@ -170,9 +214,102 @@ export function shouldUseSalesIntakeFastPath(
   if (isSpecificProductQuery(body)) return false
   if (isSalesConsultationTrigger(body)) return true
   if (hasOngoingSalesIntake(history)) {
-    return isSalesIntakeAnswer(body, history)
+    return classifySalesIntakeReply(body, history) === "answer"
   }
   return false
+}
+
+function applyPetsAnswer(intake: SalesIntake, history: HistoryMessage[], body: string) {
+  const kind = lastIntakeQuestionKind(history)
+  if (kind !== "pets" && intake.pets != null) return
+
+  const replies = recentUserReplies(history, body)
+  const combined = replies.join(" ")
+
+  if (PET_ANIMAL_RE.test(combined) || /רק\s+[א-תa-z]/i.test(combined)) {
+    intake.pets = "yes"
+    const animal = combined.match(
+      /(?:רק\s+)?(תוכי|ציפור(?:ים)?|כלב(?:ה)?|חתול(?:ה)?|[א-ת]{2,12})/i
+    )?.[1]
+    intake.petsDetail =
+      replies.length > 1 || PET_CLARIFICATION_RE.test(body)
+        ? replies.join(", ").slice(0, 80)
+        : animal?.trim() || combined.slice(0, 40)
+    return
+  }
+
+  if (/^(?:כן|yes)/i.test(replies[replies.length - 1] ?? "")) {
+    intake.pets = "yes"
+    return
+  }
+
+  const clarifiedNo =
+    replies.length === 1 && /^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(replies[0])
+  if (clarifiedNo && !/רק\s+/i.test(combined)) {
+    intake.pets = "none"
+    return
+  }
+
+  if (PET_CLARIFICATION_RE.test(body) && replies.length >= 2) {
+    intake.pets = "yes"
+    intake.petsDetail = replies.join(", ").slice(0, 80)
+  }
+}
+
+function applyContextualIntakeAnswers(
+  intake: SalesIntake,
+  history: HistoryMessage[],
+  body: string,
+  options?: { force?: boolean }
+) {
+  const kind = lastIntakeQuestionKind(history)
+  if (!kind && !options?.force) return
+
+  applyPetsAnswer(intake, history, body)
+
+  if ((kind === "style" || options?.force) && !intake.style) {
+    const trimmed = body.trim()
+    if (trimmed.length >= 2 && trimmed.length <= 50) {
+      intake.style = trimmed
+    }
+  }
+
+  if ((kind === "bedroom" || options?.force) && !intake.bedroomUse) {
+    const trimmed = body.trim()
+    if (trimmed.length >= 2 && trimmed.length <= 60) {
+      intake.bedroomUse = trimmed
+    }
+  }
+
+  if ((kind === "children" || options?.force) && !intake.childrenAge) {
+    const trimmed = body.trim()
+    if (trimmed.length >= 2 && trimmed.length <= 40) {
+      intake.childrenAge = trimmed
+    }
+  }
+
+  if ((kind === "budget" || options?.force) && !intake.budget) {
+    const match = body.match(/([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)?/)
+    if (match) intake.budget = match[1].replace(/,/g, "")
+    else if (/^\d[\d,.\s]*$/.test(body.trim())) {
+      intake.budget = body.trim().replace(/,/g, "")
+    }
+  }
+
+  if ((kind === "practical" || options?.force) && !intake.practicalNeeds) {
+    const trimmed = body.trim()
+    if (trimmed.length >= 2 && trimmed.length <= 80) {
+      intake.practicalNeeds = trimmed
+    }
+  }
+
+  if ((kind === "sofa" || options?.force) && !intake.sofaSize && !intake.rugSize) {
+    const match = body.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
+    if (match) intake.sofaSize = match[1].replace(/\s/g, "")
+    else if (/^\d[\d.\s-]*$/.test(body.trim())) {
+      intake.sofaSize = body.trim()
+    }
+  }
 }
 
 function wasSpaceQuestionAsked(history: HistoryMessage[]) {
@@ -269,6 +406,8 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
     intake.practicalNeeds = "ניתן לכבס / קל לניקוי"
   }
 
+  applyContextualIntakeAnswers(intake, history, body)
+
   return intake
 }
 
@@ -364,7 +503,7 @@ export function buildConfirmationSummary(intake: SalesIntake) {
   if (intake.pets === "none") {
     parts.push("ללא חיות מחמד")
   } else if (intake.pets === "yes") {
-    parts.push("עם חיות מחמד בבית")
+    parts.push(intake.petsDetail ? `עם ${intake.petsDetail}` : "עם חיות מחמד בבית")
   }
 
   if (intake.household?.includes("ילד") || intake.childrenAge) {
@@ -398,7 +537,15 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const intake = extractSalesIntake(history, body)
   const intro = introForFlow(body, history, intake)
 
-  const next = nextIntakeQuestion(intake)
+  let next = nextIntakeQuestion(intake)
+  const lastKind = lastIntakeQuestionKind(history)
+  const nextKind = next ? questionKindForText(next) : null
+
+  // Never repeat the same question — accept the reply and advance.
+  if (next && lastKind && nextKind === lastKind) {
+    applyContextualIntakeAnswers(intake, history, body, { force: true })
+    next = nextIntakeQuestion(intake)
+  }
 
   if (!next) {
     return buildConfirmationSummary(intake)

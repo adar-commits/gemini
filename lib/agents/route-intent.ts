@@ -9,6 +9,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import {
   hasOngoingSalesIntake,
   isConfirmationPending,
+  isIntakeTopicPivot,
 } from "@/lib/agents/sales-intake"
 import { isProductAvailabilityQuestion } from "@/lib/agents/product-handoff"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
@@ -145,6 +146,7 @@ export function shouldContinueWithSpecialist(
   }
 
   if (hasOngoingSalesIntake(history)) {
+    if (isIntakeTopicPivot(body, history)) return false
     if (isFaqTopicSwitch(body) || isServiceTopicSwitch(body)) return false
     return true
   }
