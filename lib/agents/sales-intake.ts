@@ -38,7 +38,7 @@ const INTAKE_SHORT_ANSWER_RE =
 const OUTDOOR_SPACE_RE = /חצר|מרפס(?:ה|ת)|גינ(?:ה|ה)|patio|terrace|balcony/i
 
 const PET_ANIMAL_RE =
-  /תוכי|ציפור(?:ים)?|כלב(?:ה)?|חתול(?:ה)?|ארנב|ג(?:'|׳|)ר(?:י)?ז(?:י)?|ח(?:ו(?:מ)?)?ס(?:ת)?(?:ר)?|דג(?:ים)?|נחש|פר(?:ט|ט)|hamster|guinea|pets?/i
+  /תוכי|ציפור(?:ים)?|כלב(?:ה)?|חתול(?:ה)?|ארנב|ג(?:'|׳|)ר(?:י)?ז(?:י)?|ח(?:ו(?:מ)?)?ס(?:ת)?(?:ר)?|דג(?:ים)?|אקווריום|נחש|פר(?:ט|ט)|hamster|guinea|pets?/i
 
 const PET_CLARIFICATION_RE =
   /^(?:אבל|רק|הוא|היא|לא\s+נכנס|בסדר|בכל\s+זאת)/i
@@ -53,7 +53,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
 
 /** Named model/collection in a purchase message (not verified against any catalog). */
 const REQUESTED_MODEL_RE =
@@ -128,7 +128,28 @@ export function isSalesConsultationTrigger(text: string) {
 }
 
 export function hasOngoingSalesIntake(history: HistoryMessage[]) {
-  return INTAKE_MARKER_RE.test(lastAssistantText(history))
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (INTAKE_MARKER_RE.test(message.content)) return true
+  }
+  return false
+}
+
+function intakeHasProgress(intake: SalesIntake) {
+  return Boolean(
+    intake.targetSpace ||
+      intake.pets != null ||
+      intake.style ||
+      intake.budget ||
+      intake.practicalNeeds
+  )
+}
+
+function petsQuestionWasAsked(history: HistoryMessage[]) {
+  return history.some(
+    (message) => message.role === "assistant" && /בעלי חיים/.test(message.content)
+  )
 }
 
 function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
@@ -175,6 +196,17 @@ function recentUserReplies(history: HistoryMessage[], body: string) {
 export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
   const trimmed = body.trim()
   if (!trimmed) return false
+
+  // During an active quiz, only explicit FAQ/service pivots break out — not budget/style answers.
+  if (hasOngoingSalesIntake(history) || lastIntakeQuestionKind(history)) {
+    if (isTopicPivotPhrase(trimmed)) return true
+    if (isFaqTopicSwitch(trimmed)) return true
+    if (isServiceTopicSwitch(trimmed)) return true
+    if (isShippingPolicyQuestion(trimmed) || isShippingStatusQuestion(trimmed)) return true
+    if (isProductInventoryQuestion(trimmed) || isSpecificProductMention(trimmed)) return true
+    return false
+  }
+
   if (isTopicPivotPhrase(trimmed)) return true
   if (isFaqTopicSwitch(trimmed)) return true
   if (isServiceTopicSwitch(trimmed)) return true
@@ -182,14 +214,11 @@ export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
   if (isProductInventoryQuestion(trimmed) || isSpecificProductMention(trimmed)) return true
   if (
     isSalesConsultationTrigger(trimmed) &&
-    !hasOngoingSalesIntake(history) &&
     trimmed.split(/\s+/).length >= 4
   ) {
     return true
   }
-  if (isSalesTopicSwitch(trimmed) && lastIntakeQuestionKind(history) !== null) {
-    return true
-  }
+  if (isSalesTopicSwitch(trimmed)) return true
   return false
 }
 
@@ -218,10 +247,10 @@ export function shouldUseSalesIntakeFastPath(
   if (isProductInventoryQuestion(body) || isSpecificProductMention(body)) return false
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
-  if (isSalesConsultationTrigger(body)) return true
   if (hasOngoingSalesIntake(history)) {
     return classifySalesIntakeReply(body, history) === "answer"
   }
+  if (isSalesConsultationTrigger(body)) return true
   return false
 }
 
@@ -251,8 +280,10 @@ function applyPetsAnswer(intake: SalesIntake, history: HistoryMessage[], body: s
 
   const clarifiedNo =
     replies.length === 1 && /^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(replies[0])
-  if (clarifiedNo && !/רק\s+/i.test(combined)) {
-    intake.pets = "none"
+  if (clarifiedNo && !/רק\s+/i.test(combined) && !PET_ANIMAL_RE.test(combined)) {
+    if (/^(?:לא|אין|בלי|ללא)\s+חיות|ללא\s+חיות|אין\s+חיות/i.test(combined)) {
+      intake.pets = "none"
+    }
     return
   }
 
@@ -292,11 +323,7 @@ function applyContextualIntakeAnswers(
   }
 
   if ((kind === "budget" || options?.force) && !intake.budget) {
-    const match = body.match(/([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)?/)
-    if (match) intake.budget = match[1].replace(/,/g, "")
-    else if (/^\d[\d,.\s]*$/.test(body.trim())) {
-      intake.budget = body.trim().replace(/,/g, "")
-    }
+    applyBudgetAnswer(intake, recentUserReplies(history, body))
   }
 
   if ((kind === "practical" || options?.force) && !intake.practicalNeeds) {
@@ -384,18 +411,32 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   else intake.style = answers[answers.length - 1].slice(0, 50)
 }
 
+function applyBudgetAnswer(intake: SalesIntake, answers: string[]) {
+  const combined = answers.join(" ")
+  if (!combined) return
+
+  const match =
+    combined.match(/(?:תקציב|באזור|עד|בסביבות)\s*([\d,]+)/i) ||
+    combined.match(/([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)/i) ||
+    combined.match(/(\d[\d,]+)/)
+
+  if (match) {
+    intake.budget = match[1].replace(/,/g, "")
+    return
+  }
+
+  if (!isUnknownIntakeAnswer(combined)) {
+    intake.budget = answers[answers.length - 1].replace(/[^\d]/g, "") || undefined
+  }
+}
+
 function applyPetsAnswerFromText(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
   if (!combined) return
 
   if (PET_ANIMAL_RE.test(combined) || /רק\s+[א-תa-z]/i.test(combined)) {
     intake.pets = "yes"
-    intake.petsDetail =
-      answers.length > 1
-        ? answers.join(", ").slice(0, 80)
-        : combined.match(
-            /(?:רק\s+)?(תוכי|ציפור(?:ים)?|כלב(?:ה)?|חתול(?:ה)?|[א-ת]{2,12})/i
-          )?.[1] || combined.slice(0, 40)
+    intake.petsDetail = answers.join(", ").slice(0, 80)
     return
   }
 
@@ -404,17 +445,59 @@ function applyPetsAnswerFromText(intake: SalesIntake, answers: string[]) {
     return
   }
 
-  if (
-    answers.every((answer) => /^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(answer)) &&
-    !/רק\s+/i.test(combined)
-  ) {
+  if (/^(?:לא|אין|בלי|ללא)\s+חיות|ללא\s+חיות|אין\s+חיות|בלי\s+חיות/i.test(combined)) {
     intake.pets = "none"
+    return
+  }
+
+  // Lone "לא" may be followed by "רק תוכי" — defer; reconcilePetsFromThread resolves.
+  if (answers.length === 1 && /^(?:לא)(?:[\s,.!?]|$)/i.test(answers[0])) {
     return
   }
 
   if (PET_CLARIFICATION_RE.test(answers[answers.length - 1] ?? "") && answers.length >= 2) {
     intake.pets = "yes"
     intake.petsDetail = answers.join(", ").slice(0, 80)
+  }
+}
+
+/** After pets Q, scan full thread — "לא" then "רק תוכי" must not stick as no pets. */
+function reconcilePetsFromThread(
+  intake: SalesIntake,
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!petsQuestionWasAsked(history)) return
+
+  const messages: HistoryMessage[] = [...history, { role: "user", content: body }]
+  const petAnswers: string[] = []
+  let collecting = false
+
+  for (const message of messages) {
+    if (message.role === "assistant" && /בעלי חיים/.test(message.content)) {
+      collecting = true
+      petAnswers.length = 0
+      continue
+    }
+    if (collecting && message.role === "user") {
+      petAnswers.push(message.content.trim())
+    }
+    if (collecting && message.role === "assistant" && !/בעלי חיים/.test(message.content)) {
+      collecting = false
+    }
+  }
+
+  const combined = petAnswers.join(" ")
+  if (!combined) return
+
+  if (PET_ANIMAL_RE.test(combined) || /רק\s+[א-תa-z]/i.test(combined)) {
+    intake.pets = "yes"
+    intake.petsDetail = petAnswers.join(", ").slice(0, 80)
+    return
+  }
+
+  if (/^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(petAnswers[0]) && petAnswers.length === 1) {
+    intake.pets = "none"
   }
 }
 
@@ -464,16 +547,9 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
         else if (!isUnknownIntakeAnswer(combined)) intake.sofaSize = answers[answers.length - 1]
         break
       }
-      case "budget": {
-        const match =
-          combined.match(/([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)/i) ||
-          combined.match(/(\d[\d,]+)/)
-        if (match) intake.budget = match[1].replace(/,/g, "")
-        else if (!isUnknownIntakeAnswer(combined)) {
-          intake.budget = answers[answers.length - 1].replace(/,/g, "")
-        }
+      case "budget":
+        applyBudgetAnswer(intake, answers)
         break
-      }
       case "practical":
         if (isUnknownIntakeAnswer(combined)) {
           intake.practicalNeeds = "לא בטוח — יועץ יבדוק"
@@ -529,6 +605,7 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
 
   if (!intake.budget) {
     const budgetMatch =
+      text.match(/(?:תקציב|באזור|עד|בסביבות)\s*([\d,]+)/i) ||
       text.match(/עד\s+([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)/i) ||
       text.match(/(\d{2,4})\s*שקל/i) ||
       text.match(/תקציב(?:\s+של)?\s+([\d,]+)/i)
@@ -553,12 +630,14 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   }
 
   if (intake.pets == null) {
-    if (/ללא\s+חיות|אין\s+חיות|בלי\s+חיות|לא\s+יש\s+חיות/.test(text)) {
+    if (/ללא\s+חיות|אין\s+חיות|בלי\s+חיות/.test(text)) {
       intake.pets = "none"
-    } else if (/יש\s+(?:כלב|חתול|חיות)|עם\s+חיות|כלב|חתול/.test(text)) {
+    } else if (/יש\s+(?:כלב|חתול|חיות)|עם\s+חיות|כלב|חתול|תוכי|אקווריום|דגים/.test(text)) {
       intake.pets = "yes"
     }
   }
+
+  reconcilePetsFromThread(intake, history, body)
 
   if (!intake.rugSize) {
     const rugSizeMatch = text.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
@@ -626,15 +705,15 @@ function isPriceFirstFlow(text: string) {
 }
 
 function introForFlow(text: string, history: HistoryMessage[], intake: SalesIntake) {
-  const started = hasOngoingSalesIntake(history)
-  if (started) return ""
+  if (hasOngoingSalesIntake(history)) return ""
+  if (intakeHasProgress(intake)) return ""
   if (
     (intake.requestedModel || hasUnverifiedProductRequest(text)) &&
     !isSalesConsultationTrigger(text)
   ) {
     return ""
   }
-  if (isPriceFirstFlow(text)) {
+  if (isPriceFirstFlow(text) && !hasOngoingSalesIntake(history)) {
     return "לפני שנגיע למחיר, אשמח לשאול כמה שאלות קצרות של התאמת שטיח."
   }
   return `בשמחה,
@@ -727,10 +806,14 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
     next = nextIntakeQuestion(intake)
   }
 
-  // Never go backwards (e.g. re-ask space after style was already asked).
+  // Never go backwards (e.g. re-ask pets after budget was already asked).
   if (next && lastKind && nextKind && questionOrder(nextKind) < questionOrder(lastKind)) {
     applyContextualIntakeAnswers(intake, history, body, { force: true })
+    reconcilePetsFromThread(intake, history, body)
     next = nextIntakeQuestion(intake)
+    if (next && nextKind && questionOrder(questionKindForText(next) ?? "") < questionOrder(lastKind)) {
+      next = null
+    }
   }
 
   const correctionPrefix = isIntakeCorrection(body) ? "צודק/ת, תודה על הסבלנות.\n" : ""
