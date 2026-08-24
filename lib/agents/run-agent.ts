@@ -25,8 +25,10 @@ import {
 import { isFaqTopicSwitch, isSalesTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import {
   buildGreetingReply,
+  buildCasualSmallTalkReply,
   hasImmediateBusinessAsk,
   isCasualGreetingWithLearned,
+  isCasualSmallTalk,
   isOpeningTurn,
   shouldWelcomeAfterReset,
 } from "@/lib/agents/greeting"
@@ -45,6 +47,7 @@ import {
   buildPostConfirmationReply,
   buildSalesIntakeReply,
   isConfirmationPending,
+  isSalesConsultationTrigger,
   sanitizeSalesReply,
   shouldUseSalesIntakeFastPath,
 } from "@/lib/agents/sales-intake"
@@ -470,6 +473,27 @@ async function tryWelcomeGreeting(
   return { ok: true, agent: "faq", reply, action: "reply", route: ["faq"] }
 }
 
+async function tryCasualSmallTalk(
+  conversationId: string,
+  turn: UserTurn,
+  history: HistoryMessage[],
+  options?: { preview?: boolean; handoffPending?: boolean }
+): Promise<AgentResponse | null> {
+  const body = summarizeTurn(turn)
+  if (!isCasualSmallTalk(body)) return null
+
+  const reply = buildCasualSmallTalkReply(body, options?.handoffPending ?? false)
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview: options?.preview,
+  })
+  return { ok: true, agent: "faq", reply, action: "reply", route: ["faq"] }
+}
+
 export async function runMasterConversation(
   conversationId: string,
   turn: UserTurn,
@@ -490,6 +514,12 @@ export async function runMasterConversation(
     options
   )
   if (welcome) return welcome
+
+  const casual = await tryCasualSmallTalk(conversationId, turn, history, {
+    preview,
+    handoffPending: isHumanHandoffPending(history),
+  })
+  if (casual) return casual
 
   if (isHumanHandoffPending(history) && breaksPendingHandoff(body)) {
     const next = isServiceTopicSwitch(body)
@@ -535,6 +565,21 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
+  }
+
+  if (
+    shouldUseSalesIntakeFastPath(body, history, lastAgent) ||
+    (isSalesConsultationTrigger(body) && !isProductAvailabilityQuestion(body))
+  ) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "sales",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
   }
 
   if (isProductAvailabilityQuestion(body)) {

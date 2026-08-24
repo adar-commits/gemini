@@ -19,7 +19,7 @@ export type SalesIntake = {
 }
 
 const CONSULTATION_RE =
-  /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים/i
+  /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|אפשר\s+ל(?:קנות|רכוש|הזמין)|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים/i
 
 const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
@@ -74,11 +74,15 @@ function lastAssistantText(history: HistoryMessage[]) {
 const ROOM_TARGET_RE =
   /^(?:לחדר\s+ילדים|חדר\s+(?:ילדים|שינה|ילד|נוער|תינוקות)|לסלון|סלון|למסדרון|מסדרון|מטבח|מרפסת|כניסה)(?:\s|$)/i
 
+const GARBAGE_MODEL_RE =
+  /^(?:בבקשה|כמה|עולה|מידה|גודל|יש|לקנות|שטיח|פוף|בגודל|במידה|אפשר|רוצה|מחפש|מסוימ(?:ת|ה)|מוצר|דגם|בבקשה\s+כמה\s+עולה)/i
+
 export function extractRequestedModel(text: string): string | null {
   const match = text.trim().match(REQUESTED_MODEL_RE)
   if (!match) return null
   const name = match[1].trim().split(/\n/)[0].trim().replace(/\s+/g, " ")
   if (ROOM_TARGET_RE.test(name)) return null
+  if (GARBAGE_MODEL_RE.test(name)) return null
   if (/^(סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(name)) {
     return null
   }
@@ -124,6 +128,10 @@ export function shouldUseSalesIntakeFastPath(
   return false
 }
 
+function wasSpaceQuestionAsked(history: HistoryMessage[]) {
+  return /לאיזה חלל|לאן השטיח/.test(lastAssistantText(history))
+}
+
 export function extractSalesIntake(history: HistoryMessage[], body: string): SalesIntake {
   const text = allUserText(history, body)
   const intake: SalesIntake = {}
@@ -144,6 +152,22 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   else if (/חדר\s+שינה/.test(text)) intake.targetSpace = "חדר שינה"
   else if (/סלון/.test(text)) intake.targetSpace = "סלון"
   else if (/מסדרון/.test(text)) intake.targetSpace = "מסדרון"
+  else if (/חצר|מרפס(?:ה|ת)|גינ(?:ה|ה)/i.test(text)) {
+    const outdoor = text.match(/(?:ל)?(חצר|מרפס(?:ה|ת)|גינ(?:ה|ה))/i)?.[1]
+    if (outdoor) intake.targetSpace = outdoor
+  }
+
+  // Free-form space answer during intake (e.g. "לחצר שלי", "למרפסת").
+  if (!intake.targetSpace && wasSpaceQuestionAsked(history)) {
+    const trimmed = body.trim()
+    if (
+      trimmed.length >= 2 &&
+      trimmed.length <= 40 &&
+      !/^(?:כן|לא|לא\s+יודע|לא\s+בטוח)/i.test(trimmed)
+    ) {
+      intake.targetSpace = trimmed.replace(/^ל/, "").trim() || trimmed
+    }
+  }
 
   if (/חדר\s+תינוקות|תינוק/.test(text)) intake.bedroomUse = "חדר תינוקות"
   else if (/חדר\s+(?:ילדים|נוער)/.test(text)) intake.bedroomUse = "חדר ילדים או נוער"

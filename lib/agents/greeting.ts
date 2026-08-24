@@ -1,12 +1,17 @@
 import type { HistoryMessage } from "@/lib/agents/types"
+import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 const GREETING_RE =
-  /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+|$)/i
+  /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+|$)/i
 
 const GREETING_ONLY_RE = /^(?:שלום|היי|הי|אהלן)(?:[\s,!?.]+|$)/i
 
 const SMALL_TALK_RE =
-  /(?:מה\s+נשמע|מה\s+קורה|how\s+are\s+you|what'?s\s+up)/i
+  /(?:מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|how\s+are\s+you|what'?s\s+up)/i
+
+/** Customer checking we're still here — answer warmly, never stay silent. */
+const PING_RE =
+  /^(?:הלו|hello)\??$|אתה\s+(?:לא\s+)?(?:עונה|שם|מאזין|קיים)|יש\s+מישהו|מישהו\s+שם|למה\s+לא\s+עונ/i
 
 const BUSINESS_HINT_RE =
   /שעות|סניפ|מדיניות|משלוח|החזר|תשלום|איך\s+מחזיר|רוצה\s+לקנות|מחיר|שטיח|פוף|קרוע|פגום|לא\s+קיבלתי|משלוח(\s+שלי)?|הזמנה/i
@@ -20,6 +25,16 @@ export function isCasualGreeting(text: string) {
   return false
 }
 
+/** Greeting, wellbeing check, or "are you there?" — works mid-conversation too. */
+export function isCasualSmallTalk(text: string) {
+  const body = text.trim()
+  if (!body || body.length > 120) return false
+  if (hasImmediateBusinessAsk(body)) return false
+  if (isCasualGreeting(body)) return true
+  if (PING_RE.test(body) && body.split(/\s+/).length <= 10) return true
+  return false
+}
+
 export async function isCasualGreetingWithLearned(text: string) {
   if (isCasualGreeting(text)) return true
   const { matchesLearnedGreeting } = await import("@/lib/agents/learned-rules")
@@ -30,6 +45,28 @@ export async function isCasualGreetingWithLearned(text: string) {
 export function buildGreetingReply(_customerName?: string) {
   return `שלום! כאן הום בוט :)
 אצלי הכל מצוין, תודה! איך אוכל לעזור לך היום? 🙂`
+}
+
+/** Natural reply to wellbeing / ping messages — not only on the opening turn. */
+export function buildCasualSmallTalkReply(text: string, handoffPending = false) {
+  const body = text.trim()
+  let line: string
+
+  if (PING_RE.test(body)) {
+    line = "כן, אני כאן! סליחה אם התשובה התעכבה."
+  } else if (/מה\s+שלומ/i.test(body)) {
+    line = "בסדר גמור, תודה! 🙂"
+  } else if (SMALL_TALK_RE.test(body)) {
+    line = "הכל טוב, תודה!"
+  } else {
+    return buildGreetingReply()
+  }
+
+  if (handoffPending) {
+    return `${CUSTOMER_HEADER}\n${line}\nהאם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`
+  }
+
+  return `${CUSTOMER_HEADER}\n${line}\nאיך אוכל לעזור לך היום?`
 }
 
 export function isOpeningTurn(historyUserMessages: number) {
