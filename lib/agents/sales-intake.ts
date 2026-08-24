@@ -26,7 +26,9 @@ const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
 
 const INTAKE_SHORT_ANSWER_RE =
-  /^(?:סלון|חדר\s+שינה|חדר\s+ילדים|מסדרון|חלל\s+אחר|זוג|לזוג|משפחה|מבוגר|יש\s+(?:כלב|חתול|חיות)|אין\s+חיות|ללא\s+חיות|יוקרתי|מודרני|כפרי|\d[\d.,\s]*(?:מ(?:טר)?)?)$/i
+  /^(?:סלון|חדר\s+שינה|חדר\s+ילדים|מסדרון|חלל\s+אחר|חצר|לחצר|מרפס(?:ה|ת)?|גינ(?:ה|ה)?|זוג|לזוג|משפחה|מבוגר|יש\s+(?:כלב|חתול|חיות)|אין\s+חיות|ללא\s+חיות|יוקרתי|מודרני|כפרי|\d[\d.,\s]*(?:מ(?:טר)?)?)$/i
+
+const OUTDOOR_SPACE_RE = /חצר|מרפס(?:ה|ת)|גינ(?:ה|ה)|patio|terrace|balcony/i
 
 const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
@@ -41,9 +43,9 @@ const REQUESTED_MODEL_RE =
 const PRODUCT_Q =
   "באיזה מוצר מדובר – שטיח, פוף, תמונת קיר, אביזר לעיצוב הבית, כרית או מוצר אחר?"
 const SPACE_Q_RUG =
-  "לאיזה חלל מיועד השטיח? – סלון, חדר שינה, חדר ילדים, מסדרון או חלל אחר?"
+  "לאיזה חלל מיועד השטיח? (למשל סלון, חדר שינה, חצר, מרפסת, מסדרון — או כל חלל אחר)"
 const SPACE_Q_OTHER =
-  "לאיזה חלל מיועד המוצר? – סלון, חדר שינה, חדר ילדים, מסדרון או חלל אחר?"
+  "לאיזה חלל מיועד המוצר? (למשל סלון, חדר שינה, חצר, מרפסת — או כל חלל אחר)"
 const BEDROOM_USE_Q =
   "איך חדר השינה משמש ביום־יום – כחדר תינוקות, חדר ילדים או נוער, חדר ליחיד, חדר זוגי, חדר לאדם מבוגר או שימוש אחר?"
 const CHILDREN_Q = "מדובר בילדים קטנים, ילדים גדולים או גם וגם?"
@@ -110,10 +112,54 @@ export function hasOngoingSalesIntake(history: HistoryMessage[]) {
   return INTAKE_MARKER_RE.test(lastAssistantText(history))
 }
 
+function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
+  const last = lastAssistantText(history)
+  if (/לאיזה חלל|לאן השטיח/.test(last)) return "space"
+  if (/באיזה מוצר/.test(last)) return "product"
+  if (/איך חדר השינה/.test(last)) return "bedroom"
+  if (/ילדים קטנים/.test(last)) return "children"
+  if (/בעלי חיים/.test(last)) return "pets"
+  if (/סגנון/.test(last)) return "style"
+  if (/מידת הספה/.test(last)) return "sofa"
+  if (/תקציב/.test(last)) return "budget"
+  if (/דרישות מיוחדות/.test(last)) return "practical"
+  if (/האם זה נכון/.test(last)) return "confirm"
+  return null
+}
+
+/** Accept free-form quiz answers — examples in questions are hints, not an exhaustive list. */
+export function isSalesIntakeAnswer(body: string, history: HistoryMessage[]) {
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 100) return false
+
+  const kind = lastIntakeQuestionKind(history)
+
+  if (kind === "space") {
+    return trimmed.length >= 2 && !/^(?:לא|לא\s+יודע|לא\s+בטוח)$/i.test(trimmed)
+  }
+  if (kind === "product") {
+    return trimmed.length >= 2
+  }
+  if (kind === "confirm") {
+    return (
+      isSalesQuizAffirmation(trimmed) ||
+      trimmed.length <= 60
+    )
+  }
+  if (kind) {
+    return trimmed.length >= 1 && trimmed.length <= 80
+  }
+
+  if (INTAKE_SHORT_ANSWER_RE.test(trimmed)) return true
+  if (isSalesQuizAffirmation(trimmed)) return true
+  if (trimmed.split(/\s+/).length <= 8 && trimmed.length <= 60) return true
+  return false
+}
+
 export function shouldUseSalesIntakeFastPath(
   body: string,
   history: HistoryMessage[],
-  lastAgent: AgentId | null
+  _lastAgent: AgentId | null
 ) {
   if (isShippingPolicyQuestion(body) || isShippingStatusQuestion(body)) return false
   if (isFaqTopicSwitch(body)) return false
@@ -123,15 +169,18 @@ export function shouldUseSalesIntakeFastPath(
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
   if (isSalesConsultationTrigger(body)) return true
-  if (lastAgent === "sales" && hasOngoingSalesIntake(history)) {
-    if (INTAKE_SHORT_ANSWER_RE.test(body.trim())) return true
-    return isSalesQuizAffirmation(body) || !isFaqTopicSwitch(body)
+  if (hasOngoingSalesIntake(history)) {
+    return isSalesIntakeAnswer(body, history)
   }
   return false
 }
 
 function wasSpaceQuestionAsked(history: HistoryMessage[]) {
   return /לאיזה חלל|לאן השטיח/.test(lastAssistantText(history))
+}
+
+function normalizeSpaceAnswer(raw: string) {
+  return raw.trim().replace(/^ל/, "").trim() || raw.trim()
 }
 
 export function extractSalesIntake(history: HistoryMessage[], body: string): SalesIntake {
@@ -154,20 +203,22 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   else if (/חדר\s+שינה/.test(text)) intake.targetSpace = "חדר שינה"
   else if (/סלון/.test(text)) intake.targetSpace = "סלון"
   else if (/מסדרון/.test(text)) intake.targetSpace = "מסדרון"
-  else if (/חצר|מרפס(?:ה|ת)|גינ(?:ה|ה)/i.test(text)) {
-    const outdoor = text.match(/(?:ל)?(חצר|מרפס(?:ה|ת)|גינ(?:ה|ה))/i)?.[1]
-    if (outdoor) intake.targetSpace = outdoor
+  else if (OUTDOOR_SPACE_RE.test(body)) {
+    intake.targetSpace = normalizeSpaceAnswer(body)
+  } else if (OUTDOOR_SPACE_RE.test(text)) {
+    const outdoor = text.match(/(?:ל)?(חצר(?:\s+\S+)?|מרפס(?:ה|ת)(?:\s+\S+)?|גינ(?:ה|ה)(?:\s+\S+)?)/i)?.[1]
+    if (outdoor) intake.targetSpace = normalizeSpaceAnswer(outdoor)
   }
 
-  // Free-form space answer during intake (e.g. "לחצר שלי", "למרפסת").
+  // Free-form space answer during intake (e.g. "לחצר שלי", "במטבח", "לפינת קריאה").
   if (!intake.targetSpace && wasSpaceQuestionAsked(history)) {
     const trimmed = body.trim()
     if (
       trimmed.length >= 2 &&
-      trimmed.length <= 40 &&
-      !/^(?:כן|לא|לא\s+יודע|לא\s+בטוח)/i.test(trimmed)
+      trimmed.length <= 50 &&
+      !/^(?:כן|לא|לא\s+יודע|לא\s+בטוח)$/i.test(trimmed)
     ) {
-      intake.targetSpace = trimmed.replace(/^ל/, "").trim() || trimmed
+      intake.targetSpace = normalizeSpaceAnswer(trimmed)
     }
   }
 
@@ -241,7 +292,9 @@ function nextIntakeQuestion(intake: SalesIntake): string | null {
   if (intake.household?.includes("ילד") && !intake.childrenAge) return CHILDREN_Q
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
   if (!intake.style) return STYLE_Q
-  if (intake.targetSpace === "סלון" && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
+  const isLivingRoom =
+    intake.targetSpace === "סלון" || /^סלון/i.test(intake.targetSpace)
+  if (isLivingRoom && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
     return SOFA_SIZE_Q
   }
   if (!intake.budget) return BUDGET_Q

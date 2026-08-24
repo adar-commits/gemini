@@ -144,6 +144,11 @@ export function shouldContinueWithSpecialist(
     return true
   }
 
+  if (hasOngoingSalesIntake(history)) {
+    if (isFaqTopicSwitch(body) || isServiceTopicSwitch(body)) return false
+    return true
+  }
+
   const route = guessMasterRoute(body)
   if (route) {
     const target = MASTER_ROUTE_MAP[route as MasterAction]
