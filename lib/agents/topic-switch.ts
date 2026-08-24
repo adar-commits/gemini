@@ -6,6 +6,13 @@ import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 
 export { isShippingPolicyQuestion, isShippingStatusQuestion }
 
+/** Customer explicitly pivots away from the current flow. */
+export function isTopicPivotPhrase(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return /^(?:רגע|רגע\s+לפני\s+זה|אגב|בינתיים|לפני\s+זה|שאלה\s+אחרת|עוד\s+שאלה)/i.test(text)
+}
+
 /** Mid-conversation pivot from sales/service into FAQ policy answers. */
 export function isFaqTopicSwitch(body: string) {
   const text = body.trim()

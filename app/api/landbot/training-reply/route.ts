@@ -35,7 +35,11 @@ export async function POST(request: Request) {
       previewLabel:
         typeof payload.previewLabel === "string" ? payload.previewLabel : undefined,
       reset: Boolean(payload.reset),
+      force: Boolean(payload.force),
     })
+    if (result.skipped) {
+      return NextResponse.json(result, { status: 409 })
+    }
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Training reply failed"
@@ -55,7 +59,8 @@ export async function GET(request: Request) {
     body: {
       userText: "example customer message",
       note: "optional fix description",
-      reset: "optional — clear agent memory before preview",
+      reset: "optional — clear agent memory before preview (avoid on active chats)",
+      force: "optional — send even if the live conversation has moved on",
       phone: "optional — defaults to LANDBOT_TRAINER_PHONE",
     },
   })

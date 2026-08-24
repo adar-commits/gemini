@@ -19,6 +19,7 @@ import {
   isShippingStatusQuestion,
 } from "@/lib/agents/topic-switch"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
+import { breaksPendingHandoff } from "@/lib/agents/handoff-wait"
 
 const BREAK_STICKY = new Set([
   "reset",
@@ -128,7 +129,7 @@ export function shouldContinueWithSpecialist(
   history: HistoryMessage[],
   sticky: SpecialistId
 ) {
-  if (isHumanHandoffPending(history)) return true
+  if (isHumanHandoffPending(history) && !breaksPendingHandoff(body)) return true
   if (isConfirmationPending(history)) return true
 
   if (isProductAvailabilityQuestion(body)) return false

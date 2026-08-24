@@ -22,7 +22,7 @@ import {
   buildCustomerServiceTopicPrompt,
   isCustomerServiceOpener,
 } from "@/lib/agents/customer-service-opener"
-import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
+import { isFaqTopicSwitch, isSalesTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import {
   buildGreetingReply,
   hasImmediateBusinessAsk,
@@ -31,7 +31,16 @@ import {
   shouldWelcomeAfterReset,
 } from "@/lib/agents/greeting"
 import { guessLearnedRoute, learnedPromptRules, loadLearnedRules } from "@/lib/agents/learned-rules"
-import { buildBranchListReply, isBranchListQuestion } from "@/lib/agents/branches"
+import {
+  buildBranchListReply,
+  buildBranchReplyForText,
+  isBranchListQuestion,
+} from "@/lib/agents/branches"
+import {
+  breaksPendingHandoff,
+  buildStuckHandoffReply,
+  isHandoffContextReply,
+} from "@/lib/agents/handoff-wait"
 import {
   buildPostConfirmationReply,
   buildSalesIntakeReply,
@@ -188,7 +197,7 @@ async function resolveSpecialist(
   const userTurns = history.filter((message) => message.role === "user").length
   const preview = options?.preview
 
-  if (isHumanHandoffPending(history)) {
+  if (isHumanHandoffPending(history) && isHandoffContextReply(body)) {
     const agent = specialist === "master" ? "faq" : specialist
     if (isHumanHandoffAffirmation(body)) {
       const action = inferHumanHandoffAction(history, options?.lastAgent ?? null)
@@ -266,7 +275,7 @@ async function resolveSpecialist(
     }
 
     if (isBranchListQuestion(body)) {
-      const reply = normalizeReply(replyAgent, "reply", buildBranchListReply())
+      const reply = normalizeReply(replyAgent, "reply", buildBranchReplyForText(body))
       await appendTurn({
         conversationId,
         agent: replyAgent,
@@ -298,7 +307,7 @@ async function resolveSpecialist(
   }
 
   if (isBranchListQuestion(body)) {
-    const reply = normalizeReply("faq", "reply", buildBranchListReply())
+    const reply = normalizeReply("faq", "reply", buildBranchReplyForText(body))
     await appendTurn({
       conversationId,
       agent: "faq",
@@ -378,6 +387,28 @@ async function resolveSpecialist(
       history,
       preview,
     })
+  }
+
+  if (
+    !result.reply &&
+    (result.action === "reply" ||
+      (isHumanHandoffPending(history) && !breaksPendingHandoff(body)))
+  ) {
+    const reply = normalizeReply(
+      specialist === "master" ? "faq" : specialist,
+      "reply",
+      buildStuckHandoffReply()
+    )
+    await appendTurn({
+      conversationId,
+      agent: specialist === "master" ? "faq" : specialist,
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ...result, agent: "faq", reply, action: "reply", route }
   }
 
   return { ...result, route }
@@ -460,7 +491,24 @@ export async function runMasterConversation(
   )
   if (welcome) return welcome
 
-  if (isHumanHandoffPending(history)) {
+  if (isHumanHandoffPending(history) && breaksPendingHandoff(body)) {
+    const next = isServiceTopicSwitch(body)
+      ? ("service" as const)
+      : isSalesTopicSwitch(body)
+        ? ("sales" as const)
+        : ("faq" as const)
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      next,
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
+  if (isHumanHandoffPending(history) && isHandoffContextReply(body)) {
     const agent =
       lastAgent && isSpecialistId(lastAgent) ? lastAgent : ("faq" as const)
     return resolveSpecialist(
@@ -472,6 +520,21 @@ export async function runMasterConversation(
       route,
       sharedOptions
     )
+  }
+
+  if (isHumanHandoffPending(history) && !breaksPendingHandoff(body)) {
+    const agent =
+      lastAgent && isSpecialistId(lastAgent) ? lastAgent : ("faq" as const)
+    const reply = normalizeReply(agent, "reply", buildStuckHandoffReply())
+    await appendTurn({
+      conversationId,
+      agent,
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
   }
 
   if (isProductAvailabilityQuestion(body)) {

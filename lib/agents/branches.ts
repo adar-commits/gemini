@@ -7,7 +7,10 @@ const DEFAULT_HOURS = "א'-ה' 09:30-19:30, ו' 09:00-14:00"
 const AIRPORT_HOURS = "א'-ה' 09:30-18:00, ו' 09:00-14:00"
 
 const BRANCH_QUESTION_RE =
-  /(?:איזה|מה\s+ה|רשימ(?:ת|ה)\s+)?(?:ה)?סניפ|סניפים\s+יש|לסניף|כתובות?\s+(?:ה)?סניפ|where\s+are\s+(?:your\s+)?(?:stores|branches)/i
+  /(?:איזה|מה\s+ה|רשימ(?:ת|ה)\s+)?(?:ה)?סניפ|סניפים\s+יש|לסניף|כתובות?\s+(?:ה)?סניפ|יש\s+(?:ל(?:כם|נו)\s+)?סניף|סניף\s+ב|where\s+are\s+(?:your\s+)?(?:stores|branches)/i
+
+const CITY_IN_BRANCH_QUERY_RE =
+  /(?:ב|ב-)([א-ת'"\s]{2,20}?)(?:\?|[\s,.]|$)|(?:^|\s)([א-ת'"\s]{2,15})\s*—\s*סניף/i
 
 type BranchEntry = {
   name: string
@@ -84,6 +87,48 @@ function formatBranchBlock(entry: BranchEntry) {
 
 export function buildBranchListReply() {
   const entries = parseBranches(branchSectionFromKb())
+  return formatBranchList(entries)
+}
+
+function findBranchCityHint(text: string) {
+  const normalized = text.trim()
+  const match =
+    normalized.match(/סניף\s+ב([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
+    normalized.match(/(?:יש\s+(?:ל(?:כם|נו)\s+)?סניף\s+)(?:ב)?([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
+    normalized.match(CITY_IN_BRANCH_QUERY_RE)
+
+  const city = match?.[1]?.trim() || match?.[2]?.trim()
+  return city || null
+}
+
+/** Full list or a single branch when the customer names a city (e.g. נתניה). */
+export function buildBranchReplyForText(text: string) {
+  const entries = parseBranches(branchSectionFromKb())
+  const cityHint = findBranchCityHint(text)
+  if (!cityHint) return formatBranchList(entries)
+
+  const filtered = entries.filter(
+    (entry) =>
+      entry.name.includes(cityHint) ||
+      entry.address.includes(cityHint) ||
+      cityHint.includes(entry.name)
+  )
+
+  if (filtered.length === 1) {
+    const entry = filtered[0]!
+    const hours = entry.hoursNote ?? DEFAULT_HOURS
+    return `*${entry.name}*
+${entry.address}${entry.phone ? ` · ${entry.phone}` : ""}
+*שעות פעילות:* ${hours}
+
+אפשר לעזור במשהו נוסף? כדי להתחיל מחדש, כתבו "התחלה".`
+  }
+
+  if (filtered.length > 1) return formatBranchList(filtered)
+  return formatBranchList(entries)
+}
+
+function formatBranchList(entries: BranchEntry[]) {
   const blocks =
     entries.length > 0
       ? entries.map(formatBranchBlock).join("\n\n")
