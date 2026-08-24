@@ -20,6 +20,7 @@ export type SalesIntake = {
   pets?: "none" | "yes"
   petsDetail?: string
   style?: string
+  favoredColor?: string
   rugSize?: string
   sofaSize?: string
   budget?: string
@@ -53,7 +54,10 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
+
+const HEBREW_COLOR_RE =
+  /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
 
 /** Named model/collection in a purchase message (not verified against any catalog). */
 const REQUESTED_MODEL_RE =
@@ -70,7 +74,7 @@ const BEDROOM_USE_Q =
 const CHILDREN_Q = "מדובר בילדים קטנים, ילדים גדולים או גם וגם?"
 const PETS_Q = "יש בעלי חיים שנכנסים לחלל?"
 const STYLE_Q =
-  "איזה סגנון או תחושה מחפשים – למשל יוקרתי, מודרני, כפרי או משהו אחר?"
+  "איזה סגנון או תחושה מחפשים – למשל יוקרתי, מודרני, כפרי או משהו אחר? ואולי גם צבע מועדף?"
 const SOFA_SIZE_Q = "מה מידת הספה?"
 const BUDGET_Q = "מה התקציב המשוער?"
 const PRACTICAL_Q =
@@ -405,10 +409,42 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
     intake.style = "לא בטוח — יועץ יעזור בבחירה"
     return
   }
+
+  const color = extractFavoredColor(combined)
+  if (color) intake.favoredColor = color
+
   if (/יוקרתי/.test(combined)) intake.style = "יוקרתי"
   else if (/מודרני/.test(combined)) intake.style = "מודרני"
   else if (/כפרי/.test(combined)) intake.style = "כפרי"
-  else intake.style = answers[answers.length - 1].slice(0, 50)
+  else if (!intake.style) {
+    intake.style =
+      color && combined.split(/\s+/).length <= 5
+        ? "לפי צבע מועדף"
+        : answers[answers.length - 1].slice(0, 50)
+  }
+}
+
+function extractFavoredColor(text: string): string | null {
+  const named = text.match(HEBREW_COLOR_RE)?.[0]
+  if (named) return named
+  const match = text.match(/צבע(?:\s+מועדף)?\s*(?:של)?\s*([א-ת]{2,15})/i)
+  return match?.[1]?.trim() ?? null
+}
+
+function isChildrenRoomSpace(targetSpace?: string) {
+  return Boolean(targetSpace && /חדר\s+ילדים|ילדים|נוער|תינוקות/i.test(targetSpace))
+}
+
+/** Style is implied for children's rooms — skip asking. */
+function ensureImplicitStyle(intake: SalesIntake) {
+  if (!intake.style && isChildrenRoomSpace(intake.targetSpace)) {
+    intake.style = "מתאים לחדר ילדים"
+  }
+}
+
+function styleStepComplete(intake: SalesIntake) {
+  ensureImplicitStyle(intake)
+  return Boolean(intake.style)
 }
 
 function applyBudgetAnswer(intake: SalesIntake, answers: string[]) {
@@ -653,6 +689,11 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
     intake.practicalNeeds = "ניתן לכבס / קל לניקוי"
   }
 
+  if (!intake.favoredColor) {
+    const color = extractFavoredColor(text)
+    if (color) intake.favoredColor = color
+  }
+
   applyContextualIntakeAnswers(intake, history, body)
 
   if (!intake.targetSpace && wasSpaceQuestionAsked(history)) {
@@ -666,6 +707,8 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
       applySpaceAnswer(intake, [trimmed])
     }
   }
+
+  ensureImplicitStyle(intake)
 
   return intake
 }
@@ -689,7 +732,7 @@ function nextIntakeQuestion(intake: SalesIntake): string | null {
   if (intake.targetSpace === "חדר שינה" && !intake.bedroomUse) return BEDROOM_USE_Q
   if (intake.household?.includes("ילד") && !intake.childrenAge) return CHILDREN_Q
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
-  if (!intake.style) return STYLE_Q
+  if (!styleStepComplete(intake)) return STYLE_Q
   const isLivingRoom =
     intake.targetSpace === "סלון" || /^סלון/i.test(intake.targetSpace)
   if (isLivingRoom && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
@@ -751,7 +794,10 @@ export function buildConfirmationSummary(intake: SalesIntake) {
   }
 
   if (intake.style) {
-    parts.push(`בסגנון ${intake.style}`)
+    const colorPart = intake.favoredColor ? `, צבע מועדף ${intake.favoredColor}` : ""
+    parts.push(`בסגנון ${intake.style}${colorPart}`)
+  } else if (intake.favoredColor) {
+    parts.push(`צבע מועדף ${intake.favoredColor}`)
   }
 
   const size = intake.rugSize || (intake.sofaSize ? `ספה ${intake.sofaSize} מטר` : "")
