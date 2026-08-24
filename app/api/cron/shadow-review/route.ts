@@ -25,7 +25,10 @@ async function handleRun() {
       process.env.SHADOW_RESET_FAILED_REVIEWS?.trim() === "1"
         ? await resetFailedShadowReviews()
         : { deleted: 0 }
-    const review = await runShadowReviewBatch()
+    const reviewOnly = process.env.SHADOW_AUTOFIX_ONLY?.trim() === "1"
+    const review = reviewOnly
+      ? { ok: true, skipped: "autofix_only", reviewed: 0, issues: 0 }
+      : await runShadowReviewBatch()
     const autofix = await runShadowAutofixDrain()
     return NextResponse.json({ ok: true, reset, review, autofix })
   } catch (error) {

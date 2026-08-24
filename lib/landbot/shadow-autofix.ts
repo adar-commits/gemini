@@ -66,13 +66,13 @@ function autofixModel() {
 }
 
 function maxFixesPerRun() {
-  const raw = Number(process.env.SHADOW_AUTOFIX_MAX_PER_RUN ?? "25")
-  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 50) : 25
+  const raw = Number(process.env.SHADOW_AUTOFIX_MAX_PER_RUN ?? "10")
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 30) : 10
 }
 
 function maxAutofixLoops() {
-  const raw = Number(process.env.SHADOW_AUTOFIX_LOOPS ?? "15")
-  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 30) : 15
+  const raw = Number(process.env.SHADOW_AUTOFIX_LOOPS ?? "4")
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 10) : 4
 }
 
 function autofixEnabled() {
