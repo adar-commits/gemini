@@ -301,9 +301,9 @@ function applyContextualIntakeAnswers(
   intake: SalesIntake,
   history: HistoryMessage[],
   body: string,
-  options?: { force?: boolean }
+  options?: { force?: boolean; kind?: string | null }
 ) {
-  const kind = lastIntakeQuestionKind(history)
+  const kind = options?.kind ?? lastIntakeQuestionKind(history)
   if (!kind && !options?.force) return
 
   applyPetsAnswer(intake, history, body)
@@ -359,18 +359,143 @@ function isIntakeCorrection(text: string) {
   return INTAKE_CORRECTION_RE.test(text.trim())
 }
 
-/** Collect user reply/ies that follow a bot intake question in the thread. */
-function userAnswersAfter(
-  messages: HistoryMessage[],
-  assistantIndex: number
-): string[] {
-  const answers: string[] = []
-  for (let index = assistantIndex + 1; index < messages.length; index += 1) {
-    const message = messages[index]
-    if (message.role === "assistant") break
-    if (message.role === "user") answers.push(message.content.trim())
+function normalizeReplyText(text: string) {
+  return text.replace(/\s+/g, " ").trim()
+}
+
+/** Consecutive intake questions at the end of the thread (accidental double-reply). */
+function trailingIntakeAssistantBurst(history: HistoryMessage[]) {
+  const burst: HistoryMessage[] = []
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") break
+    const kind = questionKindForText(message.content)
+    if (!kind) {
+      if (burst.length > 0) break
+      break
+    }
+    burst.unshift(message)
   }
-  return answers.filter(Boolean)
+  return burst
+}
+
+function intakeStepSatisfied(intake: SalesIntake, kind: string) {
+  switch (kind) {
+    case "product":
+      return Boolean(intake.product)
+    case "space":
+      return Boolean(intake.targetSpace)
+    case "bedroom":
+      return Boolean(intake.bedroomUse)
+    case "children":
+      return Boolean(intake.childrenAge)
+    case "pets":
+      return intake.pets != null
+    case "style":
+      return styleStepComplete(intake)
+    case "sofa":
+      return Boolean(intake.sofaSize || intake.rugSize)
+    case "budget":
+      return Boolean(intake.budget)
+    case "practical":
+      return Boolean(intake.practicalNeeds)
+    default:
+      return false
+  }
+}
+
+function answeredEarlierInBurst(history: HistoryMessage[], intake: SalesIntake) {
+  const burst = trailingIntakeAssistantBurst(history)
+  if (burst.length < 2) return false
+  const lastKind = questionKindForText(burst[burst.length - 1].content)
+  return burst.some((message) => {
+    const kind = questionKindForText(message.content)
+    return Boolean(kind && kind !== lastKind && intakeStepSatisfied(intake, kind))
+  })
+}
+
+function wasQuestionSentInBurst(history: HistoryMessage[], kind: string | null) {
+  if (!kind) return false
+  return trailingIntakeAssistantBurst(history).some(
+    (message) => questionKindForText(message.content) === kind
+  )
+}
+
+const SOFT_REPROMPT: Partial<Record<string, string>> = {
+  product: "רק לוודא — באיזה מוצר מדובר?",
+  space: "לאיזה חלל זה מיועד?",
+  bedroom: "איך חדר השינה משמש?",
+  children: "מדובר בילדים קטנים, גדולים, או גם וגם?",
+  pets: "לגבי בעלי חיים — יש כאלה שנכנסים לחלל?",
+  style:
+    "ומה לגבי הסגנון — יוקרתי, מודרני, כפרי, או משהו אחר? ואולי גם צבע מועדף?",
+  sofa: "מה מידת הספה?",
+  budget: "מה התקציב המשוער?",
+  practical: "יש דרישות מיוחדות — למשל קל לניקוי/כביסה או עמיד?",
+}
+
+function formatIntakeQuestionReply(
+  history: HistoryMessage[],
+  question: string,
+  kind: string | null
+) {
+  if (wasQuestionSentInBurst(history, kind) && kind) {
+    return SOFT_REPROMPT[kind] ?? question
+  }
+  const normalizedQuestion = normalizeReplyText(question)
+  const last = normalizeReplyText(lastAssistantText(history))
+  if (normalizedQuestion === last && kind) {
+    return SOFT_REPROMPT[kind] ?? question
+  }
+  return question
+}
+
+type IntakePair = { kind: string; answers: string[] }
+
+/** Map intake Q→A pairs; one user reply answers the first unanswered question in a burst. */
+function parseIntakeQAPairs(messages: HistoryMessage[]): IntakePair[] {
+  const pairs: IntakePair[] = []
+  let index = 0
+
+  while (index < messages.length) {
+    const message = messages[index]
+    if (message.role !== "assistant") {
+      index += 1
+      continue
+    }
+
+    const firstKind = questionKindForText(message.content)
+    if (!firstKind) {
+      index += 1
+      continue
+    }
+
+    const burstKinds: string[] = [firstKind]
+    let scan = index + 1
+    while (scan < messages.length && messages[scan].role === "assistant") {
+      const kind = questionKindForText(messages[scan].content)
+      if (!kind) break
+      burstKinds.push(kind)
+      scan += 1
+    }
+
+    const answers: string[] = []
+    while (scan < messages.length && messages[scan].role === "user") {
+      answers.push(messages[scan].content.trim())
+      scan += 1
+    }
+
+    for (let burstIndex = 0; burstIndex < burstKinds.length; burstIndex += 1) {
+      pairs.push({
+        kind: burstKinds[burstIndex],
+        answers: answers[burstIndex] ? [answers[burstIndex]] : [],
+      })
+    }
+
+    index = scan
+  }
+
+  return pairs
 }
 
 function applyProductAnswer(intake: SalesIntake, combined: string) {
@@ -542,19 +667,13 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
   const intake: SalesIntake = {}
   const messages: HistoryMessage[] = [...history, { role: "user", content: body }]
 
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index]
-    if (message.role !== "assistant") continue
+  for (const pair of parseIntakeQAPairs(messages)) {
+    if (pair.answers.length === 0) continue
 
-    const kind = questionKindForText(message.content)
-    if (!kind) continue
-
-    const answers = userAnswersAfter(messages, index)
-    if (answers.length === 0) continue
-
+    const answers = pair.answers
     const combined = answers.join(" ")
 
-    switch (kind) {
+    switch (pair.kind) {
       case "product":
         applyProductAnswer(intake, combined)
         break
@@ -841,14 +960,22 @@ export function sanitizeSalesReply(reply: string, history: HistoryMessage[], bod
 export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const intake = extractSalesIntake(history, body)
   const intro = introForFlow(body, history, intake)
+  const recoveringFromDoubleReply = trailingIntakeAssistantBurst(history).length >= 2
+  const doubleReplyJustHandled =
+    recoveringFromDoubleReply && answeredEarlierInBurst(history, intake)
 
   let next = nextIntakeQuestion(intake)
   const lastKind = lastIntakeQuestionKind(history)
   const nextKind = next ? questionKindForText(next) : null
 
   // Never repeat the same question — accept the reply and advance.
-  if (next && lastKind && nextKind === lastKind) {
-    applyContextualIntakeAnswers(intake, history, body, { force: true })
+  if (next && lastKind && nextKind === lastKind && !doubleReplyJustHandled) {
+    if (!intakeStepSatisfied(intake, lastKind)) {
+      applyContextualIntakeAnswers(intake, history, body, {
+        force: true,
+        kind: lastKind,
+      })
+    }
     next = nextIntakeQuestion(intake)
   }
 
@@ -863,13 +990,17 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   }
 
   const correctionPrefix = isIntakeCorrection(body) ? "צודק/ת, תודה על הסבלנות.\n" : ""
+  const recoveryPrefix =
+    doubleReplyJustHandled && !isIntakeCorrection(body) ? "תודה, קיבלתי.\n" : ""
 
   if (!next) {
-    return correctionPrefix + buildConfirmationSummary(intake)
+    return correctionPrefix + recoveryPrefix + buildConfirmationSummary(intake)
   }
 
-  const reply = intro ? `${intro}\n${next}` : next
-  return correctionPrefix ? `${correctionPrefix}${reply}` : reply
+  const question = formatIntakeQuestionReply(history, next, nextKind)
+  const reply = intro ? `${intro}\n${question}` : question
+  const combined = `${correctionPrefix}${recoveryPrefix}${reply}`
+  return combined.trimEnd()
 }
 
 function questionOrder(kind: string) {
