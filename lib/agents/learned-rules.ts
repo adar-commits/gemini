@@ -125,6 +125,14 @@ export function isSafeLearnedPattern(pattern: string) {
   }
 }
 
+const VALID_LEARNED_AGENTS = new Set(["all", "master", "sales", "faq", "service"])
+
+function normalizeLearnedRuleAgent(agent?: string | null) {
+  const value = agent?.trim().toLowerCase() || "all"
+  if (VALID_LEARNED_AGENTS.has(value)) return value
+  return "all"
+}
+
 export async function insertLearnedRule(input: {
   shadowReviewId?: string | null
   ruleKind: LearnedRuleKind
@@ -144,7 +152,7 @@ export async function insertLearnedRule(input: {
     .insert({
       shadow_review_id: input.shadowReviewId ?? null,
       rule_kind: input.ruleKind,
-      agent: input.agent ?? "all",
+      agent: normalizeLearnedRuleAgent(input.agent),
       pattern: input.pattern ?? null,
       route_action: input.routeAction ?? null,
       rule_text: input.ruleText,

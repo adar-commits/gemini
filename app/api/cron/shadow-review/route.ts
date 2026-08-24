@@ -45,7 +45,10 @@ export async function GET(request: Request) {
       stats,
       learned,
       recent_issues: issues,
-      run: "POST /api/cron/shadow-review to review shadow logs and auto-apply learned rules",
+      cron_secret_configured: Boolean(process.env.CRON_SECRET?.trim()),
+      vercel_cron_hint:
+        "Set CRON_SECRET in Vercel Production env and redeploy so scheduled crons authenticate.",
+      run: "POST /api/cron/shadow-review with Authorization: Bearer $CRON_SECRET or AGENT_API_KEY",
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow review status failed"
