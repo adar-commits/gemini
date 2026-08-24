@@ -31,10 +31,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|אצטרך לבדוק אם יש/i
-
-const UNVERIFIED_PRODUCT_OPENER =
-  "אני מבין, אצטרך לבדוק אם יש לי את שטיח שיכול לענות למה שאהבת בו - נתחיל מהשאלה הקלה, לאיזה חלל מיועד השטיח? – סלון, חדר שינה, חדר ילדים, מסדרון או חלל אחר?"
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש/i
 
 /** Named model/collection in a purchase message (not verified against any catalog). */
 const REQUESTED_MODEL_RE =
@@ -233,8 +230,11 @@ function isPriceFirstFlow(text: string) {
 function introForFlow(text: string, history: HistoryMessage[], intake: SalesIntake) {
   const started = hasOngoingSalesIntake(history)
   if (started) return ""
-  if (intake.requestedModel || hasUnverifiedProductRequest(text)) {
-    return UNVERIFIED_PRODUCT_OPENER
+  if (
+    (intake.requestedModel || hasUnverifiedProductRequest(text)) &&
+    !isSalesConsultationTrigger(text)
+  ) {
+    return ""
   }
   if (isPriceFirstFlow(text)) {
     return "לפני שנגיע למחיר, אשמח לשאול כמה שאלות קצרות של התאמת שטיח."
@@ -318,10 +318,6 @@ export function sanitizeSalesReply(reply: string, history: HistoryMessage[], bod
 export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const intake = extractSalesIntake(history, body)
   const intro = introForFlow(body, history, intake)
-
-  if (intro === UNVERIFIED_PRODUCT_OPENER) {
-    return intro
-  }
 
   const next = nextIntakeQuestion(intake)
 

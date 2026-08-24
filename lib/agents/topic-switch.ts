@@ -2,6 +2,7 @@ import {
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
+import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 
 export { isShippingPolicyQuestion, isShippingStatusQuestion }
 
@@ -15,6 +16,8 @@ export function isFaqTopicSwitch(body: string) {
   if (
     /(?:איך\s+מ(?:חזיר|בטל)|מדיניות|תקנון|פורטל\s+החזר)/i.test(text) ||
     /(?:^|\s)(?:החזר(?:ה|ות)?|להחזיר|החלפ(?:ה|ות)?|ביטול|זיכוי)(?:\s|$|[?.!,])/i.test(text) ||
+    /(?:^|[\s,])ו?זיכוי/i.test(text) ||
+    /לא\s+מתאים|לא\s+מרוצ(?:ה)?|לא\s+אהב(?:תי)?/i.test(text) ||
     /(?:ואם|what\s+if).*(?:החזיר|החלפ|ביטול|תחרט|אחר(?:י)?)/i.test(text) ||
     /(?:החזיר|להחזיר).*(?:תחרט|בטעות)/i.test(text) ||
     /(?:איזה|מה\s+ה|רשימ(?:ת|ה)\s+)?(?:ה)?סניפ|סניפים\s+יש|לסניף|כתובות?\s+(?:ה)?סניפ/i.test(
@@ -29,16 +32,19 @@ export function isFaqTopicSwitch(body: string) {
   return false
 }
 
-/** Pivot into post-purchase service handling. */
+/** Active post-purchase case needing human CS — not policy-only questions. */
 export function isServiceTopicSwitch(body: string) {
   const text = body.trim()
   if (!text) return false
 
+  if (isCustomerServiceOpener(text)) return false
+
   if (
-    /קרוע|פגום|שבור|סדוק|תלונה|לא\s+מרוצ|לא\s+אהב|לא\s+מתאים/i.test(text) ||
+    /קרוע|פגום|שבור|סדוק|תלונה|טעות\s+ב(?:ה)?זמנה|הייתה\s+לי\s+טעות/i.test(text) ||
     /לא\s+קיבלתי|מוצר\s+לא\s+נכון|חסר(ים)?\s+ב|הגיע\s+(קרוע|פגום|שבור|לא\s+נכון)/i.test(text) ||
     /חייב(?:ו|ת)?\s+אותי|חשבונית|קבלה|זיכוי\s+לא\s+הופיע|טעות\s+בחיוב/i.test(text) ||
-    /(?:ה)?זמנה\s+קיימ|בעיה\s+ע(?:ם|ם)\s+(?:ה)?הזמנה|נציג\s+שירות/i.test(text)
+    /לא\s+עונים|התאמת\s+מחיר|ו?זיכוי\s+כספי|מבצע.*\d+\s*%|לא\s+מה\s+שדיברנו/i.test(text) ||
+    /(?:ה)?זמנה\s+קיימ|בעיה\s+ע(?:ם|ם)\s+(?:ה)?הזמנה/i.test(text)
   ) {
     return true
   }

@@ -8,6 +8,12 @@ const SPECIFIC_PRODUCT_RE =
 const STOCK_RE =
   /במלאי|מלאי|זמין(?:\s+ב)?(?:מלאי|חנות)?|in\s+stock|exist(?:s)?|קיים\s+ב?(?:מלאי|חנות)?/i
 
+const LANDBOT_PRODUCT_DETAILS_RE =
+  /פרטים\s+נוספים\s+לגבי\s+(?:שטיח|פוף)/i
+
+const CONSULTATION_IN_MESSAGE_RE =
+  /ייעוץ|עוזר\s+לבחור|בחיר(?:ת|ה)\s+שטיח|מתלבט/i
+
 const HAVE_PRODUCT_RE =
   /(?:יש|יש ל(?:כם|נו)|אצל(?:כם|נו)|יש אצל(?:כם|נו))\s+(?:את\s+)?/i
 
@@ -22,6 +28,12 @@ export function isProductAvailabilityQuestion(body: string) {
     return true
   }
   if (HAVE_PRODUCT_RE.test(text) && /שטיח|פוף|מוצר|דגם|מילאן|קזבל|גארד/i.test(text)) {
+    return true
+  }
+  if (
+    LANDBOT_PRODUCT_DETAILS_RE.test(text) &&
+    !CONSULTATION_IN_MESSAGE_RE.test(text)
+  ) {
     return true
   }
   return false

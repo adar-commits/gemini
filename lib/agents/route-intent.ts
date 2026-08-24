@@ -11,6 +11,7 @@ import {
   isConfirmationPending,
 } from "@/lib/agents/sales-intake"
 import { isProductAvailabilityQuestion } from "@/lib/agents/product-handoff"
+import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import {
   isFaqTopicSwitch,
   isSalesTopicSwitch,
@@ -49,6 +50,14 @@ export function guessMasterRoute(body: string): MasterAction | null {
   const text = body.trim()
   if (!text) return null
 
+  if (isCustomerServiceOpener(text)) {
+    return "ROUTE_TO_INFO_AGENT"
+  }
+
+  if (isServiceTopicSwitch(text)) {
+    return "ROUTE_TO_SERVICE_AGENT"
+  }
+
   if (isFaqTopicSwitch(text)) {
     return "ROUTE_TO_INFO_AGENT"
   }
@@ -68,6 +77,13 @@ export function guessMasterRoute(body: string): MasterAction | null {
     has(text, /קרוע|פגום|שבור|סדוק|תלונה/) ||
     has(text, /לא\s+קיבלתי|מוצר\s+לא\s+נכון|חסר(ים)?\s+ב/) ||
     has(text, /הגיע\s+(קרוע|פגום|שבור|לא\s+נכון)/)
+  ) {
+    return "ROUTE_TO_SERVICE_AGENT"
+  }
+
+  if (
+    has(text, /לא\s+עונים|התאמת\s+מחיר|ו?זיכוי\s+כספי|מבצע.*\d+\s*%|לא\s+מה\s+שדיברנו|תלונה/) ||
+    has(text, /חייב(?:ו|ת)?\s+אותי|טעות\s+ב(?:ה)?זמנה/)
   ) {
     return "ROUTE_TO_SERVICE_AGENT"
   }

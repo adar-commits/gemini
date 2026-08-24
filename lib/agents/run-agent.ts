@@ -18,6 +18,10 @@ import {
   isOffTopicQuestion,
   OFF_TOPIC_HANDOFF_OFFER,
 } from "@/lib/agents/off-topic"
+import {
+  buildCustomerServiceTopicPrompt,
+  isCustomerServiceOpener,
+} from "@/lib/agents/customer-service-opener"
 import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 import {
   buildGreetingReply,
@@ -212,6 +216,21 @@ async function resolveSpecialist(
       })
       return { ok: true, agent, reply, action: "reply", route }
     }
+  }
+
+  if (isCustomerServiceOpener(body)) {
+    const replyAgent = "faq"
+    const reply = normalizeReply(replyAgent, "reply", buildCustomerServiceTopicPrompt())
+    await appendTurn({
+      conversationId,
+      agent: replyAgent,
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent: replyAgent, reply, action: "reply", route }
   }
 
   if (isOffTopicQuestion(body)) {
