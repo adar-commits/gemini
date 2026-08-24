@@ -5,8 +5,15 @@ import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { guessMasterRoute, shouldContinueWithSpecialist, stickySpecialist } from "@/lib/agents/route-intent"
 import {
-  buildProductHandoffOffer,
+  buildProductHandoffAfterUrl,
+  buildProductInventoryHandoff,
+  buildProductUrlReminder,
+  buildProductUrlRequest,
+  hasProductUrl,
   isProductAvailabilityQuestion,
+  isProductInventoryQuestion,
+  isProductUrlRequestPending,
+  isSpecificProductMention,
 } from "@/lib/agents/product-handoff"
 import {
   buildHumanHandoffConfirmedReply,
@@ -599,10 +606,18 @@ export async function runMasterConversation(
     )
   }
 
-  if (isProductAvailabilityQuestion(body)) {
-    const reply = buildProductHandoffOffer(body)
+  if (isProductUrlRequestPending(history) && !breaksPendingHandoff(body)) {
     const agent =
       lastAgent && isSpecialistId(lastAgent) ? lastAgent : ("sales" as const)
+    const reply = normalizeReply(
+      agent,
+      "reply",
+      hasProductUrl(body)
+        ? buildProductHandoffAfterUrl(body)
+        : isProductInventoryQuestion(body)
+          ? buildProductInventoryHandoff()
+          : buildProductUrlReminder()
+    )
     await appendTurn({
       conversationId,
       agent,
@@ -612,6 +627,45 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
+  }
+
+  if (isProductInventoryQuestion(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductInventoryHandoff())
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route: [...route, "sales"] }
+  }
+
+  if (isSpecificProductMention(body) && !hasProductUrl(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductUrlRequest())
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route: [...route, "sales"] }
+  }
+
+  if (isSpecificProductMention(body) && hasProductUrl(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductHandoffAfterUrl(body))
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route: [...route, "sales"] }
   }
 
   if (isFaqTopicSwitch(body)) {

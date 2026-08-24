@@ -1,4 +1,5 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
+import { isProductInventoryQuestion, isSpecificProductMention } from "@/lib/agents/product-handoff"
 import { isFaqTopicSwitch, isSalesQuizAffirmation } from "@/lib/agents/topic-switch"
 import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
 import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
@@ -118,6 +119,7 @@ export function shouldUseSalesIntakeFastPath(
   if (isFaqTopicSwitch(body)) return false
   if (isOffTopicQuestion(body)) return false
   if (isHumanHandoffPending(history)) return false
+  if (isProductInventoryQuestion(body) || isSpecificProductMention(body)) return false
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
   if (isSalesConsultationTrigger(body)) return true

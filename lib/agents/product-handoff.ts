@@ -1,9 +1,30 @@
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
-import {
-  extractRequestedModel,
-  isSalesConsultationTrigger,
-} from "@/lib/agents/sales-intake"
+import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
+
+const CONSULTATION_RE =
+  /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|אפשר\s+ל(?:קנות|רכוש|הזמין)|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים/i
+
+const REQUESTED_MODEL_RE =
+  /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9 \-]{1,30}?)(?=\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|[\n,.!?]|$)/i
+
+const GARBAGE_MODEL_RE =
+  /^(?:בבקשה|כמה|עולה|מידה|גודל|יש|לקנות|שטיח|פוף|בגודל|במידה|אפשר|רוצה|מחפש|מסוימ(?:ת|ה)|מוצר|דגם|בבקשה\s+כמה\s+עולה)/i
+
+function isSalesConsultationTrigger(text: string) {
+  return CONSULTATION_RE.test(text.trim())
+}
+
+function extractRequestedModel(text: string): string | null {
+  const match = text.trim().match(REQUESTED_MODEL_RE)
+  if (!match) return null
+  const name = match[1].trim().split(/\n/)[0].trim().replace(/\s+/g, " ")
+  if (GARBAGE_MODEL_RE.test(name)) return null
+  if (/^(?:סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(name)) {
+    return null
+  }
+  return name
+}
 
 const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|carpetshop\.co\.il\/products|pozitiveshop\.co\.il\/products/i
@@ -11,8 +32,14 @@ const SPECIFIC_PRODUCT_RE =
 const KNOWN_MODEL_RE =
   /מילאן|קזבל|גארד|sitar|linea|sydney|joy|סיטאר|positive|elite|pozitive/i
 
+const PRODUCT_URL_RE =
+  /https?:\/\/(?:www\.)?(?:carpetshop|pozitiveshop)\.co\.il\/products\/[^\s]+/i
+
 const STOCK_RE =
   /במלאי|מלאי|זמין(?:\s+ב)?(?:מלאי|חנות)?|in\s+stock|exist(?:s)?|קיים\s+ב?(?:מלאי|חנות)?/i
+
+const INVENTORY_COMMERCIAL_RE =
+  /כמה\s+עולה|מה\s+המחיר|מחיר\s+של|ב(?:גודל|מידה)\s+\d|גודל\s+\d|מידה\s+\d|יש\s+(?:לכם|במלאי)|זמין\s+(?:ב)?(?:מידה|גודל)|קיים\s+ב(?:מידה|גודל)|האם\s+יש/i
 
 const LANDBOT_PRODUCT_DETAILS_RE =
   /פרטים\s+נוספים\s+לגבי\s+(?:שטיח|פוף)/i
@@ -23,56 +50,70 @@ const CONSULTATION_IN_MESSAGE_RE =
 const HAVE_PRODUCT_RE =
   /(?:יש|יש ל(?:כם|נו)|אצל(?:כם|נו)|יש אצל(?:כם|נו))\s+(?:את\s+)?/i
 
-const HANDOFF_LABEL_STOPWORDS =
-  /^(?:בבקשה|כמה|עולה|מידה|גודל|יש|לקנות|שטיח|פוף|בגודל|במידה|אפשר|רוצה|מחפש|מסוימ(?:ת|ה)|מוצר|דגם)$/i
+const URL_REQUEST_MARKER_RE =
+  /קישור לדף המוצר|קישור למוצר מהאתר|שלח(?:\/|)?(?:ו|י)?\s*קישור/i
 
 function hasNamedModel(text: string) {
   if (KNOWN_MODEL_RE.test(text)) return true
-  if (SPECIFIC_PRODUCT_RE.test(text)) return true
+  if (SPECIFIC_PRODUCT_RE.test(text) && !/שעות|סניפ|מדיניות/i.test(text)) return true
   return extractRequestedModel(text) != null
 }
 
-function sanitizeHandoffLabel(label: string | null) {
-  if (!label) return null
-  const trimmed = label.trim().replace(/\s+/g, " ")
-  if (!trimmed || trimmed.length < 2) return null
-  if (HANDOFF_LABEL_STOPWORDS.test(trimmed)) return null
-  if (/^(?:בבקשה|כמה\s+עולה)/i.test(trimmed)) return null
-  return trimmed
+function hasSpecificProductContext(text: string) {
+  return (
+    hasNamedModel(text) ||
+    hasProductUrl(text) ||
+    (LANDBOT_PRODUCT_DETAILS_RE.test(text) && !CONSULTATION_IN_MESSAGE_RE.test(text))
+  )
 }
 
-/** Specific model, SKU, stock, or "do you have product X" — no catalog access. */
-export function isProductAvailabilityQuestion(body: string) {
+export function extractProductUrl(text: string): string | null {
+  return text.match(PRODUCT_URL_RE)?.[0] ?? null
+}
+
+export function hasProductUrl(text: string) {
+  return extractProductUrl(text) != null
+}
+
+/** Stock, price, size availability, or "do you have X" for a known product. */
+export function isProductInventoryQuestion(body: string) {
   const text = body.trim()
-  if (!text) return false
-
-  // General purchase / price exploration without a named model → sales intake quiz.
-  if (isSalesConsultationTrigger(text) && !hasNamedModel(text)) return false
-
-  if (LANDBOT_PRODUCT_DETAILS_RE.test(text) && !CONSULTATION_IN_MESSAGE_RE.test(text)) {
-    return true
+  if (!text || isFaqTopicSwitch(text)) return false
+  if (!hasSpecificProductContext(text)) return false
+  if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
+    return false
   }
 
-  if (SPECIFIC_PRODUCT_RE.test(text) && hasNamedModel(text)) return true
-
-  const model = extractRequestedModel(text)
-  if (model) return true
-
-  if (STOCK_RE.test(text) && hasNamedModel(text)) return true
-
-  if (HAVE_PRODUCT_RE.test(text) && KNOWN_MODEL_RE.test(text)) return true
-
-  return false
+  return (
+    STOCK_RE.test(text) ||
+    INVENTORY_COMMERCIAL_RE.test(text) ||
+    (HAVE_PRODUCT_RE.test(text) && hasNamedModel(text))
+  )
 }
 
-export function extractProductHandoffLabel(body: string) {
-  return (
-    sanitizeHandoffLabel(extractRequestedModel(body)) ||
-    sanitizeHandoffLabel(body.match(/דגם\s+([^\n,.!?]+)/i)?.[1]?.trim() ?? null) ||
-    (KNOWN_MODEL_RE.test(body)
-      ? body.match(KNOWN_MODEL_RE)?.[0]?.trim() ?? null
-      : null)
-  )
+/** Customer named or linked a specific product — not general carpet exploration. */
+export function isSpecificProductMention(body: string) {
+  const text = body.trim()
+  if (!text || isFaqTopicSwitch(text)) return false
+  if (isProductInventoryQuestion(text)) return false
+  if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
+    return false
+  }
+  return hasSpecificProductContext(text)
+}
+
+/** Either inventory/commercial or a specific product thread — breaks sales quiz sticky. */
+export function isProductAvailabilityQuestion(body: string) {
+  return isProductInventoryQuestion(body) || isSpecificProductMention(body)
+}
+
+export function isProductUrlRequestPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return URL_REQUEST_MARKER_RE.test(message.content)
+  }
+  return false
 }
 
 export function isProductHandoffPending(history: HistoryMessage[]) {
@@ -84,10 +125,35 @@ export function isProductHandoffPending(history: HistoryMessage[]) {
   return false
 }
 
+/** Ask for a product page link — never quote the customer's words back. */
+export function buildProductUrlRequest() {
+  return `${CUSTOMER_HEADER}
+כדי שאוכל לעזור בצורה מדויקת, אשמח לקבל קישור לדף המוצר מהאתר (carpetshop.co.il או pozitiveshop.co.il).`
+}
+
+export function buildProductUrlReminder() {
+  return `${CUSTOMER_HEADER}
+כשיהיה לך קישור לדף המוצר מהאתר — שלח ואמשיך משם.`
+}
+
+/** After receiving a product URL — acknowledge and offer human handoff. */
+export function buildProductHandoffAfterUrl(_body: string) {
+  return `${CUSTOMER_HEADER}
+קיבלתי את הקישור, תודה.
+אין לי גישה ישירה לקטלוג ולמלאי — יועץ המכירות יוכל לעזור עם פרטים, מחירים וזמינות.
+האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`
+}
+
+/** Stock / price / availability — apologize and offer human; never quote customer text. */
+export function buildProductInventoryHandoff() {
+  return `${CUSTOMER_HEADER}
+מצטער, אין לי גישה ישירה לקטלוג, מחירים או מלאי.
+האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`
+}
+
+/** @deprecated Use buildProductInventoryHandoff or buildProductHandoffAfterUrl */
 export function buildProductHandoffOffer(body: string) {
-  const label = extractProductHandoffLabel(body)
-  const subject = label
-    ? `לגבי "${label}"`
-    : "לגבי מוצר או דגם ספציפי / בדיקת מלאי"
-  return `${CUSTOMER_HEADER}\n${subject} — אין לי גישה ישירה לקטלוג ולמלאי.\nהאם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`
+  if (hasProductUrl(body)) return buildProductHandoffAfterUrl(body)
+  if (isProductInventoryQuestion(body)) return buildProductInventoryHandoff()
+  return buildProductUrlRequest()
 }
