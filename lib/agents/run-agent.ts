@@ -31,8 +31,14 @@ import {
   buildPostConfirmationReply,
   buildSalesIntakeReply,
   isConfirmationPending,
+  sanitizeSalesReply,
   shouldUseSalesIntakeFastPath,
 } from "@/lib/agents/sales-intake"
+import {
+  buildShippingPolicyReply,
+  buildShippingStatusReply,
+  isShippingPolicyQuestion,
+} from "@/lib/agents/shipping"
 import {
   ACTIONS_BY_AGENT,
   CUSTOMER_HEADER,
@@ -225,6 +231,20 @@ async function resolveSpecialist(
 
   if (isFaqTopicSwitch(body)) {
     const replyAgent = "faq"
+    if (isShippingPolicyQuestion(body)) {
+      const reply = normalizeReply(replyAgent, "reply", buildShippingPolicyReply())
+      await appendTurn({
+        conversationId,
+        agent: replyAgent,
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        persistUser,
+        preview,
+      })
+      return { ok: true, agent: replyAgent, reply, action: "reply", route: [...route, replyAgent] }
+    }
+
     if (isBranchListQuestion(body)) {
       const reply = normalizeReply(replyAgent, "reply", buildBranchListReply())
       await appendTurn({
@@ -319,6 +339,13 @@ async function resolveSpecialist(
     preview,
   })
 
+  if (specialist === "sales" && result.reply) {
+    const sanitized = sanitizeSalesReply(result.reply, history, body)
+    if (sanitized !== result.reply) {
+      result = { ...result, reply: normalizeReply("sales", "reply", sanitized) }
+    }
+  }
+
   if (isSpecialistId(result.action) && result.action !== specialist) {
     route.push(result.action)
     result = await runAgent(result.action, conversationId, turn, {
@@ -331,14 +358,27 @@ async function resolveSpecialist(
   return { ...result, route }
 }
 
-function shippingResult(route: AgentId[]): AgentResponse {
-  return {
-    ok: true,
+function shippingResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean
+): Promise<AgentResponse> {
+  const reply = buildShippingStatusReply()
+  return appendTurn({
+    conversationId,
     agent: "master",
-    reply: "",
+    userText: body,
+    assistantText: reply,
     action: "shipping",
+    preview,
+  }).then(() => ({
+    ok: true,
+    agent: "master" as const,
+    reply,
+    action: "shipping" as const,
     route,
-  }
+  }))
 }
 
 export async function runMasterConversation(
@@ -433,7 +473,7 @@ export async function runMasterConversation(
   }
 
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
-  if (next === "shipping") return shippingResult(route)
+  if (next === "shipping") return shippingResult(conversationId, body, route, preview)
 
   return resolveSpecialist(
     conversationId,

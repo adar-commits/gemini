@@ -1,6 +1,7 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isFaqTopicSwitch, isSalesQuizAffirmation } from "@/lib/agents/topic-switch"
 import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
+import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
 
 export type SalesIntake = {
   product?: string
@@ -22,6 +23,12 @@ const CONSULTATION_RE =
 
 const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
+
+const INTAKE_SHORT_ANSWER_RE =
+  /^(?:סלון|חדר\s+שינה|חדר\s+ילדים|מסדרון|חלל\s+אחר|זוג|לזוג|משפחה|מבוגר|יש\s+(?:כלב|חתול|חיות)|אין\s+חיות|ללא\s+חיות|יוקרתי|מודרני|כפרי|\d[\d.,\s]*(?:מ(?:טר)?)?)$/i
+
+const FORBIDDEN_HOUSEHOLD_Q =
+  /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
   /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|אצטרך לבדוק אם יש/i
@@ -106,6 +113,7 @@ export function shouldUseSalesIntakeFastPath(
   history: HistoryMessage[],
   lastAgent: AgentId | null
 ) {
+  if (isShippingPolicyQuestion(body) || isShippingStatusQuestion(body)) return false
   if (isFaqTopicSwitch(body)) return false
   if (isOffTopicQuestion(body)) return false
   if (isHumanHandoffPending(history)) return false
@@ -113,6 +121,7 @@ export function shouldUseSalesIntakeFastPath(
   if (isSpecificProductQuery(body)) return false
   if (isSalesConsultationTrigger(body)) return true
   if (lastAgent === "sales" && hasOngoingSalesIntake(history)) {
+    if (INTAKE_SHORT_ANSWER_RE.test(body.trim())) return true
     return isSalesQuizAffirmation(body) || !isFaqTopicSwitch(body)
   }
   return false
@@ -299,6 +308,11 @@ export function buildConfirmationSummary(intake: SalesIntake) {
 
 export function isConfirmationPending(history: HistoryMessage[]) {
   return /האם זה נכון עד כה/.test(lastAssistantText(history))
+}
+
+export function sanitizeSalesReply(reply: string, history: HistoryMessage[], body: string) {
+  if (!FORBIDDEN_HOUSEHOLD_Q.test(reply)) return reply
+  return buildSalesIntakeReply(history, body)
 }
 
 export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {

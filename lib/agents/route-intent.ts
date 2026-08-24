@@ -15,6 +15,7 @@ import {
   isFaqTopicSwitch,
   isSalesTopicSwitch,
   isServiceTopicSwitch,
+  isShippingStatusQuestion,
 } from "@/lib/agents/topic-switch"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 
@@ -52,13 +53,7 @@ export function guessMasterRoute(body: string): MasterAction | null {
     return "ROUTE_TO_INFO_AGENT"
   }
 
-  if (
-    has(text, /איפה\s+(ה)?משלוח(\s+שלי)?/) ||
-    has(text, /סטטוס\s+(ה)?(משלוח|הזמנה)/) ||
-    has(text, /מעקב\s+(אחרי\s+)?(ה)?(משלוח|חבילה|הזמנה)/) ||
-    has(text, /(החבילה|ההזמנה|המשלוח)\s+שלי/) ||
-    has(text, /where\s+is\s+my\s+(order|shipment|package)/i)
-  ) {
+  if (isShippingStatusQuestion(text)) {
     return "ROUTE_TO_SHIPPING_STATUS"
   }
 
@@ -122,6 +117,7 @@ export function shouldContinueWithSpecialist(
 
   if (isProductAvailabilityQuestion(body)) return false
 
+  if (isShippingStatusQuestion(body)) return false
   if (isFaqTopicSwitch(body) && sticky !== "faq") return false
   if (isServiceTopicSwitch(body) && sticky !== "service") return false
   if (isSalesTopicSwitch(body) && sticky !== "sales") return false

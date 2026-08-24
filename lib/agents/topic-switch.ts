@@ -1,7 +1,16 @@
+import {
+  isShippingPolicyQuestion,
+  isShippingStatusQuestion,
+} from "@/lib/agents/shipping"
+
+export { isShippingPolicyQuestion, isShippingStatusQuestion }
+
 /** Mid-conversation pivot from sales/service into FAQ policy answers. */
 export function isFaqTopicSwitch(body: string) {
   const text = body.trim()
   if (!text) return false
+
+  if (isShippingPolicyQuestion(text)) return true
 
   if (
     /(?:איך\s+מ(?:חזיר|בטל)|מדיניות|תקנון|פורטל\s+החזר)/i.test(text) ||
