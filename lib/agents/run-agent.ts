@@ -3,7 +3,11 @@ import { buildUserContent } from "@/lib/agents/multimodal"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { getSystemPrompt } from "@/lib/agents/prompts"
-import { guessMasterRoute, stickySpecialist } from "@/lib/agents/route-intent"
+import { guessMasterRoute, shouldContinueWithSpecialist, stickySpecialist } from "@/lib/agents/route-intent"
+import {
+  buildProductHandoffOffer,
+  isProductAvailabilityQuestion,
+} from "@/lib/agents/product-handoff"
 import {
   buildHumanHandoffConfirmedReply,
   buildHumanHandoffDeclinedReply,
@@ -350,6 +354,35 @@ export async function runMasterConversation(
   const preview = options?.preview
   const sharedOptions = { ...options, lastAgent, preview }
 
+  if (isHumanHandoffPending(history)) {
+    const agent =
+      lastAgent && isSpecialistId(lastAgent) ? lastAgent : ("faq" as const)
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      agent,
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
+  if (isProductAvailabilityQuestion(body)) {
+    const reply = buildProductHandoffOffer(body)
+    const agent =
+      lastAgent && isSpecialistId(lastAgent) ? lastAgent : ("sales" as const)
+    await appendTurn({
+      conversationId,
+      agent,
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
+  }
+
   if (isFaqTopicSwitch(body)) {
     return resolveSpecialist(
       conversationId,
@@ -364,7 +397,7 @@ export async function runMasterConversation(
 
   const sticky = stickySpecialist(lastAgent, lastAction)
 
-  if (sticky) {
+  if (sticky && shouldContinueWithSpecialist(body, history, sticky)) {
     return resolveSpecialist(
       conversationId,
       turn,

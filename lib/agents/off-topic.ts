@@ -23,7 +23,11 @@ function matchesOffTopicPattern(text: string) {
 }
 
 export function isHumanHandoffPending(history: HistoryMessage[]) {
-  return /שנעביר את השיחה לנציג אנושי/.test(lastAssistantText(history))
+  const last = lastAssistantText(history)
+  return (
+    /שנעביר את השיחה לנציג אנושי/.test(last) ||
+    /האם להעביר את הפנייה כעת ליועץ מכירות/.test(last)
+  )
 }
 
 export function isHumanHandoffAffirmation(body: string) {
@@ -53,6 +57,10 @@ export function inferHumanHandoffAction(
 
   if (lastAgent === "sales") return "human_sales"
   if (lastAgent === "service") return "human_service"
+
+  if (/האם להעביר את הפנייה כעת ליועץ מכירות/.test(lastAssistantText(history))) {
+    return "human_sales"
+  }
 
   if (
     /מחפש|רוצ(?:ה|ים|ות)\s+לקנות|שטיח|פוף|תקציב|מחיר|מכירות|יועץ\s+מכירות|התאמת\s+שטיח/i.test(

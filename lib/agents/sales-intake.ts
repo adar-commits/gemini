@@ -109,7 +109,7 @@ export function shouldUseSalesIntakeFastPath(
   if (isFaqTopicSwitch(body)) return false
   if (isOffTopicQuestion(body)) return false
   if (isHumanHandoffPending(history)) return false
-  if (hasUnverifiedProductRequest(body)) return true
+  if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
   if (isSalesConsultationTrigger(body)) return true
   if (lastAgent === "sales" && hasOngoingSalesIntake(history)) {

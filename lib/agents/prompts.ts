@@ -14,6 +14,34 @@ function readAgentFile(relativePath: string) {
   return text
 }
 
+const AGENT_SWITCH_RULE = `
+### EVERY-MESSAGE INTENT CHECK
+Before answering, decide whether the customer is:
+• **Continuing** the current thread with you (same agent, same flow), OR
+• **Switching** to FAQ (policy/info), Sales (purchase consultation), Service (existing order case), or Shipping status.
+
+If the latest message clearly belongs to another department, use the silent route action (faq / sales / service / shipping) — do NOT keep answering from the wrong role.
+
+Short replies (כן / לא) follow the immediately preceding bot question.
+`
+
+const PRODUCT_HANDOFF_RULE = `
+### SPECIFIC MODEL / STOCK / "DO YOU HAVE X"
+You have NO live catalog or inventory access.
+
+If the customer names a specific model/collection/SKU, asks whether a product exists, or asks about stock/availability (במלאי / יש לכם / קיים):
+→ Do NOT confirm existence, sizes, or stock.
+→ Do NOT start or continue the product quiz for that request.
+→ Reply with action=reply and EXACTLY offer human sales handoff:
+
+*הום בוט :)*
+לגבי [מוצר/דגם ספציפי / בדיקת מלאי] — אין לי גישה ישירה לקטלוג ולמלאי.
+האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?
+
+If they confirm (כן / בטח / אשמח) → action=human_sales with a short confirmation line.
+If they decline → continue helping within your agent scope.
+`
+
 const OFF_TOPIC_RULE = `
 ### OFF-TOPIC / UNRELATED MESSAGES
 Never treat casual greetings or small-talk openers as off-topic (for example: שלום, היי, אהלן, מה נשמע, מה קורה, בוקר טוב). Use the Initial Welcome / greeting rule instead.
@@ -72,10 +100,10 @@ export function getSystemPrompt(agent: AgentId, userText = "") {
     return `${readAgentFile("prompts/master.md")}\n${MASTER_OUTPUT_CONTRACT}`
   }
   if (agent === "sales") {
-    return `${readAgentFile("prompts/sales.md")}\n${OFF_TOPIC_RULE}\n${UNCERTAINTY_RULE}\n${MEDIA_RULE}\n${OUTPUT_CONTRACT}`
+    return `${readAgentFile("prompts/sales.md")}\n${AGENT_SWITCH_RULE}\n${PRODUCT_HANDOFF_RULE}\n${OFF_TOPIC_RULE}\n${UNCERTAINTY_RULE}\n${MEDIA_RULE}\n${OUTPUT_CONTRACT}`
   }
   if (agent === "faq") {
-    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText)}\n${OFF_TOPIC_RULE}\n${UNCERTAINTY_RULE}\n${OUTPUT_CONTRACT}`
+    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText)}\n${AGENT_SWITCH_RULE}\n${PRODUCT_HANDOFF_RULE}\n${OFF_TOPIC_RULE}\n${UNCERTAINTY_RULE}\n${OUTPUT_CONTRACT}`
   }
-  return `${readAgentFile("prompts/service.md")}\n${OFF_TOPIC_RULE}\n${UNCERTAINTY_RULE}\n${MEDIA_RULE}\n${OUTPUT_CONTRACT}`
+  return `${readAgentFile("prompts/service.md")}\n${AGENT_SWITCH_RULE}\n${PRODUCT_HANDOFF_RULE}\n${OFF_TOPIC_RULE}\n${UNCERTAINTY_RULE}\n${MEDIA_RULE}\n${OUTPUT_CONTRACT}`
 }

@@ -1,10 +1,22 @@
 import {
   isSpecialistId,
+  MASTER_ROUTE_MAP,
   type AgentId,
   type MasterAction,
   type SpecialistId,
 } from "@/lib/agents/types"
-import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
+import type { HistoryMessage } from "@/lib/agents/types"
+import {
+  hasOngoingSalesIntake,
+  isConfirmationPending,
+} from "@/lib/agents/sales-intake"
+import { isProductAvailabilityQuestion } from "@/lib/agents/product-handoff"
+import {
+  isFaqTopicSwitch,
+  isSalesTopicSwitch,
+  isServiceTopicSwitch,
+} from "@/lib/agents/topic-switch"
+import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 
 const BREAK_STICKY = new Set([
   "reset",
@@ -66,10 +78,16 @@ export function guessMasterRoute(body: string): MasterAction | null {
   }
 
   if (
-    has(text, /רוצה\s+לקנות|במלאי|כמה\s+עולה|מחיר\s+של/) ||
-    has(text, /הנחה|מבצע|ייעוץ\s+עיצוב|עוזר\s+לבחור/) ||
-    has(text, /תקציב|עד\s+[\d,]+|טווח\s+מחיר|מחפש(?:ים|ת|ים)?\s+שטיח/) ||
+    has(text, /רוצה\s+לקנות|ייעוץ\s+עיצוב|עוזר\s+לבחור/) ||
+    has(text, /תקציב|עד\s+[\d,]+|מחפש(?:ים|ת|ים)?\s+שטיח/) ||
     has(text, /שטיח\s+ל(סלון|חדר|מטבח|כניסה|מרפסת)/)
+  ) {
+    return "ROUTE_TO_SALES_AGENT"
+  }
+
+  if (
+    has(text, /במלאי|יש\s+(?:ל(?:כם|נו)|אצל(?:כם|נו))\s+(?:את\s+)?|קיים\s+ב?מלאי|דגם\s+\S+|קזבל|גארד|מילאן|sku/i) ||
+    has(text, /כמה\s+עולה|מחיר\s+של/)
   ) {
     return "ROUTE_TO_SALES_AGENT"
   }
@@ -91,4 +109,34 @@ export function guessMasterRoute(body: string): MasterAction | null {
   }
 
   return null
+}
+
+/** Stay on current specialist unless the latest message clearly needs another agent. */
+export function shouldContinueWithSpecialist(
+  body: string,
+  history: HistoryMessage[],
+  sticky: SpecialistId
+) {
+  if (isHumanHandoffPending(history)) return true
+  if (isConfirmationPending(history)) return true
+
+  if (isProductAvailabilityQuestion(body)) return false
+
+  if (isFaqTopicSwitch(body) && sticky !== "faq") return false
+  if (isServiceTopicSwitch(body) && sticky !== "service") return false
+  if (isSalesTopicSwitch(body) && sticky !== "sales") return false
+
+  if (sticky === "sales" && hasOngoingSalesIntake(history)) {
+    if (isFaqTopicSwitch(body) || isServiceTopicSwitch(body)) return false
+    return true
+  }
+
+  const route = guessMasterRoute(body)
+  if (route) {
+    const target = MASTER_ROUTE_MAP[route as MasterAction]
+    if (target === "shipping") return false
+    if (target && target !== sticky) return false
+  }
+
+  return true
 }

@@ -46,6 +46,12 @@ Generate no customer-facing text.
 
 ### CORE CLASSIFICATION PRINCIPLE
 
+**On every customer message**, first decide:
+1. Is the customer **continuing** the current conversation thread with the active agent?
+2. Or are they **switching** to a different need (FAQ / Sales / Service / Shipping)?
+
+Never stay on the previous agent out of inertia. Re-classify the **latest** message every time.
+
 Classify according to what the customer currently needs, not according to isolated keywords.
 
 A request for a representative does not automatically mean Customer Service.
@@ -207,9 +213,11 @@ Do not trigger this output for:
 
 ### CONTEXT SWITCHING
 
-The customer may change topics at any stage.
+The customer may change topics at any stage — **including mid-quiz or mid-service intake**.
 
-Always classify the latest clear request.
+**Every new message** must be re-evaluated: continue with the current agent OR switch.
+
+Do not remain locked to the previous topic or agent when the latest request clearly belongs elsewhere.
 
 Examples:
 
