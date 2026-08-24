@@ -19,6 +19,7 @@ export type ConversationContext = {
   history: HistoryMessage[]
   lastAgent: AgentId | null
   lastAction: string | null
+  resetAt: string | null
 }
 
 function asAgentId(value: unknown): AgentId | null {
@@ -56,11 +57,21 @@ export async function getConversationContext(
     .filter((item) => item.content)
     .map((item) => ({ role: item.role, content: item.content }))
 
+  if (resetAt) {
+    return {
+      history: dedupeHistory(storedHistory).slice(-HISTORY_LIMIT),
+      lastAgent,
+      lastAction,
+      resetAt,
+    }
+  }
+
   if (storedHistory.length >= 2 || (lastAgent && isSpecialistId(lastAgent))) {
     return {
       history: dedupeHistory(storedHistory).slice(-HISTORY_LIMIT),
       lastAgent,
       lastAction,
+      resetAt,
     }
   }
 
@@ -69,6 +80,7 @@ export async function getConversationContext(
     history: dedupeHistory([...landbot, ...storedHistory]).slice(-HISTORY_LIMIT),
     lastAgent,
     lastAction,
+    resetAt,
   }
 }
 

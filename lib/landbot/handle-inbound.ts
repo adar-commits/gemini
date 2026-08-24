@@ -1,4 +1,5 @@
 import { runMasterConversation } from "@/lib/agents/run-agent"
+import { appendTurn } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
@@ -125,6 +126,13 @@ export async function handleLandbotInbound(
   ) {
     await resetTrainerConversation(conversationId)
     const reply = buildTrainerResetReply()
+    await appendTurn({
+      conversationId,
+      agent: "master",
+      userText: body,
+      assistantText: reply,
+      action: "reset",
+    })
     if (replyEnabled) {
       await sendCustomerText(customerId, reply)
     }

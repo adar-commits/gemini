@@ -1,3 +1,5 @@
+import type { HistoryMessage } from "@/lib/agents/types"
+
 const GREETING_RE =
   /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+|$)/i
 
@@ -32,6 +34,17 @@ export function buildGreetingReply(_customerName?: string) {
 
 export function isOpeningTurn(historyUserMessages: number) {
   return historyUserMessages <= 1
+}
+
+/** First hello after a session reset — landbot legacy history must not block the welcome. */
+export function shouldWelcomeAfterReset(
+  resetAt: string | null,
+  lastAction: string | null,
+  history: HistoryMessage[]
+) {
+  if (lastAction === "reset") return true
+  if (!resetAt) return false
+  return !history.some((message) => message.role === "assistant")
 }
 
 /** Hello + concrete ask in one message → skip the welcome template. */

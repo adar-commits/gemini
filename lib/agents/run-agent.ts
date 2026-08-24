@@ -28,6 +28,7 @@ import {
   hasImmediateBusinessAsk,
   isCasualGreetingWithLearned,
   isOpeningTurn,
+  shouldWelcomeAfterReset,
 } from "@/lib/agents/greeting"
 import { guessLearnedRoute, learnedPromptRules, loadLearnedRules } from "@/lib/agents/learned-rules"
 import { buildBranchListReply, isBranchListQuestion } from "@/lib/agents/branches"
@@ -180,7 +181,7 @@ async function resolveSpecialist(
   history: HistoryMessage[],
   persistUser: boolean,
   route: AgentId[],
-  options?: { customerName?: string; lastAgent?: AgentId | null; preview?: boolean }
+  options?: { customerName?: string; lastAgent?: AgentId | null; lastAction?: string | null; resetAt?: string | null; preview?: boolean }
 ): Promise<AgentResponse> {
   route.push(specialist)
   const body = summarizeTurn(turn)
@@ -337,7 +338,12 @@ async function resolveSpecialist(
     specialist === "faq" &&
     (await isCasualGreetingWithLearned(body)) &&
     !hasImmediateBusinessAsk(body) &&
-    isOpeningTurn(persistUser ? userTurns : userTurns + 1)
+    (isOpeningTurn(persistUser ? userTurns : userTurns + 1) ||
+      shouldWelcomeAfterReset(
+        options?.resetAt ?? null,
+        options?.lastAction ?? null,
+        history
+      ))
   ) {
     const reply = buildGreetingReply(options?.customerName)
     await appendTurn({
@@ -400,6 +406,39 @@ function shippingResult(
   }))
 }
 
+async function tryWelcomeGreeting(
+  conversationId: string,
+  turn: UserTurn,
+  context: {
+    history: HistoryMessage[]
+    lastAction: string | null
+    resetAt: string | null
+  },
+  options?: { customerName?: string; preview?: boolean }
+): Promise<AgentResponse | null> {
+  const body = summarizeTurn(turn)
+  if (!(await isCasualGreetingWithLearned(body))) return null
+  if (hasImmediateBusinessAsk(body)) return null
+
+  const userTurns = context.history.filter((message) => message.role === "user").length
+  const welcome =
+    isOpeningTurn(userTurns) ||
+    shouldWelcomeAfterReset(context.resetAt, context.lastAction, context.history)
+
+  if (!welcome) return null
+
+  const reply = buildGreetingReply(options?.customerName)
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview: options?.preview,
+  })
+  return { ok: true, agent: "faq", reply, action: "reply", route: ["faq"] }
+}
+
 export async function runMasterConversation(
   conversationId: string,
   turn: UserTurn,
@@ -407,11 +446,19 @@ export async function runMasterConversation(
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
   await loadLearnedRules()
-  const { history, lastAgent, lastAction } =
+  const { history, lastAgent, lastAction, resetAt } =
     await getConversationContext(conversationId)
   const route: AgentId[] = []
   const preview = options?.preview
-  const sharedOptions = { ...options, lastAgent, preview }
+  const sharedOptions = { ...options, lastAgent, lastAction, resetAt, preview }
+
+  const welcome = await tryWelcomeGreeting(
+    conversationId,
+    turn,
+    { history, lastAction, resetAt },
+    options
+  )
+  if (welcome) return welcome
 
   if (isHumanHandoffPending(history)) {
     const agent =
