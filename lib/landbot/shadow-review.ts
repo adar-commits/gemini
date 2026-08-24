@@ -163,27 +163,44 @@ export async function reviewShadowLog(
 
 async function fetchUnreviewedLogs(limit: number) {
   const supabase = getAgentSupabase()
-  const { data: logs, error } = await supabase
-    .from("hom_agent_shadow_logs")
-    .select(
-      "id, conversation_id, customer_id, phone, user_text, agent, action, draft_reply, replied, created_at"
-    )
-    .order("created_at", { ascending: true })
-    .limit(limit * 3)
+  const pageSize = Math.max(limit * 2, 50)
+  let offset = 0
+  const unreviewed: ShadowLogRow[] = []
 
-  if (error) throw error
-  const rows = (logs ?? []) as ShadowLogRow[]
-  if (!rows.length) return []
+  while (unreviewed.length < limit) {
+    const { data: logs, error } = await supabase
+      .from("hom_agent_shadow_logs")
+      .select(
+        "id, conversation_id, customer_id, phone, user_text, agent, action, draft_reply, replied, created_at"
+      )
+      .order("created_at", { ascending: true })
+      .range(offset, offset + pageSize - 1)
 
-  const ids = rows.map((row) => row.id)
-  const { data: reviewed, error: reviewedError } = await supabase
-    .from("hom_agent_shadow_reviews")
-    .select("shadow_log_id")
-    .in("shadow_log_id", ids)
+    if (error) throw error
+    const rows = (logs ?? []) as ShadowLogRow[]
+    if (!rows.length) break
 
-  if (reviewedError) throw reviewedError
-  const done = new Set((reviewed ?? []).map((row) => row.shadow_log_id))
-  return rows.filter((row) => !done.has(row.id)).slice(0, limit)
+    const ids = rows.map((row) => row.id)
+    const { data: reviewed, error: reviewedError } = await supabase
+      .from("hom_agent_shadow_reviews")
+      .select("shadow_log_id")
+      .in("shadow_log_id", ids)
+
+    if (reviewedError) throw reviewedError
+    const done = new Set((reviewed ?? []).map((row) => row.shadow_log_id))
+
+    for (const row of rows) {
+      if (!done.has(row.id)) {
+        unreviewed.push(row)
+        if (unreviewed.length >= limit) break
+      }
+    }
+
+    offset += pageSize
+    if (rows.length < pageSize) break
+  }
+
+  return unreviewed
 }
 
 export async function runShadowReviewBatch() {
@@ -193,7 +210,8 @@ export async function runShadowReviewBatch() {
 
   const logs = await fetchUnreviewedLogs(batchSize())
   if (!logs.length) {
-    return { ok: true, reviewed: 0, issues: 0, pending: 0 }
+    const stats = await shadowReviewStats()
+    return { ok: true, reviewed: 0, issues: 0, pending: stats.pending }
   }
 
   const supabase = getAgentSupabase()
