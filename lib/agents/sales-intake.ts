@@ -43,6 +43,12 @@ const PET_ANIMAL_RE =
 const PET_CLARIFICATION_RE =
   /^(?:אבל|רק|הוא|היא|לא\s+נכנס|בסדר|בכל\s+זאת)/i
 
+const UNKNOWN_ANSWER_RE =
+  /^(?:לא\s+יודע(?:ת)?|לא\s+בטוח(?:ה)?|לא\s+מבין|אין\s+לי\s+מושג|לא\s+ממש|לא\s+כ(?:\"|״|')?כ|עזוב(?:\s+אותי)?)/i
+
+const INTAKE_CORRECTION_RE =
+  /כבר\s+שאלת|כבר\s+עניתי|עניתי\s+ש|אמרתי\s+ש|צודק/i
+
 const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
@@ -267,11 +273,8 @@ function applyContextualIntakeAnswers(
 
   applyPetsAnswer(intake, history, body)
 
-  if ((kind === "style" || options?.force) && !intake.style) {
-    const trimmed = body.trim()
-    if (trimmed.length >= 2 && trimmed.length <= 50) {
-      intake.style = trimmed
-    }
+  if (kind === "style" || (options?.force && !intake.style)) {
+    applyStyleAnswer(intake, recentUserReplies(history, body))
   }
 
   if ((kind === "bedroom" || options?.force) && !intake.bedroomUse) {
@@ -312,23 +315,200 @@ function applyContextualIntakeAnswers(
   }
 }
 
-function wasSpaceQuestionAsked(history: HistoryMessage[]) {
-  return /לאיזה חלל|לאן השטיח/.test(lastAssistantText(history))
-}
-
 function normalizeSpaceAnswer(raw: string) {
   return raw.trim().replace(/^ל/, "").trim() || raw.trim()
 }
 
-export function extractSalesIntake(history: HistoryMessage[], body: string): SalesIntake {
-  const text = allUserText(history, body)
-  const intake: SalesIntake = {}
+function isUnknownIntakeAnswer(text: string) {
+  const trimmed = text.trim()
+  return UNKNOWN_ANSWER_RE.test(trimmed) || /^לא\s+מבין/i.test(trimmed)
+}
 
-  if (/שטיח/.test(text)) intake.product = "שטיח"
-  else if (/פוף|bean\s*bag/i.test(text)) intake.product = "פוף"
-  else if (/תמונ(?:ה|ת)|wall[\s-]?art/i.test(text)) intake.product = "תמונת קיר"
-  else if (/אביזר|accessories?/i.test(text)) intake.product = "אביזר לעיצוב"
-  else if (/כרית/.test(text)) intake.product = "כרית"
+function isIntakeCorrection(text: string) {
+  return INTAKE_CORRECTION_RE.test(text.trim())
+}
+
+/** Collect user reply/ies that follow a bot intake question in the thread. */
+function userAnswersAfter(
+  messages: HistoryMessage[],
+  assistantIndex: number
+): string[] {
+  const answers: string[] = []
+  for (let index = assistantIndex + 1; index < messages.length; index += 1) {
+    const message = messages[index]
+    if (message.role === "assistant") break
+    if (message.role === "user") answers.push(message.content.trim())
+  }
+  return answers.filter(Boolean)
+}
+
+function applyProductAnswer(intake: SalesIntake, combined: string) {
+  if (/שטיח/.test(combined)) intake.product = "שטיח"
+  else if (/פוף|bean\s*bag/i.test(combined)) intake.product = "פוף"
+  else if (/תמונ(?:ה|ת)|wall[\s-]?art/i.test(combined)) intake.product = "תמונת קיר"
+  else if (/אביזר|accessories?/i.test(combined)) intake.product = "אביזר לעיצוב"
+  else if (/כרית/.test(combined)) intake.product = "כרית"
+}
+
+function applySpaceAnswer(intake: SalesIntake, answers: string[]) {
+  const combined = answers.join(" ")
+  if (!combined || isUnknownIntakeAnswer(combined)) return
+
+  if (/חדר\s+ילדים/.test(combined)) intake.targetSpace = "חדר ילדים"
+  else if (/חדר\s+שינה/.test(combined)) intake.targetSpace = "חדר שינה"
+  else if (/סלון/.test(combined)) intake.targetSpace = "סלון"
+  else if (/מסדרון/.test(combined)) intake.targetSpace = "מסדרון"
+  else if (OUTDOOR_SPACE_RE.test(combined)) {
+    const outdoor = combined.match(
+      /(?:ל)?(חצר(?:\s+\S+)?|מרפס(?:ה|ת)(?:\s+\S+)?|גינ(?:ה|ה)(?:\s+\S+)?)/i
+    )?.[1]
+    intake.targetSpace = normalizeSpaceAnswer(outdoor || answers[0])
+  } else if (/מחסן/.test(combined)) {
+    const warehouse = combined.match(/(?:ל)?(מחסן(?:\s+\S+){0,3})/i)?.[1]
+    intake.targetSpace = normalizeSpaceAnswer(warehouse || answers[0])
+  } else {
+    intake.targetSpace = normalizeSpaceAnswer(answers[0])
+  }
+}
+
+function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
+  const combined = answers.join(" ")
+  if (!combined) return
+  if (isUnknownIntakeAnswer(combined)) {
+    intake.style = "לא בטוח — יועץ יעזור בבחירה"
+    return
+  }
+  if (/יוקרתי/.test(combined)) intake.style = "יוקרתי"
+  else if (/מודרני/.test(combined)) intake.style = "מודרני"
+  else if (/כפרי/.test(combined)) intake.style = "כפרי"
+  else intake.style = answers[answers.length - 1].slice(0, 50)
+}
+
+function applyPetsAnswerFromText(intake: SalesIntake, answers: string[]) {
+  const combined = answers.join(" ")
+  if (!combined) return
+
+  if (PET_ANIMAL_RE.test(combined) || /רק\s+[א-תa-z]/i.test(combined)) {
+    intake.pets = "yes"
+    intake.petsDetail =
+      answers.length > 1
+        ? answers.join(", ").slice(0, 80)
+        : combined.match(
+            /(?:רק\s+)?(תוכי|ציפור(?:ים)?|כלב(?:ה)?|חתול(?:ה)?|[א-ת]{2,12})/i
+          )?.[1] || combined.slice(0, 40)
+    return
+  }
+
+  if (/^(?:כן|yes)/i.test(answers[answers.length - 1] ?? "")) {
+    intake.pets = "yes"
+    return
+  }
+
+  if (
+    answers.every((answer) => /^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(answer)) &&
+    !/רק\s+/i.test(combined)
+  ) {
+    intake.pets = "none"
+    return
+  }
+
+  if (PET_CLARIFICATION_RE.test(answers[answers.length - 1] ?? "") && answers.length >= 2) {
+    intake.pets = "yes"
+    intake.petsDetail = answers.join(", ").slice(0, 80)
+  }
+}
+
+/** Walk Q→A pairs in thread so answers persist across later turns. */
+function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIntake {
+  const intake: SalesIntake = {}
+  const messages: HistoryMessage[] = [...history, { role: "user", content: body }]
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index]
+    if (message.role !== "assistant") continue
+
+    const kind = questionKindForText(message.content)
+    if (!kind) continue
+
+    const answers = userAnswersAfter(messages, index)
+    if (answers.length === 0) continue
+
+    const combined = answers.join(" ")
+
+    switch (kind) {
+      case "product":
+        applyProductAnswer(intake, combined)
+        break
+      case "space":
+        applySpaceAnswer(intake, answers)
+        break
+      case "bedroom":
+        if (!isUnknownIntakeAnswer(combined)) {
+          intake.bedroomUse = answers[answers.length - 1].slice(0, 60)
+        }
+        break
+      case "children":
+        if (!isUnknownIntakeAnswer(combined)) {
+          intake.childrenAge = answers[answers.length - 1].slice(0, 40)
+        }
+        break
+      case "pets":
+        applyPetsAnswerFromText(intake, answers)
+        break
+      case "style":
+        applyStyleAnswer(intake, answers)
+        break
+      case "sofa": {
+        const match = combined.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
+        if (match) intake.sofaSize = match[1].replace(/\s/g, "")
+        else if (!isUnknownIntakeAnswer(combined)) intake.sofaSize = answers[answers.length - 1]
+        break
+      }
+      case "budget": {
+        const match =
+          combined.match(/([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)/i) ||
+          combined.match(/(\d[\d,]+)/)
+        if (match) intake.budget = match[1].replace(/,/g, "")
+        else if (!isUnknownIntakeAnswer(combined)) {
+          intake.budget = answers[answers.length - 1].replace(/,/g, "")
+        }
+        break
+      }
+      case "practical":
+        if (isUnknownIntakeAnswer(combined)) {
+          intake.practicalNeeds = "לא בטוח — יועץ יבדוק"
+        } else {
+          intake.practicalNeeds = answers[answers.length - 1].slice(0, 80)
+        }
+        break
+      default:
+        break
+    }
+  }
+
+  // Customer correcting us — re-extract space from complaint text.
+  if (isIntakeCorrection(body) && /מחסן|חצר|מרפס|סלון|חדר|מסדרון/i.test(body)) {
+    applySpaceAnswer(intake, [body])
+  }
+
+  return intake
+}
+
+function wasSpaceQuestionAsked(history: HistoryMessage[]) {
+  return /לאיזה חלל|לאן השטיח/.test(lastAssistantText(history))
+}
+
+export function extractSalesIntake(history: HistoryMessage[], body: string): SalesIntake {
+  const intake = walkIntakeFromHistory(history, body)
+  const text = allUserText(history, body)
+
+  if (!intake.product) {
+    if (/שטיח/.test(text)) intake.product = "שטיח"
+    else if (/פוף|bean\s*bag/i.test(text)) intake.product = "פוף"
+    else if (/תמונ(?:ה|ת)|wall[\s-]?art/i.test(text)) intake.product = "תמונת קיר"
+    else if (/אביזר|accessories?/i.test(text)) intake.product = "אביזר לעיצוב"
+    else if (/כרית/.test(text)) intake.product = "כרית"
+  }
 
   const requestedModel =
     extractRequestedModel(body) ||
@@ -336,77 +516,77 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
     undefined
   if (requestedModel) intake.requestedModel = requestedModel
 
-  if (/חדר\s+ילדים/.test(text)) intake.targetSpace = "חדר ילדים"
-  else if (/חדר\s+שינה/.test(text)) intake.targetSpace = "חדר שינה"
-  else if (/סלון/.test(text)) intake.targetSpace = "סלון"
-  else if (/מסדרון/.test(text)) intake.targetSpace = "מסדרון"
-  else if (OUTDOOR_SPACE_RE.test(body)) {
-    intake.targetSpace = normalizeSpaceAnswer(body)
-  } else if (OUTDOOR_SPACE_RE.test(text)) {
-    const outdoor = text.match(/(?:ל)?(חצר(?:\s+\S+)?|מרפס(?:ה|ת)(?:\s+\S+)?|גינ(?:ה|ה)(?:\s+\S+)?)/i)?.[1]
-    if (outdoor) intake.targetSpace = normalizeSpaceAnswer(outdoor)
+  if (!intake.bedroomUse) {
+    if (/חדר\s+תינוקות|תינוק/.test(text)) intake.bedroomUse = "חדר תינוקות"
+    else if (/חדר\s+(?:ילדים|נוער)/.test(text)) {
+      intake.bedroomUse = "חדר ילדים או נוער"
+    } else if (/חדר\s+זוגי|לזוג/.test(text)) intake.bedroomUse = "חדר זוגי"
+    else if (/חדר\s+ליחיד|ליחיד/.test(text)) intake.bedroomUse = "חדר ליחיד"
+    else if (/מבוגר/.test(text) && /חדר\s+שינה|שינה/.test(text)) {
+      intake.bedroomUse = "חדר לאדם מבוגר"
+    }
   }
 
-  // Free-form space answer during intake (e.g. "לחצר שלי", "במטבח", "לפינת קריאה").
+  if (!intake.budget) {
+    const budgetMatch =
+      text.match(/עד\s+([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)/i) ||
+      text.match(/(\d{2,4})\s*שקל/i) ||
+      text.match(/תקציב(?:\s+של)?\s+([\d,]+)/i)
+    if (budgetMatch) intake.budget = budgetMatch[1].replace(/,/g, "")
+  }
+
+  if (!intake.household) {
+    if (/משפחה\s+עם\s+ילדים|ילדים\s+קטנים|יש\s+ילדים|עם\s+ילדים/.test(text)) {
+      intake.household = "משפחה עם ילדים"
+    } else if (/לזוג|זוג(\s|$)/.test(text)) {
+      intake.household = "זוג"
+    } else if (/מבוגר/.test(text)) {
+      intake.household = "אדם מבוגר"
+    }
+  }
+
+  if (!intake.childrenAge) {
+    const childrenAgeMatch = text.match(/גיל(?:אי)?\s*([\d]+(?:\s*[-–]\s*[\d]+)?)/)
+    if (childrenAgeMatch) intake.childrenAge = childrenAgeMatch[1].replace(/\s/g, "")
+    else if (/ילדים\s+קטנים/.test(text)) intake.childrenAge = "קטנים"
+    else if (/ילדים\s+גדולים/.test(text)) intake.childrenAge = "גדולים"
+  }
+
+  if (intake.pets == null) {
+    if (/ללא\s+חיות|אין\s+חיות|בלי\s+חיות|לא\s+יש\s+חיות/.test(text)) {
+      intake.pets = "none"
+    } else if (/יש\s+(?:כלב|חתול|חיות)|עם\s+חיות|כלב|חתול/.test(text)) {
+      intake.pets = "yes"
+    }
+  }
+
+  if (!intake.rugSize) {
+    const rugSizeMatch = text.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
+    if (rugSizeMatch) intake.rugSize = `${rugSizeMatch[1].replace(/\s/g, "")} מטר`
+  }
+
+  if (!intake.sofaSize) {
+    const sofaMatch = text.match(/ספה\s+(?:של\s+)?(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
+    if (sofaMatch) intake.sofaSize = sofaMatch[1].replace(/\s/g, "")
+  }
+
+  if (!intake.practicalNeeds && /כבס|ניקוי|עמיד|קל\s+לניקוי/.test(text)) {
+    intake.practicalNeeds = "ניתן לכבס / קל לניקוי"
+  }
+
+  applyContextualIntakeAnswers(intake, history, body)
+
   if (!intake.targetSpace && wasSpaceQuestionAsked(history)) {
     const trimmed = body.trim()
     if (
       trimmed.length >= 2 &&
       trimmed.length <= 50 &&
-      !/^(?:כן|לא|לא\s+יודע|לא\s+בטוח)$/i.test(trimmed)
+      !isUnknownIntakeAnswer(trimmed) &&
+      !/^(?:כן|לא)(?:[\s,.!?]|$)/i.test(trimmed)
     ) {
-      intake.targetSpace = normalizeSpaceAnswer(trimmed)
+      applySpaceAnswer(intake, [trimmed])
     }
   }
-
-  if (/חדר\s+תינוקות|תינוק/.test(text)) intake.bedroomUse = "חדר תינוקות"
-  else if (/חדר\s+(?:ילדים|נוער)/.test(text)) intake.bedroomUse = "חדר ילדים או נוער"
-  else if (/חדר\s+זוגי|לזוג/.test(text)) intake.bedroomUse = "חדר זוגי"
-  else if (/חדר\s+ליחיד|ליחיד/.test(text)) intake.bedroomUse = "חדר ליחיד"
-  else if (/מבוגר/.test(text) && /חדר\s+שינה|שינה/.test(text)) {
-    intake.bedroomUse = "חדר לאדם מבוגר"
-  }
-
-  const budgetMatch =
-    text.match(/עד\s+([\d,]+)\s*(?:ש[\"״']?ח|₪|שקל)/i) ||
-    text.match(/(\d{2,4})\s*שקל/i) ||
-    text.match(/תקציב(?:\s+של)?\s+([\d,]+)/i)
-  if (budgetMatch) intake.budget = budgetMatch[1].replace(/,/g, "")
-
-  if (/משפחה\s+עם\s+ילדים|ילדים\s+קטנים|יש\s+ילדים|עם\s+ילדים/.test(text)) {
-    intake.household = "משפחה עם ילדים"
-  } else if (/לזוג|זוג(\s|$)/.test(text)) {
-    intake.household = "זוג"
-  } else if (/מבוגר/.test(text)) {
-    intake.household = "אדם מבוגר"
-  }
-
-  const childrenAgeMatch = text.match(/גיל(?:אי)?\s*([\d]+(?:\s*[-–]\s*[\d]+)?)/)
-  if (childrenAgeMatch) intake.childrenAge = childrenAgeMatch[1].replace(/\s/g, "")
-  else if (/ילדים\s+קטנים/.test(text)) intake.childrenAge = "קטנים"
-  else if (/ילדים\s+גדולים/.test(text)) intake.childrenAge = "גדולים"
-
-  if (/ללא\s+חיות|אין\s+חיות|בלי\s+חיות|לא\s+יש\s+חיות/.test(text)) {
-    intake.pets = "none"
-  } else if (/יש\s+(?:כלב|חתול|חיות)|עם\s+חיות|כלב|חתול/.test(text)) {
-    intake.pets = "yes"
-  }
-
-  if (/יוקרתי/.test(text)) intake.style = "יוקרתי"
-  else if (/מודרני/.test(text)) intake.style = "מודרני"
-  else if (/כפרי/.test(text)) intake.style = "כפרי"
-
-  const rugSizeMatch = text.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
-  if (rugSizeMatch) intake.rugSize = `${rugSizeMatch[1].replace(/\s/g, "")} מטר`
-
-  const sofaMatch = text.match(/ספה\s+(?:של\s+)?(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
-  if (sofaMatch) intake.sofaSize = sofaMatch[1].replace(/\s/g, "")
-
-  if (/כבס|ניקוי|עמיד|קל\s+לניקוי/.test(text)) {
-    intake.practicalNeeds = "ניתן לכבס / קל לניקוי"
-  }
-
-  applyContextualIntakeAnswers(intake, history, body)
 
   return intake
 }
@@ -547,9 +727,24 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
     next = nextIntakeQuestion(intake)
   }
 
-  if (!next) {
-    return buildConfirmationSummary(intake)
+  // Never go backwards (e.g. re-ask space after style was already asked).
+  if (next && lastKind && nextKind && questionOrder(nextKind) < questionOrder(lastKind)) {
+    applyContextualIntakeAnswers(intake, history, body, { force: true })
+    next = nextIntakeQuestion(intake)
   }
 
-  return intro ? `${intro}\n${next}` : next
+  const correctionPrefix = isIntakeCorrection(body) ? "צודק/ת, תודה על הסבלנות.\n" : ""
+
+  if (!next) {
+    return correctionPrefix + buildConfirmationSummary(intake)
+  }
+
+  const reply = intro ? `${intro}\n${next}` : next
+  return correctionPrefix ? `${correctionPrefix}${reply}` : reply
+}
+
+function questionOrder(kind: string) {
+  const order = ["product", "space", "bedroom", "children", "pets", "style", "sofa", "budget", "practical", "confirm"]
+  const index = order.indexOf(kind)
+  return index === -1 ? 0 : index
 }
