@@ -19,9 +19,15 @@ function isCronAuthorized(request: Request) {
 }
 
 async function handleRun() {
-  const review = await runShadowReviewBatch()
-  const autofix = await runShadowAutofixBatch()
-  return NextResponse.json({ review, autofix })
+  try {
+    const review = await runShadowReviewBatch()
+    const autofix = await runShadowAutofixBatch()
+    return NextResponse.json({ ok: true, review, autofix })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Shadow review failed"
+    console.error("[shadow-review] batch failed", message)
+    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+  }
 }
 
 /** Vercel Cron (GET + CRON_SECRET) or manual POST with AGENT_API_KEY */
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return handleRun()
+    return await handleRun()
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow review failed"
     return NextResponse.json({ ok: false, error: message }, { status: 500 })

@@ -202,27 +202,50 @@ export async function runShadowReviewBatch() {
   const issueIds: string[] = []
 
   for (const log of logs) {
-    const turnNumber = (await conversationTurnCount(log.conversation_id)) || 1
-    const review = await reviewShadowLog(log, turnNumber)
+    try {
+      const turnNumber = (await conversationTurnCount(log.conversation_id)) || 1
+      const review = await reviewShadowLog(log, turnNumber)
 
-    const { error } = await supabase.from("hom_agent_shadow_reviews").insert({
-      shadow_log_id: log.id,
-      verdict: review.verdict,
-      issue_types: review.issue_types,
-      reason: review.reason.slice(0, 500),
-      suggested_fix: review.suggested_fix.slice(0, 500),
-      model: review.model,
-    })
+      const { error } = await supabase.from("hom_agent_shadow_reviews").insert({
+        shadow_log_id: log.id,
+        verdict: review.verdict,
+        issue_types: review.issue_types,
+        reason: review.reason.slice(0, 500),
+        suggested_fix: review.suggested_fix.slice(0, 500),
+        model: review.model,
+      })
 
-    if (error) {
-      if (error.code === "23505") continue
-      throw error
-    }
+      if (error) {
+        if (error.code === "23505") continue
+        throw error
+      }
 
-    reviewed += 1
-    if (review.verdict === "issue") {
-      issues += 1
-      issueIds.push(log.id)
+      reviewed += 1
+      if (review.verdict === "issue") {
+        issues += 1
+        issueIds.push(log.id)
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Shadow review failed for log"
+      console.error("[shadow-review] log failed", log.id, message)
+
+      const { error: insertError } = await supabase
+        .from("hom_agent_shadow_reviews")
+        .insert({
+          shadow_log_id: log.id,
+          verdict: "issue",
+          issue_types: ["policy_risk"],
+          reason: `ביקורת אוטומטית נכשלה: ${message}`.slice(0, 500),
+          suggested_fix: "none",
+          model: reviewModel(),
+        })
+
+      if (!insertError || insertError.code === "23505") {
+        reviewed += 1
+        issues += 1
+        issueIds.push(log.id)
+      }
     }
   }
 
