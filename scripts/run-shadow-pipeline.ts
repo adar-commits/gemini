@@ -1,7 +1,33 @@
 /**
  * Drain unreviewed shadow logs and apply autofix learned rules.
- * Usage: set -a && source .env.local && set +a && npx tsx scripts/run-shadow-pipeline.ts
+ * Usage: npx --yes dotenv-cli -e .env.production.local -- npx --yes tsx scripts/run-shadow-pipeline.ts
  */
+import { readFileSync, existsSync } from "node:fs"
+import { join } from "node:path"
+
+function loadEnvFile(relativePath: string) {
+  const path = join(process.cwd(), relativePath)
+  if (!existsSync(path)) return
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("#")) continue
+    const eq = trimmed.indexOf("=")
+    if (eq <= 0) continue
+    const key = trimmed.slice(0, eq)
+    if (process.env[key]?.trim()) continue
+    let value = trimmed.slice(eq + 1)
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    if (value) process.env[key] = value
+  }
+}
+
+loadEnvFile(".env.production.local")
+
 async function main() {
   const { runShadowReviewBatch } = await import("../lib/landbot/shadow-review")
   const { runShadowAutofixBatch } = await import("../lib/landbot/shadow-autofix")
