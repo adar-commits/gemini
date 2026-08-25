@@ -445,7 +445,45 @@ export function buildOrderStatusReply(order: OrderShipmentStatus) {
 לגבי הזמנה ${order.orderNumber} (${order.branchLabel}):
 ${order.statusDescription}
 
-אפשר לעזור במשהו נוסף? כדי להתחיל מחדש, כתבו "התחלה".`
+אפשר לעזור במשהו נוסף? אם צריך נציג — כתבו "נציג". כדי להתחיל מחדש, כתבו "התחלה".`
+}
+
+export function isBotHelpJustDelivered(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return (
+      (/לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(message.content) &&
+        /אפשר לעזור במשהו נוסף/i.test(message.content)) ||
+      /הנה הקישור למסמך/i.test(message.content)
+    )
+  }
+  return false
+}
+
+export function isExplicitHumanRequest(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 200) return false
+
+  return (
+    /(?:^|\s)(?:נציג(?:ה|ת)?|נציג\s+שירות|שיחה\s+עם\s+נציג|אני\s+רוצ(?:ה|ים|ות)\s+נציג|תעביר(?:ו)?\s+(?:לי\s+)?(?:ל)?נציג)/i.test(
+      text
+    ) || /(?:^|\s)human(?:\s+agent)?(?:\s|$|[?.!,])/i.test(text)
+  )
+}
+
+export function isHelpInsufficient(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 200) return false
+
+  return (
+    /(?:לא\s+עזר|לא\s+מספיק|עדיין\s+(?:לא|צריך|רוצה)|לא\s+פתר|לא\s+עונה\s+על|זה\s+לא\s+מה\s+ש(?:ביקשתי|רציתי))/i.test(
+      text
+    ) ||
+    /(?:אבל|רק)\s+(?:אני\s+)?(?:רוצ(?:ה|ים|ות)|צריך(?:ים)?)\s+(?:נציג|אנושי|עזרה)/i.test(
+      text
+    )
+  )
 }
 
 export function buildOrderPickExhaustedReply() {

@@ -9,11 +9,26 @@ export function isConversationClosing(body: string) {
   if (/תודה.*(?:גם|רציתי|עוד|שאל|אבל|רק)/i.test(text)) return false
   if (/^(?:לא|כן)[,\s]+(?:אבל|רק)/i.test(text)) return false
 
-  return /^(?:תודה(?:\s+רבה)?|לא,?\s*תודה(?:\s+רבה)?|זה\s+הכל|אין\s+צורך|יום\s+טוב|ביי|להתראות|סבבה\s+תודה)(?:[\s,.!?🙏👍]*|$)/iu.test(
-    text
-  )
+  const directClosing =
+    /^(?:תודה(?:\s+רבה)?|לא,?\s*תודה(?:\s+רבה)?|זה\s+הכל|אין\s+צורך|יום\s+טוב|ביי|להתראות|סבבה\s+תודה|בסדר\s+תודה|מעולה\s+תודה|יופי\s+תודה)(?:[\s,.!?🙏👍]*|$)/iu.test(
+      text
+    )
+
+  const resolvedClosing =
+    /^(?:ה)?סתדר(?:תי|נו)(?:\s+תודה(?:\s+רבה)?)?(?:[\s,.!?🙏👍]*|$)/iu.test(
+      text
+    ) ||
+    /^(?:סבבה|אוקיי|יופי|מעולה|בסדר)(?:\s*,?\s*תודה(?:\s+רבה)?)?(?:[\s,.!?🙏👍]*|$)/iu.test(
+      text
+    )
+
+  return directClosing || resolvedClosing
 }
 
-export function buildClosingAckReply() {
-  return `${CUSTOMER_HEADER}\nבשמחה! אם תצטרכו משהו נוסף — אנחנו כאן.`
+export function buildClosingAckReply(customerName?: string) {
+  const name = customerName?.trim()
+  const greeting = name
+    ? `שמחתי לעזור לך ${name}, אני כאן לכל עניין נוסף.`
+    : "שמחתי לעזור לך, אני כאן לכל עניין נוסף."
+  return `${CUSTOMER_HEADER}\n${greeting}`
 }

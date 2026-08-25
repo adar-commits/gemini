@@ -31,6 +31,9 @@ import {
   buildDigitalDocumentReply,
   lookupDigitalDocument,
   resolveOrderShippingReply,
+  isBotHelpJustDelivered,
+  isExplicitHumanRequest,
+  isHelpInsufficient,
   isOrderConfirmationPending,
   isOrderConfirmationYes,
   isOrderConfirmationNo,
@@ -723,7 +726,7 @@ export async function runMasterConversation(
   }
 
   if (isConversationClosing(body) && !isHumanHandoffPending(history)) {
-    const reply = normalizeReply("faq", "end", buildClosingAckReply())
+    const reply = buildClosingAckReply(options?.customerName)
     await appendTurn({
       conversationId,
       agent: "faq",
@@ -733,6 +736,23 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent: "faq", reply, action: "end", route: [...route, "faq"] }
+  }
+
+  if (
+    isBotHelpJustDelivered(history) &&
+    (isExplicitHumanRequest(body) || isHelpInsufficient(body))
+  ) {
+    const action = inferHumanHandoffAction(history, lastAgent)
+    const reply = `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`
+    await appendTurn({
+      conversationId,
+      agent: "master",
+      userText: body,
+      assistantText: reply,
+      action,
+      preview,
+    })
+    return { ok: true, agent: "master", reply, action, route: [...route, "master"] }
   }
 
   if (isCustomerServiceOpener(body)) {
