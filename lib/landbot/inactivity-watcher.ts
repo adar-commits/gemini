@@ -4,6 +4,7 @@ import {
   buildInactivityCloseReply,
   buildInactivityPingReply,
 } from "@/lib/agents/inactivity"
+import { resolveCronSecret } from "@/lib/agents/cron-auth"
 import {
   getSessionInactivityState,
   recordProactiveAssistantMessage,
@@ -33,18 +34,30 @@ function asText(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function sameTimestamp(a: string, b: string) {
+  const left = Date.parse(a)
+  const right = Date.parse(b)
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return a === b
+  return Math.abs(left - right) < 5
+}
+
 function internalAuthHeaders(): Record<string, string> {
-  const key = process.env.AGENT_API_KEY?.trim()
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   }
-  if (key) headers.Authorization = `Bearer ${key}`
+  const cron = resolveCronSecret()
+  const apiKey = process.env.AGENT_API_KEY?.trim()
+  if (cron) headers.Authorization = `Bearer ${cron}`
+  else if (apiKey) headers.Authorization = `Bearer ${apiKey}`
   return headers
 }
 
 export function internalBaseUrl() {
   const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.APP_URL?.trim()
   if (explicit) return explicit.replace(/\/$/, "")
+
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+  if (production) return `https://${production.replace(/^https?:\/\//, "")}`
 
   const vercel = process.env.VERCEL_URL?.trim()
   if (vercel) return `https://${vercel}`
@@ -81,16 +94,20 @@ async function hasPendingBuffer(conversationId: string) {
   return Date.now() - Date.parse(String(data.updated_at)) < INACTIVITY_PING_MS
 }
 
+function resolveWatchPhone(payload: InactivityWatchPayload, sessionPhone?: unknown) {
+  return asText(payload.customerPhone) || asText(sessionPhone) || undefined
+}
+
 async function shouldSendPing(payload: InactivityWatchPayload) {
   const watchAssistantAt = asText(payload.watchAssistantAt)
   if (!watchAssistantAt) return false
-  if (!shouldReplyPhone(payload.customerPhone)) return false
 
   const session = await getSessionInactivityState(payload.conversationId)
   if (!session) return false
+  if (!shouldReplyPhone(resolveWatchPhone(payload, session.customer_phone))) return false
   if (asText(session.inactivity_closed_at)) return false
   if (asText(session.inactivity_ping_sent_at)) return false
-  if (asText(session.last_assistant_at) !== watchAssistantAt) return false
+  if (!sameTimestamp(asText(session.last_assistant_at), watchAssistantAt)) return false
   if (await hasPendingBuffer(payload.conversationId)) return false
 
   const last = await lastMessageRole(payload.conversationId)
@@ -101,12 +118,12 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
 async function shouldSendClose(payload: InactivityWatchPayload) {
   const watchPingSentAt = asText(payload.watchPingSentAt)
   if (!watchPingSentAt) return false
-  if (!shouldReplyPhone(payload.customerPhone)) return false
 
   const session = await getSessionInactivityState(payload.conversationId)
   if (!session) return false
+  if (!shouldReplyPhone(resolveWatchPhone(payload, session.customer_phone))) return false
   if (asText(session.inactivity_closed_at)) return false
-  if (asText(session.inactivity_ping_sent_at) !== watchPingSentAt) return false
+  if (!sameTimestamp(asText(session.inactivity_ping_sent_at), watchPingSentAt)) return false
   if (await hasPendingBuffer(payload.conversationId)) return false
 
   const last = await lastMessageRole(payload.conversationId)
@@ -114,25 +131,35 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
   return last.role === "assistant"
 }
 
-function kickInactivityWatch(payload: InactivityWatchPayload) {
+async function kickInactivityWatch(payload: InactivityWatchPayload) {
   const url = `${internalBaseUrl()}/api/landbot/inactivity-watch`
-  void fetch(url, {
-    method: "POST",
-    headers: internalAuthHeaders(),
-    body: JSON.stringify(payload),
-  }).catch((error) => {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: internalAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+      const body = await response.text().catch(() => "")
+      console.error(
+        "[inactivity-watch] kick failed",
+        response.status,
+        body.slice(0, 200)
+      )
+    }
+  } catch (error) {
     console.error("[inactivity-watch] kick failed", error)
-  })
+  }
 }
 
-export function scheduleInactivityWatch(input: {
+export async function scheduleInactivityWatch(input: {
   conversationId: string
   customerId: number
   customerName?: string
   customerPhone?: string
   watchAssistantAt: string
 }) {
-  kickInactivityWatch({
+  await kickInactivityWatch({
     phase: "ping",
     conversationId: input.conversationId,
     customerId: input.customerId,
@@ -164,7 +191,7 @@ export async function runInactivityWatch(payload: InactivityWatchPayload) {
       return { ok: true, skipped: "ping_not_recorded" as const }
     }
 
-    kickInactivityWatch({
+    void kickInactivityWatch({
       phase: "close",
       conversationId: payload.conversationId,
       customerId: payload.customerId,

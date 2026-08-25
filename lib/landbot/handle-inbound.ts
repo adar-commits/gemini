@@ -36,7 +36,6 @@ import {
   scheduleInactivityWatch,
 } from "@/lib/landbot/inactivity-watcher"
 import { getSessionInactivityState } from "@/lib/agents/memory"
-import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
 
 export type InboundMode = "reply" | "shadow"
@@ -177,14 +176,16 @@ export async function handleLandbotInbound(
       const session = await getSessionInactivityState(conversationId)
       const watchAssistantAt = session?.last_assistant_at
       if (watchAssistantAt) {
-        after(() => {
-          scheduleInactivityWatch({
-            conversationId,
-            customerId,
-            customerName: customerName || undefined,
-            customerPhone: options?.phone?.trim() || undefined,
-            watchAssistantAt: String(watchAssistantAt),
-          })
+        await scheduleInactivityWatch({
+          conversationId,
+          customerId,
+          customerName: customerName || undefined,
+          customerPhone:
+            options?.phone?.trim() ||
+            (typeof session.customer_phone === "string"
+              ? session.customer_phone.trim()
+              : undefined),
+          watchAssistantAt: String(watchAssistantAt),
         })
       }
     }

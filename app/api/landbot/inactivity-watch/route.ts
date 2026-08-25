@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
+import { isCronAuthorized } from "@/lib/agents/cron-auth"
 import {
   runInactivityWatch,
   type InactivityWatchPayload,
@@ -30,7 +31,7 @@ function parsePayload(body: unknown): InactivityWatchPayload | null {
 }
 
 export async function POST(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request) && !isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
   }
 
