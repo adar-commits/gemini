@@ -31,7 +31,12 @@ import {
   TRAINER_CORRECTION_DONE,
 } from "@/lib/landbot/trainer-correction"
 import { isTrainerPhone } from "@/lib/landbot/trainer"
-import { ensureSessionMetaFromInbound } from "@/lib/landbot/inactivity-cron"
+import {
+  ensureSessionMetaFromInbound,
+  scheduleInactivityWatch,
+} from "@/lib/landbot/inactivity-watcher"
+import { getSessionInactivityState } from "@/lib/agents/memory"
+import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
 
 export type InboundMode = "reply" | "shadow"
@@ -168,6 +173,20 @@ export async function handleLandbotInbound(
       const human = pickHumanAgentId(result.action, customerId)
       if (human) await assignToHuman(customerId, human)
       else await unassignCustomer(customerId)
+    } else if (draftReply) {
+      const session = await getSessionInactivityState(conversationId)
+      const watchAssistantAt = session?.last_assistant_at
+      if (watchAssistantAt) {
+        after(() => {
+          scheduleInactivityWatch({
+            conversationId,
+            customerId,
+            customerName: customerName || undefined,
+            customerPhone: options?.phone?.trim() || undefined,
+            watchAssistantAt: String(watchAssistantAt),
+          })
+        })
+      }
     }
   } else {
     await logShadowTurn({

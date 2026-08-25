@@ -4,7 +4,7 @@ import {
   buildInactivityCloseReply,
   buildInactivityPingReply,
 } from "@/lib/agents/inactivity"
-import { recordProactiveAssistantMessage, touchSessionMeta } from "@/lib/agents/memory"
+import { recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
@@ -266,15 +266,4 @@ export async function processInactivityTimeouts() {
   }
 
   return results
-}
-
-export async function ensureSessionMetaFromInbound(input: {
-  conversationId: string
-  customerName?: string
-  customerPhone?: string
-}) {
-  await touchSessionMeta(input.conversationId, {
-    customerName: input.customerName,
-    customerPhone: input.customerPhone,
-  })
 }

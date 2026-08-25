@@ -269,6 +269,21 @@ export async function recordProactiveAssistantMessage(input: {
   })
 }
 
+export async function getSessionInactivityState(conversationId: string) {
+  conversationId = safeId(conversationId)
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_sessions")
+    .select(
+      "last_assistant_at, last_user_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+    )
+    .eq("conversation_id", conversationId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
 export async function appendTurn(input: {
   conversationId: string
   agent: AgentId

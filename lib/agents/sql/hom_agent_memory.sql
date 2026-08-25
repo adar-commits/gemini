@@ -16,7 +16,13 @@ create table if not exists public.hom_agent_sessions (
   conversation_id text primary key,
   reset_at timestamptz,
   last_agent text,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  last_user_at timestamptz,
+  last_assistant_at timestamptz,
+  inactivity_ping_sent_at timestamptz,
+  inactivity_closed_at timestamptz,
+  customer_name text,
+  customer_phone text
 );
 
 alter table public.hom_agent_messages enable row level security;
