@@ -205,11 +205,28 @@ function formatHebrewDateTime(iso: string | null | undefined) {
 
 function orderBranchLabel(row: PriorityOrderRow) {
   return (
-    row.LTRN_SELLERNAME?.trim() ||
     row.Y_7455_0_ESH?.trim() ||
+    row.LTRN_SELLERNAME?.trim() ||
     row.ZPIT_DISTERIBRANCH?.trim() ||
     "הום"
   )
+}
+
+function daysSinceOrder(row: PriorityOrderRow) {
+  const iso = row.CURDATE?.trim()
+  if (!iso) return null
+  const orderDate = new Date(iso)
+  if (!Number.isFinite(orderDate.getTime())) return null
+  const diffMs = Date.now() - orderDate.getTime()
+  return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)))
+}
+
+function formatDaysAgoPhrase(days: number | null) {
+  if (days == null) return null
+  if (days === 0) return "היום"
+  if (days === 1) return "לפני יום"
+  if (days === 2) return "לפני יומיים"
+  return `לפני ${days} ימים`
 }
 
 function orderSortTimestamp(row: PriorityOrderRow) {
@@ -357,7 +374,7 @@ export function isOrderConfirmationPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
-    return /האם מדובר בהזמנה/i.test(message.content)
+    return /האם מדובר (?:על )?הזמנה/i.test(message.content)
   }
   return false
 }
@@ -378,17 +395,23 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
 
 export function isOrderConfirmationYes(body: string) {
   const text = body.trim()
-  if (!text || text.length > 40) return false
-  return /^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|yes|👍)/i.test(text)
+  if (!text || text.length > 80) return false
+  if (/^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|אכן|בטח|yes|👍)/i.test(text)) return true
+  if (/^(?:זה|זו|זאת)\s+(?:נכון|ה(?:יא|וא)|מדובר)/i.test(text)) return true
+  return false
 }
 
 export function isOrderConfirmationNo(body: string) {
   const text = body.trim()
-  if (!text || text.length > 60) return false
-  return (
+  if (!text || text.length > 80) return false
+  if (
     /^(?:לא|לא זה|לא נכון|הזמנה אחרת|אחרת|no)(?:[\s,.!?]|$)/i.test(text) ||
     /^לא[\s,]/i.test(text)
-  )
+  ) {
+    return true
+  }
+  if (/\bלא\b/.test(text) && /(?:זה|זו|זאת|הזמנה)/.test(text)) return true
+  return false
 }
 
 function formatOrderPrice(price: number | null) {
@@ -396,21 +419,22 @@ function formatOrderPrice(price: number | null) {
   return price.toLocaleString("he-IL", { maximumFractionDigits: 2 })
 }
 
-/** Ask customer to confirm a single order (branch + total as cues). */
-export function buildOrderConfirmationPrompt(
-  order: OrderShipmentStatus,
-  index: number,
-  total: number
-) {
+/** Ask customer to confirm a single order (branch, age, total as cues). */
+export function buildOrderConfirmationPrompt(order: OrderShipmentStatus) {
   const price = formatOrderPrice(order.totalPrice)
-  const pricePhrase = price ? `, סה״כ ${price} ₪` : ""
-  const countPhrase =
-    total > 1 ? `\n(הזמנה ${index + 1} מתוך ${total} — מהחדשה לישנה)` : ""
+  const branch = order.branchLabel
+  const daysPhrase = formatDaysAgoPhrase(daysSinceOrder(order.raw))
+  const placedPhrase = daysPhrase ? ` בוצעה ${daysPhrase}` : ""
+  const pricePhrase = price ? ` על סך ${price} ש׳׳ח` : ""
 
   return `${CUSTOMER_HEADER}
-האם מדובר בהזמנה ${order.orderNumber} — ${order.branchLabel}${pricePhrase}?${countPhrase}
+אוקיי מצאתי, האם מדובר על הזמנה ${order.orderNumber}${placedPhrase} בסניף ${branch}${pricePhrase}?`
+}
 
-כתבו/י כן אם נכון, או לא כדי לבדוק הזמנה אחרת.`
+export function buildOrderConfirmationClarifyPrompt(order: OrderShipmentStatus) {
+  return `${buildOrderConfirmationPrompt(order)}
+
+לא הבנתי — כתבו/י כן אם זו ההזמנה, או לא כדי לבדוק אחרת.`
 }
 
 export function buildOrderStatusReply(order: OrderShipmentStatus) {
@@ -579,7 +603,7 @@ async function lookupAndStartOrderConfirm(phone: string) {
   const orders = await lookupOrdersByPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply()
-  return buildOrderConfirmationPrompt(orders[0]!, 0, orders.length)
+  return buildOrderConfirmationPrompt(orders[0]!)
 }
 
 async function resolveOrderConfirmationFlow(input: {
@@ -613,7 +637,7 @@ async function resolveOrderConfirmationFlow(input: {
     const nextIndex = currentIndex >= 0 ? currentIndex + 1 : 1
     const nextOrder = sorted[nextIndex]
     if (nextOrder) {
-      return buildOrderConfirmationPrompt(nextOrder, nextIndex, sorted.length)
+      return buildOrderConfirmationPrompt(nextOrder)
     }
     return buildOrderPickExhaustedReply()
   }
@@ -621,13 +645,11 @@ async function resolveOrderConfirmationFlow(input: {
   if (pendingOrder) {
     const current = findOrderByNumber(sorted, pendingOrder)
     if (current) {
-      return `${CUSTOMER_HEADER}
-לא הבנתי — האם מדובר בהזמנה ${current.orderNumber} (${current.branchLabel})?
-כתבו/י כן או לא.`
+      return buildOrderConfirmationClarifyPrompt(current)
     }
   }
 
-  return buildOrderConfirmationPrompt(sorted[0]!, 0, sorted.length)
+  return buildOrderConfirmationPrompt(sorted[0]!)
 }
 
 export async function resolveOrderShippingReply(input: {
