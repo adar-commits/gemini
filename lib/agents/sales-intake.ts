@@ -54,7 +54,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|מידת הספה|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|מידת הספה|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
 
 const HEBREW_COLOR_RE =
   /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
@@ -70,7 +70,7 @@ const SPACE_Q_OTHER =
 const BEDROOM_USE_Q =
   "איך חדר השינה משמש ביום־יום – כחדר תינוקות, חדר ילדים או נוער, חדר ליחיד, חדר זוגי, חדר לאדם מבוגר או שימוש אחר?"
 const CHILDREN_Q = "מדובר בילדים קטנים, ילדים גדולים או גם וגם?"
-const PETS_Q = "יש בעלי חיים שנכנסים לחלל?"
+const PETS_Q = "האם אמור להתאים לבעלי חיים?"
 const STYLE_Q =
   "איזה סגנון או תחושה מחפשים – למשל יוקרתי, מודרני, כפרי או משהו אחר? האם יש צבע מועדף?"
 const SOFA_SIZE_Q = "מה מידת הספה?"
@@ -145,7 +145,7 @@ function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
   if (/באיזה מוצר/.test(last)) return "product"
   if (/איך חדר השינה/.test(last)) return "bedroom"
   if (/ילדים קטנים/.test(last)) return "children"
-  if (/בעלי חיים/.test(last)) return "pets"
+  if (/בעלי חיים|להתאים לבעלי/.test(last)) return "pets"
   if (/סגנון/.test(last)) return "style"
   if (/מידת הספה|גודל כללי של הסלון/.test(last)) return "sofa"
   if (/תקציב/.test(last)) return "budget"
@@ -159,7 +159,7 @@ function questionKindForText(question: string): string | null {
   if (/באיזה מוצר/.test(question)) return "product"
   if (/איך חדר השינה/.test(question)) return "bedroom"
   if (/ילדים קטנים/.test(question)) return "children"
-  if (/בעלי חיים/.test(question)) return "pets"
+  if (/בעלי חיים|להתאים לבעלי/.test(question)) return "pets"
   if (/סגנון/.test(question)) return "style"
   if (/מידת הספה|גודל כללי של הסלון/.test(question)) return "sofa"
   if (/תקציב/.test(question)) return "budget"
@@ -405,7 +405,7 @@ const SOFT_REPROMPT: Partial<Record<string, string>> = {
   space: "לאיזה חלל זה מיועד?",
   bedroom: "איך חדר השינה משמש?",
   children: "מדובר בילדים קטנים, גדולים, או גם וגם?",
-  pets: "לגבי בעלי חיים — יש כאלה שנכנסים לחלל?",
+  pets: "לגבי בעלי חיים — האם השטיח אמור להתאים?",
   style:
     "ומה לגבי הסגנון — יוקרתי, מודרני, כפרי, או משהו אחר? ואולי גם צבע מועדף?",
   sofa: "ידוע לך מידת הספה או גודל כללי של הסלון?",
@@ -1034,6 +1034,12 @@ export function sanitizeSalesReply(reply: string, history: HistoryMessage[], bod
   return buildSalesIntakeReply(history, body)
 }
 
+function openingAckPrefix(history: HistoryMessage[], intake: SalesIntake) {
+  if (hasOngoingSalesIntake(history)) return ""
+  if (!intakeHasProgress(intake)) return ""
+  return "אוקיי הבנתי, "
+}
+
 export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const intake = extractSalesIntake(history, body)
   const intro = introForFlow(body, history, intake)
@@ -1079,7 +1085,8 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   }
 
   const question = formatIntakeQuestionReply(history, next, nextKind)
-  const reply = intro ? `${intro}\n${question}` : question
+  const openingPrefix = !intro && !answerAckPrefix ? openingAckPrefix(history, intake) : ""
+  const reply = intro ? `${intro}\n${question}` : `${openingPrefix}${question}`
   const combined = `${correctionPrefix}${recoveryPrefix}${answerAckPrefix}${reply}`
   return combined.trimEnd()
 }
