@@ -33,9 +33,10 @@ import {
 import { isTrainerPhone } from "@/lib/landbot/trainer"
 import {
   ensureSessionMetaFromInbound,
-  scheduleInactivityWatch,
+  runInactivityPipeline,
 } from "@/lib/landbot/inactivity-watcher"
 import { getSessionInactivityState } from "@/lib/agents/memory"
+import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
 
 export type InboundMode = "reply" | "shadow"
@@ -176,7 +177,7 @@ export async function handleLandbotInbound(
       const session = await getSessionInactivityState(conversationId)
       const watchAssistantAt = session?.last_assistant_at
       if (watchAssistantAt) {
-        await scheduleInactivityWatch({
+        const watchInput = {
           conversationId,
           customerId,
           customerName: customerName || undefined,
@@ -186,6 +187,13 @@ export async function handleLandbotInbound(
               ? session.customer_phone.trim()
               : undefined),
           watchAssistantAt: String(watchAssistantAt),
+        }
+        after(async () => {
+          try {
+            await runInactivityPipeline(watchInput)
+          } catch (error) {
+            console.error("[inactivity-watch] pipeline failed", error)
+          }
         })
       }
     }

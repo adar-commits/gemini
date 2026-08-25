@@ -13,7 +13,7 @@ import {
 } from "@/lib/landbot/message-buffer"
 import { isCustomerChat, parseLandbotWebhook } from "@/lib/landbot/parse-webhook"
 
-export const maxDuration = 60
+export const maxDuration = 300
 export const runtime = "nodejs"
 
 function isHookAuthorized(request: Request) {

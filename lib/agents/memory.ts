@@ -299,12 +299,16 @@ export async function appendTurn(input: {
   const persistUser = input.persistUser !== false
   const supabase = getAgentSupabase()
   let assistantInserted = false
+  const nowMs = Date.now()
+  const userCreatedAt = new Date(nowMs).toISOString()
+  const assistantCreatedAt = new Date(nowMs + 1).toISOString()
   const rows: Array<{
     conversation_id: string
     role: "user" | "assistant"
     content: string
     agent: AgentId
     action: string | null
+    created_at?: string
   }> = persistUser
     ? [
         {
@@ -313,6 +317,7 @@ export async function appendTurn(input: {
           content: input.userText,
           agent: input.agent,
           action: null,
+          created_at: userCreatedAt,
         },
       ]
     : []
@@ -343,6 +348,8 @@ export async function appendTurn(input: {
         content: input.assistantText,
         agent: input.agent,
         action: input.action,
+        created_at:
+          persistUser && input.userText.trim() ? assistantCreatedAt : userCreatedAt,
       })
       assistantInserted = true
     }
@@ -374,7 +381,7 @@ export async function appendTurn(input: {
     input.action === "inactivity_close" ||
     input.action === "shipping"
 
-  const now = new Date().toISOString()
+  const now = userCreatedAt
   const session: Record<string, string | null> = {
     conversation_id: conversationId,
     last_agent: clearSticky ? "master" : input.agent,
@@ -392,9 +399,7 @@ export async function appendTurn(input: {
   }
   if (assistantInserted && input.assistantText.trim()) {
     session.last_assistant_at =
-      persistUser && input.userText.trim()
-        ? new Date(Date.now() + 1).toISOString()
-        : now
+      persistUser && input.userText.trim() ? assistantCreatedAt : now
   }
   if (input.action === "inactivity_close") {
     session.inactivity_closed_at = now

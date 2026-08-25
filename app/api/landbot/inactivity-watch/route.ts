@@ -2,11 +2,12 @@ import { NextResponse, after } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
 import { isCronAuthorized } from "@/lib/agents/cron-auth"
 import {
+  runInactivityPipeline,
   runInactivityWatch,
   type InactivityWatchPayload,
 } from "@/lib/landbot/inactivity-watcher"
 
-export const maxDuration = 120
+export const maxDuration = 300
 export const runtime = "nodejs"
 
 function parsePayload(body: unknown): InactivityWatchPayload | null {
@@ -50,6 +51,16 @@ export async function POST(request: Request) {
   try {
     after(async () => {
       try {
+        if (payload.phase === "ping" && payload.watchAssistantAt) {
+          await runInactivityPipeline({
+            conversationId: payload.conversationId,
+            customerId: payload.customerId,
+            customerName: payload.customerName,
+            customerPhone: payload.customerPhone,
+            watchAssistantAt: payload.watchAssistantAt,
+          })
+          return
+        }
         await runInactivityWatch(payload)
       } catch (error) {
         const message =
