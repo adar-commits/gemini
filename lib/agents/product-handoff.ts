@@ -11,6 +11,12 @@ const REQUESTED_MODEL_RE =
 const GARBAGE_MODEL_RE =
   /^(?:בבקשה|כמה|עולה|מידה|גודל|יש|לקנות|שטיח|פוף|בגודל|במידה|אפשר|רוצה|מחפש|מסוימ(?:ת|ה)|מוצר|דגם|בבקשה\s+כמה\s+עולה)/i
 
+const ROOM_TARGET_RE =
+  /^(?:לחדר\s+ילדים|חדר\s+(?:ילדים|שינה|ילד|נוער|תינוקות)|לסלון|סלון|למסדרון|מסדרון|מטבח|מרפסת|כניסה)(?:\s|$)/i
+
+const PRODUCT_SEARCH_FAILURE_RE =
+  /לא\s+מוצא(?:ת|תי|ים)?(?:\s+(?:משהו|כלום|באתר|שם|דבר))?|לא\s+מצא(?:ת|תי|ים)?(?:\s+(?:משהו|באתר|שם|דבר))?|אין\s+(?:לי\s+)?(?:ב)?(?:אתר|קישור)|קשה\s+(?:ל)?(?:מצוא|חפש)|(?:תוכל|אפשר)\s+(?:לי\s+)?(?:ל)?(?:עזור\s+(?:לי\s+)?(?:ל)?מצוא|מצוא).*?(?:שטיח|מוצר|דגם)/i
+
 function isSalesConsultationTrigger(text: string) {
   return CONSULTATION_RE.test(text.trim())
 }
@@ -19,11 +25,19 @@ function extractRequestedModel(text: string): string | null {
   const match = text.trim().match(REQUESTED_MODEL_RE)
   if (!match) return null
   const name = match[1].trim().split(/\n/)[0].trim().replace(/\s+/g, " ")
+  if (ROOM_TARGET_RE.test(name)) return null
   if (GARBAGE_MODEL_RE.test(name)) return null
   if (/^(?:סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(name)) {
     return null
   }
   return name
+}
+
+/** Customer couldn't find a product on the site or asks for help locating one. */
+export function isProductSearchFailure(body: string) {
+  const text = body.trim()
+  if (!text || isFaqTopicSwitch(text)) return false
+  return PRODUCT_SEARCH_FAILURE_RE.test(text)
 }
 
 const SPECIFIC_PRODUCT_RE =

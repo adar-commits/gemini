@@ -815,6 +815,13 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
 
   applyContextualIntakeAnswers(intake, history, body)
 
+  if (
+    !intake.targetSpace &&
+    /(?:סלון|חדר\s+(?:ילדים|שינה|נוער)|מסדרון|מרפס|חצר|גינ(?:ה|ה)|מחסן)/i.test(text)
+  ) {
+    applySpaceAnswer(intake, [text])
+  }
+
   if (!intake.targetSpace && wasSpaceQuestionAsked(history)) {
     const trimmed = body.trim()
     if (

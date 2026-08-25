@@ -8,6 +8,7 @@ import {
   buildProductHandoffAfterUrl,
   buildProductInventoryHandoff,
   buildProductUrlReminder,
+  isProductSearchFailure,
   buildProductUrlRequest,
   hasProductUrl,
   isProductAvailabilityQuestion,
@@ -653,7 +654,7 @@ export async function runMasterConversation(
       "reply",
       hasProductUrl(body)
         ? buildProductHandoffAfterUrl(body)
-        : isProductInventoryQuestion(body)
+        : isProductInventoryQuestion(body) || isProductSearchFailure(body)
           ? buildProductInventoryHandoff()
           : buildProductUrlReminder()
     )
