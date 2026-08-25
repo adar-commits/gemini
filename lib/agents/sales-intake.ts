@@ -268,11 +268,11 @@ function applyPetsAnswer(intake: SalesIntake, history: HistoryMessage[], body: s
   }
 
   const clarifiedNo =
-    replies.length === 1 && /^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(replies[0])
-  if (clarifiedNo && !/רק\s+/i.test(combined) && !PET_ANIMAL_RE.test(combined)) {
-    if (/^(?:לא|אין|בלי|ללא)\s+חיות|ללא\s+חיות|אין\s+חיות/i.test(combined)) {
-      intake.pets = "none"
-    }
+    replies.some((reply) => hasExplicitNoPetsAnswer(reply)) ||
+    (replies.length === 1 && /^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(replies[0]))
+  if (clarifiedNo && !mentionsRealPet(combined)) {
+    intake.pets = "none"
+    intake.petsDetail = undefined
     return
   }
 
@@ -516,6 +516,23 @@ function petsDontEnterSpace(combined: string) {
   return /לא\s+(?:מפריע|נכנס|עולה|יורד)|בחוץ|לא\s+נכנס(?:ים)?\s+ל(?:ח|חל)/i.test(combined)
 }
 
+function hasExplicitNoPetsAnswer(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+
+  return (
+    /אין\s+(?:לנו\s+)?חיות(?:\s+בבית)?/i.test(trimmed) ||
+    /(?:^|[\s,.])(?:לא|בלי|ללא)[\s,]*(?:לנו\s+)?(?:יש\s+)?חיות/i.test(trimmed) ||
+    /(?:^|[\s,.])לא[\s,]+(?:אין|בלי|ללא)\s+(?:לנו\s+)?חיות/i.test(trimmed) ||
+    /^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(trimmed.split(/[.!?]/)[0]?.trim() ?? "")
+  )
+}
+
+function mentionsRealPet(combined: string) {
+  if (PET_ANIMAL_RE.test(combined)) return true
+  return /רק\s+(?:כלב|חתול|תוכי|ציפור|[א-ת]{2,12})/i.test(combined)
+}
+
 function extractQualitativeSize(text: string): string | null {
   const match =
     text.match(/(?:ב)?גודל\s+(קטן|בינוני|גדול)/i) ||
@@ -633,6 +650,16 @@ function applyPetsAnswerFromText(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
   if (!combined) return
 
+  const firstAnswer = answers[0] ?? ""
+  if (
+    (hasExplicitNoPetsAnswer(firstAnswer) || hasExplicitNoPetsAnswer(combined)) &&
+    !mentionsRealPet(combined)
+  ) {
+    intake.pets = "none"
+    intake.petsDetail = undefined
+    return
+  }
+
   if (petsDontEnterSpace(combined)) {
     intake.pets = "none"
     intake.petsDetail = undefined
@@ -650,7 +677,7 @@ function applyPetsAnswerFromText(intake: SalesIntake, answers: string[]) {
     return
   }
 
-  if (/^(?:לא|אין|בלי|ללא)\s+חיות|ללא\s+חיות|אין\s+חיות|בלי\s+חיות/i.test(combined)) {
+  if (/^(?:לא|אין|בלי|ללא)\s+חיות|ללא\s+חיות|אין\s+(?:לנו\s+)?חיות|בלי\s+חיות/i.test(combined)) {
     intake.pets = "none"
     return
   }
@@ -695,6 +722,15 @@ function reconcilePetsFromThread(
   const combined = petAnswers.join(" ")
   if (!combined) return
 
+  if (
+    (hasExplicitNoPetsAnswer(petAnswers[0] ?? "") || hasExplicitNoPetsAnswer(combined)) &&
+    !mentionsRealPet(combined)
+  ) {
+    intake.pets = "none"
+    intake.petsDetail = undefined
+    return
+  }
+
   if (petsDontEnterSpace(combined)) {
     intake.pets = "none"
     intake.petsDetail = undefined
@@ -707,7 +743,7 @@ function reconcilePetsFromThread(
     return
   }
 
-  if (/^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(petAnswers[0]) && petAnswers.length === 1) {
+  if (/^(?:לא|אין|בלי|ללא)(?:[\s,.!?]|$)/i.test(petAnswers[0]) && !mentionsRealPet(combined)) {
     intake.pets = "none"
   }
 }
@@ -832,9 +868,12 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   }
 
   if (intake.pets == null) {
-    if (/ללא\s+חיות|אין\s+חיות|בלי\s+חיות/.test(text)) {
+    if (hasExplicitNoPetsAnswer(text) || /ללא\s+חיות|בלי\s+חיות/i.test(text)) {
       intake.pets = "none"
-    } else if (/יש\s+(?:כלב|חתול|חיות)|עם\s+חיות|כלב|חתול|תוכי|אקווריום|דגים/.test(text)) {
+    } else if (
+      mentionsRealPet(text) ||
+      /יש\s+(?:כלב|חתול)|עם\s+(?:כלב|חתול)|כלב|חתול|תוכי|אקווריום|דגים/.test(text)
+    ) {
       intake.pets = "yes"
     }
   }
@@ -1086,6 +1125,9 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
         force: true,
         kind: lastKind,
       })
+      if (lastKind === "pets") {
+        reconcilePetsFromThread(intake, history, body)
+      }
     }
     next = nextIntakeQuestion(intake)
   }
