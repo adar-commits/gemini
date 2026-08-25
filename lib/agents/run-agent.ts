@@ -31,7 +31,9 @@ import {
   buildDigitalDocumentReply,
   lookupDigitalDocument,
   resolveOrderShippingReply,
-  isOrderDisambiguationPending,
+  isOrderConfirmationPending,
+  isOrderConfirmationYes,
+  isOrderConfirmationNo,
   extractOrderNumber,
   orderLookupEnabled,
 } from "@/lib/agents/order-lookup"
@@ -800,8 +802,11 @@ export async function runMasterConversation(
   if (
     phone &&
     orderLookupEnabled() &&
-    (isOrderDisambiguationPending(history) || extractOrderNumber(body)) &&
-    (isOrderDisambiguationPending(history) || isShippingStatusQuestion(body))
+    (isOrderConfirmationPending(history) ||
+      isOrderConfirmationYes(body) ||
+      isOrderConfirmationNo(body) ||
+      extractOrderNumber(body) ||
+      isShippingStatusQuestion(body))
   ) {
     return shippingResult(conversationId, body, route, preview, phone, history)
   }

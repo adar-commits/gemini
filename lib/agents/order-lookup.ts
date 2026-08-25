@@ -32,16 +32,22 @@ export type OrderShipmentStatus = {
   orderNumber: string
   statusCode: string
   statusLabel: string
+  branchLabel: string
+  totalPrice: number | null
   statusDescription: string
   promisedDelivery?: string | null
-  lastUpdated?: string | null
+  lastStatusUpdate?: string | null
   customerName?: string | null
   orderStatus?: string | null
   deliveryType?: string | null
   raw: PriorityOrderRow
 }
 
-const DELIVERY_STATUS_HINTS: Record<string, string> = {
+/**
+ * Shipment status by ZPIT_DELSTATUSCODE — update when operator provides final mapping.
+ * Fallback: ZPIT_DELSTATUSDES from ERP when code is missing from map.
+ */
+export const DELIVERY_STATUS_BY_CODE: Record<string, string> = {
   "1": "ההזמנה התקבלה וממתינה לטיפול.",
   "2": "ההזמנה בייצור/הכנה.",
   "3": "ההזמנה מוכנה וממתינה למשלוח.",
@@ -112,52 +118,88 @@ function formatHebrewDate(iso: string | null | undefined) {
   }
 }
 
+function formatHebrewDateTime(iso: string | null | undefined) {
+  if (!iso?.trim()) return null
+  try {
+    return new Date(iso).toLocaleString("he-IL", {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Jerusalem",
+    })
+  } catch {
+    return null
+  }
+}
+
+function orderBranchLabel(row: PriorityOrderRow) {
+  return (
+    row.LTRN_SELLERNAME?.trim() ||
+    row.Y_7455_0_ESH?.trim() ||
+    row.ZPIT_DISTERIBRANCH?.trim() ||
+    "הום"
+  )
+}
+
+function orderSortTimestamp(row: PriorityOrderRow) {
+  const candidates = [row.CURDATE, row.ZPIT_UDATE, row.ZPIT_PRODDATE]
+  for (const iso of candidates) {
+    if (!iso?.trim()) continue
+    const ms = Date.parse(iso)
+    if (Number.isFinite(ms)) return ms
+  }
+  return 0
+}
+
+export function sortOrdersNewestFirst(orders: OrderShipmentStatus[]) {
+  return [...orders].sort(
+    (a, b) => orderSortTimestamp(b.raw) - orderSortTimestamp(a.raw)
+  )
+}
+
+/** Status text from ZPIT_DELSTATUSCODE + ZPIT_UDATE (last shipping status change). */
+export function describeShipmentStatus(order: OrderShipmentStatus) {
+  const code = order.statusCode
+  const erpLabel = order.statusLabel?.trim()
+  const statusText =
+    DELIVERY_STATUS_BY_CODE[code] ||
+    (erpLabel ? `סטטוס משלוח: ${erpLabel}.` : `סטטוס משלוח (קוד ${code || "?"}).`)
+
+  const updated = formatHebrewDateTime(order.raw.ZPIT_UDATE)
+  const promised = formatHebrewDate(order.raw.ZPIT_DELDATE)
+
+  const lines = [statusText.trim()]
+  if (updated) lines.push(`עדכון סטטוס אחרון: ${updated}.`)
+  if (promised && code !== "6") lines.push(`מועד אספקה משוער: ${promised}.`)
+
+  return lines.join("\n")
+}
+
 export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus {
   const orderNumber = row.ORDNAME.trim()
   const statusCode = String(row.ZPIT_DELSTATUSCODE ?? "").trim()
   const statusLabel = String(row.ZPIT_DELSTATUSDES ?? "").trim()
-  const delivered = String(row.ZPIT_DELIVERED ?? "").toUpperCase() === "Y"
   const delDate = formatHebrewDate(row.ZPIT_DELDATE)
-  const prodDate = formatHebrewDate(row.ZPIT_PRODDATE)
-  const deliveryType = row.ZPIT_DELIVERYDES?.trim() || null
 
-  let statusDescription: string
-
-  if (statusCode === "6" || delivered) {
-    statusDescription = delDate
-      ? `ההזמנה נמסרה ב-${delDate}.`
-      : statusLabel
-        ? `סטטוס: ${statusLabel}.`
-        : "ההזמנה נמסרה."
-  } else {
-    statusDescription =
-      DELIVERY_STATUS_HINTS[statusCode] ||
-      (statusLabel ? `סטטוס משלוח: ${statusLabel}.` : "ההזמנה בטיפול.")
-
-    if (prodDate && (statusCode === "2" || statusCode === "3")) {
-      statusDescription += ` תאריך הכנה: ${prodDate}.`
-    }
-    if (delDate) {
-      statusDescription += ` מועד אספקה משוער: ${delDate}.`
-    }
-  }
-
-  if (deliveryType) {
-    statusDescription += ` (${deliveryType})`
-  }
-
-  return {
+  const mapped: OrderShipmentStatus = {
     orderNumber,
     statusCode,
     statusLabel,
-    statusDescription: statusDescription.trim(),
+    branchLabel: orderBranchLabel(row),
+    totalPrice: typeof row.TOTPRICE === "number" ? row.TOTPRICE : null,
+    statusDescription: "",
     promisedDelivery: delDate,
-    lastUpdated: row.ZPIT_UDATE ?? null,
+    lastStatusUpdate: row.ZPIT_UDATE ?? null,
     customerName: row.CDES?.trim() || null,
     orderStatus: row.ORDSTATUSDES?.trim() || null,
-    deliveryType,
+    deliveryType: row.ZPIT_DELIVERYDES?.trim() || null,
     raw: row,
   }
+
+  mapped.statusDescription = describeShipmentStatus(mapped)
+  return mapped
 }
 
 function parseOrdersPayload(data: unknown): PriorityOrderRow[] {
@@ -181,7 +223,7 @@ function parseOrdersPayload(data: unknown): PriorityOrderRow[] {
   return []
 }
 
-/** Phone → recent orders + shipment status. Returns null when API fails. */
+/** Phone → orders sorted newest-first. Returns null when API fails. */
 export async function lookupOrdersByPhone(
   phone: string
 ): Promise<OrderShipmentStatus[] | null> {
@@ -192,10 +234,9 @@ export async function lookupOrdersByPhone(
   if (data == null) return null
 
   const rows = parseOrdersPayload(data)
-  return rows.map(mapPriorityOrderRow)
+  return sortOrdersNewestFirst(rows.map(mapPriorityOrderRow))
 }
 
-/** Digital receipt / invoice link — tries getDocument, then getOrders (some flows return { result }). */
 export async function lookupDigitalDocument(
   phone: string
 ): Promise<string | null> {
@@ -230,43 +271,78 @@ export function findOrderByNumber(
   )
 }
 
-export function isOrderDisambiguationPending(history: HistoryMessage[]) {
+export function isOrderConfirmationPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
-    return /זו ההזמנה הנכונה\?|כתבו\/י את מספר ההזמנה|מצאתי כמה הזמנות/i.test(
-      message.content
-    )
+    return /האם מדובר בהזמנה/i.test(message.content)
   }
   return false
 }
 
-export function formatOrderChoiceLine(order: OrderShipmentStatus) {
-  const label = order.statusLabel?.trim() || order.statusCode
-  const promised = order.promisedDelivery?.trim()
-  const date = order.raw.CURDATE ? formatHebrewDate(order.raw.CURDATE) : null
-  const parts = [`${order.orderNumber} — ${label}`]
-  if (date) parts.push(`הוזמן ${date}`)
-  if (promised) parts.push(`אספקה: ${promised}`)
-  return parts.join(" · ")
+/** @deprecated Use isOrderConfirmationPending */
+export function isOrderDisambiguationPending(history: HistoryMessage[]) {
+  return isOrderConfirmationPending(history)
 }
 
-/** When multiple orders match the phone — ask customer to confirm which one. */
-export function buildOrderDisambiguationReply(orders: OrderShipmentStatus[]) {
-  const lines = orders.slice(0, 5).map((order) => `• ${formatOrderChoiceLine(order)}`)
-  return `${CUSTOMER_HEADER}
-מצאתי ${orders.length} הזמנות לפי הטלפון:
-${lines.join("\n")}
+export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return extractOrderNumber(message.content)
+  }
+  return null
+}
 
-זו ההזמנה הנכונה? אם כן — כתבו/י את מספר ההזמנה (למשל ${orders[0]?.orderNumber ?? "SO…"}).`
+export function isOrderConfirmationYes(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 40) return false
+  return /^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|yes|👍)/i.test(text)
+}
+
+export function isOrderConfirmationNo(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 60) return false
+  return (
+    /^(?:לא|לא זה|לא נכון|הזמנה אחרת|אחרת|no)(?:[\s,.!?]|$)/i.test(text) ||
+    /^לא[\s,]/i.test(text)
+  )
+}
+
+function formatOrderPrice(price: number | null) {
+  if (price == null || !Number.isFinite(price)) return null
+  return price.toLocaleString("he-IL", { maximumFractionDigits: 2 })
+}
+
+/** Ask customer to confirm a single order (branch + total as cues). */
+export function buildOrderConfirmationPrompt(
+  order: OrderShipmentStatus,
+  index: number,
+  total: number
+) {
+  const price = formatOrderPrice(order.totalPrice)
+  const pricePhrase = price ? `, סה״כ ${price} ₪` : ""
+  const countPhrase =
+    total > 1 ? `\n(הזמנה ${index + 1} מתוך ${total} — מהחדשה לישנה)` : ""
+
+  return `${CUSTOMER_HEADER}
+האם מדובר בהזמנה ${order.orderNumber} — ${order.branchLabel}${pricePhrase}?${countPhrase}
+
+כתבו/י כן אם נכון, או לא כדי לבדוק הזמנה אחרת.`
 }
 
 export function buildOrderStatusReply(order: OrderShipmentStatus) {
   return `${CUSTOMER_HEADER}
-לגבי הזמנה ${order.orderNumber}:
+לגבי הזמנה ${order.orderNumber} (${order.branchLabel}):
 ${order.statusDescription}
 
 אפשר לעזור במשהו נוסף? כדי להתחיל מחדש, כתבו "התחלה".`
+}
+
+export function buildOrderPickExhaustedReply() {
+  return `${CUSTOMER_HEADER}
+לא מצאנו התאמה בין ההזמנות שבמערכת לפנייה שלך.
+האם להעביר את השיחה לנציג שירות שיבדוק את ההזמנה באופן פרטני?`
 }
 
 export function buildDigitalDocumentReply(link: string) {
@@ -280,14 +356,13 @@ ${link}
 export function buildNoOrdersFoundReply() {
   return `${CUSTOMER_HEADER}
 לא מצאנו הזמנות פעילות לפי הטלפון הזה.
-אפשר לשלוח מספר הזמנה (למשל SO26019031), או להעביר לנציג שירות שיבדוק עבורך — האם להעביר?`
+האם להעביר את השיחה לנציג שירות שיבדוק עבורך?`
 }
 
 export function orderLookupEnabled() {
   return lookupConfigured()
 }
 
-/** Fallback when API is unavailable. */
 export function buildShippingStatusFallbackReply() {
   return `${CUSTOMER_HEADER}
 כדי לבדוק מתי המשלוח/ההזמנה שלך יגיע, אני צריך פרטי הזמנה — מספר הזמנה או טלפון שבו בוצעה הרכישה.
@@ -309,27 +384,53 @@ export async function resolveOrderShippingReply(input: {
     return buildShippingStatusFallbackReply()
   }
 
-  if (orders.length === 0) {
-    const explicitOrder = extractOrderNumber(input.body)
-    if (explicitOrder) {
-      return `${CUSTOMER_HEADER}
-לא מצאנו הזמנה ${explicitOrder} לפי הטלפון הזה. אפשר לוודא את מספר ההזמנה, או להעביר לנציג שירות.`
-    }
+  const history = input.history ?? []
+  const sorted = orders
+
+  if (sorted.length === 0) {
     return buildNoOrdersFoundReply()
   }
 
-  const orderNumber = extractOrderNumber(input.body)
-
-  if (orderNumber) {
-    const matched = findOrderByNumber(orders, orderNumber)
+  const explicitOrder = extractOrderNumber(input.body)
+  if (explicitOrder && !isOrderConfirmationPending(history)) {
+    const matched = findOrderByNumber(sorted, explicitOrder)
     if (matched) return buildOrderStatusReply(matched)
-    return `${CUSTOMER_HEADER}
-לא מצאנו הזמנה ${orderNumber} בין ההזמנות שלך. אפשר לבדוק את המספר או לשלוח מספר אחר.`
   }
 
-  if (orders.length === 1) {
-    return buildOrderStatusReply(orders[0]!)
+  if (isOrderConfirmationPending(history)) {
+    const pendingOrder = pendingOrderNumberFromHistory(history)
+
+    if (explicitOrder) {
+      const matched = findOrderByNumber(sorted, explicitOrder)
+      if (matched) return buildOrderStatusReply(matched)
+    }
+
+    if (pendingOrder && isOrderConfirmationYes(input.body)) {
+      const matched = findOrderByNumber(sorted, pendingOrder)
+      if (matched) return buildOrderStatusReply(matched)
+    }
+
+    if (pendingOrder && isOrderConfirmationNo(input.body)) {
+      const currentIndex = sorted.findIndex(
+        (order) => order.orderNumber.toUpperCase() === pendingOrder.toUpperCase()
+      )
+      const nextIndex = currentIndex >= 0 ? currentIndex + 1 : 1
+      const nextOrder = sorted[nextIndex]
+      if (nextOrder) {
+        return buildOrderConfirmationPrompt(nextOrder, nextIndex, sorted.length)
+      }
+      return buildOrderPickExhaustedReply()
+    }
+
+    if (pendingOrder) {
+      const current = findOrderByNumber(sorted, pendingOrder)
+      if (current) {
+        return `${CUSTOMER_HEADER}
+לא הבנתי — האם מדובר בהזמנה ${current.orderNumber} (${current.branchLabel})?
+כתבו/י כן או לא.`
+      }
+    }
   }
 
-  return buildOrderDisambiguationReply(orders)
+  return buildOrderConfirmationPrompt(sorted[0]!, 0, sorted.length)
 }
