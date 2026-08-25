@@ -496,6 +496,22 @@ export function extractPhoneFromText(text: string) {
   return null
 }
 
+/** Phone used for order lookup — last user-provided number in the thread, else WhatsApp. */
+export function resolveLookupPhoneFromHistory(
+  history: HistoryMessage[],
+  whatsappPhone?: string
+) {
+  let lookupPhone = whatsappPhone ? phoneForOrderApi(whatsappPhone) : null
+
+  for (const message of history) {
+    if (message.role !== "user") continue
+    const phone = extractPhoneFromText(message.content)
+    if (phone) lookupPhone = phone
+  }
+
+  return lookupPhone || null
+}
+
 /** @deprecated Legacy step — new flows skip straight to phone confirm. */
 export function isOrderNumberRequestPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -692,6 +708,7 @@ async function resolveOrderConfirmationFlow(input: {
   if (pendingOrder && isOrderConfirmationYes(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
     if (matched) return buildOrderStatusReply(matched)
+    return buildOrderNumberNotFoundReply(pendingOrder)
   }
 
   if (pendingOrder && isOrderConfirmationNo(input.body)) {
@@ -711,9 +728,11 @@ async function resolveOrderConfirmationFlow(input: {
     if (current) {
       return buildOrderConfirmationClarifyPrompt(current)
     }
+    return buildOrderNumberNotFoundReply(pendingOrder)
   }
 
-  return buildOrderConfirmationPrompt(sorted[0]!)
+  if (sorted[0]) return buildOrderConfirmationPrompt(sorted[0]!)
+  return buildNoOrdersFoundReply()
 }
 
 export async function resolveOrderShippingReply(input: {
@@ -730,7 +749,7 @@ export async function resolveOrderShippingReply(input: {
   if (isOrderConfirmationPending(history)) {
     const lookupPhone =
       extractPhoneFromText(body) ||
-      (whatsappPhone ? phoneForOrderApi(whatsappPhone) : null)
+      resolveLookupPhoneFromHistory(history, whatsappPhone)
     if (!lookupPhone) return buildPhoneLookupDeclinedReply()
     return resolveOrderConfirmationFlow({ body, lookupPhone, history })
   }
