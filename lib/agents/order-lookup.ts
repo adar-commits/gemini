@@ -493,6 +493,7 @@ export function extractPhoneFromText(text: string) {
   return null
 }
 
+/** @deprecated Legacy step — new flows skip straight to phone confirm. */
 export function isOrderNumberRequestPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
@@ -502,6 +503,7 @@ export function isOrderNumberRequestPending(history: HistoryMessage[]) {
   return false
 }
 
+/** @deprecated Legacy step — new flows skip straight to phone confirm. */
 export function buildOrderNumberRequestPrompt() {
   return `${CUSTOMER_HEADER}
 אוכל לקבל את מספר ההזמנה שלך?`
@@ -721,5 +723,6 @@ export async function resolveOrderShippingReply(input: {
     return lookupAndStartOrderConfirm(providedPhone)
   }
 
-  return buildOrderNumberRequestPrompt()
+  if (whatsappPhone) return buildPhoneLookupConfirmPrompt(whatsappPhone)
+  return buildPhoneLookupDeclinedReply()
 }
