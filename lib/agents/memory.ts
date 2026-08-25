@@ -190,12 +190,13 @@ export async function appendTurn(input: {
   action: string
   persistUser?: boolean
   preview?: boolean
-}) {
-  if (input.preview) return
+}): Promise<{ assistantInserted: boolean }> {
+  if (input.preview) return { assistantInserted: false }
 
   const conversationId = safeId(input.conversationId)
   const persistUser = input.persistUser !== false
   const supabase = getAgentSupabase()
+  let assistantInserted = false
   const rows: Array<{
     conversation_id: string
     role: "user" | "assistant"
@@ -215,13 +216,34 @@ export async function appendTurn(input: {
     : []
 
   if (input.assistantText || input.action !== "reply") {
-    rows.push({
-      conversation_id: conversationId,
-      role: "assistant",
-      content: input.assistantText,
-      agent: input.agent,
-      action: input.action,
-    })
+    let skipDuplicate = false
+
+    if (input.assistantText?.trim()) {
+      const { data: lastAssistant } = await supabase
+        .from("hom_agent_messages")
+        .select("role, content")
+        .eq("conversation_id", conversationId)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      skipDuplicate =
+        Boolean(lastAssistant?.content) &&
+        normalizeMessageText(String(lastAssistant?.content)) ===
+          normalizeMessageText(input.assistantText)
+    }
+
+    if (!skipDuplicate) {
+      rows.push({
+        conversation_id: conversationId,
+        role: "assistant",
+        content: input.assistantText,
+        agent: input.agent,
+        action: input.action,
+      })
+      assistantInserted = true
+    }
   }
 
   const { data: last } = await supabase
@@ -240,6 +262,8 @@ export async function appendTurn(input: {
   if (toInsert.length) {
     const { error } = await supabase.from("hom_agent_messages").insert(toInsert)
     if (error) throw error
+  } else {
+    assistantInserted = false
   }
 
   const clearSticky =
@@ -258,4 +282,6 @@ export async function appendTurn(input: {
 
   const { error } = await supabase.from("hom_agent_sessions").upsert(session)
   if (error) throw error
+
+  return { assistantInserted }
 }

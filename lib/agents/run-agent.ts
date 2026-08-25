@@ -34,9 +34,12 @@ import {
   isOrderConfirmationPending,
   isOrderConfirmationYes,
   isOrderConfirmationNo,
+  isPhoneLookupConfirmPending,
   extractOrderNumber,
+  extractPhoneFromText,
   orderLookupEnabled,
 } from "@/lib/agents/order-lookup"
+import { wasReplyRecentlySent } from "@/lib/agents/reply-dedupe"
 import {
   buildHumanHandoffConfirmedReply,
   buildHumanHandoffDeclinedReply,
@@ -89,7 +92,6 @@ import {
 } from "@/lib/agents/orchestra"
 import {
   buildShippingPolicyReply,
-  buildShippingStatusReply,
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
@@ -552,6 +554,20 @@ async function resolveSpecialist(
   return { ...result, route }
 }
 
+function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
+  if (isPhoneLookupConfirmPending(history) || isOrderConfirmationPending(history)) {
+    return true
+  }
+
+  if (extractOrderNumber(body)) return true
+
+  if (extractPhoneFromText(body) && isShippingStatusQuestion(body)) {
+    return true
+  }
+
+  return isShippingStatusQuestion(body)
+}
+
 function shippingResult(
   conversationId: string,
   body: string,
@@ -560,22 +576,34 @@ function shippingResult(
   phone?: string,
   history?: HistoryMessage[]
 ): Promise<AgentResponse> {
-  return resolveShippingStatusReply(body, phone, history).then((reply) =>
-    appendTurn({
+  return resolveShippingStatusReply(body, phone, history).then(async (reply) => {
+    if (wasReplyRecentlySent(history ?? [], reply)) {
+      return {
+        ok: true,
+        agent: "master" as const,
+        reply: "",
+        action: "shipping" as const,
+        route,
+      }
+    }
+
+    const { assistantInserted } = await appendTurn({
       conversationId,
       agent: "master",
       userText: body,
       assistantText: reply,
       action: "shipping",
       preview,
-    }).then(() => ({
+    })
+
+    return {
       ok: true,
       agent: "master" as const,
-      reply,
+      reply: assistantInserted ? reply : "",
       action: "shipping" as const,
       route,
-    }))
-  )
+    }
+  })
 }
 
 async function resolveShippingStatusReply(
@@ -583,10 +611,7 @@ async function resolveShippingStatusReply(
   phone?: string,
   history?: HistoryMessage[]
 ) {
-  if (phone && orderLookupEnabled()) {
-    return resolveOrderShippingReply({ body, phone, history })
-  }
-  return buildShippingStatusReply()
+  return resolveOrderShippingReply({ body, phone, history })
 }
 
 async function tryWelcomeGreeting(
@@ -799,15 +824,7 @@ export async function runMasterConversation(
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
   }
 
-  if (
-    phone &&
-    orderLookupEnabled() &&
-    (isOrderConfirmationPending(history) ||
-      isOrderConfirmationYes(body) ||
-      isOrderConfirmationNo(body) ||
-      extractOrderNumber(body) ||
-      isShippingStatusQuestion(body))
-  ) {
+  if (shouldHandleOrderShippingFlow(body, history)) {
     return shippingResult(conversationId, body, route, preview, phone, history)
   }
 
@@ -821,10 +838,6 @@ export async function runMasterConversation(
       route,
       sharedOptions
     )
-  }
-
-  if (isShippingStatusQuestion(body)) {
-    return shippingResult(conversationId, body, route, preview, phone || undefined, history)
   }
 
   if (isShippingPolicyQuestion(body)) {

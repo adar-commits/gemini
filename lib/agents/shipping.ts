@@ -35,6 +35,9 @@ export function isShippingStatusQuestion(body: string) {
     /מתי\s+(?:זה\s+)?(?:יגיע|מגיע|אמור\s+ל(?:הגיע|הגיע))/i.test(text) ||
     /(?:ה)?(?:משלוח|אספקה).*(?:מ\s*\d|עד\s+\d|איחור|מאחר|delay)/i.test(text) ||
     /(?:היה\s+כתוב|מובטח).*(?:אספקה|משלוח)/i.test(text) ||
+    /(?:ה)?זמנה.*(?:מ(?:אחר|ש(?:ך|כה))|איחור)/i.test(text) ||
+    /לפני\s+\d+\s+י(?:מ)?(?:ים)?.*(?:מ(?:אחר|ש(?:ך|כה))|עדיין|לא)/i.test(text) ||
+    /מ(?:אחר|ש(?:ך|כה))\s+מ/i.test(text) ||
     /where\s+is\s+my\s+(order|shipment|package)/i.test(text)
   ) {
     return true
