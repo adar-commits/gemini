@@ -41,7 +41,93 @@ function botIsWaiting(row: IdleSessionRow) {
   const lastAssistant = asText(row.last_assistant_at)
   if (!lastAssistant) return false
   if (!lastUser) return true
-  return Date.parse(lastAssistant) > Date.parse(lastUser)
+  return Date.parse(lastAssistant) >= Date.parse(lastUser)
+}
+
+async function lastMessageRole(conversationId: string) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_messages")
+    .select("role")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  if (data?.role === "user" || data?.role === "assistant") return data.role
+  return null
+}
+
+async function isBotWaitingForUser(row: IdleSessionRow) {
+  const role = await lastMessageRole(row.conversation_id)
+  if (role === "assistant") return true
+  if (role === "user") return false
+  return botIsWaiting(row)
+}
+
+async function backfillSessionActivityTimestamps(limit = 50) {
+  const supabase = getAgentSupabase()
+  const { data: sessions, error } = await supabase
+    .from("hom_agent_sessions")
+    .select("conversation_id")
+    .or("last_assistant_at.is.null,last_user_at.is.null")
+    .order("updated_at", { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  if (!sessions?.length) return 0
+
+  let updated = 0
+  for (const session of sessions) {
+    const conversationId = asText(session.conversation_id)
+    if (!conversationId) continue
+
+    const [{ data: lastUser }, { data: lastAssistant }] = await Promise.all([
+      supabase
+        .from("hom_agent_messages")
+        .select("created_at")
+        .eq("conversation_id", conversationId)
+        .eq("role", "user")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("hom_agent_messages")
+        .select("created_at")
+        .eq("conversation_id", conversationId)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    if (!lastUser?.created_at && !lastAssistant?.created_at) continue
+
+    const assistantAt = lastAssistant?.created_at
+      ? new Date(String(lastAssistant.created_at)).toISOString()
+      : null
+    const userAt = lastUser?.created_at
+      ? new Date(String(lastUser.created_at)).toISOString()
+      : null
+    const normalizedAssistantAt =
+      assistantAt && userAt && assistantAt === userAt
+        ? new Date(Date.parse(assistantAt) + 1).toISOString()
+        : assistantAt
+
+    const { error: updateError } = await supabase
+      .from("hom_agent_sessions")
+      .update({
+        last_user_at: userAt,
+        last_assistant_at: normalizedAssistantAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("conversation_id", conversationId)
+
+    if (!updateError) updated += 1
+  }
+
+  return updated
 }
 
 function shouldSkipIdle(row: IdleSessionRow) {
@@ -104,8 +190,10 @@ async function loadIdleSessions(limit = 40) {
 }
 
 export async function processInactivityTimeouts() {
+  const backfilled = await backfillSessionActivityTimestamps()
   const sessions = await loadIdleSessions()
   const results = {
+    backfilled,
     scanned: sessions.length,
     pinged: 0,
     closed: 0,
@@ -120,7 +208,7 @@ export async function processInactivityTimeouts() {
         continue
       }
 
-      if (!botIsWaiting(row) || (await hasPendingBuffer(row.conversation_id))) {
+      if (!(await isBotWaitingForUser(row)) || (await hasPendingBuffer(row.conversation_id))) {
         results.skipped += 1
         continue
       }

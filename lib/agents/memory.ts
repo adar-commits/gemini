@@ -376,7 +376,10 @@ export async function appendTurn(input: {
     session.inactivity_closed_at = null
   }
   if (assistantInserted && input.assistantText.trim()) {
-    session.last_assistant_at = now
+    session.last_assistant_at =
+      persistUser && input.userText.trim()
+        ? new Date(Date.now() + 1).toISOString()
+        : now
   }
   if (input.action === "inactivity_close") {
     session.inactivity_closed_at = now
