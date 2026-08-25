@@ -10,6 +10,8 @@ import {
 } from "@/lib/agents/topic-switch"
 import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
 import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
+import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
 
 export type SalesIntake = {
   product?: string
@@ -231,6 +233,10 @@ export function shouldUseSalesIntakeFastPath(
 ) {
   if (isShippingPolicyQuestion(body) || isShippingStatusQuestion(body)) return false
   if (isFaqTopicSwitch(body)) return false
+  if (isServiceTopicSwitch(body)) return false
+  if (isDissatisfactionWithoutDefect(body)) return false
+  if (isConversationClosing(body)) return false
+  if (isNonSubstantiveFollowUp(body)) return false
   if (isOffTopicQuestion(body)) return false
   if (isHumanHandoffPending(history)) return false
   if (isProductInventoryQuestion(body) || isSpecificProductMention(body)) return false

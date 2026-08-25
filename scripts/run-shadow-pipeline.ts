@@ -29,7 +29,9 @@ function loadEnvFile(relativePath: string) {
 loadEnvFile(".env.production.local")
 
 async function main() {
-  const { runShadowReviewBatch } = await import("../lib/landbot/shadow-review")
+  const { runShadowReviewBatch, runDeterministicShadowReviewBatch } = await import(
+    "../lib/landbot/shadow-review"
+  )
   const { runShadowAutofixDrain } = await import("../lib/landbot/shadow-autofix")
   const { shadowReviewStats, resetFailedShadowReviews } = await import(
     "../lib/landbot/shadow-review"
@@ -38,6 +40,28 @@ async function main() {
 
   const reset = await resetFailedShadowReviews()
   console.log(`Reset failed reviews: ${reset.deleted}`)
+
+  let deterministicTotal = 0
+  let deterministicIssues = 0
+  let deterministicOk = 0
+  let deterministicRuns = 0
+
+  for (let i = 0; i < 50; i += 1) {
+    const stats = await shadowReviewStats()
+    if ((stats.pending ?? 0) <= 0) break
+
+    const drain = await runDeterministicShadowReviewBatch()
+    deterministicRuns += 1
+    deterministicTotal += drain.reviewed ?? 0
+    deterministicIssues += drain.issues ?? 0
+    deterministicOk += drain.ok_count ?? 0
+
+    console.log(
+      `Deterministic run ${deterministicRuns}: reviewed=${drain.reviewed} ok=${drain.ok_count} issues=${drain.issues} skipped=${drain.skipped_inconclusive} pending~=${stats.pending}`
+    )
+
+    if ((drain.reviewed ?? 0) === 0) break
+  }
 
   let reviewTotal = 0
   let issueTotal = 0
@@ -82,6 +106,10 @@ async function main() {
       {
         ok: true,
         reset_deleted: reset.deleted,
+        deterministic_runs: deterministicRuns,
+        deterministic_reviewed_total: deterministicTotal,
+        deterministic_ok_total: deterministicOk,
+        deterministic_issues_total: deterministicIssues,
         review_runs: reviewRuns,
         reviewed_total: reviewTotal,
         issues_total: issueTotal,

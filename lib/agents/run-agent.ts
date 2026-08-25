@@ -22,6 +22,7 @@ import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import {
   buildClosingAckReply,
   isConversationClosing,
+  isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
 import {
   buildDissatisfactionRescueReply,
@@ -142,12 +143,38 @@ function isAction(agent: AgentId, value: string): value is AgentAction {
 function normalizeReply(agent: AgentId, action: AgentAction, reply: string) {
   if (agent === "master" || SILENT_ACTIONS.has(action)) return ""
 
-  const trimmed = reply.trim()
+  let trimmed = reply.trim()
   if (!trimmed) return ""
-  if (trimmed.startsWith(CUSTOMER_HEADER) || trimmed.startsWith("הום בוט :)")) {
+
+  trimmed = trimmed.replace(/^(?:\*הום בוט :\)\*\n?)+/g, `${CUSTOMER_HEADER}\n`)
+  trimmed = trimmed.replace(
+    /^הום בוט :\)\s*\n?(?:\*הום בוט :\)\*\n?)?/,
+    `${CUSTOMER_HEADER}\n`
+  )
+
+  if (trimmed.startsWith(CUSTOMER_HEADER)) return trimmed
+  if (trimmed.startsWith("הום בוט :)")) {
     return trimmed.replace(/^הום בוט :\)\s*/, `${CUSTOMER_HEADER}\n`)
   }
   return `${CUSTOMER_HEADER}\n${trimmed}`
+}
+
+const FAKE_STOCK_REPLY_RE =
+  /אבדוק(?:\s+(?:א(?:ם|ת)|ע(?:ם|ד))?|\s+ב)?(?:מלאי|זמינות)|בודק(?:ים)?\s+(?:ב)?(?:מלאי|זמינות)|(?:יש|קיים)\s+(?:ל(?:כם|נו)\s+)?(?:ב)?(?:מלאי|זמינות)/i
+
+function sanitizeFaqProductReply(body: string, reply: string) {
+  if (!reply.trim()) return reply
+  if (
+    !isProductInventoryQuestion(body) &&
+    !isSpecificProductMention(body) &&
+    !FAKE_STOCK_REPLY_RE.test(reply)
+  ) {
+    return reply
+  }
+  if (/אין לי גישה|קישור לדף|יועץ מכירות|האם להעביר/i.test(reply)) return reply
+  if (isProductInventoryQuestion(body)) return buildProductInventoryHandoff()
+  if (hasProductUrl(body)) return buildProductHandoffAfterReference(body)
+  return buildProductUrlRequest()
 }
 
 function wasSalesFlowActive(history: HistoryMessage[], lastAgent: AgentId | null) {
@@ -291,6 +318,48 @@ async function resolveSpecialist(
   const userTurns = history.filter((message) => message.role === "user").length
   const preview = options?.preview
 
+  if (isConversationClosing(body) && !isHumanHandoffPending(history)) {
+    const reply = buildClosingAckReply(options?.customerName)
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "end",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "end", route }
+  }
+
+  if (isNonSubstantiveFollowUp(body) && !isHumanHandoffPending(history)) {
+    const reply = normalizeReply("faq", "reply", buildStuckHandoffReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route }
+  }
+
+  if (isDissatisfactionWithoutDefect(body)) {
+    const reply = normalizeReply("faq", "reply", buildDissatisfactionRescueReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route }
+  }
+
   if (isHumanHandoffPending(history) && isHandoffContextReply(body)) {
     const agent = specialist === "master" ? "faq" : specialist
     if (isHumanHandoffAffirmation(body)) {
@@ -428,6 +497,18 @@ async function resolveSpecialist(
       })
     }
 
+    if (result.reply) {
+      const sanitized = sanitizeFaqProductReply(body, result.reply)
+      if (sanitized !== result.reply) {
+        result = {
+          ...result,
+          agent: "sales",
+          reply: normalizeReply("sales", "reply", sanitized),
+          action: "reply",
+        }
+      }
+    }
+
     return { ...result, route }
   }
 
@@ -443,6 +524,34 @@ async function resolveSpecialist(
       preview,
     })
     return { ok: true, agent: "faq", reply, action: "reply", route }
+  }
+
+  if (isProductInventoryQuestion(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductInventoryHandoff())
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route }
+  }
+
+  if (isSpecificProductMention(body) && !hasProductUrl(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductUrlRequest())
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route }
   }
 
   if (
@@ -502,10 +611,25 @@ async function resolveSpecialist(
   if (specialist === "sales" && result.reply) {
     const needsSanitize =
       (await matchesLearnedReplyGuard("sales", result.reply)) ||
-      /למי\s+הסלון\s+משמש/i.test(result.reply)
+      /למי\s+הסלון\s+משמש/i.test(result.reply) ||
+      FAKE_STOCK_REPLY_RE.test(result.reply)
     if (needsSanitize) {
-      const sanitized = sanitizeSalesReply(result.reply, history, body)
+      const sanitized = FAKE_STOCK_REPLY_RE.test(result.reply)
+        ? buildProductInventoryHandoff()
+        : sanitizeSalesReply(result.reply, history, body)
       result = { ...result, reply: normalizeReply("sales", "reply", sanitized) }
+    }
+  }
+
+  if (specialist === "faq" && result.reply) {
+    const sanitized = sanitizeFaqProductReply(body, result.reply)
+    if (sanitized !== result.reply) {
+      result = {
+        ...result,
+        agent: "sales",
+        reply: normalizeReply("sales", "reply", sanitized),
+        action: "reply",
+      }
     }
   }
 
@@ -736,6 +860,19 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent: "faq", reply, action: "end", route: [...route, "faq"] }
+  }
+
+  if (isNonSubstantiveFollowUp(body) && !isHumanHandoffPending(history)) {
+    const reply = normalizeReply("faq", "reply", buildStuckHandoffReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
   if (

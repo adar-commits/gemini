@@ -21,6 +21,8 @@ import {
 } from "@/lib/agents/topic-switch"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import { breaksPendingHandoff } from "@/lib/agents/handoff-wait"
+import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
+import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 
 const BREAK_STICKY = new Set([
   "reset",
@@ -131,6 +133,9 @@ export function shouldContinueWithSpecialist(
   sticky: SpecialistId
 ) {
   if (isCustomerServiceOpener(body)) return false
+  if (isConversationClosing(body)) return false
+  if (isNonSubstantiveFollowUp(body)) return false
+  if (isDissatisfactionWithoutDefect(body)) return false
   if (isHumanHandoffPending(history) && !breaksPendingHandoff(body)) return true
   if (isConfirmationPending(history)) return true
 

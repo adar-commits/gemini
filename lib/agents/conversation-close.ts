@@ -1,6 +1,13 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 
+/** Punctuation-only follow-ups ("?", "???") — not a new business ask. */
+export function isNonSubstantiveFollowUp(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 12) return false
+  return /^[?!.,\s🙏👍]+$/u.test(text)
+}
+
 /** Customer closing the thread — not a quiz answer and not "thanks, also I wanted to ask…". */
 export function isConversationClosing(body: string) {
   const text = body.trim()

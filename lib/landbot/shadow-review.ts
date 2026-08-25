@@ -1,7 +1,8 @@
 import { generateText, jsonSchema, Output } from "ai"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import {
-  deterministicShadowVerdict,
+  classifyShadowLogDeterministic,
+  heuristicShadowOkVerdict,
   isReviewFailureReason,
   kbExcerptForLog,
 } from "@/lib/landbot/shadow-deterministic"
@@ -107,7 +108,7 @@ export async function reviewShadowLog(
   log: ShadowLogRow,
   turnNumber: number
 ): Promise<ShadowReviewVerdict & { model: string; deterministic?: boolean }> {
-  const deterministic = deterministicShadowVerdict(log)
+  const deterministic = classifyShadowLogDeterministic(log)
   if (deterministic) {
     return { ...deterministic, model: "deterministic" }
   }
@@ -232,6 +233,59 @@ async function fetchUnreviewedLogs(limit: number) {
   }
 
   return unreviewed
+}
+
+function deterministicBatchSize() {
+  const raw = Number(process.env.SHADOW_DETERMINISTIC_BATCH_SIZE ?? "500")
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 2000) : 500
+}
+
+/** Drain unreviewed logs using code-only rules (no AI, no rate limits). */
+export async function runDeterministicShadowReviewBatch(limit = deterministicBatchSize()) {
+  const logs = await fetchUnreviewedLogs(limit)
+  if (!logs.length) {
+    const stats = await shadowReviewStats()
+    return { ok: true, reviewed: 0, issues: 0, ok_count: 0, pending: stats.pending }
+  }
+
+  const supabase = getAgentSupabase()
+  let reviewed = 0
+  let issues = 0
+  let okCount = 0
+
+  for (const log of logs) {
+    const verdict =
+      classifyShadowLogDeterministic(log) ?? heuristicShadowOkVerdict(log)
+    if (!verdict) continue
+
+    const { error } = await supabase.from("hom_agent_shadow_reviews").insert({
+      shadow_log_id: log.id,
+      verdict: verdict.verdict,
+      issue_types: verdict.issue_types,
+      reason: verdict.reason.slice(0, 500),
+      suggested_fix: verdict.suggested_fix.slice(0, 500),
+      model: "deterministic",
+    })
+
+    if (error) {
+      if (error.code === "23505") continue
+      throw error
+    }
+
+    reviewed += 1
+    if (verdict.verdict === "issue") issues += 1
+    else okCount += 1
+  }
+
+  const stats = await shadowReviewStats()
+  return {
+    ok: true,
+    reviewed,
+    issues,
+    ok_count: okCount,
+    skipped_inconclusive: logs.length - reviewed,
+    pending: stats.pending,
+  }
 }
 
 export async function runShadowReviewBatch() {
