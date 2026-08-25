@@ -45,6 +45,10 @@ const TOPIC_TITLES: Array<{ keys: RegExp; titles: string[] }> = [
     titles: ["FAQ page extra facts"],
   },
   {
+    keys: /שכיר|השכר|rent|lease|שני\s+(?:עיצובים|דגמים)/i,
+    titles: ["Carpet rental / try-before-buy"],
+  },
+  {
     keys: /ייעוץ|עיצוב\s+אונליין|consult/i,
     titles: ["Online consulting terms"],
   },

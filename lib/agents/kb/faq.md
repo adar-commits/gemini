@@ -129,6 +129,11 @@ Source: https://www.carpetshop.co.il/pages/faq
 - Shedding/fluff on a new natural-fiber rug is normal and should lessen over months with regular vacuuming.
 - Custom anti-slip underlay and made-to-order rugs cannot be cancelled.
 
+## Carpet rental / try-before-buy
+- Standard carpet rental is not offered to every customer.
+- In some cases, when a customer is deciding between two designs, a sales advisor may approve paying for the cheaper option and using it temporarily as rental — case by case only, at sales advisor discretion.
+- For rental or try-before-buy eligibility, the customer should speak with a sales advisor.
+
 ## Online consulting terms
 Source: https://www.carpetshop.co.il/pages/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%99%D7%99%D7%A2%D7%95%D7%A5-%D7%90%D7%95%D7%A0%D7%9C%D7%99%D7%99%D7%9F-%D7%91%D7%90%D7%AA%D7%A8
 Updated 16.03.26
