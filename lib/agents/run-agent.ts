@@ -35,6 +35,7 @@ import {
   isOrderConfirmationYes,
   isOrderConfirmationNo,
   isPhoneLookupConfirmPending,
+  isAlternatePhoneRequestPending,
   isOrderNumberRequestPending,
   extractOrderNumber,
   extractOrderReference,
@@ -559,6 +560,7 @@ async function resolveSpecialist(
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
   if (
     isOrderNumberRequestPending(history) ||
+    isAlternatePhoneRequestPending(history) ||
     isPhoneLookupConfirmPending(history) ||
     isOrderConfirmationPending(history)
   ) {

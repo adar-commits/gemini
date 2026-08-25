@@ -155,7 +155,19 @@ async function callOrderWebhook(input: {
     })
 
     if (!response.ok) return null
-    return (await response.json()) as unknown
+
+    const contentType = response.headers.get("content-type") ?? ""
+    if (contentType.includes("application/json")) {
+      return (await response.json()) as unknown
+    }
+
+    const text = (await response.text()).trim()
+    if (!text) return null
+    try {
+      return JSON.parse(text) as unknown
+    } catch {
+      return null
+    }
   } catch {
     return null
   }
@@ -515,7 +527,27 @@ export function isPhoneLookupConfirmYes(body: string) {
 }
 
 export function isPhoneLookupConfirmNo(body: string) {
-  return isOrderConfirmationNo(body)
+  if (!isOrderConfirmationNo(body)) return false
+  if (mentionsAlternatePhoneIntent(body)) return false
+  return true
+}
+
+function mentionsAlternatePhoneIntent(body: string) {
+  return /טלפון|מס(?:'|׳|פר)?|אחר|אחות|אח(?:י|ות)?|בעל|אשה|של/i.test(body)
+}
+
+export function isAlternatePhoneRequestPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return /מה מספר הטלפון שבוצעה עליו ההזמנה/i.test(message.content)
+  }
+  return false
+}
+
+export function buildAlternatePhoneRequestPrompt() {
+  return `${CUSTOMER_HEADER}
+מה מספר הטלפון שבוצעה עליו ההזמנה?`
 }
 
 async function lookupOrderByReference(input: {
@@ -615,6 +647,13 @@ export async function resolveOrderShippingReply(input: {
     return resolveOrderConfirmationFlow({ body, lookupPhone, history })
   }
 
+  if (isAlternatePhoneRequestPending(history)) {
+    const alternatePhone = extractPhoneFromText(body)
+    if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone)
+    return `${CUSTOMER_HEADER}
+לא זיהיתי מספר טלפון — שלח/י את המספר (למשל 050-1234567).`
+  }
+
   if (isPhoneLookupConfirmPending(history)) {
     const alternatePhone = extractPhoneFromText(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone)
@@ -622,6 +661,10 @@ export async function resolveOrderShippingReply(input: {
     if (isPhoneLookupConfirmYes(body)) {
       if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
       return lookupAndStartOrderConfirm(whatsappPhone)
+    }
+
+    if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
+      return buildAlternatePhoneRequestPrompt()
     }
 
     if (isPhoneLookupConfirmNo(body)) {
