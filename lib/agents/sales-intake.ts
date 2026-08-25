@@ -1,5 +1,5 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
-import { isProductInventoryQuestion, isSpecificProductMention } from "@/lib/agents/product-handoff"
+import { isProductInventoryQuestion, isSpecificProductMention, extractRequestedModel } from "@/lib/agents/product-handoff"
 import {
   isFaqTopicSwitch,
   isSalesQuizAffirmation,
@@ -59,9 +59,7 @@ const INTAKE_MARKER_RE =
 const HEBREW_COLOR_RE =
   /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
 
-/** Named model/collection in a purchase message (not verified against any catalog). */
-const REQUESTED_MODEL_RE =
-  /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9 \-]{1,30}?)(?=\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|[\n,.!?]|$)/i
+export { extractRequestedModel } from "@/lib/agents/product-handoff"
 
 const PRODUCT_Q =
   "באיזה מוצר מדובר – שטיח, פוף, תמונת קיר, אביזר לעיצוב הבית, כרית או מוצר אחר?"
@@ -98,24 +96,6 @@ function lastAssistantText(history: HistoryMessage[]) {
   return ""
 }
 
-const ROOM_TARGET_RE =
-  /^(?:לחדר\s+ילדים|חדר\s+(?:ילדים|שינה|ילד|נוער|תינוקות)|לסלון|סלון|למסדרון|מסדרון|מטבח|מרפסת|כניסה)(?:\s|$)/i
-
-const GARBAGE_MODEL_RE =
-  /^(?:בבקשה|כמה|עולה|מידה|גודל|יש|לקנות|שטיח|פוף|בגודל|במידה|אפשר|רוצה|מחפש|מסוימ(?:ת|ה)|מוצר|דגם|בבקשה\s+כמה\s+עולה)/i
-
-export function extractRequestedModel(text: string): string | null {
-  const match = text.trim().match(REQUESTED_MODEL_RE)
-  if (!match) return null
-  const name = match[1].trim().split(/\n/)[0].trim().replace(/\s+/g, " ")
-  if (ROOM_TARGET_RE.test(name)) return null
-  if (GARBAGE_MODEL_RE.test(name)) return null
-  if (/^(סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(name)) {
-    return null
-  }
-  return name
-}
-
 export function hasUnverifiedProductRequest(text: string) {
   if (/carpetshop\.co\.il\/products|pozitiveshop\.co\.il\/products/i.test(text)) {
     return false
@@ -143,7 +123,9 @@ export function hasOngoingSalesIntake(history: HistoryMessage[]) {
 
 function intakeHasProgress(intake: SalesIntake) {
   return Boolean(
-    intake.targetSpace ||
+    intake.product ||
+      intake.targetSpace ||
+      intake.favoredColor ||
       intake.pets != null ||
       intake.style ||
       intake.budget ||
@@ -868,6 +850,10 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   if (!intake.favoredColor) {
     const color = extractFavoredColor(text)
     if (color) intake.favoredColor = color
+  }
+
+  if (!intake.style && intake.favoredColor) {
+    intake.style = "לפי צבע מועדף"
   }
 
   applyContextualIntakeAnswers(intake, history, body)
