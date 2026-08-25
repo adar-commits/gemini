@@ -1,7 +1,7 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { resetAgentSession } from "@/lib/landbot/resolve-customer"
 
-const TRAINER_RESET_PHRASE = "תאפס את השיחה"
+const TRAINER_RESET_PHRASE = "איפוס"
 
 function normalizeTrainerText(text: string) {
   return text.replace(/\s+/g, " ").trim()
