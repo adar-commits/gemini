@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
 import { isCronAuthorized } from "@/lib/agents/cron-auth"
 import {
@@ -48,8 +48,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await runInactivityWatch(payload)
-    return NextResponse.json(result)
+    after(async () => {
+      try {
+        await runInactivityWatch(payload)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Inactivity watch failed"
+        console.error("[inactivity-watch]", message)
+      }
+    })
+    return NextResponse.json({ ok: true, accepted: true, phase: payload.phase })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Inactivity watch failed"
     console.error("[inactivity-watch]", message)
