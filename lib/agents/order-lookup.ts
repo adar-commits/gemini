@@ -1,6 +1,9 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 
+const CANCELLATION_EMPATHY_PREFIX =
+  "אני מצטער לשמוע, בוא ננסה קודם לאתר את ההזמנה שלך.."
+
 const DEFAULT_ORDER_LOOKUP_URL =
   "https://redcarpet.app.n8n.cloud/webhook-test/9a1bc56f-d8c6-472c-a665-833421632caf"
 
@@ -521,6 +524,61 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
   return false
 }
 
+export function mentionsCancellationDesire(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+
+  return (
+    /\b(?:לבטל|ביטול|מבטל(?:ים|ות)?|רוצ(?:ה|ים|ות)\s+לבטל|אני\s+רוצ(?:ה|ים|ות)\s+לבטל)\b/i.test(
+      trimmed
+    ) || /\b(?:cancel(?:lation)?|want\s+to\s+cancel)\b/i.test(trimmed)
+  )
+}
+
+function hasCancellationDesireInConversation(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (mentionsCancellationDesire(body)) return true
+  return history.some(
+    (message) =>
+      message.role === "user" && mentionsCancellationDesire(message.content)
+  )
+}
+
+function alreadySentCancellationEmpathy(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      message.content.includes(CANCELLATION_EMPATHY_PREFIX)
+  )
+}
+
+function shouldApplyCancellationEmpathy(body: string, history: HistoryMessage[]) {
+  return (
+    hasCancellationDesireInConversation(body, history) &&
+    !alreadySentCancellationEmpathy(history)
+  )
+}
+
+function withCancellationEmpathyPrefix(reply: string) {
+  const header = `${CUSTOMER_HEADER}\n`
+  if (!reply.startsWith(header)) {
+    return `${reply}\n${CANCELLATION_EMPATHY_PREFIX}`
+  }
+
+  return `${header}${CANCELLATION_EMPATHY_PREFIX} ${reply.slice(header.length)}`
+}
+
+function maybeApplyCancellationEmpathy(
+  reply: string,
+  body: string,
+  history: HistoryMessage[]
+) {
+  if (!shouldApplyCancellationEmpathy(body, history)) return reply
+  return withCancellationEmpathyPrefix(reply)
+}
+
 export function buildPhoneLookupConfirmPrompt(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
 אני יכול לנסות לאתר את ההזמנה לפי הטלפון שלך, האם ההזמנה היא על טלפון מס׳ ${formatDisplayPhone(whatsappPhone)}?`
@@ -601,11 +659,15 @@ async function lookupOrderByReference(input: {
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
 
-async function lookupAndStartOrderConfirm(phone: string) {
+async function lookupAndStartOrderConfirm(
+  phone: string,
+  empathize?: (reply: string) => string
+) {
   const orders = await lookupOrdersByPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply()
-  return buildOrderConfirmationPrompt(orders[0]!)
+  const reply = buildOrderConfirmationPrompt(orders[0]!)
+  return empathize ? empathize(reply) : reply
 }
 
 async function resolveOrderConfirmationFlow(input: {
@@ -662,6 +724,8 @@ export async function resolveOrderShippingReply(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
+  const empathize = (reply: string) =>
+    maybeApplyCancellationEmpathy(reply, body, history)
 
   if (isOrderConfirmationPending(history)) {
     const lookupPhone =
@@ -673,18 +737,18 @@ export async function resolveOrderShippingReply(input: {
 
   if (isAlternatePhoneRequestPending(history)) {
     const alternatePhone = extractPhoneFromText(body)
-    if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone)
+    if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
     return `${CUSTOMER_HEADER}
 לא זיהיתי מספר טלפון — שלח/י את המספר (למשל 050-1234567).`
   }
 
   if (isPhoneLookupConfirmPending(history)) {
     const alternatePhone = extractPhoneFromText(body)
-    if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone)
+    if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
 
     if (isPhoneLookupConfirmYes(body)) {
       if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
-      return lookupAndStartOrderConfirm(whatsappPhone)
+      return lookupAndStartOrderConfirm(whatsappPhone, empathize)
     }
 
     if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
@@ -709,7 +773,9 @@ export async function resolveOrderShippingReply(input: {
       return lookupOrderByReference({ orderReference, whatsappPhone, body })
     }
 
-    if (whatsappPhone) return buildPhoneLookupConfirmPrompt(whatsappPhone)
+    if (whatsappPhone) {
+      return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+    }
     return buildPhoneLookupDeclinedReply()
   }
 
@@ -720,9 +786,11 @@ export async function resolveOrderShippingReply(input: {
 
   const providedPhone = extractPhoneFromText(body)
   if (providedPhone && orderLookupEnabled()) {
-    return lookupAndStartOrderConfirm(providedPhone)
+    return lookupAndStartOrderConfirm(providedPhone, empathize)
   }
 
-  if (whatsappPhone) return buildPhoneLookupConfirmPrompt(whatsappPhone)
+  if (whatsappPhone) {
+    return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+  }
   return buildPhoneLookupDeclinedReply()
 }
