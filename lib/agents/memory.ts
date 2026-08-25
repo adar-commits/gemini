@@ -20,6 +20,7 @@ export type ConversationContext = {
   lastAgent: AgentId | null
   lastAction: string | null
   resetAt: string | null
+  inactivityClosedAt: string | null
 }
 
 function asAgentId(value: unknown): AgentId | null {
@@ -42,11 +43,12 @@ export async function getConversationContext(
   const supabase = getAgentSupabase()
   const { data: session } = await supabase
     .from("hom_agent_sessions")
-    .select("reset_at, last_agent")
+    .select("reset_at, last_agent, inactivity_closed_at")
     .eq("conversation_id", conversationId)
     .maybeSingle()
 
   const resetAt = asText(session?.reset_at) || null
+  const inactivityClosedAt = asText(session?.inactivity_closed_at) || null
   const stored = await loadStoredMessages(conversationId, resetAt)
   const lastStored = [...stored].reverse().find((row) => row.action || row.agent)
   const lastAgent =
@@ -63,6 +65,7 @@ export async function getConversationContext(
       lastAgent,
       lastAction,
       resetAt,
+      inactivityClosedAt,
     }
   }
 
@@ -72,6 +75,7 @@ export async function getConversationContext(
       lastAgent,
       lastAction,
       resetAt,
+      inactivityClosedAt,
     }
   }
 
@@ -81,6 +85,7 @@ export async function getConversationContext(
     lastAgent,
     lastAction,
     resetAt,
+    inactivityClosedAt,
   }
 }
 
@@ -182,6 +187,88 @@ async function loadLandbotMessages(conversationId: string, resetAt: string | nul
   })
 }
 
+type SessionMetaPatch = {
+  customerName?: string
+  customerPhone?: string
+  lastUserAt?: string
+  lastAssistantAt?: string
+  clearInactivity?: boolean
+  inactivityClosedAt?: string | null
+  inactivityPingSentAt?: string | null
+}
+
+export async function touchSessionMeta(
+  conversationId: string,
+  input: {
+    customerName?: string
+    customerPhone?: string
+  }
+) {
+  conversationId = safeId(conversationId)
+  const supabase = getAgentSupabase()
+  const patch: Record<string, string | null> = {
+    conversation_id: conversationId,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (input.customerName?.trim()) patch.customer_name = input.customerName.trim()
+  if (input.customerPhone?.trim()) patch.customer_phone = input.customerPhone.trim()
+
+  const { error } = await supabase.from("hom_agent_sessions").upsert(patch)
+  if (error) throw error
+}
+
+async function patchSession(conversationId: string, patch: SessionMetaPatch) {
+  const supabase = getAgentSupabase()
+  const row: Record<string, string | null> = {
+    conversation_id: conversationId,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (patch.lastUserAt) row.last_user_at = patch.lastUserAt
+  if (patch.lastAssistantAt) row.last_assistant_at = patch.lastAssistantAt
+  if (patch.clearInactivity) {
+    row.inactivity_ping_sent_at = null
+    row.inactivity_closed_at = null
+  }
+  if (patch.inactivityClosedAt !== undefined) {
+    row.inactivity_closed_at = patch.inactivityClosedAt
+  }
+  if (patch.inactivityPingSentAt !== undefined) {
+    row.inactivity_ping_sent_at = patch.inactivityPingSentAt
+  }
+
+  const { error } = await supabase.from("hom_agent_sessions").upsert(row)
+  if (error) throw error
+}
+
+export async function recordProactiveAssistantMessage(input: {
+  conversationId: string
+  assistantText: string
+  action: string
+}) {
+  const conversationId = safeId(input.conversationId)
+  const supabase = getAgentSupabase()
+  const now = new Date().toISOString()
+
+  const { error: insertError } = await supabase.from("hom_agent_messages").insert({
+    conversation_id: conversationId,
+    role: "assistant",
+    content: input.assistantText,
+    agent: "master",
+    action: input.action,
+  })
+  if (insertError) throw insertError
+
+  await patchSession(conversationId, {
+    lastAssistantAt: now,
+    inactivityClosedAt:
+      input.action === "inactivity_close" ? now : undefined,
+    inactivityPingSentAt:
+      input.action === "inactivity_ping" ? now : undefined,
+  })
+}
+
 export async function appendTurn(input: {
   conversationId: string
   agent: AgentId
@@ -269,15 +356,30 @@ export async function appendTurn(input: {
   const clearSticky =
     input.action === "reset" ||
     input.action === "end" ||
+    input.action === "inactivity_close" ||
     input.action === "shipping"
 
-  const session: Record<string, string> = {
+  const now = new Date().toISOString()
+  const session: Record<string, string | null> = {
     conversation_id: conversationId,
     last_agent: clearSticky ? "master" : input.agent,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   }
   if (input.action === "reset") {
-    session.reset_at = new Date().toISOString()
+    session.reset_at = now
+    session.inactivity_ping_sent_at = null
+    session.inactivity_closed_at = null
+  }
+  if (persistUser && input.userText.trim()) {
+    session.last_user_at = now
+    session.inactivity_ping_sent_at = null
+    session.inactivity_closed_at = null
+  }
+  if (assistantInserted && input.assistantText.trim()) {
+    session.last_assistant_at = now
+  }
+  if (input.action === "inactivity_close") {
+    session.inactivity_closed_at = now
   }
 
   const { error } = await supabase.from("hom_agent_sessions").upsert(session)

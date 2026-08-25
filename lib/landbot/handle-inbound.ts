@@ -31,6 +31,7 @@ import {
   TRAINER_CORRECTION_DONE,
 } from "@/lib/landbot/trainer-correction"
 import { isTrainerPhone } from "@/lib/landbot/trainer"
+import { ensureSessionMetaFromInbound } from "@/lib/landbot/inactivity-cron"
 import type { AgentResponse } from "@/lib/agents/types"
 
 export type InboundMode = "reply" | "shadow"
@@ -69,6 +70,12 @@ export async function handleLandbotInbound(
   if (replyEnabled) {
     await assignToApiAgent(customerId)
   }
+
+  await ensureSessionMetaFromInbound({
+    conversationId,
+    customerName: customerName || undefined,
+    customerPhone: options?.phone?.trim() || undefined,
+  })
 
   const body = summarizeTurn(turn)
 
