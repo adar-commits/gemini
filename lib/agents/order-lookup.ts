@@ -25,7 +25,9 @@ export type PriorityOrderRow = {
   ZPIT_PRODDATE?: string | null
   ZPIT_DELDATE?: string | null
   ZPIT_DELIVERED?: string | null
+  ZPIT_DELIVEREDTO?: string | null
   ZPIT_COORDATE?: string | null
+  delivery_deliveredto?: string | null
 }
 
 export type OrderShipmentStatus = {
@@ -35,6 +37,7 @@ export type OrderShipmentStatus = {
   branchLabel: string
   totalPrice: number | null
   statusDescription: string
+  deliveredTo?: string | null
   promisedDelivery?: string | null
   lastStatusUpdate?: string | null
   customerName?: string | null
@@ -43,18 +46,72 @@ export type OrderShipmentStatus = {
   raw: PriorityOrderRow
 }
 
-/**
- * Shipment status by ZPIT_DELSTATUSCODE — update when operator provides final mapping.
- * Fallback: ZPIT_DELSTATUSDES from ERP when code is missing from map.
- */
-export const DELIVERY_STATUS_BY_CODE: Record<string, string> = {
-  "1": "ההזמנה התקבלה וממתינה לטיפול.",
-  "2": "ההזמנה בייצור/הכנה.",
-  "3": "ההזמנה מוכנה וממתינה למשלוח.",
-  "4": "ההזמנה יצאה למשלוח — השליח יתאם טלפונית את מועד האספקה.",
-  "5": "ההזמנה בדרך אליך — השליח יתאם טלפונית.",
-  "6": "ההזמנה נמסרה.",
-  "9": "ההזמנה בוטלה או הוחזרה.",
+function deliveredToFromRow(row: PriorityOrderRow) {
+  for (const value of [row.ZPIT_DELIVEREDTO, row.delivery_deliveredto]) {
+    const text = String(value ?? "").trim()
+    if (text && text !== "Y" && text !== "N") return text
+  }
+  return null
+}
+
+/** Map ZPIT_DELSTATUSCODE + ZPIT_DELSTATUSDES (+ optional recipient) to customer message. */
+export function buildDeliveryStatusMessage(input: {
+  deliveryStatusId: string | number
+  deliveryStatusDesc: string
+  deliveryDeliveredTo?: string | null
+}) {
+  const statusId = String(input.deliveryStatusId ?? "").trim()
+  const statusDesc = input.deliveryStatusDesc.trim() || "לא ידוע"
+  const deliveredTo = input.deliveryDeliveredTo?.trim() || null
+
+  let detail = ""
+  let includeRecipient = false
+
+  switch (statusId) {
+    case "1":
+      detail =
+        "השטיח נארז במחסני החברה וממתין לאיסוף של חברת השליחויות"
+      break
+    case "2":
+      detail =
+        "השטיח נמסר לחברת השליחויות, שליח יצור עמך קשר בזמן הקרוב לתיאום מועד מסירה"
+      break
+    case "3":
+      detail = 'ע"פ רישומנו, השטיח נמסר ללקוח.'
+      includeRecipient = Boolean(deliveredTo)
+      break
+    case "4":
+      detail = "השטיח נאסף מהלקוח ובדרכו למחסני החברה"
+      break
+    case "5":
+    case "6":
+      detail =
+        "השטיח נאסף ע\"י חברת השליחויות, נמצא כעת בתהליך מיון וממתין להפצה בהתאם למסלולי החלוקה."
+      break
+    case "7":
+      detail = "המשלוח בוטל"
+      break
+    case "8":
+      detail =
+        "לא ידועים פרטים נוספים על המשלוח, נא לפנות לשירות הלקוחות בטלפון *3076"
+      break
+    case "9":
+    case "12":
+      detail =
+        "השטיח נאסף ע\"י חברת השליחויות וכרגע בתהליך מיון לקראת הפצתו ללקוח"
+      break
+    default:
+      detail =
+        "לא ידועים פרטים נוספים על המשלוח, נא לפנות לשירות הלקוחות בטלפון *3076"
+      break
+  }
+
+  const lines = [`*סטטוס*: ${statusDesc}`, `*פירוט נוסף*: ${detail}`]
+  if (includeRecipient && deliveredTo) {
+    lines.push(`שם המקבל: ${deliveredTo}`)
+  }
+
+  return lines.join("\n")
 }
 
 function lookupUrl() {
@@ -159,22 +216,18 @@ export function sortOrdersNewestFirst(orders: OrderShipmentStatus[]) {
   )
 }
 
-/** Status text from ZPIT_DELSTATUSCODE + ZPIT_UDATE (last shipping status change). */
+/** Status text from ZPIT_DELSTATUSCODE + ZPIT_DELSTATUSDES + ZPIT_UDATE. */
 export function describeShipmentStatus(order: OrderShipmentStatus) {
-  const code = order.statusCode
-  const erpLabel = order.statusLabel?.trim()
-  const statusText =
-    DELIVERY_STATUS_BY_CODE[code] ||
-    (erpLabel ? `סטטוס משלוח: ${erpLabel}.` : `סטטוס משלוח (קוד ${code || "?"}).`)
+  const message = buildDeliveryStatusMessage({
+    deliveryStatusId: order.statusCode,
+    deliveryStatusDesc: order.statusLabel || "לא ידוע",
+    deliveryDeliveredTo: order.deliveredTo,
+  })
 
   const updated = formatHebrewDateTime(order.raw.ZPIT_UDATE)
-  const promised = formatHebrewDate(order.raw.ZPIT_DELDATE)
+  if (!updated) return message
 
-  const lines = [statusText.trim()]
-  if (updated) lines.push(`עדכון סטטוס אחרון: ${updated}.`)
-  if (promised && code !== "6") lines.push(`מועד אספקה משוער: ${promised}.`)
-
-  return lines.join("\n")
+  return `${message}\nעדכון סטטוס אחרון: ${updated}.`
 }
 
 export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus {
@@ -190,6 +243,7 @@ export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus 
     branchLabel: orderBranchLabel(row),
     totalPrice: typeof row.TOTPRICE === "number" ? row.TOTPRICE : null,
     statusDescription: "",
+    deliveredTo: deliveredToFromRow(row),
     promisedDelivery: delDate,
     lastStatusUpdate: row.ZPIT_UDATE ?? null,
     customerName: row.CDES?.trim() || null,
