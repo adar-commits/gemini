@@ -28,9 +28,11 @@ import {
   isDissatisfactionWithoutDefect,
 } from "@/lib/agents/dissatisfaction"
 import {
-  buildOrderDisambiguationReply,
-  buildOrderStatusReply,
-  lookupOrdersByPhone,
+  buildDigitalDocumentReply,
+  lookupDigitalDocument,
+  resolveOrderShippingReply,
+  isOrderDisambiguationPending,
+  extractOrderNumber,
   orderLookupEnabled,
 } from "@/lib/agents/order-lookup"
 import {
@@ -265,6 +267,7 @@ async function resolveSpecialist(
   route: AgentId[],
   options?: {
     customerName?: string
+    phone?: string
     lastAgent?: AgentId | null
     lastAction?: string | null
     resetAt?: string | null
@@ -528,6 +531,22 @@ async function resolveSpecialist(
     return { ...result, agent: "faq", reply, action: "reply", route }
   }
 
+  if (
+    options?.phone &&
+    orderLookupEnabled() &&
+    (result.action === "receipt" ||
+      result.action === "invoice_tax" ||
+      result.action === "invoice_tax_receipt")
+  ) {
+    const link = await lookupDigitalDocument(options.phone)
+    if (link) {
+      result = {
+        ...result,
+        reply: normalizeReply("service", "reply", buildDigitalDocumentReply(link)),
+      }
+    }
+  }
+
   return { ...result, route }
 }
 
@@ -536,9 +555,10 @@ function shippingResult(
   body: string,
   route: AgentId[],
   preview?: boolean,
-  phone?: string
+  phone?: string,
+  history?: HistoryMessage[]
 ): Promise<AgentResponse> {
-  return resolveShippingStatusReply(body, phone).then((reply) =>
+  return resolveShippingStatusReply(body, phone, history).then((reply) =>
     appendTurn({
       conversationId,
       agent: "master",
@@ -556,15 +576,13 @@ function shippingResult(
   )
 }
 
-async function resolveShippingStatusReply(body: string, phone?: string) {
-  if (phone && orderLookupEnabled() && isShippingStatusQuestion(body)) {
-    const lookup = await lookupOrdersByPhone(phone)
-    if (lookup?.orders.length === 1) {
-      return buildOrderStatusReply(lookup.orders[0]!)
-    }
-    if (lookup && lookup.orders.length > 1) {
-      return buildOrderDisambiguationReply(lookup.orders)
-    }
+async function resolveShippingStatusReply(
+  body: string,
+  phone?: string,
+  history?: HistoryMessage[]
+) {
+  if (phone && orderLookupEnabled()) {
+    return resolveOrderShippingReply({ body, phone, history })
   }
   return buildShippingStatusReply()
 }
@@ -779,6 +797,15 @@ export async function runMasterConversation(
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
   }
 
+  if (
+    phone &&
+    orderLookupEnabled() &&
+    (isOrderDisambiguationPending(history) || extractOrderNumber(body)) &&
+    (isOrderDisambiguationPending(history) || isShippingStatusQuestion(body))
+  ) {
+    return shippingResult(conversationId, body, route, preview, phone, history)
+  }
+
   if (isServiceTopicSwitch(body)) {
     return resolveSpecialist(
       conversationId,
@@ -792,7 +819,7 @@ export async function runMasterConversation(
   }
 
   if (isShippingStatusQuestion(body)) {
-    return shippingResult(conversationId, body, route, preview, phone || undefined)
+    return shippingResult(conversationId, body, route, preview, phone || undefined, history)
   }
 
   if (isShippingPolicyQuestion(body)) {
@@ -967,7 +994,7 @@ export async function runMasterConversation(
 
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
   if (next === "shipping") {
-    return shippingResult(conversationId, body, route, preview, phone || undefined)
+    return shippingResult(conversationId, body, route, preview, phone || undefined, history)
   }
 
   return resolveSpecialist(
