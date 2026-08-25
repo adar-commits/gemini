@@ -545,7 +545,7 @@ export function mentionsCancellationDesire(text: string) {
   if (!trimmed) return false
 
   return (
-    /\b(?:לבטל|ביטול|מבטל(?:ים|ות)?|רוצ(?:ה|ים|ות)\s+לבטל|אני\s+רוצ(?:ה|ים|ות)\s+לבטל)\b/i.test(
+    /(?:לבטל|ביטול|מבטל(?:ים|ות)?|רוצ(?:ה|ים|ות)\s+לבטל|אני\s+רוצ(?:ה|ים|ות)\s+לבטל)/i.test(
       trimmed
     ) || /\b(?:cancel(?:lation)?|want\s+to\s+cancel)\b/i.test(trimmed)
   )
