@@ -6,7 +6,7 @@ Operational runbook for draining the **715+ unreviewed** Landbot shadow backlog 
 
 ## 1. One-command pipeline (production env)
 
-Requires real `AGENT_SUPABASE_*` and optional AI gateway for residual AI review.
+Requires `AGENT_SUPABASE_URL` + `AGENT_SUPABASE_SERVICE_ROLE_KEY` pointing at **Landbot Supabase** (`walklyxhkhrdzbkfhtez`) — gemini has no own database; all agent memory and shadow logs live in Landbot's project.
 
 ```bash
 npx dotenv-cli -e .env.production.local -- npx tsx scripts/run-shadow-pipeline.ts

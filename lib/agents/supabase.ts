@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
+/** Landbot Supabase project (walklyxhkhrdzbkfhtez) — not gemini's own DB. */
 let agentClient: SupabaseClient | null = null
 
 export function getAgentSupabase() {
