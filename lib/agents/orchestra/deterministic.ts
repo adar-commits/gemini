@@ -59,7 +59,7 @@ export function detectDeterministicPhase(ctx: OrchestraContext): ConversationPha
   const historyText = history.map((m) => m.content).join("\n")
 
   if (isHumanHandoffPending(history)) return "handoff_pending"
-  if (hasOngoingSalesIntake(history) || (lastAgent === "sales" && /האם זה נכון עד כה/.test(historyText))) {
+  if (hasOngoingSalesIntake(history) || (lastAgent === "sales" && /האם זה נכון עד כה|אני צודק/.test(historyText))) {
     return "sales_intake"
   }
   if (isOpeningTurn(userTurnCount) && /^(שלום|היי|אהלן|בוקר|ערב)/iu.test(body.trim())) {

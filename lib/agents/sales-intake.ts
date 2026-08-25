@@ -45,7 +45,7 @@ const PET_CLARIFICATION_RE =
   /^(?:אבל|רק|הוא|היא|לא\s+נכנס|בסדר|בכל\s+זאת)/i
 
 const UNKNOWN_ANSWER_RE =
-  /^(?:לא\s+יודע(?:ת)?|לא\s+בטוח(?:ה)?|לא\s+מבין|אין\s+לי\s+מושג|לא\s+ממש|לא\s+כ(?:\"|״|')?כ|עזוב(?:\s+אותי)?)/i
+  /^(?:לא\s+יודע(?:ת)?|אני\s+לא\s+יודע(?:\s+ה(?:אמת|אמת)?)?|לא\s+בטוח(?:ה)?|לא\s+מבין|אין\s+לי\s+מושג|לא\s+ממש|לא\s+כ(?:\"|״|')?כ|עזוב(?:\s+אותי)?)/i
 
 const INTAKE_CORRECTION_RE =
   /כבר\s+שאלת|כבר\s+עניתי|עניתי\s+ש|אמרתי\s+ש|צודק/i
@@ -54,7 +54,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|יש בעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|מידת הספה|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|מידת הספה|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
 
 const HEBREW_COLOR_RE =
   /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
@@ -74,8 +74,9 @@ const BEDROOM_USE_Q =
 const CHILDREN_Q = "מדובר בילדים קטנים, ילדים גדולים או גם וגם?"
 const PETS_Q = "יש בעלי חיים שנכנסים לחלל?"
 const STYLE_Q =
-  "איזה סגנון או תחושה מחפשים – למשל יוקרתי, מודרני, כפרי או משהו אחר? ואולי גם צבע מועדף?"
+  "איזה סגנון או תחושה מחפשים – למשל יוקרתי, מודרני, כפרי או משהו אחר? האם יש צבע מועדף?"
 const SOFA_SIZE_Q = "מה מידת הספה?"
+const SOFA_SIZE_Q_SALON = "ידוע לך מידת הספה או גודל כללי של הסלון?"
 const BUDGET_Q = "מה התקציב המשוער?"
 const PRACTICAL_Q =
   "יש דרישות מיוחדות – למשל שיהיה קל לניקוי/כביסה, עמיד, או משהו אחר?"
@@ -164,10 +165,10 @@ function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
   if (/ילדים קטנים/.test(last)) return "children"
   if (/בעלי חיים/.test(last)) return "pets"
   if (/סגנון/.test(last)) return "style"
-  if (/מידת הספה/.test(last)) return "sofa"
+  if (/מידת הספה|גודל כללי של הסלון/.test(last)) return "sofa"
   if (/תקציב/.test(last)) return "budget"
   if (/דרישות מיוחדות/.test(last)) return "practical"
-  if (/האם זה נכון/.test(last)) return "confirm"
+  if (/האם זה נכון|אני צודק/.test(last)) return "confirm"
   return null
 }
 
@@ -178,10 +179,10 @@ function questionKindForText(question: string): string | null {
   if (/ילדים קטנים/.test(question)) return "children"
   if (/בעלי חיים/.test(question)) return "pets"
   if (/סגנון/.test(question)) return "style"
-  if (/מידת הספה/.test(question)) return "sofa"
+  if (/מידת הספה|גודל כללי של הסלון/.test(question)) return "sofa"
   if (/תקציב/.test(question)) return "budget"
   if (/דרישות מיוחדות/.test(question)) return "practical"
-  if (/האם זה נכון/.test(question)) return "confirm"
+  if (/האם זה נכון|אני צודק/.test(question)) return "confirm"
   return null
 }
 
@@ -338,11 +339,7 @@ function applyContextualIntakeAnswers(
   }
 
   if ((kind === "sofa" || options?.force) && !intake.sofaSize && !intake.rugSize) {
-    const match = body.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
-    if (match) intake.sofaSize = match[1].replace(/\s/g, "")
-    else if (/^\d[\d.\s-]*$/.test(body.trim())) {
-      intake.sofaSize = body.trim()
-    }
+    applySofaSizeAnswer(intake, recentUserReplies(history, body))
   }
 }
 
@@ -429,7 +426,7 @@ const SOFT_REPROMPT: Partial<Record<string, string>> = {
   pets: "לגבי בעלי חיים — יש כאלה שנכנסים לחלל?",
   style:
     "ומה לגבי הסגנון — יוקרתי, מודרני, כפרי, או משהו אחר? ואולי גם צבע מועדף?",
-  sofa: "מה מידת הספה?",
+  sofa: "ידוע לך מידת הספה או גודל כללי של הסלון?",
   budget: "מה התקציב המשוער?",
   practical: "יש דרישות מיוחדות — למשל קל לניקוי/כביסה או עמיד?",
 }
@@ -485,11 +482,15 @@ function parseIntakeQAPairs(messages: HistoryMessage[]): IntakePair[] {
       scan += 1
     }
 
-    for (let burstIndex = 0; burstIndex < burstKinds.length; burstIndex += 1) {
-      pairs.push({
-        kind: burstKinds[burstIndex],
-        answers: answers[burstIndex] ? [answers[burstIndex]] : [],
-      })
+    if (burstKinds.length === 1 && answers.length > 0) {
+      pairs.push({ kind: burstKinds[0], answers })
+    } else {
+      for (let burstIndex = 0; burstIndex < burstKinds.length; burstIndex += 1) {
+        pairs.push({
+          kind: burstKinds[burstIndex],
+          answers: answers[burstIndex] ? [answers[burstIndex]] : [],
+        })
+      }
     }
 
     index = scan
@@ -527,11 +528,32 @@ function applySpaceAnswer(intake: SalesIntake, answers: string[]) {
   }
 }
 
+function petsDontEnterSpace(combined: string) {
+  return /לא\s+(?:מפריע|נכנס|עולה|יורד)|בחוץ|לא\s+נכנס(?:ים)?\s+ל(?:ח|חל)/i.test(combined)
+}
+
+function extractQualitativeSize(text: string): string | null {
+  const match =
+    text.match(/(?:ב)?גודל\s+(קטן|בינוני|גדול)/i) ||
+    text.match(/(?:סלון|חדר)\s+(?:ב)?(קטן|בינוני|גדול)/i) ||
+    text.match(/\b(קטן|בינוני|גדול)\b/i)
+  return match?.[1] ?? null
+}
+
+function isLivingRoomSpace(targetSpace?: string) {
+  return Boolean(targetSpace && (targetSpace === "סלון" || /^סלון/i.test(targetSpace)))
+}
+
+function sofaSizeQuestion(intake: SalesIntake) {
+  if (isLivingRoomSpace(intake.targetSpace)) return SOFA_SIZE_Q_SALON
+  return SOFA_SIZE_Q
+}
+
 function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
   if (!combined) return
   if (isUnknownIntakeAnswer(combined)) {
-    intake.style = "לא בטוח — יועץ יעזור בבחירה"
+    intake.style = "ללא העדפת סגנון"
     return
   }
 
@@ -541,11 +563,37 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   if (/יוקרתי/.test(combined)) intake.style = "יוקרתי"
   else if (/מודרני/.test(combined)) intake.style = "מודרני"
   else if (/כפרי/.test(combined)) intake.style = "כפרי"
-  else if (!intake.style) {
-    intake.style =
-      color && combined.split(/\s+/).length <= 5
-        ? "לפי צבע מועדף"
-        : answers[answers.length - 1].slice(0, 50)
+  else if (/ייחוד|ooak|one[\s-]?of[\s-]?a[\s-]?kind|משהו\s+מיוחד/i.test(combined)) {
+    intake.style = "ייחודי"
+  } else if (color && !intake.style) {
+    intake.style = "ללא העדפת סגנון"
+  } else if (!intake.style && combined.length <= 50) {
+    intake.style = combined.slice(0, 50)
+  }
+}
+
+function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
+  const combined = answers.join(" ")
+  if (!combined) return
+
+  const numericMatch = combined.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
+  if (numericMatch) {
+    intake.sofaSize = numericMatch[1].replace(/\s/g, "")
+    return
+  }
+
+  const qualitative = extractQualitativeSize(combined)
+  if (qualitative) {
+    intake.rugSize = qualitative
+    return
+  }
+
+  if (isUnknownIntakeAnswer(combined) || /לא\s+יודע/i.test(combined)) {
+    return
+  }
+
+  if (combined.length <= 30) {
+    intake.sofaSize = combined
   }
 }
 
@@ -594,6 +642,12 @@ function applyBudgetAnswer(intake: SalesIntake, answers: string[]) {
 function applyPetsAnswerFromText(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
   if (!combined) return
+
+  if (petsDontEnterSpace(combined)) {
+    intake.pets = "none"
+    intake.petsDetail = undefined
+    return
+  }
 
   if (PET_ANIMAL_RE.test(combined) || /רק\s+[א-תa-z]/i.test(combined)) {
     intake.pets = "yes"
@@ -651,6 +705,12 @@ function reconcilePetsFromThread(
   const combined = petAnswers.join(" ")
   if (!combined) return
 
+  if (petsDontEnterSpace(combined)) {
+    intake.pets = "none"
+    intake.petsDetail = undefined
+    return
+  }
+
   if (PET_ANIMAL_RE.test(combined) || /רק\s+[א-תa-z]/i.test(combined)) {
     intake.pets = "yes"
     intake.petsDetail = petAnswers.join(", ").slice(0, 80)
@@ -696,12 +756,9 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
       case "style":
         applyStyleAnswer(intake, answers)
         break
-      case "sofa": {
-        const match = combined.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
-        if (match) intake.sofaSize = match[1].replace(/\s/g, "")
-        else if (!isUnknownIntakeAnswer(combined)) intake.sofaSize = answers[answers.length - 1]
+      case "sofa":
+        applySofaSizeAnswer(intake, answers)
         break
-      }
       case "budget":
         applyBudgetAnswer(intake, answers)
         break
@@ -859,10 +916,8 @@ function nextIntakeQuestion(intake: SalesIntake): string | null {
   if (intake.household?.includes("ילד") && !intake.childrenAge) return CHILDREN_Q
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
   if (!styleStepComplete(intake)) return STYLE_Q
-  const isLivingRoom =
-    intake.targetSpace === "סלון" || /^סלון/i.test(intake.targetSpace)
-  if (isLivingRoom && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
-    return SOFA_SIZE_Q
+  if (isLivingRoomSpace(intake.targetSpace) && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
+    return sofaSizeQuestion(intake)
   }
   if (!intake.budget) return BUDGET_Q
   if (needsPracticalNeeds(intake) && !intake.practicalNeeds) return PRACTICAL_Q
@@ -905,58 +960,87 @@ export function buildPostConfirmationReply(body: string, history: HistoryMessage
 }
 
 export function buildConfirmationSummary(intake: SalesIntake) {
-  const parts: string[] = []
+  const product = intake.product ?? "שטיח"
+  const space = intake.targetSpace ? ` ל${intake.targetSpace}` : ""
+  const sizeLabel = formatSizeForSummary(intake)
+  const stylePhrase = formatStyleForSummary(intake)
+  const petsPhrase = formatPetsForSummary(intake)
+  const colorPhrase = formatColorForSummary(intake)
+  const budgetPhrase = intake.budget
+    ? `עד תקציב של ${formatBudget(intake.budget)} ש״ח`
+    : ""
+  const practicalPhrase =
+    intake.practicalNeeds && !/לא\s+בטוח|לא\s+יודע/i.test(intake.practicalNeeds)
+      ? intake.practicalNeeds
+      : ""
+  const modelPhrase = intake.requestedModel
+    ? `עם עניין בדגם "${intake.requestedModel}" (לבדיקה ע"י יועץ)`
+    : ""
 
-  if (intake.product && intake.targetSpace) {
-    parts.push(`אנחנו מחפשים ${intake.product} ל${intake.targetSpace}`)
+  let summary = `אנחנו מחפשים לך ${product}${space}`
+  if (sizeLabel) summary += ` בגודל ${sizeLabel}`
+
+  const tail: string[] = []
+  if (stylePhrase) tail.push(stylePhrase)
+  if (petsPhrase) tail.push(petsPhrase)
+  if (colorPhrase) tail.push(colorPhrase)
+  if (budgetPhrase) tail.push(budgetPhrase)
+  if (practicalPhrase) tail.push(`חשוב: ${practicalPhrase}`)
+  if (modelPhrase) tail.push(modelPhrase)
+
+  if (tail.length > 0) {
+    summary += ` ${tail.join(", ")}`
   }
 
-  if (intake.bedroomUse) {
-    parts.push(`(${intake.bedroomUse})`)
-  }
+  return `אוקיי, אז לסיכום ${summary}. אני צודק?`
+}
 
-  if (intake.requestedModel) {
-    parts.push(`עם עניין בדגם/רעיון "${intake.requestedModel}" (לבדיקה ע"י יועץ)`)
+function formatSizeForSummary(intake: SalesIntake) {
+  if (intake.rugSize && /^(?:קטן|בינוני|גדול)$/i.test(intake.rugSize)) {
+    return intake.rugSize
   }
-
-  if (intake.style) {
-    const colorPart = intake.favoredColor ? `, צבע מועדף ${intake.favoredColor}` : ""
-    parts.push(`בסגנון ${intake.style}${colorPart}`)
-  } else if (intake.favoredColor) {
-    parts.push(`צבע מועדף ${intake.favoredColor}`)
+  if (intake.rugSize) return intake.rugSize.replace(/\s+מטר$/, " מטר")
+  if (intake.sofaSize && /^\d/.test(intake.sofaSize)) {
+    return `ספה ${intake.sofaSize} מטר`
   }
+  if (intake.sofaSize && intake.sofaSize.length <= 20) return intake.sofaSize
+  return null
+}
 
-  const size = intake.rugSize || (intake.sofaSize ? `ספה ${intake.sofaSize} מטר` : "")
-  if (size) {
-    parts.push(`בגודל ${size.includes("מטר") ? size : `${size} מטר`}`)
+function formatStyleForSummary(intake: SalesIntake) {
+  const style = intake.style?.trim()
+  if (style === "ייחודי" && intake.favoredColor) return null
+  if (!style || /לא\s+בטוח|לא\s+יודע/i.test(style)) return "ללא העדפת סגנון"
+  if (style === "ללא העדפת סגנון") return style
+  if (style === "ייחודי") return "בסגנון ייחודי"
+  if (/יוקרתי|מודרני|כפרי/.test(style)) return `בסגנון ${style}`
+  if (intake.favoredColor && style.includes(intake.favoredColor)) return "ללא העדפת סגנון"
+  if (style.length > 35) return "ללא העדפת סגנון"
+  return `בסגנון ${style}`
+}
+
+function formatPetsForSummary(intake: SalesIntake) {
+  if (intake.pets === "none") return "ללא בעלי חיים"
+  if (intake.pets === "yes") {
+    if (intake.petsDetail && petsDontEnterSpace(intake.petsDetail)) return "ללא בעלי חיים"
+    if (intake.petsDetail && intake.petsDetail.length <= 25) {
+      return `עם ${intake.petsDetail}`
+    }
+    return "עם בעלי חיים"
   }
+  return null
+}
 
-  if (intake.pets === "none") {
-    parts.push("ללא חיות מחמד")
-  } else if (intake.pets === "yes") {
-    parts.push(intake.petsDetail ? `עם ${intake.petsDetail}` : "עם חיות מחמד בבית")
+function formatColorForSummary(intake: SalesIntake) {
+  if (!intake.favoredColor) return null
+  if (intake.style === "ייחודי") {
+    return `צבע מועדף ${intake.favoredColor}, משהו ייחודי`
   }
-
-  if (intake.household?.includes("ילד") || intake.childrenAge) {
-    const ageText = intake.childrenAge ? ` בגילאי ${intake.childrenAge}` : ""
-    parts.push(`עם ילדים${ageText}`)
-  } else if (intake.household) {
-    parts.push(`עבור ${intake.household}`)
-  }
-
-  if (intake.budget) {
-    parts.push(`עד תקציב של ${formatBudget(intake.budget)} ש״ח`)
-  }
-
-  if (intake.practicalNeeds) {
-    parts.push(`וחשוב ש${intake.practicalNeeds}`)
-  }
-
-  return `אוקיי, אז ממה שאני מבין ${parts.join(", ")}. האם זה נכון עד כה?`
+  return `צבע מועדף ${intake.favoredColor}`
 }
 
 export function isConfirmationPending(history: HistoryMessage[]) {
-  return /האם זה נכון עד כה/.test(lastAssistantText(history))
+  return /האם זה נכון עד כה|אני צודק/.test(lastAssistantText(history))
 }
 
 export function sanitizeSalesReply(reply: string, history: HistoryMessage[], body: string) {
@@ -998,7 +1082,11 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
 
   const correctionPrefix = isIntakeCorrection(body) ? "צודק/ת, תודה על הסבלנות.\n" : ""
   const recoveryPrefix =
-    doubleReplyJustHandled && !isIntakeCorrection(body) ? "תודה, קיבלתי.\n" : ""
+    doubleReplyJustHandled && !isIntakeCorrection(body) ? "אוקיי, קיבלתי.\n" : ""
+  const answerAckPrefix =
+    !recoveryPrefix && !correctionPrefix && lastKind && next
+      ? intakeAnswerAcknowledgment(lastKind, body)
+      : ""
 
   if (!next) {
     return correctionPrefix + recoveryPrefix + buildConfirmationSummary(intake)
@@ -1006,8 +1094,14 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
 
   const question = formatIntakeQuestionReply(history, next, nextKind)
   const reply = intro ? `${intro}\n${question}` : question
-  const combined = `${correctionPrefix}${recoveryPrefix}${reply}`
+  const combined = `${correctionPrefix}${recoveryPrefix}${answerAckPrefix}${reply}`
   return combined.trimEnd()
+}
+
+function intakeAnswerAcknowledgment(lastKind: string, body: string) {
+  if (!body.trim() || isIntakeCorrection(body)) return ""
+  if (lastKind === "confirm") return ""
+  return "אוקיי, קיבלתי.\n"
 }
 
 function questionOrder(kind: string) {
