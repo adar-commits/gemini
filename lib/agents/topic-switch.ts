@@ -3,6 +3,9 @@ import {
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
+import { isFaqPolicyQuestion } from "@/lib/agents/policy-subjects"
+
+export { isFaqPolicyQuestion } from "@/lib/agents/policy-subjects"
 
 export { isShippingPolicyQuestion, isShippingStatusQuestion }
 
@@ -19,23 +22,7 @@ export function isFaqTopicSwitch(body: string) {
   if (!text) return false
 
   if (isShippingPolicyQuestion(text)) return true
-
-  if (
-    /(?:איך\s+מ(?:חזיר|בטל)|מדיניות|תקנון|פורטל\s+החזר)/i.test(text) ||
-    /(?:^|\s)(?:החזר(?:ה|ות)?|להחזיר|החלפ(?:ה|ות)?|ביטול|זיכוי)(?:\s|$|[?.!,])/i.test(text) ||
-    /(?:^|[\s,])ו?זיכוי/i.test(text) ||
-    /(?:^|\s)אם\s+(?:א)?תחרט/i.test(text) ||
-    /לא\s+מתאים|לא\s+מרוצ(?:ה)?|לא\s+אהב(?:תי)?/i.test(text) ||
-    /(?:ואם|what\s+if).*(?:החזיר|החלפ|ביטול|תחרט|אחר(?:י)?)/i.test(text) ||
-    /(?:החזיר|להחזיר).*(?:תחרט|בטעות)/i.test(text) ||
-    /(?:איזה|מה\s+ה|רשימ(?:ת|ה)\s+)?(?:ה)?סניפ|סניפים\s+יש|לסניף|כתובות?\s+(?:ה)?סניפ/i.test(
-      text
-    ) ||
-    /שעות\s+(?:פעילות|פתיחה)|מתי\s+פתוח/i.test(text) ||
-    /אמצעי\s+תשלום|תשלומים|משלוח\s+חינם/i.test(text)
-  ) {
-    return true
-  }
+  if (isFaqPolicyQuestion(text)) return true
 
   return false
 }
@@ -52,7 +39,17 @@ export function isServiceTopicSwitch(body: string) {
     /לא\s+קיבלתי|מוצר\s+לא\s+נכון|חסר(ים)?\s+ב|הגיע\s+(קרוע|פגום|שבור|לא\s+נכון)/i.test(text) ||
     /חייב(?:ו|ת)?\s+אותי|חשבונית|קבלה|זיכוי\s+לא\s+הופיע|טעות\s+בחיוב/i.test(text) ||
     /לא\s+עונים|התאמת\s+מחיר|ו?זיכוי\s+כספי|מבצע.*\d+\s*%|לא\s+מה\s+שדיברנו/i.test(text) ||
-    /(?:ה)?זמנה\s+קיימ|בעיה\s+ע(?:ם|ם)\s+(?:ה)?הזמנה/i.test(text)
+    /(?:ה)?זמנה\s+קיימ|בעיה\s+ע(?:ם|ם)\s+(?:ה)?הזמנה/i.test(text) ||
+    /(?:ה)?זמנה\s+#?\d{4,}|#\d{4,}-\s*/i.test(text) ||
+    /(?:ל)?שנ(?:ות|ה)\s+(?:א(?:ת|ת)?\s+)?(?:ה)?(?:שטיח|גודל|מידה|הזמנה)|טעיתי\s+ב(?:גודל|מידה)/i.test(
+      text
+    ) ||
+    /(?:שימ(?:י|ו)|ת(?:שימ|שימ)י).*(?:בגינה|ליד|מעבר)|לא\s+אהיה\s+בבית|(?:ת(?:יאום|צר(?:ו|י)\s+קשר)|אספק(?:ה|ת)).*(?:שטיח|משלוח|הזמנה)/i.test(
+      text
+    ) ||
+    /(?:עדיין\s+לא|אף\s+אחד\s+לא)\s+(?:יצר|הגיע|לקח|קיבל|אספ(?:ק|קו))/i.test(text) ||
+    /(?:לא\s+הבנתי|לא\s+י(?:צר|צא)).*(?:א(?:ספקה|ספק)|משלוח|הזמנה)/i.test(text) ||
+    /(?:להוסיף|לשנות|לבטל).*(?:להזמנה|בהזמנה|ברכישה)/i.test(text)
   ) {
     return true
   }

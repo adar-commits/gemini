@@ -1,4 +1,5 @@
 import { getAgentSupabase } from "@/lib/agents/supabase"
+import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import type { MasterAction } from "@/lib/agents/types"
 import type { AgentId } from "@/lib/agents/types"
 
@@ -94,9 +95,11 @@ export async function matchesLearnedReplyGuard(agent: AgentId, reply: string) {
 }
 
 export async function guessLearnedRoute(body: string): Promise<MasterAction | null> {
-  const rules = await loadLearnedRules()
   const text = body.trim()
   if (!text) return null
+  if (isCustomerServiceOpener(text)) return null
+
+  const rules = await loadLearnedRules()
 
   for (const rule of rules) {
     if (rule.rule_kind !== "route_regex" || !rule.pattern || !rule.route_action) continue

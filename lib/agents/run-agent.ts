@@ -5,17 +5,34 @@ import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { guessMasterRoute, shouldContinueWithSpecialist, stickySpecialist } from "@/lib/agents/route-intent"
 import {
-  buildProductHandoffAfterUrl,
   buildProductInventoryHandoff,
   buildProductUrlReminder,
   isProductSearchFailure,
   buildProductUrlRequest,
+  acceptsAsProductReference,
+  buildProductHandoffAfterReference,
   hasProductUrl,
   isProductAvailabilityQuestion,
   isProductInventoryQuestion,
   isProductUrlRequestPending,
+  isProductHandoffPending,
   isSpecificProductMention,
 } from "@/lib/agents/product-handoff"
+import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
+import {
+  buildClosingAckReply,
+  isConversationClosing,
+} from "@/lib/agents/conversation-close"
+import {
+  buildDissatisfactionRescueReply,
+  isDissatisfactionWithoutDefect,
+} from "@/lib/agents/dissatisfaction"
+import {
+  buildOrderDisambiguationReply,
+  buildOrderStatusReply,
+  lookupOrdersByPhone,
+  orderLookupEnabled,
+} from "@/lib/agents/order-lookup"
 import {
   buildHumanHandoffConfirmedReply,
   buildHumanHandoffDeclinedReply,
@@ -58,6 +75,7 @@ import {
   isSalesConsultationTrigger,
   sanitizeSalesReply,
   shouldUseSalesIntakeFastPath,
+  hasOngoingSalesIntake,
 } from "@/lib/agents/sales-intake"
 import {
   formatOrchestraBrief,
@@ -69,7 +87,12 @@ import {
   buildShippingPolicyReply,
   buildShippingStatusReply,
   isShippingPolicyQuestion,
+  isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
+import {
+  buildCarpetRentalPolicyReply,
+  matchPolicySubjects,
+} from "@/lib/agents/policy-subjects"
 import {
   ACTIONS_BY_AGENT,
   CUSTOMER_HEADER,
@@ -115,6 +138,29 @@ function normalizeReply(agent: AgentId, action: AgentAction, reply: string) {
   return `${CUSTOMER_HEADER}\n${trimmed}`
 }
 
+function wasSalesFlowActive(history: HistoryMessage[], lastAgent: AgentId | null) {
+  return (
+    lastAgent === "sales" ||
+    hasOngoingSalesIntake(history) ||
+    isProductUrlRequestPending(history) ||
+    isProductHandoffPending(history)
+  )
+}
+
+/** After FAQ mid-sales: offer to continue the purchase thread. */
+function finalizeFaqReplyForContext(
+  reply: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null
+) {
+  if (!wasSalesFlowActive(history, lastAgent)) return reply
+  if (/רוצים\s+להמשיך|להמשיך\s+בבחיר/i.test(reply)) return reply
+  const withoutCleanEnding = reply
+    .replace(/\n*אפשר לעזור במשהו נוסף\?[^\n]*/i, "")
+    .trimEnd()
+  return `${withoutCleanEnding}\n\nרוצים להמשיך בבחירת השטיח?`
+}
+
 function toModelMessages(history: HistoryMessage[], turn: UserTurn) {
   return [
     ...history.map((message) => ({
@@ -134,6 +180,7 @@ export async function runAgent(
     history?: HistoryMessage[]
     preview?: boolean
     orchestraBrief?: string
+    faqSalesResume?: boolean
   }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
@@ -186,7 +233,10 @@ export async function runAgent(
     rawAction = fallback
   }
   const action = isAction(agent, rawAction) ? rawAction : fallback
-  const reply = normalizeReply(agent, action, rawReply)
+  let reply = normalizeReply(agent, action, rawReply)
+  if (agent === "faq" && options?.faqSalesResume && action === "reply") {
+    reply = normalizeReply(agent, action, finalizeFaqReplyForContext(rawReply, history, "sales"))
+  }
 
   await appendTurn({
     conversationId,
@@ -291,8 +341,32 @@ async function resolveSpecialist(
 
   if (isFaqTopicSwitch(body)) {
     const replyAgent = "faq"
+    const lastAgent = options?.lastAgent ?? null
+
+    if (matchPolicySubjects(body).includes("carpet_rental")) {
+      const reply = normalizeReply(
+        replyAgent,
+        "reply",
+        finalizeFaqReplyForContext(buildCarpetRentalPolicyReply(), history, lastAgent)
+      )
+      await appendTurn({
+        conversationId,
+        agent: replyAgent,
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        persistUser,
+        preview,
+      })
+      return { ok: true, agent: replyAgent, reply, action: "reply", route: [...route, replyAgent] }
+    }
+
     if (isShippingPolicyQuestion(body)) {
-      const reply = normalizeReply(replyAgent, "reply", buildShippingPolicyReply())
+      const reply = normalizeReply(
+        replyAgent,
+        "reply",
+        finalizeFaqReplyForContext(buildShippingPolicyReply(), history, lastAgent)
+      )
       await appendTurn({
         conversationId,
         agent: replyAgent,
@@ -306,7 +380,11 @@ async function resolveSpecialist(
     }
 
     if (isBranchListQuestion(body)) {
-      const reply = normalizeReply(replyAgent, "reply", buildBranchReplyForText(body))
+      const reply = normalizeReply(
+        replyAgent,
+        "reply",
+        finalizeFaqReplyForContext(buildBranchReplyForText(body), history, lastAgent)
+      )
       await appendTurn({
         conversationId,
         agent: replyAgent,
@@ -324,6 +402,7 @@ async function resolveSpecialist(
       history,
       preview,
       orchestraBrief: options?.orchestraBrief,
+      faqSalesResume: wasSalesFlowActive(history, lastAgent),
     })
 
     if (isSpecialistId(result.action) && result.action !== replyAgent) {
@@ -456,23 +535,38 @@ function shippingResult(
   conversationId: string,
   body: string,
   route: AgentId[],
-  preview?: boolean
+  preview?: boolean,
+  phone?: string
 ): Promise<AgentResponse> {
-  const reply = buildShippingStatusReply()
-  return appendTurn({
-    conversationId,
-    agent: "master",
-    userText: body,
-    assistantText: reply,
-    action: "shipping",
-    preview,
-  }).then(() => ({
-    ok: true,
-    agent: "master" as const,
-    reply,
-    action: "shipping" as const,
-    route,
-  }))
+  return resolveShippingStatusReply(body, phone).then((reply) =>
+    appendTurn({
+      conversationId,
+      agent: "master",
+      userText: body,
+      assistantText: reply,
+      action: "shipping",
+      preview,
+    }).then(() => ({
+      ok: true,
+      agent: "master" as const,
+      reply,
+      action: "shipping" as const,
+      route,
+    }))
+  )
+}
+
+async function resolveShippingStatusReply(body: string, phone?: string) {
+  if (phone && orderLookupEnabled() && isShippingStatusQuestion(body)) {
+    const lookup = await lookupOrdersByPhone(phone)
+    if (lookup?.orders.length === 1) {
+      return buildOrderStatusReply(lookup.orders[0]!)
+    }
+    if (lookup && lookup.orders.length > 1) {
+      return buildOrderDisambiguationReply(lookup.orders)
+    }
+  }
+  return buildShippingStatusReply()
 }
 
 async function tryWelcomeGreeting(
@@ -532,7 +626,7 @@ async function tryCasualSmallTalk(
 export async function runMasterConversation(
   conversationId: string,
   turn: UserTurn,
-  options?: { customerName?: string; preview?: boolean }
+  options?: { customerName?: string; preview?: boolean; phone?: string }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
   await loadLearnedRules()
@@ -540,10 +634,12 @@ export async function runMasterConversation(
     await getConversationContext(conversationId)
   const route: AgentId[] = []
   const preview = options?.preview
+  const phone = options?.phone?.trim() || ""
   const userTurnCount = history.filter((m) => m.role === "user").length + 1
   let sharedOptions: {
     customerName?: string
     preview?: boolean
+    phone?: string
     lastAgent: AgentId | null
     lastAction: string | null
     resetAt: string | null
@@ -555,6 +651,58 @@ export async function runMasterConversation(
     lastAction,
     resetAt,
     preview,
+    phone: phone || undefined,
+  }
+
+  if (isWhatsappAutoresponder(body)) {
+    await appendTurn({
+      conversationId,
+      agent: "master",
+      userText: body,
+      assistantText: "",
+      action: "end",
+      preview,
+    })
+    return { ok: true, agent: "master", reply: "", action: "end", route }
+  }
+
+  if (isConversationClosing(body) && !isHumanHandoffPending(history)) {
+    const reply = normalizeReply("faq", "end", buildClosingAckReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "end",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "end", route: [...route, "faq"] }
+  }
+
+  if (isCustomerServiceOpener(body)) {
+    const reply = normalizeReply("faq", "reply", buildCustomerServiceTopicPrompt())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (isDissatisfactionWithoutDefect(body)) {
+    const reply = normalizeReply("faq", "reply", buildDissatisfactionRescueReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
   const learnedFast = await guessLearnedFastReply(body)
@@ -631,6 +779,47 @@ export async function runMasterConversation(
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
   }
 
+  if (isServiceTopicSwitch(body)) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "service",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
+  if (isShippingStatusQuestion(body)) {
+    return shippingResult(conversationId, body, route, preview, phone || undefined)
+  }
+
+  if (isShippingPolicyQuestion(body)) {
+    const reply = normalizeReply("faq", "reply", buildShippingPolicyReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (isFaqTopicSwitch(body)) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "faq",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
   if (
     shouldUseSalesIntakeFastPath(body, history, lastAgent) ||
     (isSalesConsultationTrigger(body) && !isProductAvailabilityQuestion(body))
@@ -652,8 +841,8 @@ export async function runMasterConversation(
     const reply = normalizeReply(
       agent,
       "reply",
-      hasProductUrl(body)
-        ? buildProductHandoffAfterUrl(body)
+      hasProductUrl(body) || acceptsAsProductReference(body)
+        ? buildProductHandoffAfterReference(body)
         : isProductInventoryQuestion(body) || isProductSearchFailure(body)
           ? buildProductInventoryHandoff()
           : buildProductUrlReminder()
@@ -696,7 +885,7 @@ export async function runMasterConversation(
   }
 
   if (isSpecificProductMention(body) && hasProductUrl(body)) {
-    const reply = normalizeReply("sales", "reply", buildProductHandoffAfterUrl(body))
+    const reply = normalizeReply("sales", "reply", buildProductHandoffAfterReference(body))
     await appendTurn({
       conversationId,
       agent: "sales",
@@ -777,7 +966,9 @@ export async function runMasterConversation(
   }
 
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
-  if (next === "shipping") return shippingResult(conversationId, body, route, preview)
+  if (next === "shipping") {
+    return shippingResult(conversationId, body, route, preview, phone || undefined)
+  }
 
   return resolveSpecialist(
     conversationId,

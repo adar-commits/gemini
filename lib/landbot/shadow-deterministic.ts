@@ -1,4 +1,5 @@
 import { selectFaqKb } from "@/lib/agents/kb"
+import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import {
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
@@ -24,6 +25,16 @@ export function deterministicShadowVerdict(
   const issues: ShadowIssueType[] = []
   const reasons: string[] = []
   const fixes: string[] = []
+
+  if (isWhatsappAutoresponder(user)) {
+    return {
+      deterministic: true,
+      verdict: "issue",
+      issue_types: ["off_topic_leak"],
+      reason: "הודעת autoresponder מעסק אחר — לא לענות.",
+      suggested_fix: "autoresponder detection — no reply",
+    }
+  }
 
   if (
     (action === "shipping" || action === "ROUTE_TO_SHIPPING_STATUS") &&

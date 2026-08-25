@@ -1,5 +1,6 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isProductInventoryQuestion, isSpecificProductMention, extractRequestedModel } from "@/lib/agents/product-handoff"
+import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import {
   isFaqTopicSwitch,
   isSalesQuizAffirmation,
@@ -186,6 +187,7 @@ export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
 
   // During an active quiz, only explicit FAQ/service pivots break out — not budget/style answers.
   if (hasOngoingSalesIntake(history) || lastIntakeQuestionKind(history)) {
+    if (isCustomerServiceOpener(trimmed)) return true
     if (isTopicPivotPhrase(trimmed)) return true
     if (isFaqTopicSwitch(trimmed)) return true
     if (isServiceTopicSwitch(trimmed)) return true
@@ -558,6 +560,12 @@ function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
   if (!combined) return
 
+  const slashMatch = combined.match(/\b(\d{2,4})\s*[\/x×]\s*(\d{2,4})\b/)
+  if (slashMatch) {
+    intake.rugSize = `${slashMatch[1]}/${slashMatch[2]}`
+    return
+  }
+
   const numericMatch = combined.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
   if (numericMatch) {
     intake.sofaSize = numericMatch[1].replace(/\s/g, "")
@@ -834,8 +842,14 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   reconcilePetsFromThread(intake, history, body)
 
   if (!intake.rugSize) {
+    const slashSizeMatch = body.trim().match(/\b(\d{2,4})\s*[\/x×]\s*(\d{2,4})\b/)
+    if (slashSizeMatch) {
+      intake.rugSize = `${slashSizeMatch[1]}/${slashSizeMatch[2]}`
+    }
     const rugSizeMatch = text.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
-    if (rugSizeMatch) intake.rugSize = `${rugSizeMatch[1].replace(/\s/g, "")} מטר`
+    if (!intake.rugSize && rugSizeMatch) {
+      intake.rugSize = `${rugSizeMatch[1].replace(/\s/g, "")} מטר`
+    }
   }
 
   if (!intake.sofaSize) {
@@ -914,7 +928,21 @@ function isPriceFirstFlow(text: string) {
   return /תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש\s+ב/.test(text)
 }
 
+const VISUAL_CONSULT_RE =
+  /ת(?:מונה|מונ(?:ה|ות))|צ(?:לם|למ(?:י|ו)|ילום)|בין\s+שני\s+שטיח|ה(?:שוו|שווה)\s+בין|ת(?:ייעצ|ייעצ)|י(?:ועץ|יעוץ)\s+(?:בין|ל)?(?:בחיר|השווא)/i
+
+export function isVisualConsultationRequest(text: string) {
+  return VISUAL_CONSULT_RE.test(text.trim())
+}
+
+function visualConsultAck(body: string) {
+  if (!isVisualConsultationRequest(body)) return ""
+  return "בשמחה — אפשר לשלוח תמונה של החלל ונעביר ליועץ שיעזור להשוות בין האפשרויות.\n"
+}
+
 function introForFlow(text: string, history: HistoryMessage[], intake: SalesIntake) {
+  const visualAck = visualConsultAck(text)
+  if (visualAck) return visualAck
   if (hasOngoingSalesIntake(history)) return ""
   if (intakeHasProgress(intake)) return ""
   if (

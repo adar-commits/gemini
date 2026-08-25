@@ -130,6 +130,7 @@ export function shouldContinueWithSpecialist(
   history: HistoryMessage[],
   sticky: SpecialistId
 ) {
+  if (isCustomerServiceOpener(body)) return false
   if (isHumanHandoffPending(history) && !breaksPendingHandoff(body)) return true
   if (isConfirmationPending(history)) return true
 
@@ -141,6 +142,7 @@ export function shouldContinueWithSpecialist(
   if (isSalesTopicSwitch(body) && sticky !== "sales") return false
 
   if (sticky === "sales" && hasOngoingSalesIntake(history)) {
+    if (isCustomerServiceOpener(body)) return false
     if (isFaqTopicSwitch(body) || isServiceTopicSwitch(body)) return false
     return true
   }

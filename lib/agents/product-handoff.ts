@@ -1,6 +1,8 @@
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
-import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
+import { isConversationClosing } from "@/lib/agents/conversation-close"
+import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
+import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 
 const CONSULTATION_RE =
   /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|אפשר\s+ל(?:קנות|רכוש|הזמין)|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים/i
@@ -176,12 +178,28 @@ export function buildProductUrlReminder() {
 כשיהיה לך קישור לדף המוצר מהאתר — שלח ואמשיך משם.`
 }
 
-/** After receiving a product URL — acknowledge and offer human handoff. */
-export function buildProductHandoffAfterUrl(_body: string) {
+/** Customer replied after we asked for a product URL — accept URL, model name, or any substantive text. */
+export function acceptsAsProductReference(body: string) {
+  const text = body.trim()
+  if (!text || text.length < 2) return false
+  if (isCustomerServiceOpener(text)) return false
+  if (isConversationClosing(text)) return false
+  if (isFaqTopicSwitch(text) || isServiceTopicSwitch(text)) return false
+  if (/^(?:כן|לא)(?:[\s,.!?]|$)/i.test(text) && text.length < 10) return false
+  return true
+}
+
+/** After receiving a product URL or any accepted product reference — offer human handoff. */
+export function buildProductHandoffAfterReference(_body: string) {
   return `${CUSTOMER_HEADER}
-קיבלתי את הקישור, תודה.
+קיבלתי, תודה.
 אין לי גישה ישירה לקטלוג ולמלאי — יועץ המכירות יוכל לעזור עם פרטים, מחירים וזמינות.
 האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`
+}
+
+/** @deprecated Use buildProductHandoffAfterReference */
+export function buildProductHandoffAfterUrl(body: string) {
+  return buildProductHandoffAfterReference(body)
 }
 
 /** Stock / price / availability — apologize and offer human; never quote customer text. */

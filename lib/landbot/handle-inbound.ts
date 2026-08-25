@@ -148,6 +148,7 @@ export async function handleLandbotInbound(
 
   const result = await runMasterConversation(conversationId, turn, {
     customerName: customerName || undefined,
+    phone: options?.phone?.trim() || undefined,
   })
   const draftReply = outboundReply(result)
 
