@@ -35,7 +35,9 @@ import {
   isOrderConfirmationYes,
   isOrderConfirmationNo,
   isPhoneLookupConfirmPending,
+  isOrderNumberRequestPending,
   extractOrderNumber,
+  extractOrderReference,
   extractPhoneFromText,
   orderLookupEnabled,
 } from "@/lib/agents/order-lookup"
@@ -555,13 +557,20 @@ async function resolveSpecialist(
 }
 
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
-  if (isPhoneLookupConfirmPending(history) || isOrderConfirmationPending(history)) {
+  if (
+    isOrderNumberRequestPending(history) ||
+    isPhoneLookupConfirmPending(history) ||
+    isOrderConfirmationPending(history)
+  ) {
     return true
   }
 
-  if (extractOrderNumber(body)) return true
+  if (extractOrderReference(body)) return true
 
-  if (extractPhoneFromText(body) && isShippingStatusQuestion(body)) {
+  if (
+    extractPhoneFromText(body) &&
+    (isPhoneLookupConfirmPending(history) || isOrderNumberRequestPending(history))
+  ) {
     return true
   }
 

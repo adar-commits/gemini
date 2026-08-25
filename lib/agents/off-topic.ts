@@ -26,12 +26,13 @@ export function isHumanHandoffPending(history: HistoryMessage[]) {
   const last = lastAssistantText(history)
   return (
     /שנעביר את השיחה לנציג אנושי/.test(last) ||
-    /האם להעביר את הפנייה כעת ליועץ מכירות/.test(last)
+    /האם להעביר את הפנייה כעת ליועץ מכירות/.test(last) ||
+    /נציג שירות אנושי,בסדר\?/.test(last)
   )
 }
 
 export function isHumanHandoffAffirmation(body: string) {
-  return /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|ok|yes|👍)/i.test(body.trim())
+  return /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|ok|yes|👍)/i.test(body.trim())
 }
 
 export function isHumanHandoffDecline(body: string) {

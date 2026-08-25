@@ -309,8 +309,24 @@ export async function lookupDigitalDocument(
 }
 
 export function extractOrderNumber(text: string) {
-  const match = text.match(/\b(SO\d{5,})\b/i)
+  const match = text.match(/\b((?:SO|IN|OV)\d+)\b/i)
   return match?.[1]?.toUpperCase() ?? null
+}
+
+/** Order reference from customer reply — prefixed (SO/IN/OV) or bare digits (not a phone). */
+export function extractOrderReference(text: string) {
+  const prefixed = extractOrderNumber(text)
+  if (prefixed) return prefixed
+
+  const phone = extractPhoneFromText(text)
+  for (const match of text.match(/\b(\d{4,})\b/g) ?? []) {
+    const asPhone = phoneForOrderApi(match)
+    if (/^0\d{9}$/.test(asPhone)) continue
+    if (phone && asPhone === phone) continue
+    return match
+  }
+
+  return null
 }
 
 export function findOrderByNumber(
@@ -441,25 +457,40 @@ export function extractPhoneFromText(text: string) {
   return null
 }
 
+export function isOrderNumberRequestPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return /אוכל לקבל את מספר ההזמנה/i.test(message.content)
+  }
+  return false
+}
+
+export function buildOrderNumberRequestPrompt() {
+  return `${CUSTOMER_HEADER}
+אוכל לקבל את מספר ההזמנה שלך?`
+}
+
 export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
-    return /האם ההזמנה על המספר/i.test(message.content)
+    return (
+      /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
+      /האם ההזמנה על המספר/i.test(message.content)
+    )
   }
   return false
 }
 
 export function buildPhoneLookupConfirmPrompt(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
-אם אין לך מספר הזמנה אנסה לאתר בעצמי, האם ההזמנה על המספר ${formatDisplayPhone(whatsappPhone)}?
-
-כתבו/י כן אם נכון, לא אם לא, או שלח/י מספר טלפון אחר.`
+אני יכול לנסות לאתר את ההזמנה לפי הטלפון שלך, האם ההזמנה היא על טלפון מס׳ ${formatDisplayPhone(whatsappPhone)}?`
 }
 
 export function buildPhoneLookupDeclinedReply() {
   return `${CUSTOMER_HEADER}
-אין בעיה. האם להעביר את השיחה לנציג שירות שיבדוק את ההזמנה באופן פרטני?`
+אוקיי במקרה כזה אצטרך להעביר אותך לנציג שירות אנושי,בסדר?`
 }
 
 export function buildShippingNoPhoneReply() {
@@ -485,6 +516,31 @@ export function isPhoneLookupConfirmYes(body: string) {
 
 export function isPhoneLookupConfirmNo(body: string) {
   return isOrderConfirmationNo(body)
+}
+
+async function lookupOrderByReference(input: {
+  orderReference: string
+  whatsappPhone?: string
+  body: string
+}) {
+  const lookupPhone =
+    extractPhoneFromText(input.body) ||
+    (input.whatsappPhone ? phoneForOrderApi(input.whatsappPhone) : null)
+  if (!lookupPhone) return buildPhoneLookupDeclinedReply()
+
+  const orders = await lookupOrdersByPhone(lookupPhone)
+  if (orders == null) return buildOrderLookupApiFailureReply()
+
+  const prefixed = extractOrderNumber(input.orderReference)
+  const matched = prefixed
+    ? findOrderByNumber(orders, prefixed)
+    : orders.find((order) =>
+        order.orderNumber.replace(/\D/g, "").includes(input.orderReference.replace(/\D/g, ""))
+      ) ?? null
+
+  if (matched) return buildOrderStatusReply(matched)
+  if (orders.length === 0) return buildNoOrdersFoundReply()
+  return buildOrderNumberNotFoundReply(input.orderReference)
 }
 
 async function lookupAndStartOrderConfirm(phone: string) {
@@ -551,16 +607,11 @@ export async function resolveOrderShippingReply(input: {
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
 
-  if (!orderLookupEnabled()) {
-    if (whatsappPhone) return buildPhoneLookupConfirmPrompt(whatsappPhone)
-    return buildShippingNoPhoneReply()
-  }
-
   if (isOrderConfirmationPending(history)) {
     const lookupPhone =
       extractPhoneFromText(body) ||
       (whatsappPhone ? phoneForOrderApi(whatsappPhone) : null)
-    if (!lookupPhone) return buildShippingNoPhoneReply()
+    if (!lookupPhone) return buildPhoneLookupDeclinedReply()
     return resolveOrderConfirmationFlow({ body, lookupPhone, history })
   }
 
@@ -569,7 +620,7 @@ export async function resolveOrderShippingReply(input: {
     if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone)
 
     if (isPhoneLookupConfirmYes(body)) {
-      if (!whatsappPhone) return buildShippingNoPhoneReply()
+      if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
       return lookupAndStartOrderConfirm(whatsappPhone)
     }
 
@@ -579,37 +630,31 @@ export async function resolveOrderShippingReply(input: {
 
     if (whatsappPhone) {
       return `${CUSTOMER_HEADER}
-לא הבנתי — האם ההזמנה על המספר ${formatDisplayPhone(whatsappPhone)}?
-כתבו/י כן, לא, או שלח/י מספר טלפון אחר.`
+לא הבנתי — האם ההזמנה היא על טלפון מס׳ ${formatDisplayPhone(whatsappPhone)}?`
     }
 
     return buildPhoneLookupDeclinedReply()
   }
 
-  const explicitOrder = extractOrderNumber(body)
-  if (explicitOrder) {
-    const lookupPhone =
-      extractPhoneFromText(body) ||
-      (whatsappPhone ? phoneForOrderApi(whatsappPhone) : null)
-    if (!lookupPhone) return buildShippingNoPhoneReply()
+  if (isOrderNumberRequestPending(history)) {
+    const orderReference = extractOrderReference(body)
+    if (orderReference) {
+      return lookupOrderByReference({ orderReference, whatsappPhone, body })
+    }
 
-    const orders = await lookupOrdersByPhone(lookupPhone)
-    if (orders == null) return buildOrderLookupApiFailureReply()
+    if (whatsappPhone) return buildPhoneLookupConfirmPrompt(whatsappPhone)
+    return buildPhoneLookupDeclinedReply()
+  }
 
-    const matched = findOrderByNumber(orders, explicitOrder)
-    if (matched) return buildOrderStatusReply(matched)
-    if (orders.length === 0) return buildNoOrdersFoundReply()
-    return buildOrderNumberNotFoundReply(explicitOrder)
+  const orderReference = extractOrderReference(body)
+  if (orderReference) {
+    return lookupOrderByReference({ orderReference, whatsappPhone, body })
   }
 
   const providedPhone = extractPhoneFromText(body)
-  if (providedPhone) {
+  if (providedPhone && orderLookupEnabled()) {
     return lookupAndStartOrderConfirm(providedPhone)
   }
 
-  if (whatsappPhone) {
-    return buildPhoneLookupConfirmPrompt(whatsappPhone)
-  }
-
-  return buildShippingNoPhoneReply()
+  return buildOrderNumberRequestPrompt()
 }
