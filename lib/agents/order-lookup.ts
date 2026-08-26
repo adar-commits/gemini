@@ -39,6 +39,7 @@ export type OrderShipmentStatus = {
   statusCode: string
   statusLabel: string
   branchLabel: string
+  branchCode: string | null
   totalPrice: number | null
   statusDescription: string
   deliveredTo?: string | null
@@ -274,6 +275,7 @@ export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus 
     statusCode,
     statusLabel,
     branchLabel: orderBranchLabel(row),
+    branchCode: row.ZPIT_DISTERIBRANCH?.trim() || null,
     totalPrice: typeof row.TOTPRICE === "number" ? row.TOTPRICE : null,
     statusDescription: "",
     deliveredTo: deliveredToFromRow(row),

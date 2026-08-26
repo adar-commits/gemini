@@ -26,10 +26,10 @@ import {
 } from "@/lib/agents/conversation-close"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
-  buildServicePraiseReply,
   buildWebsiteIssueHandoffOffer,
-  isServicePraise,
   isWebsiteIssueComplaint,
+  resolveServicePraiseReply,
+  shouldHandleServicePraiseFlow,
 } from "@/lib/agents/feedback-handling"
 import {
   resolvePostPurchaseCaseReply,
@@ -713,6 +713,7 @@ async function resolveSpecialist(
 }
 
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
+  if (shouldHandleServicePraiseFlow(body, history)) return false
   if (shouldHandlePostPurchaseCaseFlow(body, history)) return false
   if (isPreorderDelayComplaint(body)) return false
 
@@ -817,6 +818,44 @@ function postPurchaseCaseResult(
       reply: assistantInserted ? reply : "",
       action: "reply" as const,
       route: [...route, "service"],
+    }
+  })
+}
+
+function servicePraiseResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean,
+  phone?: string,
+  history?: HistoryMessage[]
+): Promise<AgentResponse> {
+  return resolveServicePraiseReply({ body, phone, history }).then(async (reply) => {
+    if (wasReplyRecentlySent(history ?? [], reply)) {
+      return {
+        ok: true,
+        agent: "master" as const,
+        reply: "",
+        action: "reply" as const,
+        route,
+      }
+    }
+
+    const { assistantInserted } = await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+
+    return {
+      ok: true,
+      agent: "faq" as const,
+      reply: assistantInserted ? reply : "",
+      action: "reply" as const,
+      route: [...route, "faq"],
     }
   })
 }
@@ -1004,19 +1043,6 @@ export async function runMasterConversation(
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
-  if (isServicePraise(body)) {
-    const reply = normalizeReply("faq", "reply", buildServicePraiseReply())
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action: "reply",
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
-  }
-
   if (isDissatisfactionWithoutDefect(body)) {
     return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
@@ -1093,6 +1119,10 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
+  }
+
+  if (shouldHandleServicePraiseFlow(body, history)) {
+    return servicePraiseResult(conversationId, body, route, preview, phone, history)
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history)) {
