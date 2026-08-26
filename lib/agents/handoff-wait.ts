@@ -34,5 +34,5 @@ export function breaksPendingHandoff(body: string) {
 }
 
 export function buildStuckHandoffReply() {
-  return "לא הצלחתי לטפל בזה כמו שצריך. האם להעביר את השיחה לנציג אנושי?"
+  return "לא לגמרי הבנתי — רוצה שנעביר לנציג שימשיך מכאן?"
 }

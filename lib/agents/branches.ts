@@ -121,7 +121,7 @@ export function buildBranchReplyForText(text: string) {
 ${entry.address}${entry.phone ? ` · ${entry.phone}` : ""}
 *שעות פעילות:* ${hours}
 
-אפשר לעזור במשהו נוסף? כדי להתחיל מחדש, כתבו "התחלה".`
+אם צריך עוד משהו — כאן.`
   }
 
   if (filtered.length > 1) return formatBranchList(filtered)
@@ -149,7 +149,7 @@ ${DEFAULT_HOURS}${
       : ""
   }
 
-אפשר לעזור במשהו נוסף? כדי להתחיל מחדש, כתבו "התחלה".`
+אם צריך עוד משהו — כאן.`
 }
 
 export type UncertaintyDepartment = "service" | "sales" | "faq"

@@ -451,7 +451,7 @@ export function buildOrderStatusReply(order: OrderShipmentStatus) {
 לגבי הזמנה ${order.orderNumber} (${order.branchLabel}):
 ${order.statusDescription}
 
-אפשר לעזור במשהו נוסף? אם צריך נציג — כתבו "נציג". כדי להתחיל מחדש, כתבו "התחלה".`
+אם צריך עוד משהו — כאן. אפשר גם לכתוב נציג.`
 }
 
 export function isBotHelpJustDelivered(history: HistoryMessage[]) {
@@ -460,7 +460,7 @@ export function isBotHelpJustDelivered(history: HistoryMessage[]) {
     if (message.role !== "assistant") continue
     return (
       (/לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(message.content) &&
-        /אפשר לעזור במשהו נוסף/i.test(message.content)) ||
+        /(?:אפשר לעזור במשהו נוסף|אם צריך עוד משהו)/i.test(message.content)) ||
       /הנה הקישור למסמך/i.test(message.content)
     )
   }
@@ -503,7 +503,7 @@ export function buildDigitalDocumentReply(link: string) {
 הנה הקישור למסמך הדיגיטלי:
 ${link}
 
-אפשר לעזור במשהו נוסף? כדי להתחיל מחדש, כתבו "התחלה".`
+אם צריך עוד משהו — כאן.`
 }
 
 export function buildNoOrdersFoundReply() {

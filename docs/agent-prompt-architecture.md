@@ -35,7 +35,7 @@ Every agent system prompt is assembled in this order (see `prompts.ts`):
 ├─────────────────────────────────────────┤
 │ L3  SHARED FRAMEWORK — universal rules    │  _framework.md
 ├─────────────────────────────────────────┤
-│ L4  INTENT DECODER — say → mean → route │  _intent-decoder.md
+│ L4  INTENT — want, not wording          │  _intent-decoder.md
 ├─────────────────────────────────────────┤
 │ L5  DOMAIN PLAYBOOK — flows & scripts   │  sales/faq/service/master.md
 ├─────────────────────────────────────────┤
@@ -50,7 +50,7 @@ Every agent system prompt is assembled in this order (see `prompts.ts`):
 | Agent | Real goal | Success looks like | Anti-goals (never) |
 |---|---|---|---|
 | **Master** | Put each message in exactly one lane | Silent correct route every turn | Speak to customer; keyword-route; stay on wrong agent |
-| **FAQ** | Deliver **exact** policy/store facts from KB | One correct answer + clean ending | Invent policy; collect order details; empathize |
+| **FAQ** | Deliver **exact** policy/store facts from KB | One correct answer, human wrap-up | Invent policy; collect order details; emotional theater |
 | **Sales** | Collect **minimum** facts for human consultant OR verified KB answer | Right handoff with summary OR precise fact | Fake catalog/stock; design opinions; website price-filter redirect |
 | **Service** | Collect **minimum** case facts → human CS | ≤3 intake turns then transfer | Promise outcomes; repeat policy; diagnose photos |
 
@@ -64,7 +64,7 @@ Each specialist runs this **before** generating text:
 3. GROUND  — Is the answer in KB / collected context / nowhere?
    → KB fact     : answer exactly
    → Need human  : handoff path
-   → Unknown     : route or uncertainty line (never guess)
+   → Unknown     : one clarifying question; then human if still unclear (never guess facts)
 4. ACT        — reply | silent route | human_*
 5. VALIDATE   — header, one question max, no invented facts
 ```
@@ -83,10 +83,9 @@ Universal rules injected into all conversational agents:
 - Voice & header contract
 - Anti-hallucination oath
 
-### Layer 4 — Intent decoder (`_intent-decoder.md`)
+### Layer 4 — Intent (`_intent-decoder.md`)
 
-Maps **surface Hebrew → underlying need → agent/action**.
-Critical because customers rarely say the department name.
+Read the **want** (info / buy / fix / track / human). Examples illustrate the shape — they are not a closed dictionary. New Hebrew phrasing still routes by the want. "Got the product + any issue X" is Service; the specific X is a human's job.
 
 Examples:
 
@@ -116,8 +115,9 @@ Machine JSON schema expectations. Never mixed with customer voice rules.
 
 ### 3.1 Pragmatic intent (not literal text)
 
-Customers optimize for **speed**, not taxonomy:
+Customers optimize for **speed**, not taxonomy. The bot must think at the **want** level — it cannot and should not map every Hebrew variation.
 
+- **Got the product + any issue X** (stain, tear, smell, "לא תקין", "משהו מוזר") → Service. The specific X is a human's job.
 - **"יש לי בעיה"** → could be defect (Service), policy (FAQ), or shipping (Shipping). Use thread context + next clarifier only if one essential disambiguation is needed — do not triage with a questionnaire.
 - **"לא מרוצה"** after delivery → usually wants return/exchange **options** (FAQ), not immediate CS intake.
 - **"לא מרוצה"** + damage words → Service.
@@ -210,13 +210,12 @@ One assistant, one header:
 
 | Do | Don't |
 |---|---|
-| Impersonal/neutral Hebrew | Gendered singular (תרצי/תרצה/כתבי) |
-| Concise facts | AI fluff (איזה כיף, וואו, נשמע מיוחד) |
-| One main question per turn | Stack questions |
-| "אצלנו" / "באתר שלנו" (FAQ/Sales) | "נשמח", "מצטערים" (Service) |
+| Neutral Hebrew, light warmth ("אוקיי, מובן") | Gendered singular (תרצי/תרצה/כתבי) |
+| Same official facts, human wrap-up | AI fluff (איזה כיף, וואו) or emotional theater (זה מבאס) |
+| One main question per turn | Stack questions; freeze on taxonomy |
+| Understand the want, even in new wording | Require a table-row match |
 
-FAQ informational replies end with:
-`אפשר לעזור במשהו נוסף? כדי להתחיל מחדש, כתבו "התחלה".`
+FAQ informational replies wrap naturally (`אם צריך עוד משהו — כאן.`) — never require `כתבו "התחלה"`.
 
 ---
 
@@ -227,7 +226,7 @@ FAQ informational replies end with:
 | Specific model/stock/SKU | human_sales offer | Required handoff script |
 | Sales intake complete + confirmed | human_sales | Short confirmation |
 | Service intake complete | human_service | Short "הועבר לנציג" line |
-| Off-topic | human_sales or human_service offer | Exact script |
+| Off-topic | reply (stay in chat) | Friendly redirect; human only if they insist |
 | FAQ unknown (non-sales topic) | service offer | Exact script |
 | Customer declines handoff | reply | "אין בעיה. אפשר להמשיך מכאן." |
 
@@ -286,7 +285,7 @@ When editing any prompt file:
 - [ ] North star still accurate at top?
 - [ ] Decision tree runs before domain flows?
 - [ ] No duplicate rule in both `_framework.md` and agent file?
-- [ ] New Hebrew phrase added to `_intent-decoder.md`?
+- [ ] New example added to `_intent-decoder.md` only if it teaches a new *want*, not a new synonym?
 - [ ] Handoff scripts unchanged unless product requested?
 - [ ] Output actions match `types.ts` `ACTIONS_BY_AGENT`?
 - [ ] Shadow-review / trainer examples updated if behavior changed?
@@ -298,7 +297,7 @@ When editing any prompt file:
 ```
 lib/agents/prompts/
   _framework.md       — L3 shared behavioral contract
-  _intent-decoder.md  — L4 Hebrew intent tables
+  _intent-decoder.md  — L4 want-not-wording guide
   master.md           — L1+L5 router playbook
   faq.md              — L1+L5 info/policy playbook
   sales.md            — L1+L5 consultation playbook

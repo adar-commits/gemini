@@ -63,7 +63,7 @@ import {
   isHumanHandoffDecline,
   isHumanHandoffPending,
   isOffTopicQuestion,
-  OFF_TOPIC_HANDOFF_OFFER,
+  OFF_TOPIC_REDIRECT,
 } from "@/lib/agents/off-topic"
 import {
   buildCustomerServiceTopicPrompt,
@@ -214,6 +214,7 @@ function finalizeFaqReplyForContext(
   if (/רוצים\s+להמשיך|להמשיך\s+בבחיר/i.test(reply)) return reply
   const withoutCleanEnding = reply
     .replace(/\n*אפשר לעזור במשהו נוסף\?[^\n]*/i, "")
+    .replace(/\n*אם צריך עוד משהו[^\n]*/i, "")
     .trimEnd()
   return `${withoutCleanEnding}\n\nרוצים להמשיך בבחירת השטיח?`
 }
@@ -351,7 +352,7 @@ async function resolveSpecialist(
   }
 
   if (isNonSubstantiveFollowUp(body) && !isHumanHandoffPending(history)) {
-    const reply = normalizeReply("faq", "reply", buildStuckHandoffReply())
+    const reply = normalizeReply("faq", "reply", buildCasualSmallTalkReply("הלו"))
     await appendTurn({
       conversationId,
       agent: "faq",
@@ -423,7 +424,7 @@ async function resolveSpecialist(
 
   if (isOffTopicQuestion(body)) {
     const agent = specialist === "master" ? "faq" : specialist
-    const reply = normalizeReply(agent, "reply", OFF_TOPIC_HANDOFF_OFFER)
+    const reply = normalizeReply(agent, "reply", OFF_TOPIC_REDIRECT)
     await appendTurn({
       conversationId,
       agent,
@@ -988,7 +989,7 @@ export async function runMasterConversation(
   }
 
   if (isNonSubstantiveFollowUp(body) && !isHumanHandoffPending(history)) {
-    const reply = normalizeReply("faq", "reply", buildStuckHandoffReply())
+    const reply = normalizeReply("faq", "reply", buildCasualSmallTalkReply("הלו"))
     await appendTurn({
       conversationId,
       agent: "faq",

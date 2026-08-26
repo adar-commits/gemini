@@ -114,7 +114,7 @@ export function proposeDeterministicFixes(input: {
       rule_kind: "prompt_rule",
       agent: "all",
       rule_text:
-        "Off-topic questions: reply only with *הום בוט :)* then לא הצלחתי להבין את השאלה, נסה שוב — never answer the unrelated question.",
+        "Off-topic: friendly redirect back to HoM help. Do not answer trivia/politics. Do not dump to a human on the first playful or fuzzy message.",
     })
   }
 

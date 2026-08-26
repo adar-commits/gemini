@@ -15,6 +15,9 @@ export type PostPurchaseCaseKind = "defect" | "dissatisfaction" | "preorder_dela
 const DEFECT_RE =
   /פגם|פגום|פגומ(?:ה|ים|ות)|קרוע|שבור|סדוק|מקולקל|נזק|ליקוי|פגם\s+ב(?:ה)?ובלה/i
 
+const SOFT_PROBLEM_RE =
+  /כתם|כתמים|ריח|רטוב|דהוי|לא\s+תקין|לא\s+בסדר|מוזר|יש\s+בעיה|משהו\s+לא\s+כ(?:\"|״|')?כ/i
+
 const RECEIVED_RE = /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|קיבלנו)/i
 const PRODUCT_RE = /(?:שטיח|פוף|מוצר|הזמנה|תמונ(?:ה|ת)|כרית)/i
 
@@ -30,8 +33,19 @@ const PREORDER_RE =
 const DELAY_RE =
   /מ(?:אחר|ש(?:ך|כה))|מעוכ(?:ב(?:ת)?|ב)|ע(?:יכוב|וכב)|לא\s+הגיע|מתי\s+יגיע|סטטוס\s+(?:ה)?(?:הגעה|משלוח)/i
 
+function matchesReceivedWithProblem(text: string) {
+  if (!RECEIVED_RE.test(text)) return false
+  if (DEFECT_RE.test(text) || SOFT_PROBLEM_RE.test(text)) return true
+  if (/(?:יש|קיים)\s+(?:ב(?:ו|ה|הם)?\s+)?(?:פגם|ליקוי|בעיה)/i.test(text)) return true
+  if (/(?:אבל|ויש|וזה|עם).{0,40}(?:בעיה|לא\s+תקין|לא\s+בסדר|מוזר|כתם|ריח|חסר|לא\s+נכון)/i.test(text)) {
+    return true
+  }
+  return false
+}
+
 function matchesDefect(text: string) {
   if (!text) return false
+  if (matchesReceivedWithProblem(text)) return true
   if (DEFECT_RE.test(text)) {
     if (RECEIVED_RE.test(text) || PRODUCT_RE.test(text)) return true
     if (/(?:יש|קיים)\s+(?:ב(?:ו|ה|הם)?\s+)?(?:פגם|ליקוי)/i.test(text)) return true

@@ -5,6 +5,10 @@ import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 export const OFF_TOPIC_HANDOFF_OFFER =
   "אני לא בטוח איך להגיב לזה, שנעביר את השיחה לנציג אנושי?"
 
+/** Meta / playful / unrelated — stay in chat, do not dump to a human. */
+export const OFF_TOPIC_REDIRECT =
+  "כן, אני הום בוט :) כאן בעיקר לגבי הזמנות, מוצרים ושירות. במה אפשר לעזור?"
+
 function lastAssistantText(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
