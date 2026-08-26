@@ -201,6 +201,7 @@ export async function runInactivityWatch(payload: InactivityWatchPayload) {
   return { ok: true, sent: "close" as const }
 }
 
+/** Ping after INACTIVITY_PING_MS; close is handled by the conversation-idle cron. */
 export async function runInactivityPipeline(input: {
   conversationId: string
   customerId: number
@@ -208,30 +209,13 @@ export async function runInactivityPipeline(input: {
   customerPhone?: string
   watchAssistantAt: string
 }) {
-  const base = {
+  return runInactivityWatch({
+    phase: "ping",
     conversationId: input.conversationId,
     customerId: input.customerId,
     customerName: input.customerName,
     customerPhone: input.customerPhone,
-  }
-
-  const ping = await runInactivityWatch({
-    phase: "ping",
-    ...base,
     watchAssistantAt: input.watchAssistantAt,
-  })
-  if (ping.sent !== "ping") return ping
-
-  const session = await getSessionInactivityState(input.conversationId)
-  const watchPingSentAt = asText(session?.inactivity_ping_sent_at)
-  if (!watchPingSentAt) {
-    return { ok: true, skipped: "ping_not_recorded" as const }
-  }
-
-  return runInactivityWatch({
-    phase: "close",
-    ...base,
-    watchPingSentAt,
   })
 }
 

@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/conversation-idle",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/shadow-review",
       "schedule": "0 5,17 * * *"
     },

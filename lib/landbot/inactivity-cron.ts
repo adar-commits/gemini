@@ -227,11 +227,16 @@ export async function processInactivityTimeouts() {
       const waitingMs = msSince(row.last_assistant_at)
       const pingSentAt = asText(row.inactivity_ping_sent_at)
       const sincePingMs = msSince(pingSentAt)
+      const lastUserAt = asText(row.last_user_at)
+      const userRepliedAfterPing =
+        Boolean(pingSentAt) &&
+        Boolean(lastUserAt) &&
+        Date.parse(lastUserAt) >= Date.parse(pingSentAt) - 1000
 
       if (
         pingSentAt &&
         sincePingMs >= INACTIVITY_CLOSE_AFTER_PING_MS &&
-        waitingMs >= INACTIVITY_PING_MS + INACTIVITY_CLOSE_AFTER_PING_MS
+        !userRepliedAfterPing
       ) {
         const reply = buildInactivityCloseReply()
         await assignToApiAgent(customerId)
