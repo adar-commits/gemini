@@ -99,6 +99,24 @@ function lastAssistantText(history: HistoryMessage[]) {
   return ""
 }
 
+function isInactivityAssistantMessage(content: string) {
+  return (
+    /עדיין שם/.test(content) ||
+    /נסגרה עקב אי מענה/.test(content) ||
+    /ניתן לשלוח הודעה חוזרת/.test(content)
+  )
+}
+
+function lastIntakeAssistantText(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (questionKindForText(message.content)) return message.content
+  }
+  return ""
+}
+
 export function hasUnverifiedProductRequest(text: string) {
   if (/carpetshop\.co\.il\/products|pozitiveshop\.co\.il\/products/i.test(text)) {
     return false
@@ -173,18 +191,9 @@ function petsQuestionWasAsked(history: HistoryMessage[]) {
 }
 
 function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
-  const last = lastAssistantText(history)
-  if (/לאיזה חלל|לאן השטיח/.test(last)) return "space"
-  if (/באיזה מוצר/.test(last)) return "product"
-  if (/החדר משמש|איך חדר השינה/.test(last)) return "bedroom"
-  if (/ילדים קטנים/.test(last)) return "children"
-  if (/בעלי חיים|להתאים לבעלי|חתול|כלב|חיה(?:ות)?/.test(last)) return "pets"
-  if (/סגנון|צבע מועדף|יוקרתי|מודרני|כפרי/.test(last)) return "style"
-  if (/מידת הספה|גודל כללי של הסלון|מקום פנוי|מרפס|סלון/.test(last)) return "sofa"
-  if (/תקציב|מחיר|עלות|כמה\s+מוכנ/.test(last)) return "budget"
-  if (/דרישות מיוחדות|ניקוי|כביסה/.test(last)) return "practical"
-  if (/האם זה נכון|אני צודק/.test(last)) return "confirm"
-  return null
+  const last = lastIntakeAssistantText(history)
+  if (!last) return null
+  return questionKindForText(last)
 }
 
 function questionKindForText(question: string): string | null {
@@ -439,6 +448,7 @@ function trailingIntakeAssistantBurst(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") break
+    if (isInactivityAssistantMessage(message.content)) continue
     const kind = questionKindForText(message.content)
     if (!kind) {
       if (burst.length > 0) break
@@ -513,7 +523,7 @@ function formatIntakeQuestionReply(
     return SOFT_REPROMPT[kind] ?? question
   }
   const normalizedQuestion = normalizeReplyText(question)
-  const last = normalizeReplyText(lastAssistantText(history))
+  const last = normalizeReplyText(lastIntakeAssistantText(history))
   if (normalizedQuestion === last && kind) {
     return SOFT_REPROMPT[kind] ?? question
   }
@@ -534,6 +544,11 @@ function parseIntakeQAPairs(messages: HistoryMessage[]): IntakePair[] {
       continue
     }
 
+    if (isInactivityAssistantMessage(message.content)) {
+      index += 1
+      continue
+    }
+
     const firstKind = questionKindForText(message.content)
     if (!firstKind) {
       index += 1
@@ -543,6 +558,10 @@ function parseIntakeQAPairs(messages: HistoryMessage[]): IntakePair[] {
     const burstKinds: string[] = [firstKind]
     let scan = index + 1
     while (scan < messages.length && messages[scan].role === "assistant") {
+      if (isInactivityAssistantMessage(messages[scan].content)) {
+        scan += 1
+        continue
+      }
       const kind = questionKindForText(messages[scan].content)
       if (!kind) break
       burstKinds.push(kind)
@@ -624,10 +643,29 @@ function mentionsRealPet(combined: string) {
 
 function extractQualitativeSize(text: string): string | null {
   const match =
-    text.match(/(?:ב)?גודל\s+(קטן|בינוני|גדול)/i) ||
+    text.match(/(?:ב)?גודל(?:\s+(?:ה)?(?:סלון|חדר))?\s*(קטן|בינוני|גדול)/i) ||
     text.match(/(?:סלון|חדר)\s+(?:ב)?(קטן|בינוני|גדול)/i) ||
     text.match(/\b(קטן|בינוני|גדול)\b/i)
   return match?.[1] ?? null
+}
+
+function extractHebrewMeterSize(text: string): string | null {
+  const match = text.match(
+    /(?:כ|ב)?(?:ערך\s+)?(שניים?|שלוש(?:ה)?|ארבע(?:ה)?|חמיש(?:ה)?|\d(?:[.,]\d+)?)\s*מ(?:טר|׳|')?/i
+  )
+  if (!match) return null
+  const raw = match[1].replace(",", ".")
+  const words: Record<string, string> = {
+    שניים: "2",
+    שני: "2",
+    שלוש: "3",
+    שלושה: "3",
+    ארבע: "4",
+    ארבעה: "4",
+    חמישה: "5",
+  }
+  const normalized = words[raw.toLowerCase()] ?? raw
+  return `${normalized} מטר`
 }
 
 function isLivingRoomSpace(targetSpace?: string) {
@@ -673,6 +711,11 @@ function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
     return
   }
 
+  const hebrewMeters = extractHebrewMeterSize(combined)
+  if (hebrewMeters) {
+    intake.sofaSize = hebrewMeters
+  }
+
   const numericMatch = combined.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
   if (numericMatch) {
     intake.sofaSize = numericMatch[1].replace(/\s/g, "")
@@ -682,14 +725,18 @@ function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
   const qualitative = extractQualitativeSize(combined)
   if (qualitative) {
     intake.rugSize = qualitative
-    return
   }
 
   if (isUnknownIntakeAnswer(combined) || /לא\s+יודע/i.test(combined)) {
     return
   }
 
-  if (combined.length <= 30) {
+  if (!intake.sofaSize && /ספה|שזלונג|מטר|סלון|בינוני|גדול|קטן/.test(combined)) {
+    intake.sofaSize = combined.slice(0, 80)
+    return
+  }
+
+  if (!intake.sofaSize && combined.length <= 30) {
     intake.sofaSize = combined
   }
 }
@@ -1204,6 +1251,17 @@ function openingAckPrefix(history: HistoryMessage[], intake: SalesIntake) {
 
 export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const intake = extractSalesIntake(history, body)
+  const pendingKind = lastIntakeQuestionKind(history)
+  if (pendingKind && body.trim() && !intakeStepSatisfied(intake, pendingKind)) {
+    applyContextualIntakeAnswers(intake, history, body, {
+      force: true,
+      kind: pendingKind,
+    })
+    if (pendingKind === "pets") {
+      reconcilePetsFromThread(intake, history, body)
+    }
+  }
+
   const intro = introForFlow(body, history, intake)
   const recoveringFromDoubleReply = trailingIntakeAssistantBurst(history).length >= 2
   const doubleReplyJustHandled =
