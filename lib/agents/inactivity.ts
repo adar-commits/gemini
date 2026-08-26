@@ -41,3 +41,31 @@ export function buildInactivityStillHereAck(customerName?: string) {
   const prefix = name ? `מעולה ${name}, ` : "מעולה, "
   return `${CUSTOMER_HEADER}\n${prefix}אני כאן. איך אוכל להמשיך לעזור?`
 }
+
+/** Ping / close notices — not the bot's real pending question. */
+export function isInactivityAssistantMessage(content: string) {
+  return (
+    /עדיין שם/.test(content) ||
+    /נסגרה עקב אי מענה/.test(content) ||
+    /ניתן לשלוח הודעה חוזרת/.test(content)
+  )
+}
+
+export function lastNonInactivityAssistantText(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message.content
+  }
+  return ""
+}
+
+export function wasClosedForInactivity(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return /נסגרה עקב אי מענה/.test(message.content)
+  }
+  return false
+}

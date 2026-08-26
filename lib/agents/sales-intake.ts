@@ -12,6 +12,7 @@ import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topi
 import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
+import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 
 export type SalesIntake = {
   product?: string
@@ -97,14 +98,6 @@ function lastAssistantText(history: HistoryMessage[]) {
     if (message.role === "assistant") return message.content
   }
   return ""
-}
-
-function isInactivityAssistantMessage(content: string) {
-  return (
-    /עדיין שם/.test(content) ||
-    /נסגרה עקב אי מענה/.test(content) ||
-    /ניתן לשלוח הודעה חוזרת/.test(content)
-  )
 }
 
 function lastIntakeAssistantText(history: HistoryMessage[]) {

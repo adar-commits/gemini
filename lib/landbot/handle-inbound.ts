@@ -83,8 +83,8 @@ export async function handleLandbotInbound(
 
   const inactivitySession = await getSessionInactivityState(conversationId)
   if (
-    inactivitySession?.inactivity_ping_sent_at &&
-    !inactivitySession.inactivity_closed_at
+    inactivitySession?.inactivity_ping_sent_at ||
+    inactivitySession?.inactivity_closed_at
   ) {
     await clearInactivityWatchState(conversationId)
   }

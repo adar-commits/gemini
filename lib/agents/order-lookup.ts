@@ -1,5 +1,6 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
+import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 
 const CANCELLATION_EMPATHY_PREFIX =
   "אני מצטער לשמוע, בוא ננסה קודם לאתר את ההזמנה שלך.."
@@ -377,6 +378,7 @@ export function isOrderConfirmationPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
     return /האם מדובר (?:על )?הזמנה/i.test(message.content)
   }
   return false
@@ -391,6 +393,7 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
     return extractOrderNumber(message.content)
   }
   return null
@@ -401,6 +404,7 @@ export function isOrderConfirmationYes(body: string) {
   if (!text || text.length > 80) return false
   if (/^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|אכן|בטח|yes|👍)/i.test(text)) return true
   if (/^(?:זה|זו|זאת)\s+(?:נכון|ה(?:יא|וא)|מדובר)/i.test(text)) return true
+  if (/זה\s+המספר\s+שלי|המספר\s+(?:ה)?(?:נכון|שלי)/i.test(text)) return true
   return false
 }
 
@@ -555,6 +559,7 @@ export function isOrderNumberRequestPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
     return /אוכל לקבל את מספר ההזמנה/i.test(message.content)
   }
   return false
@@ -570,6 +575,7 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
     return (
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
       /האם ההזמנה על המספר/i.test(message.content)
@@ -678,6 +684,7 @@ export function isAlternatePhoneRequestPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
     return /מה מספר הטלפון שבוצעה עליו ההזמנה/i.test(message.content)
   }
   return false

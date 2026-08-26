@@ -1,5 +1,6 @@
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   buildAlternatePhoneRequestPrompt,
   buildNoOrdersFoundReply,
@@ -77,8 +78,9 @@ export function isProductDefectFlowActive(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (/השיחה אופסה/i.test(message.content)) return false
+    if (isInactivityAssistantMessage(message.content)) continue
     if (message.content.includes(DEFECT_FLOW_MARKER)) return true
-    break
+    return false
   }
   return false
 }
