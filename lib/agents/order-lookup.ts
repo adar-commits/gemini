@@ -1,12 +1,10 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 
 const CANCELLATION_EMPATHY_PREFIX =
   "אני מצטער לשמוע, בוא ננסה קודם לאתר את ההזמנה שלך.."
-
-const DEFAULT_ORDER_LOOKUP_URL =
-  "https://redcarpet.app.n8n.cloud/webhook-test/9a1bc56f-d8c6-472c-a665-833421632caf"
 
 /** Raw row from Priority via n8n getOrders. */
 export type PriorityOrderRow = {
@@ -119,16 +117,8 @@ export function buildDeliveryStatusMessage(input: {
   return lines.join("\n")
 }
 
-function lookupUrl() {
-  return (
-    process.env.ORDER_LOOKUP_API_URL?.trim() ||
-    process.env.N8N_ORDER_LOOKUP_WEBHOOK_URL?.trim() ||
-    DEFAULT_ORDER_LOOKUP_URL
-  )
-}
-
 function lookupConfigured() {
-  return Boolean(lookupUrl())
+  return true
 }
 
 function phoneForOrderApi(phone: string) {
@@ -143,39 +133,7 @@ async function callOrderWebhook(input: {
   actionType: string
   value: string
 }): Promise<unknown | null> {
-  const url = lookupUrl()
-  if (!url) return null
-
-  const apiKey = process.env.ORDER_LOOKUP_API_KEY?.trim()
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-      },
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(Number(process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "15000")),
-    })
-
-    if (!response.ok) return null
-
-    const contentType = response.headers.get("content-type") ?? ""
-    if (contentType.includes("application/json")) {
-      return (await response.json()) as unknown
-    }
-
-    const text = (await response.text()).trim()
-    if (!text) return null
-    try {
-      return JSON.parse(text) as unknown
-    } catch {
-      return null
-    }
-  } catch {
-    return null
-  }
+  return callPriorityWebhook(input)
 }
 
 function formatHebrewDate(iso: string | null | undefined) {

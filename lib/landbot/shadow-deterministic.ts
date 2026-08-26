@@ -12,6 +12,11 @@ import {
   isSpecificProductMention,
 } from "@/lib/agents/product-handoff"
 import {
+  isBareSkuMessage,
+  isBranchInventoryQuestion,
+  isInventoryAvailabilityReply,
+} from "@/lib/agents/inventory-lookup"
+import {
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
@@ -181,6 +186,17 @@ export function classifyShadowLogDeterministic(
 
   if (isConversationClosing(user) && action === "end" && draft) {
     return okVerdict("סגירת שיחה — אישור וסיום (תקין).")
+  }
+
+  if (isInventoryAvailabilityReply(draft)) {
+    return okVerdict("בדיקת מלאי בסניפים לפי מק״ט (תקין).")
+  }
+
+  if (
+    (isBranchInventoryQuestion(user) || isBareSkuMessage(user)) &&
+    /מק(?:״|"|')?ט|בדקתי זמינות|אין במלאי|יש במלאי/.test(draft)
+  ) {
+    return okVerdict("שאלת מלאי בסניפים — בדיקה חיה או בקשת מק״ט (תקין).")
   }
 
   if (

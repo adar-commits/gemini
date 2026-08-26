@@ -1,5 +1,6 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isProductInventoryQuestion, isSpecificProductMention, extractRequestedModel } from "@/lib/agents/product-handoff"
+import { isBareSkuMessage, isBranchInventoryQuestion } from "@/lib/agents/inventory-lookup"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import {
   isFaqTopicSwitch,
@@ -227,6 +228,7 @@ export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
     if (isServiceTopicSwitch(trimmed)) return true
     if (isShippingPolicyQuestion(trimmed) || isShippingStatusQuestion(trimmed)) return true
     if (isProductInventoryQuestion(trimmed) || isSpecificProductMention(trimmed)) return true
+    if (isBranchInventoryQuestion(trimmed) || isBareSkuMessage(trimmed)) return true
     return false
   }
 
@@ -235,6 +237,7 @@ export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
   if (isServiceTopicSwitch(trimmed)) return true
   if (isShippingPolicyQuestion(trimmed) || isShippingStatusQuestion(trimmed)) return true
   if (isProductInventoryQuestion(trimmed) || isSpecificProductMention(trimmed)) return true
+  if (isBranchInventoryQuestion(trimmed) || isBareSkuMessage(trimmed)) return true
   if (
     isSalesConsultationTrigger(trimmed) &&
     trimmed.split(/\s+/).length >= 4
@@ -273,6 +276,7 @@ export function shouldUseSalesIntakeFastPath(
   if (isOffTopicQuestion(body)) return false
   if (isHumanHandoffPending(history)) return false
   if (isProductInventoryQuestion(body) || isSpecificProductMention(body)) return false
+  if (isBranchInventoryQuestion(body) || isBareSkuMessage(body)) return false
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
   if (isSalesQuizContext(history, lastAgent)) {

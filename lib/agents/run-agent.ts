@@ -86,6 +86,14 @@ import {
   isBranchListQuestion,
 } from "@/lib/agents/branches"
 import {
+  extractSku,
+  isBareSkuMessage,
+  isBranchInventoryQuestion,
+  isInventoryAvailabilityReply,
+  resolveBranchInventoryReply,
+  shouldHandleBranchInventory,
+} from "@/lib/agents/inventory-lookup"
+import {
   breaksPendingHandoff,
   buildStuckHandoffReply,
   isHandoffContextReply,
@@ -182,6 +190,8 @@ const FAKE_STOCK_REPLY_RE =
 
 function sanitizeFaqProductReply(body: string, reply: string) {
   if (!reply.trim()) return reply
+  if (isInventoryAvailabilityReply(reply)) return reply
+  if (isBranchInventoryQuestion(body) || isBareSkuMessage(body)) return reply
   if (
     !isProductInventoryQuestion(body) &&
     !isSpecificProductMention(body) &&
@@ -477,6 +487,16 @@ async function resolveSpecialist(
       return { ok: true, agent: replyAgent, reply, action: "reply", route: [...route, replyAgent] }
     }
 
+    const inventory = await tryBranchInventoryResult(
+      conversationId,
+      body,
+      history,
+      route,
+      persistUser,
+      preview
+    )
+    if (inventory) return inventory
+
     if (isBranchListQuestion(body)) {
       const reply = normalizeReply(
         replyAgent,
@@ -527,6 +547,16 @@ async function resolveSpecialist(
 
     return { ...result, route }
   }
+
+  const inventory = await tryBranchInventoryResult(
+    conversationId,
+    body,
+    history,
+    route,
+    persistUser,
+    preview
+  )
+  if (inventory) return inventory
 
   if (isBranchListQuestion(body)) {
     const reply = normalizeReply("faq", "reply", buildBranchReplyForText(body))
@@ -631,7 +661,10 @@ async function resolveSpecialist(
       FAKE_STOCK_REPLY_RE.test(result.reply) ||
       isStrictMisunderstandingReply(result.reply)
     if (needsSanitize) {
-      const sanitized = FAKE_STOCK_REPLY_RE.test(result.reply)
+      const sanitized =
+        isInventoryAvailabilityReply(result.reply)
+          ? result.reply
+          : FAKE_STOCK_REPLY_RE.test(result.reply)
         ? buildProductInventoryHandoff()
         : isStrictMisunderstandingReply(result.reply)
           ? shouldUseSalesIntakeFastPath(body, history, options?.lastAgent ?? null)
@@ -711,6 +744,57 @@ async function resolveSpecialist(
   }
 
   return { ...result, route }
+}
+
+function shouldHandleBranchInventoryFlow(body: string, history: HistoryMessage[]) {
+  if (shouldHandleBranchInventory(body, history)) return true
+  if (extractSku(body) && isProductUrlRequestPending(history)) return true
+  return false
+}
+
+async function tryBranchInventoryResult(
+  conversationId: string,
+  body: string,
+  history: HistoryMessage[],
+  route: AgentId[],
+  persistUser: boolean,
+  preview?: boolean
+): Promise<AgentResponse | null> {
+  if (!shouldHandleBranchInventoryFlow(body, history)) return null
+
+  const reply = normalizeReply(
+    "sales",
+    "reply",
+    await resolveBranchInventoryReply({ body, history })
+  )
+
+  if (wasReplyRecentlySent(history, reply)) {
+    return {
+      ok: true,
+      agent: "sales",
+      reply: "",
+      action: "reply",
+      route: [...route, "sales"],
+    }
+  }
+
+  const { assistantInserted } = await appendTurn({
+    conversationId,
+    agent: "sales",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    persistUser,
+    preview,
+  })
+
+  return {
+    ok: true,
+    agent: "sales",
+    reply: assistantInserted ? reply : "",
+    action: "reply",
+    route: [...route, "sales"],
+  }
 }
 
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
@@ -1134,6 +1218,16 @@ export async function runMasterConversation(
     return shippingResult(conversationId, body, route, preview, phone, history)
   }
 
+  const inventory = await tryBranchInventoryResult(
+    conversationId,
+    body,
+    history,
+    route,
+    true,
+    preview
+  )
+  if (inventory) return inventory
+
   if (isServiceTopicSwitch(body)) {
     return resolveSpecialist(
       conversationId,
@@ -1187,6 +1281,17 @@ export async function runMasterConversation(
   }
 
   if (isProductUrlRequestPending(history) && !breaksPendingHandoff(body)) {
+    if (extractSku(body)) {
+      const inventoryAfterUrl = await tryBranchInventoryResult(
+        conversationId,
+        body,
+        history,
+        route,
+        true,
+        preview
+      )
+      if (inventoryAfterUrl) return inventoryAfterUrl
+    }
     const agent =
       lastAgent && isSpecialistId(lastAgent) ? lastAgent : ("sales" as const)
     const reply = normalizeReply(

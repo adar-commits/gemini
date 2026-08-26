@@ -97,7 +97,8 @@ Examples:
 | "השטיח קרוע" | Post-purchase defect case | Service |
 | "איפה ההזמנה" | Tracking | Shipping |
 | "כמה עולה" (no model) | Purchase exploration | Sales intake |
-| "יש קזבלנקה במלאי?" | Catalog check → human | Sales handoff |
+| "יש קזבלנקה במלאי?" | Catalog check without SKU → human | Sales handoff |
+| "יש 31501090-200290 בסניפים?" | Store-chain stock for a SKU | Live branch inventory |
 | "כן" | Answer to **previous bot question** | Stay in flow |
 
 ### Layer 5 — Domain playbook
@@ -169,7 +170,9 @@ Exception: cancellation/return/exchange/**before** policy shown → FAQ first.
 
 ### Capability boundary (all agents except FAQ on policy)
 
-> "I don't have live access to catalog, inventory, orders, or payment systems."
+> "I don't have live access to catalog, prices, orders, or payment systems."
+>
+> Exception: branch inventory for a SKU (contains `-`) via `getInventoryBranch` — report per store available / not available, never quantities.
 
 When in doubt: **offer human handoff** or **silent route** — not a plausible guess.
 
@@ -223,7 +226,8 @@ FAQ informational replies wrap naturally (`אם צריך עוד משהו — כ�
 
 | Trigger | Action | Customer text |
 |---|---|---|
-| Specific model/stock/SKU | human_sales offer | Required handoff script |
+| Store-chain stock + SKU (contains `-`) | reply with live per-store availability | Available / not — never quantities |
+| Specific model/stock without SKU | human_sales offer | Required handoff script |
 | Sales intake complete + confirmed | human_sales | Short confirmation |
 | Service intake complete | human_service | Short "הועבר לנציג" line |
 | Off-topic | reply (stay in chat) | Friendly redirect; human only if they insist |

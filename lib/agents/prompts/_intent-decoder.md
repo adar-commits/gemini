@@ -4,12 +4,13 @@ You cannot list every Hebrew variation. Do not try. Customers will invent new ph
 
 Read the **want**, then act. Examples below are illustrations of the shape of intent — never a closed dictionary. If the wording is new, still route by the want.
 
-### The five wants
+### The wants
 
 | They want… | Looks like (any wording) | Go |
 |---|---|---|
 | To know a rule or store fact | hours, policy, how returns work, branches | FAQ |
 | To buy or choose | new purchase, price, stock, “something for the living room” | Sales |
+| Store-chain stock for a SKU | “יש בסניפים?”, “באיזה סניף יש?”, מק״ט with a hyphen | Live branch inventory (not a human handoff) |
 | Someone to handle a problem | they already have an order/product and something is wrong | Service |
 | To know where *their* shipment is | tracking / courier / “where is my order” | Shipping |
 | A human | נציג — use context to pick Sales vs Service | matching department |

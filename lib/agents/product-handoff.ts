@@ -3,6 +3,10 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isConversationClosing } from "@/lib/agents/conversation-close"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
+import {
+  isBareSkuMessage,
+  isBranchInventoryQuestion,
+} from "@/lib/agents/inventory-lookup"
 import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 
 const CONSULTATION_RE =
@@ -124,6 +128,7 @@ export function isProductInventoryQuestion(body: string) {
   const text = body.trim()
   if (!text || isFaqTopicSwitch(text)) return false
   if (isServiceTopicSwitch(text) || isProductDefectComplaint(text)) return false
+  if (isBranchInventoryQuestion(text) || isBareSkuMessage(text)) return false
   if (!hasSpecificProductContext(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
     return false
@@ -140,6 +145,7 @@ export function isProductInventoryQuestion(body: string) {
 export function isSpecificProductMention(body: string) {
   const text = body.trim()
   if (!text || isFaqTopicSwitch(text)) return false
+  if (isBranchInventoryQuestion(text) || isBareSkuMessage(text)) return false
   if (isProductInventoryQuestion(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
     return false
@@ -149,7 +155,12 @@ export function isSpecificProductMention(body: string) {
 
 /** Either inventory/commercial or a specific product thread — breaks sales quiz sticky. */
 export function isProductAvailabilityQuestion(body: string) {
-  return isProductInventoryQuestion(body) || isSpecificProductMention(body)
+  return (
+    isBranchInventoryQuestion(body) ||
+    isBareSkuMessage(body) ||
+    isProductInventoryQuestion(body) ||
+    isSpecificProductMention(body)
+  )
 }
 
 export function isProductUrlRequestPending(history: HistoryMessage[]) {
