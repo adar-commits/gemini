@@ -1,22 +1,10 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
-/** Unhappy with product/fit — no defect, missing item, or explicit return request yet. */
+import { isPostPurchaseDissatisfaction } from "@/lib/agents/inquiry-intent"
+
+/** Unhappy with product/fit — routes to order lookup + service, not FAQ policy. */
 export function isDissatisfactionWithoutDefect(body: string) {
-  const text = body.trim()
-  if (!text) return false
-
-  if (
-    /קרוע|פגום|פגם|פגומ(?:ה|ים|ות)|שבור|סדוק|ליקוי|לא\s+קיבלתי|חסר(ים)?\s+ב|מוצר\s+לא\s+נכון|טעות\s+ב(?:ה)?זמנה/i.test(
-      text
-    )
-  ) {
-    return false
-  }
-
-  return (
-    /לא\s+מרוצ|לא\s+מתאים|לא\s+אהב|לא\s+כ(?:\"|״|')?כ/i.test(text) ||
-    /(?:קיבלתי|הגיע).*(?:לא\s+מרוצ|לא\s+מתאים|לא\s+אהב)/i.test(text)
-  )
+  return isPostPurchaseDissatisfaction(body)
 }
 
 /** Exchange/return options first, then soft service handoff offer (rescue the sale). */

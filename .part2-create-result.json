@@ -1,0 +1,13 @@
+{
+  "workflowId": "f2QJ3Gj47tB3JTA8",
+  "name": "Courier & Shopify Fulfillments",
+  "nodeCount": 17,
+  "url": "https://redcarpet.app.n8n.cloud/workflow/f2QJ3Gj47tB3JTA8",
+  "autoAssignedCredentials": [],
+  "targetProject": {
+    "id": "GvyYEYfTB7Wi39HK",
+    "name": "Adar Cohen <adar@carpetshop.co.il>",
+    "type": "personal"
+  },
+  "note": "HTTP Request nodes (Update Tracking Metafield, Get Marketplace Fulfillment Order, Get Terminal X Metafields, Lookup Regular Shopify Order, Create Regular Fulfillment, TX Order Packed, TX Order Delivered, TX Package Delivered, TX Order Shipped, TX Package Shipped, Create Marketplace Fulfillment) were skipped during credential auto-assignment. Their credentials must be configured manually."
+}

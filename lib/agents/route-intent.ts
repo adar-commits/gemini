@@ -24,6 +24,11 @@ import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import { breaksPendingHandoff } from "@/lib/agents/handoff-wait"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import {
+  isPostPurchaseDissatisfaction,
+  isPreorderDelayComplaint,
+  isProductDefectComplaint,
+} from "@/lib/agents/inquiry-intent"
 
 const BREAK_STICKY = new Set([
   "reset",
@@ -67,15 +72,16 @@ export function guessMasterRoute(body: string): MasterAction | null {
     return "ROUTE_TO_INFO_AGENT"
   }
 
-  if (isShippingStatusQuestion(text)) {
+  if (isShippingStatusQuestion(text) && !isPreorderDelayComplaint(text)) {
     return "ROUTE_TO_SHIPPING_STATUS"
   }
 
   if (
-    has(text, /לא\s+מרוצ|לא\s+אהב|לא\s+מתאים|לא\s+מתאים\s+לי/) ||
-    has(text, /(קיבלתי|הגיע).*(שטיח|פוף|מוצר).*(לא\s+מרוצ|לא\s+אהב|לא\s+מתאים)/)
+    isPostPurchaseDissatisfaction(text) ||
+    isPreorderDelayComplaint(text) ||
+    isProductDefectComplaint(text)
   ) {
-    return "ROUTE_TO_INFO_AGENT"
+    return "ROUTE_TO_SERVICE_AGENT"
   }
 
   if (

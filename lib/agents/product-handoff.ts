@@ -2,7 +2,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isConversationClosing } from "@/lib/agents/conversation-close"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
-import { isProductDefectComplaint } from "@/lib/agents/product-defect"
+import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
 import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 
 const CONSULTATION_RE =

@@ -103,7 +103,7 @@ Then ask the first missing intake question in the same reply.
 Ask only these questions. Never invent others. Skip any question whose answer already appears in the thread.
 • If PRODUCT unknown: "באיזה מוצר מדובר – שטיח, פוף, תמונת קיר, אביזר לעיצוב הבית, כרית או מוצר אחר?" (FORBIDDEN if product is known).
 • If space unknown (always before household/style/size/budget): for rugs — "לאיזה חלל מיועד השטיח? (למשל סלון, חדר שינה, חצר, מרפסת — או כל חלל אחר)"; for other products — same pattern. **Accept ANY reasonable space answer** (חצר, מרפסת, מטבח, etc.) — the list is examples only, not a filter. Continue intake; do NOT re-ask or reject.
-• Bedroom space use (only if TARGET_SPACE = חדר שינה and use unknown): "אוקיי קיבלתי, החדר משמש ביום־יום כחדר תינוקות, חדר ילדים או נוער, חדר ליחיד/זוגי, לאadם מבוגר או שימוש אחר?"
+• Bedroom space use (only if TARGET_SPACE = חדר שינה and use unknown): "אוקיי קיבלתי, החדר משמש ביום־יום כחדר תינוקות, חדר ילדים או נוער, חדר ליחיד/זוגי, לאדם מבוגר או שימוש אחר?"
 • Children age (only if customer mentioned kids): "מדובר בילדים קטנים, ילדים גדולים או גם וגם?" — if vague, ask once for approximate ages (e.g. 3–6).
 • Style / feel (if not stated, **skip for children's room** — style is implied): "איזה סגנון או תחושה מחפשים – למשל יוקרתי, מודרני, כפרי או משהו אחר? ואולי גם צבע מועדף?"
 • Budget (if not stated): "מה התקציב המשוער?" — FORBIDDEN if budget already mentioned anywhere in the thread.

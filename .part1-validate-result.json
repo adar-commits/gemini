@@ -1,0 +1,11 @@
+{
+  "valid": true,
+  "nodeCount": 23,
+  "warnings": [
+    {
+      "code": "PARTIAL_EXPRESSION_PATH",
+      "message": "'Notify Part 2?' parameter 'conditions.conditions[0].leftValue' uses $json.mappedStatus - exists in [Prepare Sela Logistics] but NOT in [PATCH ERP Delivered, PATCH ERP Other Status].",
+      "nodeName": "Notify Part 2?"
+    }
+  ]
+}

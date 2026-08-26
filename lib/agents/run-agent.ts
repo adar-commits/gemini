@@ -24,14 +24,18 @@ import {
   isConversationClosing,
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
+import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
-  buildDissatisfactionRescueReply,
-  isDissatisfactionWithoutDefect,
-} from "@/lib/agents/dissatisfaction"
+  buildServicePraiseReply,
+  buildWebsiteIssueHandoffOffer,
+  isServicePraise,
+  isWebsiteIssueComplaint,
+} from "@/lib/agents/feedback-handling"
 import {
-  shouldHandleProductDefectFlow,
-  resolveProductDefectComplaintReply,
-} from "@/lib/agents/product-defect"
+  resolvePostPurchaseCaseReply,
+  shouldHandlePostPurchaseCaseFlow,
+} from "@/lib/agents/post-purchase-case"
+import { isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
   buildDigitalDocumentReply,
   lookupDigitalDocument,
@@ -361,17 +365,14 @@ async function resolveSpecialist(
   }
 
   if (isDissatisfactionWithoutDefect(body)) {
-    const reply = normalizeReply("faq", "reply", buildDissatisfactionRescueReply())
-    await appendTurn({
+    return postPurchaseCaseResult(
       conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action: "reply",
-      persistUser,
+      body,
+      route,
       preview,
-    })
-    return { ok: true, agent: "faq", reply, action: "reply", route }
+      options?.phone,
+      history
+    )
   }
 
   if (isHumanHandoffPending(history) && isHandoffContextReply(body)) {
@@ -712,7 +713,8 @@ async function resolveSpecialist(
 }
 
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
-  if (shouldHandleProductDefectFlow(body, history)) return false
+  if (shouldHandlePostPurchaseCaseFlow(body, history)) return false
+  if (isPreorderDelayComplaint(body)) return false
 
   if (
     isOrderNumberRequestPending(history) ||
@@ -781,7 +783,7 @@ async function resolveShippingStatusReply(
   return resolveOrderShippingReply({ body, phone, history })
 }
 
-function productDefectResult(
+function postPurchaseCaseResult(
   conversationId: string,
   body: string,
   route: AgentId[],
@@ -789,7 +791,7 @@ function productDefectResult(
   phone?: string,
   history?: HistoryMessage[]
 ): Promise<AgentResponse> {
-  return resolveProductDefectComplaintReply({ body, phone, history }).then(async (reply) => {
+  return resolvePostPurchaseCaseReply({ body, phone, history }).then(async (reply) => {
     if (wasReplyRecentlySent(history ?? [], reply)) {
       return {
         ok: true,
@@ -989,8 +991,8 @@ export async function runMasterConversation(
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
-  if (isDissatisfactionWithoutDefect(body)) {
-    const reply = normalizeReply("faq", "reply", buildDissatisfactionRescueReply())
+  if (isWebsiteIssueComplaint(body)) {
+    const reply = normalizeReply("faq", "reply", buildWebsiteIssueHandoffOffer())
     await appendTurn({
       conversationId,
       agent: "faq",
@@ -1000,6 +1002,23 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (isServicePraise(body)) {
+    const reply = normalizeReply("faq", "reply", buildServicePraiseReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (isDissatisfactionWithoutDefect(body)) {
+    return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
 
   const learnedFast = await guessLearnedFastReply(body)
@@ -1076,8 +1095,8 @@ export async function runMasterConversation(
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
   }
 
-  if (shouldHandleProductDefectFlow(body, history)) {
-    return productDefectResult(conversationId, body, route, preview, phone, history)
+  if (shouldHandlePostPurchaseCaseFlow(body, history)) {
+    return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
 
   if (shouldHandleOrderShippingFlow(body, history)) {
