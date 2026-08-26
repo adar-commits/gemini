@@ -269,6 +269,21 @@ export async function recordProactiveAssistantMessage(input: {
   })
 }
 
+export async function clearInactivityWatchState(conversationId: string) {
+  conversationId = safeId(conversationId)
+  const supabase = getAgentSupabase()
+  const { error } = await supabase
+    .from("hom_agent_sessions")
+    .update({
+      inactivity_ping_sent_at: null,
+      inactivity_closed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("conversation_id", conversationId)
+
+  if (error) throw error
+}
+
 export async function getSessionInactivityState(conversationId: string) {
   conversationId = safeId(conversationId)
   const supabase = getAgentSupabase()

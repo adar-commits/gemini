@@ -1,5 +1,5 @@
 import { runMasterConversation } from "@/lib/agents/run-agent"
-import { appendTurn } from "@/lib/agents/memory"
+import { appendTurn, clearInactivityWatchState, getSessionInactivityState } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
@@ -35,7 +35,6 @@ import {
   ensureSessionMetaFromInbound,
   runInactivityPipeline,
 } from "@/lib/landbot/inactivity-watcher"
-import { getSessionInactivityState } from "@/lib/agents/memory"
 import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
 
@@ -81,6 +80,14 @@ export async function handleLandbotInbound(
     customerName: customerName || undefined,
     customerPhone: options?.phone?.trim() || undefined,
   })
+
+  const inactivitySession = await getSessionInactivityState(conversationId)
+  if (
+    inactivitySession?.inactivity_ping_sent_at &&
+    !inactivitySession.inactivity_closed_at
+  ) {
+    await clearInactivityWatchState(conversationId)
+  }
 
   const body = summarizeTurn(turn)
 

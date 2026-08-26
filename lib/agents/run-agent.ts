@@ -83,6 +83,11 @@ import {
   isHandoffContextReply,
 } from "@/lib/agents/handoff-wait"
 import {
+  buildInactivityStillHereAck,
+  isInactivityPingPending,
+  isInactivityStillHereReply,
+} from "@/lib/agents/inactivity"
+import {
   buildMasterConfusedReply,
   isStrictMisunderstandingReply,
   resolveMasterFallback,
@@ -865,6 +870,23 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent: "master", reply: "", action: "end", route }
+  }
+
+  if (isInactivityPingPending(history) && isInactivityStillHereReply(body)) {
+    const reply = normalizeReply(
+      "faq",
+      "reply",
+      buildInactivityStillHereAck(options?.customerName)
+    )
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
   if (isConversationClosing(body) && !isHumanHandoffPending(history)) {

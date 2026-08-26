@@ -106,9 +106,38 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
   return null
 }
 
+async function userRepliedAfterPing(
+  conversationId: string,
+  watchPingSentAt: string
+) {
+  const pingMs = Date.parse(watchPingSentAt)
+  if (!Number.isFinite(pingMs)) return false
+
+  const session = await getSessionInactivityState(conversationId)
+  const lastUserAt = asText(session?.last_user_at)
+  if (lastUserAt && Date.parse(lastUserAt) >= pingMs - 1000) return true
+
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_messages")
+    .select("created_at")
+    .eq("conversation_id", conversationId)
+    .eq("role", "user")
+    .gt("created_at", new Date(pingMs - 1000).toISOString())
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return Boolean(data?.created_at)
+}
+
 async function shouldSendClose(payload: InactivityWatchPayload) {
   const watchPingSentAt = asText(payload.watchPingSentAt)
   if (!watchPingSentAt) return "missing_watch_ping_sent_at" as const
+
+  if (await userRepliedAfterPing(payload.conversationId, watchPingSentAt)) {
+    return "user_replied_after_ping" as const
+  }
 
   const session = await getSessionInactivityState(payload.conversationId)
   if (!session) return "missing_session" as const
@@ -116,6 +145,9 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
     return "phone_not_allowed" as const
   }
   if (asText(session.inactivity_closed_at)) return "already_closed" as const
+  if (!asText(session.inactivity_ping_sent_at)) {
+    return "ping_cleared" as const
+  }
   if (!sameTimestamp(asText(session.inactivity_ping_sent_at), watchPingSentAt)) {
     return "ping_timestamp_changed" as const
   }
