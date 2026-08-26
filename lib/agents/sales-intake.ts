@@ -57,7 +57,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|מידת הספה|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|איך חדר השינה משמש|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|מידת הספה|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|החדר משמש ביום|דרישות מיוחדות|לפני שנגיע למחיר|ילדים קטנים/i
 
 const HEBREW_COLOR_RE =
   /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
@@ -71,7 +71,7 @@ const SPACE_Q_RUG =
 const SPACE_Q_OTHER =
   "לאיזה חלל מיועד המוצר? (למשל סלון, חדר שינה, חצר, מרפסת — או כל חלל אחר)"
 const BEDROOM_USE_Q =
-  "איך חדר השינה משמש ביום־יום – כחדר תינוקות, חדר ילדים או נוער, חדר ליחיד, חדר זוגי, חדר לאדם מבוגר או שימוש אחר?"
+  "אוקיי קיבלתי, החדר משמש ביום־יום כחדר תינוקות, חדר ילדים או נוער, חדר ליחיד/זוגי, לאדם מבוגר או שימוש אחר?"
 const CHILDREN_Q = "מדובר בילדים קטנים, ילדים גדולים או גם וגם?"
 const PETS_Q = "האם אמור להתאים לבעלי חיים?"
 const STYLE_Q =
@@ -176,7 +176,7 @@ function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
   const last = lastAssistantText(history)
   if (/לאיזה חלל|לאן השטיח/.test(last)) return "space"
   if (/באיזה מוצר/.test(last)) return "product"
-  if (/איך חדר השינה/.test(last)) return "bedroom"
+  if (/החדר משמש|איך חדר השינה/.test(last)) return "bedroom"
   if (/ילדים קטנים/.test(last)) return "children"
   if (/בעלי חיים|להתאים לבעלי|חתול|כלב|חיה(?:ות)?/.test(last)) return "pets"
   if (/סגנון|צבע מועדף|יוקרתי|מודרני|כפרי/.test(last)) return "style"
@@ -190,7 +190,7 @@ function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
 function questionKindForText(question: string): string | null {
   if (/לאיזה חלל|לאן השטיח/.test(question)) return "space"
   if (/באיזה מוצר/.test(question)) return "product"
-  if (/איך חדר השינה/.test(question)) return "bedroom"
+  if (/החדר משמש|איך חדר השינה/.test(question)) return "bedroom"
   if (/ילדים קטנים/.test(question)) return "children"
   if (/בעלי חיים|להתאים לבעלי/.test(question)) return "pets"
   if (/סגנון/.test(question)) return "style"
@@ -494,7 +494,7 @@ function wasQuestionSentInBurst(history: HistoryMessage[], kind: string | null) 
 const SOFT_REPROMPT: Partial<Record<string, string>> = {
   product: "רק לוודא — באיזה מוצר מדובר?",
   space: "לאיזה חלל זה מיועד?",
-  bedroom: "איך חדר השינה משמש?",
+  bedroom: "החדר משמש ביום־יום כיצד?",
   children: "מדובר בילדים קטנים, גדולים, או גם וגם?",
   pets: "לגבי בעלי חיים — האם השטיח אמור להתאים?",
   style:
@@ -1241,7 +1241,7 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const recoveryPrefix =
     doubleReplyJustHandled && !isIntakeCorrection(body) ? "אוקיי, קיבלתי.\n" : ""
   const answerAckPrefix =
-    !recoveryPrefix && !correctionPrefix && lastKind && next
+    !recoveryPrefix && !correctionPrefix && lastKind && next && !next.startsWith("אוקיי")
       ? intakeAnswerAcknowledgment(lastKind, body)
       : ""
 
