@@ -801,6 +801,7 @@ function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) 
   if (shouldHandleServicePraiseFlow(body, history)) return false
   if (shouldHandlePostPurchaseCaseFlow(body, history)) return false
   if (isPreorderDelayComplaint(body)) return false
+  if (shouldHandleBranchInventory(body, history)) return false
 
   if (
     isOrderNumberRequestPending(history) ||
@@ -1214,10 +1215,6 @@ export async function runMasterConversation(
     return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
 
-  if (shouldHandleOrderShippingFlow(body, history)) {
-    return shippingResult(conversationId, body, route, preview, phone, history)
-  }
-
   const inventory = await tryBranchInventoryResult(
     conversationId,
     body,
@@ -1227,6 +1224,10 @@ export async function runMasterConversation(
     preview
   )
   if (inventory) return inventory
+
+  if (shouldHandleOrderShippingFlow(body, history)) {
+    return shippingResult(conversationId, body, route, preview, phone, history)
+  }
 
   if (isServiceTopicSwitch(body)) {
     return resolveSpecialist(

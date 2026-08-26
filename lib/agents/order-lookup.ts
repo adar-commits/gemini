@@ -312,11 +312,15 @@ export function extractOrderReference(text: string) {
   if (prefixed) return prefixed
 
   const phone = extractPhoneFromText(text)
-  for (const match of text.match(/\b(\d{4,})\b/g) ?? []) {
-    const asPhone = phoneForOrderApi(match)
+  for (const match of text.matchAll(/\b(\d{4,})\b/g)) {
+    const digits = match[1]
+    const start = match.index ?? 0
+    const end = start + digits.length
+    if (text[start - 1] === "-" || text[end] === "-") continue
+    const asPhone = phoneForOrderApi(digits)
     if (/^0\d{9}$/.test(asPhone)) continue
     if (phone && asPhone === phone) continue
-    return match
+    return digits
   }
 
   return null
