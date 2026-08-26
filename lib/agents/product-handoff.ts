@@ -2,6 +2,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isConversationClosing } from "@/lib/agents/conversation-close"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
+import { isProductDefectComplaint } from "@/lib/agents/product-defect"
 import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 
 const CONSULTATION_RE =
@@ -32,6 +33,7 @@ function isLikelyProductModelName(name: string) {
   if (GARBAGE_MODEL_RE.test(trimmed)) return false
   if (/^(?:סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(trimmed)) return false
   if (ROOM_PREPOSITION_IN_NAME_RE.test(trimmed)) return false
+  if (/^(?:ו)?יש\b|פגם|ליקוי|בו\b/i.test(trimmed)) return false
   if (HEBREW_COLOR_WORD_RE.test(trimmed)) return false
   if (STYLE_DESCRIPTOR_RE.test(trimmed)) return false
   const words = trimmed.split(/\s+/)
@@ -90,7 +92,7 @@ const CONSULTATION_IN_MESSAGE_RE =
   /ייעוץ|עוזר\s+לבחור|בחיר(?:ת|ה)\s+שטיח|מתלבט/i
 
 const HAVE_PRODUCT_RE =
-  /(?:יש|יש ל(?:כם|נו)|אצל(?:כם|נו)|יש אצל(?:כם|נו))\s+(?:את\s+)?/i
+  /(?:יש\s+(?:ל(?:כם|נו)|במלאי)|יש\s+אצל(?:כם|נו)|אצל(?:כם|נו))\s*(?:את\s+)?/i
 
 const URL_REQUEST_MARKER_RE =
   /קישור לדף המוצר|קישור למוצר מהאתר|שלח(?:\/|)?(?:ו|י)?\s*קישור/i
@@ -121,6 +123,7 @@ export function hasProductUrl(text: string) {
 export function isProductInventoryQuestion(body: string) {
   const text = body.trim()
   if (!text || isFaqTopicSwitch(text)) return false
+  if (isServiceTopicSwitch(text) || isProductDefectComplaint(text)) return false
   if (!hasSpecificProductContext(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
     return false

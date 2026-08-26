@@ -29,6 +29,10 @@ import {
   isDissatisfactionWithoutDefect,
 } from "@/lib/agents/dissatisfaction"
 import {
+  shouldHandleProductDefectFlow,
+  resolveProductDefectComplaintReply,
+} from "@/lib/agents/product-defect"
+import {
   buildDigitalDocumentReply,
   lookupDigitalDocument,
   resolveOrderShippingReply,
@@ -708,6 +712,8 @@ async function resolveSpecialist(
 }
 
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
+  if (shouldHandleProductDefectFlow(body, history)) return false
+
   if (
     isOrderNumberRequestPending(history) ||
     isAlternatePhoneRequestPending(history) ||
@@ -773,6 +779,44 @@ async function resolveShippingStatusReply(
   history?: HistoryMessage[]
 ) {
   return resolveOrderShippingReply({ body, phone, history })
+}
+
+function productDefectResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean,
+  phone?: string,
+  history?: HistoryMessage[]
+): Promise<AgentResponse> {
+  return resolveProductDefectComplaintReply({ body, phone, history }).then(async (reply) => {
+    if (wasReplyRecentlySent(history ?? [], reply)) {
+      return {
+        ok: true,
+        agent: "master" as const,
+        reply: "",
+        action: "reply" as const,
+        route,
+      }
+    }
+
+    const { assistantInserted } = await appendTurn({
+      conversationId,
+      agent: "service",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+
+    return {
+      ok: true,
+      agent: "service" as const,
+      reply: assistantInserted ? reply : "",
+      action: "reply" as const,
+      route: [...route, "service"],
+    }
+  })
 }
 
 async function tryWelcomeGreeting(
@@ -1030,6 +1074,10 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
+  }
+
+  if (shouldHandleProductDefectFlow(body, history)) {
+    return productDefectResult(conversationId, body, route, preview, phone, history)
   }
 
   if (shouldHandleOrderShippingFlow(body, history)) {

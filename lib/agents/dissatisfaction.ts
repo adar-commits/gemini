@@ -6,7 +6,7 @@ export function isDissatisfactionWithoutDefect(body: string) {
   if (!text) return false
 
   if (
-    /קרוע|פגום|שבור|סדוק|לא\s+קיבלתי|חסר(ים)?\s+ב|מוצר\s+לא\s+נכון|טעות\s+ב(?:ה)?זמנה/i.test(
+    /קרוע|פגום|פגם|פגומ(?:ה|ים|ות)|שבור|סדוק|ליקוי|לא\s+קיבלתי|חסר(ים)?\s+ב|מוצר\s+לא\s+נכון|טעות\s+ב(?:ה)?זמנה/i.test(
       text
     )
   ) {
