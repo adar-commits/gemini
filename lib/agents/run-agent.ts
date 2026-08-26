@@ -83,6 +83,11 @@ import {
   isHandoffContextReply,
 } from "@/lib/agents/handoff-wait"
 import {
+  buildMasterConfusedReply,
+  isStrictMisunderstandingReply,
+  resolveMasterFallback,
+} from "@/lib/agents/master-fallback"
+import {
   buildPostConfirmationReply,
   buildSalesIntakeReply,
   isConfirmationPending,
@@ -612,12 +617,25 @@ async function resolveSpecialist(
     const needsSanitize =
       (await matchesLearnedReplyGuard("sales", result.reply)) ||
       /למי\s+הסלון\s+משמש/i.test(result.reply) ||
-      FAKE_STOCK_REPLY_RE.test(result.reply)
+      FAKE_STOCK_REPLY_RE.test(result.reply) ||
+      isStrictMisunderstandingReply(result.reply)
     if (needsSanitize) {
       const sanitized = FAKE_STOCK_REPLY_RE.test(result.reply)
         ? buildProductInventoryHandoff()
-        : sanitizeSalesReply(result.reply, history, body)
+        : isStrictMisunderstandingReply(result.reply)
+          ? shouldUseSalesIntakeFastPath(body, history, options?.lastAgent ?? null)
+            ? buildSalesIntakeReply(history, body)
+            : buildMasterConfusedReply()
+          : sanitizeSalesReply(result.reply, history, body)
       result = { ...result, reply: normalizeReply("sales", "reply", sanitized) }
+    }
+  }
+
+  if (specialist === "faq" && result.reply && isStrictMisunderstandingReply(result.reply)) {
+    result = {
+      ...result,
+      reply: normalizeReply("faq", "reply", buildMasterConfusedReply()),
+      action: "reply",
     }
   }
 
@@ -1120,6 +1138,31 @@ export async function runMasterConversation(
       route,
       sharedOptions
     )
+  }
+
+  const masterFallback = resolveMasterFallback(body, history, lastAgent)
+  if (masterFallback?.kind === "sales_intake") {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "sales",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+  if (masterFallback?.kind === "handoff_offer") {
+    const reply = normalizeReply("faq", "reply", buildMasterConfusedReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
   const orchestra = await runConversationOrchestra({

@@ -115,6 +115,36 @@ export function isSalesConsultationTrigger(text: string) {
   return CONSULTATION_RE.test(text.trim())
 }
 
+const PET_MENTION_RE =
+  /(?:יש\s+(?:לי\s+)?|עם\s+|בבית\s+)(?:כלב|חתול|חיה|חיות)|(?:כלב|חתול)\s+(?:ענק|קטן|גדול)/i
+
+export function isColloquialQuizAffirmation(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 24) return false
+  return /^(?:בול|נכון|בדיוק|אכן|מדויק|אחלה|סגור|כן\s+נכון|נראה\s+לי|נראה\s+שכן)(?:[\s,.!?]*|$)/iu.test(
+    text
+  )
+}
+
+/** Active sales consultation — deterministic quiz or recent sales thread. */
+export function isSalesQuizContext(
+  history: HistoryMessage[],
+  lastAgent: AgentId | null
+) {
+  if (hasOngoingSalesIntake(history)) return true
+  if (isConfirmationPending(history)) return true
+  if (lastAgent !== "sales") return false
+
+  const recent = history.slice(-10).map((message) => message.content).join("\n")
+  return /שטיח|פוף|תקציב|סגנון|סלון|חדר|בעלי חיים|חתול|כלב|התאמת|מחיר|יועץ/i.test(
+    recent
+  )
+}
+
+export function mentionsPetInText(text: string) {
+  return PET_MENTION_RE.test(text.trim())
+}
+
 export function hasOngoingSalesIntake(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
@@ -148,11 +178,11 @@ function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
   if (/באיזה מוצר/.test(last)) return "product"
   if (/איך חדר השינה/.test(last)) return "bedroom"
   if (/ילדים קטנים/.test(last)) return "children"
-  if (/בעלי חיים|להתאים לבעלי/.test(last)) return "pets"
-  if (/סגנון/.test(last)) return "style"
-  if (/מידת הספה|גודל כללי של הסלון/.test(last)) return "sofa"
-  if (/תקציב/.test(last)) return "budget"
-  if (/דרישות מיוחדות/.test(last)) return "practical"
+  if (/בעלי חיים|להתאים לבעלי|חתול|כלב|חיה(?:ות)?/.test(last)) return "pets"
+  if (/סגנון|צבע מועדף|יוקרתי|מודרני|כפרי/.test(last)) return "style"
+  if (/מידת הספה|גודל כללי של הסלון|מקום פנוי|מרפס|סלון/.test(last)) return "sofa"
+  if (/תקציב|מחיר|עלות|כמה\s+מוכנ/.test(last)) return "budget"
+  if (/דרישות מיוחדות|ניקוי|כביסה/.test(last)) return "practical"
   if (/האם זה נכון|אני צודק/.test(last)) return "confirm"
   return null
 }
@@ -229,9 +259,10 @@ export function isSalesIntakeAnswer(body: string, history: HistoryMessage[]) {
 export function shouldUseSalesIntakeFastPath(
   body: string,
   history: HistoryMessage[],
-  _lastAgent: AgentId | null
+  lastAgent: AgentId | null
 ) {
   if (isShippingPolicyQuestion(body) || isShippingStatusQuestion(body)) return false
+  if (mentionsPetInText(body)) return true
   if (isFaqTopicSwitch(body)) return false
   if (isServiceTopicSwitch(body)) return false
   if (isDissatisfactionWithoutDefect(body)) return false
@@ -242,6 +273,10 @@ export function shouldUseSalesIntakeFastPath(
   if (isProductInventoryQuestion(body) || isSpecificProductMention(body)) return false
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
+  if (isSalesQuizContext(history, lastAgent)) {
+    if (isIntakeTopicPivot(body, history)) return false
+    return true
+  }
   if (hasOngoingSalesIntake(history)) {
     return classifySalesIntakeReply(body, history) === "answer"
   }
@@ -288,12 +323,56 @@ function applyPetsAnswer(intake: SalesIntake, history: HistoryMessage[], body: s
   }
 }
 
+function applyAffirmationFromAssistantContext(
+  intake: SalesIntake,
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isColloquialQuizAffirmation(body)) return
+
+  const last = lastAssistantText(history)
+  const priorUser = history
+    .filter((message) => message.role === "user")
+    .slice(-4)
+    .map((message) => message.content)
+    .join(" ")
+
+  if (/סלון|מקום|גודל|מרפס|חדר|חלל/.test(last) && !intake.targetSpace) {
+    if (/סלון/.test(last) || /סלון/.test(priorUser)) intake.targetSpace = "סלון"
+    else if (/מרפס/.test(last)) intake.targetSpace = "מרפסת"
+    else if (/חדר\s+שינה/.test(last)) intake.targetSpace = "חדר שינה"
+    else intake.targetSpace = "סלון"
+  }
+
+  if (/ספה|מקום|גודל|מרפס|סלון/.test(last)) {
+    intake.sofaSize = "לא ידוע — יועץ יבדוק"
+  }
+
+  if (/בעלי חיים|חתול|כלב|חיה/.test(last) && intake.pets == null) {
+    if (mentionsRealPet(priorUser) || mentionsRealPet(body)) {
+      intake.pets = "yes"
+      const detail =
+        priorUser.match(/(?:כלב(?:ה)?|חתול(?:ה)?|[א-ת]{2,12})/i)?.[0] ||
+        body.match(/(?:כלב(?:ה)?|חתול(?:ה)?|[א-ת]{2,12})/i)?.[0]
+      if (detail) intake.petsDetail = detail.slice(0, 40)
+    }
+  }
+}
 function applyContextualIntakeAnswers(
   intake: SalesIntake,
   history: HistoryMessage[],
   body: string,
   options?: { force?: boolean; kind?: string | null }
 ) {
+  if (isColloquialQuizAffirmation(body) && !options?.force) {
+    applyAffirmationFromAssistantContext(intake, history, body)
+    applyPetsAnswer(intake, history, body)
+    reconcilePetsFromThread(intake, history, body)
+    return
+  }
+
+  applyAffirmationFromAssistantContext(intake, history, body)
+
   const kind = options?.kind ?? lastIntakeQuestionKind(history)
   if (!kind && !options?.force) return
 
@@ -323,7 +402,11 @@ function applyContextualIntakeAnswers(
 
   if ((kind === "practical" || options?.force) && !intake.practicalNeeds) {
     const trimmed = body.trim()
-    if (trimmed.length >= 2 && trimmed.length <= 80) {
+    if (
+      trimmed.length >= 2 &&
+      trimmed.length <= 80 &&
+      !isColloquialQuizAffirmation(trimmed)
+    ) {
       intake.practicalNeeds = trimmed
     }
   }
@@ -559,6 +642,7 @@ function sofaSizeQuestion(intake: SalesIntake) {
 function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
   if (!combined) return
+  if (isColloquialQuizAffirmation(combined)) return
   if (isUnknownIntakeAnswer(combined)) {
     intake.style = "ללא העדפת סגנון"
     return
@@ -581,7 +665,7 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
 
 function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
-  if (!combined) return
+  if (!combined || isColloquialQuizAffirmation(combined)) return
 
   const slashMatch = combined.match(/\b(\d{2,4})\s*[\/x×]\s*(\d{2,4})\b/)
   if (slashMatch) {
@@ -797,7 +881,7 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
       case "practical":
         if (isUnknownIntakeAnswer(combined)) {
           intake.practicalNeeds = "לא בטוח — יועץ יבדוק"
-        } else {
+        } else if (!isColloquialQuizAffirmation(combined)) {
           intake.practicalNeeds = answers[answers.length - 1].slice(0, 80)
         }
         break
@@ -815,7 +899,8 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
 }
 
 function wasSpaceQuestionAsked(history: HistoryMessage[]) {
-  return /לאיזה חלל|לאן השטיח/.test(lastAssistantText(history))
+  const last = lastAssistantText(history)
+  return /לאיזה חלל|לאן השטיח|מקום פנוי|גודל.*סלון|לאיזה\s+חלל/.test(last)
 }
 
 export function extractSalesIntake(history: HistoryMessage[], body: string): SalesIntake {
@@ -930,9 +1015,13 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
       trimmed.length >= 2 &&
       trimmed.length <= 50 &&
       !isUnknownIntakeAnswer(trimmed) &&
-      !/^(?:כן|לא)(?:[\s,.!?]|$)/i.test(trimmed)
+      (!/^(?:כן|לא)(?:[\s,.!?]|$)/i.test(trimmed) || isColloquialQuizAffirmation(trimmed))
     ) {
-      applySpaceAnswer(intake, [trimmed])
+      if (isColloquialQuizAffirmation(trimmed)) {
+        applyAffirmationFromAssistantContext(intake, history, body)
+      } else {
+        applySpaceAnswer(intake, [trimmed])
+      }
     }
   }
 

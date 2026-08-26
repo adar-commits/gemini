@@ -10,6 +10,7 @@ import {
   hasOngoingSalesIntake,
   isConfirmationPending,
   isIntakeTopicPivot,
+  isSalesQuizContext,
 } from "@/lib/agents/sales-intake"
 import { isProductAvailabilityQuestion } from "@/lib/agents/product-handoff"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
@@ -146,9 +147,10 @@ export function shouldContinueWithSpecialist(
   if (isServiceTopicSwitch(body) && sticky !== "service") return false
   if (isSalesTopicSwitch(body) && sticky !== "sales") return false
 
-  if (sticky === "sales" && hasOngoingSalesIntake(history)) {
+  if (sticky === "sales" && isSalesQuizContext(history, sticky)) {
     if (isCustomerServiceOpener(body)) return false
     if (isFaqTopicSwitch(body) || isServiceTopicSwitch(body)) return false
+    if (isIntakeTopicPivot(body, history)) return false
     return true
   }
 
