@@ -6,6 +6,7 @@ import {
   isPostPurchaseDissatisfaction,
   isPreorderDelayComplaint,
   isProductDefectComplaint,
+  mentionsReturnIntent,
   type PostPurchaseCaseKind,
 } from "@/lib/agents/inquiry-intent"
 import {
@@ -90,6 +91,9 @@ export function hasProductDefectContext(body: string, history: HistoryMessage[] 
 export function shouldHandlePostPurchaseCaseFlow(body: string, history: HistoryMessage[]) {
   if (activePostPurchaseCaseKind(history)) return true
   if (classifyPostPurchaseCase(body)) return true
+  if (mentionsReturnIntent(body) && /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|שטיח|פוף|מוצר|הזמנה)/i.test(body)) {
+    return true
+  }
 
   if (
     isPhoneLookupConfirmPending(history) ||
@@ -111,7 +115,7 @@ function resolveCaseKind(body: string, history: HistoryMessage[]): PostPurchaseC
   return (
     activePostPurchaseCaseKind(history) ??
     classifyPostPurchaseCase(body) ??
-    "defect"
+    (mentionsReturnIntent(body) ? "return_request" : "dissatisfaction")
   )
 }
 
@@ -133,6 +137,13 @@ function buildOpeningReply(kind: PostPurchaseCaseKind, whatsappPhone?: string) {
 ${caseMarkerForKind(kind)} — זו לא חוויה שאנחנו רוצים שתקבלו.
 ניתן לטפל בזה בהחלפה או בהחזר, לפי מדיניות החברה ובהתאם לבדיקת המוצר.
 
+כדי להתקדם, נאתר קודם את ההזמנה.
+${phoneQuestion}`
+  }
+
+  if (kind === "return_request") {
+    return `${CUSTOMER_HEADER}
+${caseMarkerForKind(kind)}.
 כדי להתקדם, נאתר קודם את ההזמנה.
 ${phoneQuestion}`
   }
@@ -165,6 +176,14 @@ function buildOrderConfirmedReply(kind: PostPurchaseCaseKind, order: OrderShipme
 
 נשמח לקבל תמונה של המוצר ושל אזור הפגם, כדי שנוכל להמשיך בטיפול.
 האם להעביר את הפנייה לנציג שירות שיטפל בהחלפה/החזרה?`
+  }
+
+  if (kind === "return_request") {
+    return `${CUSTOMER_HEADER}
+תודה, איתרנו את הזמנה ${order.orderNumber} (${order.branchLabel}).
+
+נמשיך עם בקשת ההחזר לפי מדיניות החברה.
+האם להעביר את הפנייה לנציג שירות שיטפל בזה?`
   }
 
   if (kind === "dissatisfaction") {

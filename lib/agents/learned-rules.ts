@@ -137,13 +137,19 @@ export async function matchesLearnedGreeting(text: string) {
   return false
 }
 
+const STALE_LEARNED_RULE_RE =
+  /shadow-autofix:\s*no safe rule passed validation|לא הצלחתי להבין את השאלה,\s*נסה שוב/i
+
+function isUsableLearnedPromptRule(rule: LearnedRuleRow) {
+  const text = rule.rule_text.trim()
+  if (!text || STALE_LEARNED_RULE_RE.test(text)) return false
+  return rule.rule_kind === "prompt_rule" || rule.rule_kind === "off_topic_exception"
+}
+
 export async function learnedPromptRules(agent: AgentId | "all") {
   const rules = await loadLearnedRules()
   const lines = rules
-    .filter(
-      (rule) =>
-        rule.rule_kind === "prompt_rule" || rule.rule_kind === "off_topic_exception"
-    )
+    .filter(isUsableLearnedPromptRule)
     .filter((rule) => {
       const target = rule.agent?.trim() || "all"
       return target === "all" || target === agent

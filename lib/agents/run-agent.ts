@@ -34,6 +34,7 @@ import {
 import {
   resolvePostPurchaseCaseReply,
   shouldHandlePostPurchaseCaseFlow,
+  activePostPurchaseCaseKind,
 } from "@/lib/agents/post-purchase-case"
 import { isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
@@ -1044,6 +1045,16 @@ export async function runMasterConversation(
   }
 
   if (isInactivityPingPending(history) && isInactivityStillHereReply(body)) {
+    if (
+      activePostPurchaseCaseKind(history) ||
+      isPhoneLookupConfirmPending(history) ||
+      isOrderConfirmationPending(history) ||
+      isAlternatePhoneRequestPending(history) ||
+      shouldHandlePostPurchaseCaseFlow(body, history)
+    ) {
+      return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+    }
+
     const reply = normalizeReply(
       "faq",
       "reply",

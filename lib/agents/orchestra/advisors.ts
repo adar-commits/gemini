@@ -26,7 +26,7 @@ function historySnippet(ctx: OrchestraContext, maxMessages = 8) {
 const SHARED_RULES = `
 HoM GROUP WhatsApp bot advisors. Output compact JSON only.
 Never invent prices, stock, order status, or policies.
-Dissatisfaction without defect → FAQ/exchange info, not service handoff first turn.
+Dissatisfaction or return request after delivery → post-purchase service flow, not defect apology unless they report damage.
 Defect/wrong/missing item → service intake before human.
 human_sales/human_service only if customer asks for representative or confirms handoff offer.
 Living room intake: ask SPACE first — never "למי הסלון משמש".

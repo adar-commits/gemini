@@ -10,7 +10,14 @@ export function primaryIntentText(body: string) {
   return clause || firstLine
 }
 
-export type PostPurchaseCaseKind = "defect" | "dissatisfaction" | "preorder_delay"
+export type PostPurchaseCaseKind =
+  | "defect"
+  | "dissatisfaction"
+  | "preorder_delay"
+  | "return_request"
+
+const RETURN_INTENT_RE =
+  /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חזיר|החזר)|(?:ל)?החזיר(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החזר(?:ה|ות)?(?:\s|$)/i
 
 const DEFECT_RE =
   /פגם|פגום|פגומ(?:ה|ים|ות)|קרוע|שבור|סדוק|מקולקל|נזק|ליקוי|פגם\s+ב(?:ה)?ובלה/i
@@ -41,6 +48,24 @@ function matchesReceivedWithProblem(text: string) {
     return true
   }
   return false
+}
+
+/** Customer wants to execute a return — not "how does return policy work?" */
+export function mentionsReturnIntent(text: string) {
+  return RETURN_INTENT_RE.test(text.trim())
+}
+
+function isReturnPolicyQuestion(text: string) {
+  return (
+    /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות)|מדיניות\s+(?:ה)?החזר)/i.test(text) &&
+    !RECEIVED_RE.test(text)
+  )
+}
+
+function matchesReturnRequest(text: string) {
+  if (!text || isReturnPolicyQuestion(text)) return false
+  if (!mentionsReturnIntent(text)) return false
+  return RECEIVED_RE.test(text) || PRODUCT_RE.test(text)
 }
 
 function matchesDefect(text: string) {
@@ -86,6 +111,9 @@ export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | n
   const primary = primaryIntentText(body)
   const candidates = [primary, body.trim()].filter(Boolean)
 
+  for (const text of candidates) {
+    if (matchesReturnRequest(text)) return "return_request"
+  }
   for (const text of candidates) {
     if (matchesDefect(text)) return "defect"
   }
