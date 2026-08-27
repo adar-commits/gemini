@@ -1,31 +1,43 @@
 /** Owner-confirmed model & inference settings — v2 single source. */
 
-const DEFAULT_SPECIALIST = "anthropic/claude-sonnet-5"
-const DEFAULT_ROUTER = "google/gemini-2.5-flash"
+/** Top-tier defaults (Vercel AI Gateway provider/model slugs). Override via env. */
+const DEFAULT_SPECIALIST = "anthropic/claude-opus-4.6"
+const DEFAULT_ROUTER = "anthropic/claude-sonnet-4.6"
+
+function envModel(...keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key]?.trim()
+    if (value) return value
+  }
+  return undefined
+}
 
 export const AGENT_CONFIG = {
   router: {
     model: () =>
-      process.env.AGENT_ROUTER_MODEL?.trim() ||
-      process.env.AGENT_MODEL?.trim() ||
+      envModel("AGENT_ROUTER_MODEL") ||
+      envModel("AGENT_MODEL") ||
       DEFAULT_ROUTER,
     temperature: 0.1,
-    maxOutputTokens: 80,
+    maxOutputTokens: 96,
   },
   faq: {
-    model: () => process.env.AGENT_MODEL?.trim() || DEFAULT_SPECIALIST,
+    model: () =>
+      envModel("AGENT_FAQ_MODEL", "AGENT_MODEL") || DEFAULT_SPECIALIST,
     temperature: 0,
-    maxOutputTokens: 700,
+    maxOutputTokens: 800,
   },
   sales: {
-    model: () => process.env.AGENT_MODEL?.trim() || DEFAULT_SPECIALIST,
-    temperature: 0.3,
-    maxOutputTokens: 700,
+    model: () =>
+      envModel("AGENT_SALES_MODEL", "AGENT_MODEL") || DEFAULT_SPECIALIST,
+    temperature: 0.25,
+    maxOutputTokens: 800,
   },
   service: {
-    model: () => process.env.AGENT_MODEL?.trim() || DEFAULT_SPECIALIST,
-    temperature: 0.2,
-    maxOutputTokens: 700,
+    model: () =>
+      envModel("AGENT_SERVICE_MODEL", "AGENT_MODEL") || DEFAULT_SPECIALIST,
+    temperature: 0.15,
+    maxOutputTokens: 800,
   },
 } as const
 
@@ -37,4 +49,14 @@ export function specialistConfig(agent: SpecialistKind) {
 
 export function routerConfig() {
   return AGENT_CONFIG.router
+}
+
+/** For logs / health checks */
+export function activeModelSummary() {
+  return {
+    router: AGENT_CONFIG.router.model(),
+    faq: AGENT_CONFIG.faq.model(),
+    sales: AGENT_CONFIG.sales.model(),
+    service: AGENT_CONFIG.service.model(),
+  }
 }

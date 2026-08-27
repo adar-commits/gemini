@@ -28,11 +28,13 @@ function isHookAuthorized(request: Request) {
 }
 
 export async function GET() {
+  const { activeModelSummary } = await import("@/lib/agent-core/config")
   return NextResponse.json({
     ok: true,
     method: "POST",
     note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after ~3.5s silence since the last customer message.",
     policy: landbotPhonePolicy(),
+    models: activeModelSummary(),
   })
 }
 

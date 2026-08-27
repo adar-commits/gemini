@@ -4,10 +4,10 @@
 
 | Role | Model | Temp | Rationale |
 |------|-------|------|-----------|
-| Router | `google/gemini-2.5-flash` (env: `AGENT_ROUTER_MODEL`) | **0.1** | Full Flash — better Hebrew routing than lite |
-| FAQ | `claude-sonnet-5` (env: `AGENT_MODEL`) | **0** | Legal policy — zero paraphrase risk |
-| Sales | `claude-sonnet-5` | **0.3** | Friendly intake — owner wants conversational quiz |
-| Service | `claude-sonnet-5` | **0.2** | Structured case intake — balance warmth vs discipline |
+| Router | `anthropic/claude-sonnet-4.6` | **0.1** | Smarter Hebrew routing fallback than Flash |
+| FAQ | `anthropic/claude-opus-4.6` | **0** | Best policy grounding |
+| Sales | `anthropic/claude-opus-4.6` | **0.25** | Natural intake when LLM runs |
+| Service | `anthropic/claude-opus-4.6` | **0.15** | Case intake + handoff judgment |
 
 ## Why Orchestra was removed
 

@@ -14,10 +14,10 @@
 
 | Agent | Model env | Temp |
 |-------|-----------|------|
-| Router | `AGENT_ROUTER_MODEL` → **google/gemini-2.5-flash** (full, not lite) | 0.1 |
-| FAQ | `AGENT_MODEL` → claude-sonnet-5 | 0 |
-| Sales | `AGENT_MODEL` | 0.3 |
-| Service | `AGENT_MODEL` | 0.2 |
+| Router | `AGENT_ROUTER_MODEL` → **anthropic/claude-sonnet-4.6** | 0.1 |
+| FAQ | `AGENT_FAQ_MODEL` or `AGENT_MODEL` → **anthropic/claude-opus-4.6** | 0 |
+| Sales | `AGENT_SALES_MODEL` or `AGENT_MODEL` → **anthropic/claude-opus-4.6** | 0.25 |
+| Service | `AGENT_SERVICE_MODEL` or `AGENT_MODEL` → **anthropic/claude-opus-4.6** | 0.15 |
 
 **Rollout:** shadow allowlist first, then all customers after fixtures pass.  
 **Language:** match customer language when possible (Hebrew default).  
