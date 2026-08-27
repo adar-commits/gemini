@@ -93,6 +93,8 @@ export type AgentResponse = {
   ok: true
   agent: AgentId
   reply: string
+  /** When set, each item is sent as a separate customer message (in order). */
+  replies?: string[]
   action: AgentAction
   route?: AgentId[]
   metrics?: TurnMetrics

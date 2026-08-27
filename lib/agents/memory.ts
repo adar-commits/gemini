@@ -442,3 +442,80 @@ export async function appendTurn(input: {
 
   return { assistantInserted }
 }
+
+export async function appendMultiReplyTurn(input: {
+  conversationId: string
+  agent: AgentId
+  userText: string
+  assistantTexts: string[]
+  action: string
+  persistUser?: boolean
+  preview?: boolean
+}): Promise<{ assistantInserted: boolean }> {
+  const texts = input.assistantTexts.map((text) => text.trim()).filter(Boolean)
+  if (texts.length <= 1) {
+    return appendTurn({
+      ...input,
+      assistantText: texts[0] ?? "",
+    })
+  }
+
+  if (input.preview) return { assistantInserted: false }
+
+  const conversationId = safeId(input.conversationId)
+  const persistUser = input.persistUser !== false
+  const supabase = getAgentSupabase()
+  const nowMs = Date.now()
+  const userCreatedAt = new Date(nowMs).toISOString()
+  const rows: Array<{
+    conversation_id: string
+    role: "user" | "assistant"
+    content: string
+    agent: AgentId
+    action: string | null
+    created_at?: string
+  }> = persistUser
+    ? [
+        {
+          conversation_id: conversationId,
+          role: "user",
+          content: input.userText,
+          agent: input.agent,
+          action: null,
+          created_at: userCreatedAt,
+        },
+      ]
+    : []
+
+  texts.forEach((text, index) => {
+    rows.push({
+      conversation_id: conversationId,
+      role: "assistant",
+      content: text,
+      agent: input.agent,
+      action: index === texts.length - 1 ? input.action : "reply",
+      created_at: new Date(nowMs + index + 1).toISOString(),
+    })
+  })
+
+  const { error: insertError } = await supabase.from("hom_agent_messages").insert(rows)
+  if (insertError) throw insertError
+
+  const lastAssistantAt = new Date(nowMs + texts.length).toISOString()
+  const session: Record<string, string | null> = {
+    conversation_id: conversationId,
+    last_agent: input.agent,
+    updated_at: lastAssistantAt,
+  }
+  if (persistUser && input.userText.trim()) {
+    session.last_user_at = userCreatedAt
+    session.inactivity_ping_sent_at = null
+    session.inactivity_closed_at = null
+  }
+  session.last_assistant_at = lastAssistantAt
+
+  const { error: sessionError } = await supabase.from("hom_agent_sessions").upsert(session)
+  if (sessionError) throw sessionError
+
+  return { assistantInserted: true }
+}

@@ -15,7 +15,7 @@ import { shouldRunDeterministicInterceptors, usesLlmFirstRouting } from "@/lib/a
 import { hasStructuredFlowPending } from "@/lib/agent-core/structured-flow"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
-import { appendTurn, getConversationContext } from "@/lib/agents/memory"
+import { appendTurn, appendMultiReplyTurn, getConversationContext } from "@/lib/agents/memory"
 import { guessMasterRoute, shouldContinueWithSpecialist, stickySpecialist } from "@/lib/agents/route-intent"
 import {
   buildProductInventoryHandoff,
@@ -85,7 +85,21 @@ import {
   isFinalizationQuestion,
   isConfirmationAffirmationWithExtra,
   buildHandoffResumeOffer,
+  hasEmbeddedBusinessAsk,
+  remainderAfterLeadingAffirmation,
 } from "@/lib/agents/compound-reply"
+import {
+  answerFaqQuestionDeterministic,
+  answerFaqQuestionWithLlm,
+  answerOrderedQuestions,
+  looksLikeMultipleQuestions,
+  splitOrderedQuestions,
+} from "@/lib/agents/multi-question"
+import {
+  buildPostHandoffFooter,
+  isPostHumanHandoff,
+  postHandoffKind,
+} from "@/lib/agents/post-handoff"
 import {
   buildCustomerServiceTopicPrompt,
   isCustomerServiceOpener,
@@ -203,43 +217,27 @@ async function runT0DeterministicPaths(
   }
 
   if (isBranchListQuestion(body)) {
-    const lastAgent = sharedOptions.lastAgent
-    const { reply, action } = applyPendingFlowFinalization(
-      "faq",
+    return faqPendingFlowResult(
+      conversationId,
+      body,
       buildBranchReplyForText(body),
       history,
-      lastAgent,
-      body
+      sharedOptions.lastAgent,
+      route,
+      { preview }
     )
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action,
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action, route: [...route, "faq"] }
   }
 
   if (isShippingPolicyQuestion(body)) {
-    const lastAgent = sharedOptions.lastAgent
-    const { reply, action } = applyPendingFlowFinalization(
-      "faq",
+    return faqPendingFlowResult(
+      conversationId,
+      body,
       buildShippingPolicyReply(),
       history,
-      lastAgent,
-      body
+      sharedOptions.lastAgent,
+      route,
+      { preview }
     )
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action,
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action, route: [...route, "faq"] }
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history)) {
@@ -356,7 +354,7 @@ function finalizeReplyForPendingFlow(
   history: HistoryMessage[],
   lastAgent: AgentId | null,
   body: string
-): { text: string; action?: AgentAction } {
+): { text: string; replies?: string[]; action?: AgentAction } {
   if (isHumanHandoffPending(history) && isHandoffAffirmationWithExtra(body)) {
     const action = inferHumanHandoffAction(history, lastAgent)
     const stripped = reply
@@ -364,7 +362,8 @@ function finalizeReplyForPendingFlow(
       .replace(/\n*אם צריך עוד משהו[^\n]*/i, "")
       .trimEnd()
     return {
-      text: `${stripped}\n\n${buildHumanHandoffConfirmedReply(action)}`,
+      text: stripped,
+      replies: [stripped, buildHumanHandoffConfirmedReply(action)],
       action,
     }
   }
@@ -398,10 +397,45 @@ function applyPendingFlowFinalization(
 ) {
   const finalized = finalizeReplyForPendingFlow(baseReply, history, lastAgent, body)
   const action = finalized.action ?? "reply"
+  const parts = finalized.replies ?? [finalized.text]
+  const replies = parts.map((part) => normalizeReply(agent, action, part))
   return {
-    reply: normalizeReply(agent, action, finalized.text),
+    reply: replies[0] ?? "",
+    replies: replies.length > 1 ? replies : undefined,
     action,
   }
+}
+
+async function persistAgentReplies(input: {
+  conversationId: string
+  agent: AgentId
+  userText: string
+  replies: string[]
+  action: AgentAction
+  persistUser?: boolean
+  preview?: boolean
+}) {
+  if (input.replies.length <= 1) {
+    await appendTurn({
+      conversationId: input.conversationId,
+      agent: input.agent,
+      userText: input.userText,
+      assistantText: input.replies[0] ?? "",
+      action: input.action,
+      persistUser: input.persistUser,
+      preview: input.preview,
+    })
+    return
+  }
+  await appendMultiReplyTurn({
+    conversationId: input.conversationId,
+    agent: input.agent,
+    userText: input.userText,
+    assistantTexts: input.replies,
+    action: input.action,
+    persistUser: input.persistUser,
+    preview: input.preview,
+  })
 }
 
 export async function runAgent(
@@ -435,6 +469,154 @@ export async function runAgent(
   })
 }
 
+async function faqPendingFlowResult(
+  conversationId: string,
+  body: string,
+  baseReply: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null,
+  route: AgentId[],
+  options?: { persistUser?: boolean; preview?: boolean }
+): Promise<AgentResponse> {
+  const { reply, replies, action } = applyPendingFlowFinalization(
+    "faq",
+    baseReply,
+    history,
+    lastAgent,
+    body
+  )
+  const outbound = replies ?? (reply ? [reply] : [])
+  await persistAgentReplies({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    replies: outbound,
+    action,
+    persistUser: options?.persistUser,
+    preview: options?.preview,
+  })
+  return {
+    ok: true,
+    agent: "faq",
+    reply,
+    replies,
+    action,
+    route: [...route, "faq"],
+  }
+}
+
+async function resolveMultiQuestionTurn(
+  conversationId: string,
+  body: string,
+  history: HistoryMessage[],
+  route: AgentId[],
+  sharedOptions: {
+    lastAction: string | null
+    sessionSummary?: string | null
+    preview?: boolean
+  },
+  goal?: { reply: string; action?: AgentAction }
+): Promise<AgentResponse | null> {
+  if (!looksLikeMultipleQuestions(body)) return null
+
+  const questions = await splitOrderedQuestions(body, conversationId)
+  if (questions.length < 2) return null
+
+  bindOrchestraTier({
+    body,
+    turn: { text: body, media: [] },
+    history,
+    specialist: "faq",
+  })
+
+  let rawReplies = await answerOrderedQuestions(questions, {
+    conversationId,
+    history,
+    runFaqLlm: (question) =>
+      answerFaqQuestionWithLlm(question, {
+        conversationId,
+        history,
+        sessionSummary: sharedOptions.sessionSummary,
+      }),
+  })
+
+  const postKind = isPostHumanHandoff(sharedOptions.lastAction, history)
+    ? postHandoffKind(sharedOptions.lastAction, history)
+    : null
+  if (postKind && rawReplies.length > 0) {
+    const lastIndex = rawReplies.length - 1
+    const last = rawReplies[lastIndex]!
+    if (!/היועץ כבר קיבל|הנציג כבר קיבל/i.test(last)) {
+      rawReplies[lastIndex] = `${last}\n\n${buildPostHandoffFooter(postKind)}`
+    }
+  }
+
+  if (goal?.reply) rawReplies.push(goal.reply)
+
+  const action = goal?.action ?? "reply"
+  const replies = rawReplies.map((part) => normalizeReply("faq", action, part))
+  if (replies.length === 0) return null
+
+  await persistAgentReplies({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    replies,
+    action,
+    preview: sharedOptions.preview,
+  })
+
+  return {
+    ok: true,
+    agent: "faq",
+    reply: replies[0] ?? "",
+    replies,
+    action,
+    route: [...route, "faq"],
+  }
+}
+
+async function resolvePostHandoffFaqTurn(
+  conversationId: string,
+  body: string,
+  history: HistoryMessage[],
+  route: AgentId[],
+  sharedOptions: {
+    lastAction: string | null
+    preview?: boolean
+  }
+): Promise<AgentResponse | null> {
+  if (!isPostHumanHandoff(sharedOptions.lastAction, history)) return null
+  if (!hasEmbeddedBusinessAsk(body)) return null
+
+  const answer = answerFaqQuestionDeterministic(body)
+  if (!answer) return null
+
+  const kind = postHandoffKind(sharedOptions.lastAction, history)
+  const text =
+    kind && !/היועץ כבר קיבל|הנציג כבר קיבל/i.test(answer)
+      ? `${answer}\n\n${buildPostHandoffFooter(kind)}`
+      : answer
+  const reply = normalizeReply("faq", "reply", text)
+
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview: sharedOptions.preview,
+  })
+
+  return {
+    ok: true,
+    agent: "faq",
+    reply,
+    action: "reply",
+    route: [...route, "faq"],
+  }
+}
+
 async function faqReturnPolicyResult(
   conversationId: string,
   body: string,
@@ -443,22 +625,15 @@ async function faqReturnPolicyResult(
   history?: HistoryMessage[],
   lastAgent?: AgentId | null
 ): Promise<AgentResponse> {
-  const { reply, action } = applyPendingFlowFinalization(
-    "faq",
+  return faqPendingFlowResult(
+    conversationId,
+    body,
     buildReturnExchangePolicyReply(),
     history ?? [],
     lastAgent ?? null,
-    body
+    route,
+    { preview }
   )
-  await appendTurn({
-    conversationId,
-    agent: "faq",
-    userText: body,
-    assistantText: reply,
-    action,
-    preview,
-  })
-  return { ok: true, agent: "faq", reply, action, route: [...route, "faq"] }
 }
 
 async function faqDissatisfactionResult(
@@ -656,43 +831,27 @@ async function resolveSpecialist(
     const lastAgent = options?.lastAgent ?? null
 
     if (matchPolicySubjects(body).includes("carpet_rental")) {
-      const { reply, action } = applyPendingFlowFinalization(
-        replyAgent,
+      return faqPendingFlowResult(
+        conversationId,
+        body,
         buildCarpetRentalPolicyReply(),
         history,
         lastAgent,
-        body
+        route,
+        { persistUser, preview }
       )
-      await appendTurn({
-        conversationId,
-        agent: replyAgent,
-        userText: body,
-        assistantText: reply,
-        action,
-        persistUser,
-        preview,
-      })
-      return { ok: true, agent: replyAgent, reply, action, route: [...route, replyAgent] }
     }
 
     if (isShippingPolicyQuestion(body)) {
-      const { reply, action } = applyPendingFlowFinalization(
-        replyAgent,
+      return faqPendingFlowResult(
+        conversationId,
+        body,
         buildShippingPolicyReply(),
         history,
         lastAgent,
-        body
+        route,
+        { persistUser, preview }
       )
-      await appendTurn({
-        conversationId,
-        agent: replyAgent,
-        userText: body,
-        assistantText: reply,
-        action,
-        persistUser,
-        preview,
-      })
-      return { ok: true, agent: replyAgent, reply, action, route: [...route, replyAgent] }
     }
 
     const inventory = await tryBranchInventoryResult(
@@ -706,23 +865,15 @@ async function resolveSpecialist(
     if (inventory) return inventory
 
     if (isBranchListQuestion(body)) {
-      const { reply, action } = applyPendingFlowFinalization(
-        replyAgent,
+      return faqPendingFlowResult(
+        conversationId,
+        body,
         buildBranchReplyForText(body),
         history,
         lastAgent,
-        body
+        route,
+        { persistUser, preview }
       )
-      await appendTurn({
-        conversationId,
-        agent: replyAgent,
-        userText: body,
-        assistantText: reply,
-        action,
-        persistUser,
-        preview,
-      })
-      return { ok: true, agent: replyAgent, reply, action, route: [...route, replyAgent] }
     }
 
     let result = await runAgent(replyAgent, conversationId, turn, {
@@ -1361,6 +1512,41 @@ export async function runMasterConversation(
     })
     return { ok: true, agent: "master", reply: "", action: "end", route }
   }
+
+  if (isHumanHandoffPending(history) && isHandoffAffirmationWithExtra(body)) {
+    const multi = await resolveMultiQuestionTurn(
+      conversationId,
+      remainderAfterLeadingAffirmation(body) || body,
+      history,
+      route,
+      { lastAction, sessionSummary: conversationSummary, preview },
+      {
+        reply: buildHumanHandoffConfirmedReply(
+          inferHumanHandoffAction(history, lastAgent)
+        ),
+        action: inferHumanHandoffAction(history, lastAgent),
+      }
+    )
+    if (multi) return finish(multi)
+  }
+
+  const multiQuestion = await resolveMultiQuestionTurn(
+    conversationId,
+    body,
+    history,
+    route,
+    { lastAction, sessionSummary: conversationSummary, preview }
+  )
+  if (multiQuestion) return finish(multiQuestion)
+
+  const postHandoffFaq = await resolvePostHandoffFaqTurn(
+    conversationId,
+    body,
+    history,
+    route,
+    { lastAction, preview }
+  )
+  if (postHandoffFaq) return finish(postHandoffFaq)
 
   if (isInactivityPingPending(history)) {
     const ackWithExtra = isInactivityAckWithExtra(body)

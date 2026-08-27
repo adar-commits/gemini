@@ -207,16 +207,20 @@ export async function handleLandbotInbound(
     result = { ...result, reply: draftReply }
   }
 
+  const outboundMessages =
+    result.replies?.filter((text) => text.trim()) ??
+    (draftReply ? [draftReply] : [])
+
   if (replyEnabled) {
-    if (draftReply) {
-      await sendCustomerText(customerId, draftReply)
+    for (const text of outboundMessages) {
+      await sendCustomerText(customerId, text)
     }
 
     if (result.action === "human_sales" || result.action === "human_service") {
       const human = pickHumanAgentId(result.action, customerId)
       if (human) await assignToHuman(customerId, human)
       else await unassignCustomer(customerId)
-    } else if (draftReply) {
+    } else if (outboundMessages.length > 0) {
       const session = await getSessionInactivityState(conversationId)
       const watchAssistantAt = session?.last_assistant_at
       if (watchAssistantAt) {
@@ -255,6 +259,6 @@ export async function handleLandbotInbound(
   return {
     ...result,
     mode,
-    draft_reply: draftReply || undefined,
+    draft_reply: outboundMessages[0] || draftReply || undefined,
   }
 }
