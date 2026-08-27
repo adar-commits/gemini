@@ -70,7 +70,9 @@ Think bigger than the wording. You cannot map every variation of "the product is
 
 Never stay on the previous agent out of inertia. Re-read the **latest** message every time.
 
-Got the product / order and something is wrong (any X — stain, tear, smell, "לא תקין", "משהו מוזר", missing piece) → ROUTE_TO_SERVICE_AGENT. The specific X is a human's job.
+**Dissatisfaction without defect** (received product but don't like it / doesn't suit / "לא אוהב" — no damage claim) → ROUTE_TO_INFO_AGENT first. Present exchange/return policy; Service only after policy or if they insist on personal handling.
+
+**Defect / damage / wrong / missing** (stain, tear, smell, "לא תקין", "משהו מוזר", missing piece, wrong item) → ROUTE_TO_SERVICE_AGENT.
 
 Asking how a rule works ("איך מחזירים?", hours, branches) → ROUTE_TO_INFO_AGENT.
 

@@ -1,6 +1,8 @@
 import { generateText, jsonSchema, Output } from "ai"
 import { buildThanksReply } from "@/lib/agent-core/fallbacks"
 import { routerConfig, specialistConfig } from "@/lib/agent-core/config"
+import { shouldRunDeterministicInterceptors, usesLlmFirstRouting } from "@/lib/agent-core/routing-mode"
+import { hasStructuredFlowPending } from "@/lib/agent-core/structured-flow"
 import { buildUserContent } from "@/lib/agents/multimodal"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
@@ -430,6 +432,49 @@ async function resolveSpecialist(
       })
       return { ok: true, agent, reply, action: "reply", route }
     }
+  }
+
+  if (usesLlmFirstRouting() && !hasStructuredFlowPending(history)) {
+    const inventory = await tryBranchInventoryResult(
+      conversationId,
+      body,
+      history,
+      route,
+      persistUser,
+      preview
+    )
+    if (inventory) return inventory
+
+    let result = await runAgent(specialist, conversationId, turn, {
+      persistUser,
+      history,
+      preview,
+      faqSalesResume:
+        specialist === "faq" &&
+        wasSalesFlowActive(history, options?.lastAgent ?? null),
+    })
+
+    if (isSpecialistId(result.action) && result.action !== specialist) {
+      route.push(result.action)
+      result = await runAgent(result.action, conversationId, turn, {
+        persistUser: false,
+        history,
+        preview,
+      })
+    }
+
+    if (
+      specialist === "sales" &&
+      result.reply &&
+      FAKE_STOCK_REPLY_RE.test(result.reply)
+    ) {
+      result = {
+        ...result,
+        reply: normalizeReply("sales", "reply", buildProductInventoryHandoff()),
+      }
+    }
+
+    return { ...result, route }
   }
 
   if (isCustomerServiceOpener(body)) {
@@ -1010,6 +1055,45 @@ async function tryCasualSmallTalk(
   return { ok: true, agent: "faq", reply, action: "reply", route: ["faq"] }
 }
 
+async function routeViaMasterLlm(
+  conversationId: string,
+  turn: UserTurn,
+  history: HistoryMessage[],
+  route: AgentId[],
+  preview: boolean | undefined,
+  phone: string,
+  sharedOptions: {
+    customerName?: string
+    preview?: boolean
+    phone?: string
+    lastAgent: AgentId | null
+    lastAction: string | null
+    resetAt: string | null
+  }
+): Promise<AgentResponse> {
+  const body = summarizeTurn(turn)
+  const master = await runAgent("master", conversationId, turn, { history, preview })
+  route.push("master")
+  const masterAction = (
+    MASTER_ROUTE_MAP[master.action as MasterAction]
+      ? master.action
+      : "ROUTE_TO_INFO_AGENT"
+  ) as MasterAction
+  const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
+  if (next === "shipping") {
+    return shippingResult(conversationId, body, route, preview, phone || undefined, history)
+  }
+  return resolveSpecialist(
+    conversationId,
+    turn,
+    next,
+    history,
+    true,
+    route,
+    sharedOptions
+  )
+}
+
 export async function runMasterConversation(
   conversationId: string,
   turn: UserTurn,
@@ -1106,6 +1190,34 @@ export async function runMasterConversation(
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
+  const structuredFlow = hasStructuredFlowPending(history)
+
+  if (usesLlmFirstRouting() && !structuredFlow) {
+    const welcome = await tryWelcomeGreeting(
+      conversationId,
+      turn,
+      { history, lastAction, resetAt },
+      options
+    )
+    if (welcome) return welcome
+
+    const casual = await tryCasualSmallTalk(conversationId, turn, history, {
+      preview,
+      handoffPending: isHumanHandoffPending(history),
+    })
+    if (casual) return casual
+
+    return routeViaMasterLlm(
+      conversationId,
+      turn,
+      history,
+      route,
+      preview,
+      phone,
+      sharedOptions
+    )
+  }
+
   if (
     isBotHelpJustDelivered(history) &&
     (isExplicitHumanRequest(body) || isHelpInsufficient(body))
@@ -1121,36 +1233,6 @@ export async function runMasterConversation(
       preview,
     })
     return { ok: true, agent: "master", reply, action, route: [...route, "master"] }
-  }
-
-  if (isCustomerServiceOpener(body)) {
-    const reply = normalizeReply("faq", "reply", buildCustomerServiceTopicPrompt())
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action: "reply",
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
-  }
-
-  if (isWebsiteIssueComplaint(body)) {
-    const reply = normalizeReply("faq", "reply", buildWebsiteIssueHandoffOffer())
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action: "reply",
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
-  }
-
-  if (isDissatisfactionWithoutDefect(body)) {
-    return faqDissatisfactionResult(conversationId, body, route, preview)
   }
 
   const welcome = await tryWelcomeGreeting(
@@ -1212,6 +1294,37 @@ export async function runMasterConversation(
     })
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
   }
+
+  if (shouldRunDeterministicInterceptors(structuredFlow)) {
+    if (isCustomerServiceOpener(body)) {
+      const reply = normalizeReply("faq", "reply", buildCustomerServiceTopicPrompt())
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        preview,
+      })
+      return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+    }
+
+    if (isWebsiteIssueComplaint(body)) {
+      const reply = normalizeReply("faq", "reply", buildWebsiteIssueHandoffOffer())
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        preview,
+      })
+      return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+    }
+
+    if (isDissatisfactionWithoutDefect(body)) {
+      return faqDissatisfactionResult(conversationId, body, route, preview)
+    }
 
   if (shouldHandleServicePraiseFlow(body, history)) {
     return servicePraiseResult(conversationId, body, route, preview, phone, history)
@@ -1375,6 +1488,7 @@ export async function runMasterConversation(
       sharedOptions
     )
   }
+  }
 
   const masterFallback = resolveMasterFallback(body, history, lastAgent)
   if (masterFallback?.kind === "sales_intake") {
@@ -1415,7 +1529,7 @@ export async function runMasterConversation(
     )
   }
 
-  const guessed = guessMasterRoute(body)
+  const guessed = usesLlmFirstRouting() ? null : guessMasterRoute(body)
   let masterAction: MasterAction
 
   if (guessed) {

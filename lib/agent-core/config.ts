@@ -1,5 +1,7 @@
 /** Owner-confirmed model & inference settings — v2 single source. */
 
+import { agentRoutingMode } from "@/lib/agent-core/routing-mode"
+
 /** Top-tier defaults (Vercel AI Gateway provider/model slugs). Override via env. */
 const DEFAULT_SPECIALIST = "anthropic/claude-opus-4.6"
 const DEFAULT_ROUTER = "anthropic/claude-sonnet-4.6"
@@ -59,10 +61,11 @@ export function activeModelSummary() {
     sales: AGENT_CONFIG.sales.model(),
     service: AGENT_CONFIG.service.model(),
     salesIntakeMode: salesIntakeMode(),
+    routingMode: agentRoutingMode(),
   }
 }
 
-/** llm = Opus drives intake; scripted = legacy deterministic quiz; hybrid = script only mid-quiz */
+export { agentRoutingMode, type AgentRoutingMode } from "@/lib/agent-core/routing-mode"
 export type SalesIntakeMode = "llm" | "scripted" | "hybrid"
 
 export function salesIntakeMode(): SalesIntakeMode {

@@ -25,6 +25,8 @@
 
 **Orchestra:** removed.
 
+**Routing (default `AGENT_ROUTING_MODE=llm`):** Master router (Sonnet) + specialist LLM (Opus) on every substantive turn. Regex/scripts only for structured mid-flow (order כן/לא, phone lookup, handoff binding, inactivity). Set `AGENT_ROUTING_MODE=regex` to restore legacy interceptors.
+
 ## Routing priority
 
 1. Bind short reply to last non-inactivity assistant turn
