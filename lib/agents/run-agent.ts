@@ -37,7 +37,7 @@ import {
   shouldHandlePostPurchaseCaseFlow,
   activePostPurchaseCaseKind,
 } from "@/lib/agents/post-purchase-case"
-import { isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
   buildDigitalDocumentReply,
   lookupDigitalDocument,
@@ -125,6 +125,7 @@ import {
 } from "@/lib/agents/shipping"
 import {
   buildCarpetRentalPolicyReply,
+  buildReturnExchangePolicyReply,
   matchPolicySubjects,
 } from "@/lib/agents/policy-subjects"
 import {
@@ -303,6 +304,30 @@ export async function runAgent(
     reply,
     action: action as ConversationalAction | MasterAction,
   }
+}
+
+async function faqReturnPolicyResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean,
+  history?: HistoryMessage[],
+  lastAgent?: AgentId | null
+): Promise<AgentResponse> {
+  const reply = normalizeReply(
+    "faq",
+    "reply",
+    finalizeFaqReplyForContext(buildReturnExchangePolicyReply(), history ?? [], lastAgent ?? null)
+  )
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview,
+  })
+  return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
 }
 
 async function faqDissatisfactionResult(
@@ -1035,6 +1060,10 @@ export async function runMasterConversation(
       return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
     }
 
+    if (shouldHandleOrderShippingFlow(body, history)) {
+      return shippingResult(conversationId, body, route, preview, phone, history)
+    }
+
     const reply = normalizeReply(
       "faq",
       "reply",
@@ -1186,6 +1215,10 @@ export async function runMasterConversation(
 
   if (shouldHandleServicePraiseFlow(body, history)) {
     return servicePraiseResult(conversationId, body, route, preview, phone, history)
+  }
+
+  if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) {
+    return faqReturnPolicyResult(conversationId, body, route, preview, history, lastAgent)
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history)) {

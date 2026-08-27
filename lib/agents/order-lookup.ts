@@ -1,6 +1,7 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { isReturnFlowCorrection, isReturnPolicyQuestion } from "@/lib/agents/inquiry-intent"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 
 const CANCELLATION_EMPATHY_PREFIX =
@@ -369,12 +370,17 @@ export function isOrderConfirmationYes(body: string) {
   if (/^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|אכן|בטח|yes|👍)/i.test(text)) return true
   if (/^(?:זה|זו|זאת)\s+(?:נכון|ה(?:יא|וא)|מדובר)/i.test(text)) return true
   if (/זה\s+המספר\s+שלי|המספר\s+(?:ה)?(?:נכון|שלי)/i.test(text)) return true
+  if (/(?:^|[\s,])(?:נראה|כנראה)\s+(?:לי\s+)?שכן(?:[\s,.!?]|$)/i.test(text)) return true
+  if (/^(?:כן\s+)?(?:זה\s+)?(?:נראה|כנראה)(?:\s+לי)?(?:[\s,.!?]|$)/i.test(text)) return true
+  if (/אמר(?:תי|נו)\s+שכן/i.test(text)) return true
+  if (/^(?:כן|yep)[\s,.!?]*$/i.test(text)) return true
   return false
 }
 
 export function isOrderConfirmationNo(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
+  if (isReturnPolicyQuestion(text) || isReturnFlowCorrection(text)) return false
   if (
     /^(?:לא|לא זה|לא נכון|הזמנה אחרת|אחרת|no)(?:[\s,.!?]|$)/i.test(text) ||
     /^לא[\s,]/i.test(text)

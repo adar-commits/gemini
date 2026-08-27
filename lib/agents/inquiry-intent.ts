@@ -55,16 +55,67 @@ export function mentionsReturnIntent(text: string) {
   return RETURN_INTENT_RE.test(text.trim())
 }
 
-function isReturnPolicyQuestion(text: string) {
+const FUTURE_PURCHASE_RE =
+  /(?:אחר(?:י)?\s+ש(?:א)?|לפני\s+(?:ש(?:א)?)?|כש(?:א)?|בעתיד|אם\s+(?:א)?(?:קנ|רכ)|(?:א|)?(?:קנ(?:ה|ו|יתי)?|רכ(?:ש|יב)(?:ה|תי|ו)?)|(?:א|)?(?:רצ(?:ה|ו|ית)?|תרצ(?:ה|ו|ית)?)\s+(?:ל)?(?:קנ|רכ))/i
+
+/** Policy / hypothetical return question — not an active return request. */
+export function isReturnPolicyQuestion(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+
+  if (
+    /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות)|מדיניות\s+(?:ה)?החזר)/i.test(trimmed) &&
+    !RECEIVED_RE.test(trimmed)
+  ) {
+    return true
+  }
+
+  if (
+    /(?:מה\s+(?:י)?קרה|what\s+if|ואם|אם\s+(?:א)?(?:רצ(?:ה|ו|ית)?|תרצ(?:ה|ו|ית)?)).*(?:החזיר|החזר|החלפ|ביטול|תחרט)/i.test(
+      trimmed
+    )
+  ) {
+    return true
+  }
+
+  if (
+    /(?:החזיר|החזר|החלפ|ביטול).*(?:אחר(?:י)?|לפני|כש|אם|בעתיד)/i.test(trimmed) &&
+    FUTURE_PURCHASE_RE.test(trimmed)
+  ) {
+    return true
+  }
+
+  if (
+    /(?:רק\s+)?(?:שאל(?:תי|ה)|רצ(?:יתי|ה)\s+(?:ל)?(?:דעת|לשאול)|בירור|לידע)/i.test(trimmed) &&
+    /(?:החזיר|החזר|החלפ|ביטול)/i.test(trimmed)
+  ) {
+    return true
+  }
+
+  if (isReturnFlowCorrection(trimmed)) return true
+
+  if (FUTURE_PURCHASE_RE.test(trimmed) && mentionsReturnIntent(trimmed) && !RECEIVED_RE.test(trimmed)) {
+    return true
+  }
+
+  return false
+}
+
+/** Customer clarifies they are not executing a return — pivot back to FAQ. */
+export function isReturnFlowCorrection(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
   return (
-    /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות)|מדיניות\s+(?:ה)?החזר)/i.test(text) &&
-    !RECEIVED_RE.test(text)
+    /(?:לא\s+(?:רוצ(?:ה|ים|ות)|בא(?:מת)?)|רק\s+שאל|זו\s+ה(?:ייתה|יתה)\s+שאלה|לא\s+מ(?:בקש|עונ(?:ה|ים|ת)))/i.test(
+      trimmed
+    ) && /(?:החזיר|החזר|החלפ|ביטול)/i.test(trimmed)
   )
 }
 
 function matchesReturnRequest(text: string) {
-  if (!text || isReturnPolicyQuestion(text)) return false
+  if (!text || isReturnPolicyQuestion(text) || isReturnFlowCorrection(text)) return false
   if (!mentionsReturnIntent(text)) return false
+  if (FUTURE_PURCHASE_RE.test(text) && !RECEIVED_RE.test(text)) return false
   return RECEIVED_RE.test(text) || PRODUCT_RE.test(text)
 }
 

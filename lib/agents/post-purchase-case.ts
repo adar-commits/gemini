@@ -6,6 +6,8 @@ import {
   isPostPurchaseDissatisfaction,
   isPreorderDelayComplaint,
   isProductDefectComplaint,
+  isReturnFlowCorrection,
+  isReturnPolicyQuestion,
   mentionsReturnIntent,
   type PostPurchaseCaseKind,
 } from "@/lib/agents/inquiry-intent"
@@ -89,9 +91,15 @@ export function hasProductDefectContext(body: string, history: HistoryMessage[] 
 }
 
 export function shouldHandlePostPurchaseCaseFlow(body: string, history: HistoryMessage[]) {
+  if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) return false
+
   if (activePostPurchaseCaseKind(history)) return true
   if (classifyPostPurchaseCase(body)) return true
-  if (mentionsReturnIntent(body) && /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|שטיח|פוף|מוצר|הזמנה)/i.test(body)) {
+  if (
+    mentionsReturnIntent(body) &&
+    !isReturnPolicyQuestion(body) &&
+    /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|שטיח|פוף|מוצר|הזמנה)/i.test(body)
+  ) {
     return true
   }
 

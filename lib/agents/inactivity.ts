@@ -23,7 +23,7 @@ export function isInactivityPingPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
-    return /עדיין שם/.test(message.content)
+    return /עדיין\s+(?:שם|כאן)/.test(message.content)
   }
   return false
 }
@@ -45,7 +45,7 @@ export function buildInactivityStillHereAck(customerName?: string) {
 /** Ping / close notices — not the bot's real pending question. */
 export function isInactivityAssistantMessage(content: string) {
   return (
-    /עדיין שם/.test(content) ||
+    /עדיין\s+(?:שם|כאן)/.test(content) ||
     /נסגרה עקב אי מענה/.test(content) ||
     /ניתן לשלוח הודעה חוזרת/.test(content)
   )

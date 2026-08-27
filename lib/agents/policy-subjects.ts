@@ -140,6 +140,14 @@ export function isFaqPolicyQuestion(body: string) {
   return matchPolicySubjects(body).length > 0
 }
 
+export function buildReturnExchangePolicyReply() {
+  return `ניתן להחליף מוצר שקיבלתם בסניפי הרשת, או להחזירו — בנקודות ההחזרה או באיסוף מהבית (בכפוף לתשלום).
+פרטים מלאים: https://returns.carpetshop.co.il/
+החלפה או החזרה — בתוך 14 יום מקבלת המוצר, כשהמוצר שלם וללא פגם או לכלוך.
+
+רוצים לבצע החזרה על הזמנה שכבר קיבלתם? כתבו "החזרה" ונמשיך.`
+}
+
 export function buildCarpetRentalPolicyReply() {
   return `בנוגע לשכירות שטיח — זו לא שירות קבועה לכל לקוח.
 במקרים מסוימים, למשל כשמתלבטים בין שני עיצובים, יועץ המכירות יכול לבדוק אפשרות לשכירות או ניסיון (לעיתים לפי המוצר הזול מבין השניים) — לפי שיקול דעת היועץ בלבד, מקרה-מקרה.
