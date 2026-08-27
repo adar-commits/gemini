@@ -7,6 +7,12 @@ import {
   isPhoneLookupConfirmPending,
 } from "@/lib/agents/order-lookup"
 import {
+  isActiveDigitalDocumentFlow,
+  isDocumentChannelQuestionPending,
+  isDocumentPhoneLookupPending,
+  isLegacyDocumentTypeQuestionPending,
+} from "@/lib/agents/digital-document-flow"
+import {
   isProductHandoffPending,
   isProductUrlRequestPending,
 } from "@/lib/agents/product-handoff"
@@ -27,6 +33,10 @@ export function hasStructuredFlowPending(history: HistoryMessage[]) {
     isProductUrlRequestPending(history) ||
     isProductHandoffPending(history) ||
     isConfirmationPending(history) ||
-    activePostPurchaseCaseKind(history) != null
+    activePostPurchaseCaseKind(history) != null ||
+    isActiveDigitalDocumentFlow(history) ||
+    isDocumentChannelQuestionPending(history) ||
+    isLegacyDocumentTypeQuestionPending(history) ||
+    isDocumentPhoneLookupPending(history)
   )
 }

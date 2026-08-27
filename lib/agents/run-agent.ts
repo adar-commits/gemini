@@ -51,6 +51,10 @@ import {
 } from "@/lib/agents/post-purchase-case"
 import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
+  resolveDigitalDocumentFlowReply,
+  shouldHandleDigitalDocumentFlow,
+} from "@/lib/agents/digital-document-flow"
+import {
   buildDigitalDocumentReply,
   buildDigitalDocumentLookupFailureReply,
   buildDigitalDocumentNotFoundReply,
@@ -58,7 +62,6 @@ import {
   buildShippingNoPhoneReply,
   lookupDigitalDocument,
   resolveOrderShippingReply,
-  shouldHandleDigitalDocumentOrderFlow,
   isBotHelpJustDelivered,
   isExplicitHumanRequest,
   isHelpInsufficient,
@@ -258,19 +261,19 @@ async function runT0DeterministicPaths(
     )
   }
 
-  if (shouldHandlePostPurchaseCaseFlow(body, history)) {
-    return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+  if (shouldHandleDigitalDocumentFlow(body, history)) {
+    return documentFlowResult(conversationId, body, route, preview, phone, history)
   }
 
-  if (shouldHandleDigitalDocumentOrderFlow(body, history)) {
-    return shippingResult(conversationId, body, route, preview, phone, history)
+  if (shouldHandlePostPurchaseCaseFlow(body, history)) {
+    return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
 
   if (shouldHandleOrderShippingFlow(body, history)) {
     return shippingResult(conversationId, body, route, preview, phone, history)
   }
 
-  if (isServiceTopicSwitch(body)) {
+  if (isServiceTopicSwitch(body) && !shouldHandleDigitalDocumentFlow(body, history)) {
     return resolveSpecialist(
       conversationId,
       turn,
@@ -1208,7 +1211,7 @@ async function tryBranchInventoryResult(
 }
 
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
-  if (shouldHandleDigitalDocumentOrderFlow(body, history)) return false
+  if (shouldHandleDigitalDocumentFlow(body, history)) return false
   if (shouldHandleServicePraiseFlow(body, history)) return false
   if (shouldHandlePostPurchaseCaseFlow(body, history)) return false
   if (isPreorderDelayComplaint(body)) return false
@@ -1237,9 +1240,50 @@ function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) 
 
 function shouldHandleOrderLookupFlow(body: string, history: HistoryMessage[]) {
   return (
-    shouldHandleDigitalDocumentOrderFlow(body, history) ||
+    shouldHandleDigitalDocumentFlow(body, history) ||
     shouldHandleOrderShippingFlow(body, history)
   )
+}
+
+function documentFlowResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean,
+  phone?: string,
+  history?: HistoryMessage[]
+): Promise<AgentResponse> {
+  return resolveDigitalDocumentFlowReply({ body, phone, history }).then(async (reply) => {
+    let outbound = reply.trim()
+    if (!outbound) outbound = buildNeverStuckReply()
+
+    if (wasReplyRecentlySent(history ?? [], outbound)) {
+      return {
+        ok: true,
+        agent: "master" as const,
+        reply: "",
+        action: "reply" as const,
+        route,
+      }
+    }
+
+    const { assistantInserted } = await appendTurn({
+      conversationId,
+      agent: "master",
+      userText: body,
+      assistantText: outbound,
+      action: "reply",
+      preview,
+    })
+
+    return {
+      ok: true,
+      agent: "master" as const,
+      reply: assistantInserted ? outbound : "",
+      action: "reply" as const,
+      route,
+    }
+  })
 }
 
 function shippingResult(
@@ -1692,6 +1736,12 @@ export async function runMasterConversation(
 
   const structuredFlow = hasStructuredFlowPending(history)
 
+  if (shouldHandleDigitalDocumentFlow(body, history)) {
+    return finish(
+      await documentFlowResult(conversationId, body, route, preview, phone, history)
+    )
+  }
+
   if (usesLlmFirstRouting() && !structuredFlow) {
     const welcome = await tryWelcomeGreeting(
       conversationId,
@@ -1851,6 +1901,10 @@ export async function runMasterConversation(
     return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
 
+  if (shouldHandleDigitalDocumentFlow(body, history)) {
+    return documentFlowResult(conversationId, body, route, preview, phone, history)
+  }
+
   const inventory = await tryBranchInventoryResult(
     conversationId,
     body,
@@ -1865,7 +1919,7 @@ export async function runMasterConversation(
     return shippingResult(conversationId, body, route, preview, phone, history)
   }
 
-  if (isServiceTopicSwitch(body)) {
+  if (isServiceTopicSwitch(body) && !shouldHandleDigitalDocumentFlow(body, history)) {
     return resolveSpecialist(
       conversationId,
       turn,

@@ -41,6 +41,7 @@ export function priorityWebhookUrl(fallback = DEFAULT_PRIORITY_WEBHOOK_URL) {
 export async function callPriorityWebhook(input: {
   actionType: string
   value: string
+  docType?: string
 }): Promise<unknown | null> {
   const url = priorityWebhookUrl()
   if (!url) return null
@@ -55,7 +56,11 @@ export async function callPriorityWebhook(input: {
         "Content-Type": "application/json",
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        actionType: input.actionType,
+        value: input.value,
+        ...(input.docType ? { docType: input.docType } : {}),
+      }),
       signal: AbortSignal.timeout(PRIORITY_API_TIMEOUT_MS),
     })
 

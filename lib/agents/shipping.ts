@@ -1,6 +1,6 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
-import { isDigitalDocumentRequest } from "@/lib/agents/order-lookup"
+import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 
 /** General delivery policy (times, cost, areas) — FAQ, not order lookup. */
 export function isShippingPolicyQuestion(body: string) {

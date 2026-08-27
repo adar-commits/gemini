@@ -295,22 +295,20 @@ export async function lookupDigitalDocument(
   const value = phoneForOrderApi(phone)
   if (!value) return { ok: false, reason: "invalid_phone" }
 
-  const [documentData, receiptData] = await Promise.all([
-    callOrderWebhook({ actionType: "getDocument", value }),
-    callOrderWebhook({ actionType: "getReceipt", value }),
-  ])
+  const data = await callOrderWebhook({ actionType: "getDocument", value })
+  if (data == null) return { ok: false, reason: "api_failed" }
 
-  let sawResponse = false
-  for (const data of [documentData, receiptData]) {
-    if (data == null) continue
-    sawResponse = true
-    if (typeof data === "object" && "result" in data) {
-      const link = String((data as { result: unknown }).result ?? "").trim()
-      if (link) return { ok: true, link }
-    }
+  const link = parseDocumentLinkFromPayload(data)
+  if (link) return { ok: true, link }
+  return { ok: false, reason: "not_found" }
+}
+
+function parseDocumentLinkFromPayload(data: unknown) {
+  if (typeof data === "object" && data != null && "result" in data) {
+    const link = String((data as { result: unknown }).result ?? "").trim()
+    return link || null
   }
-
-  return { ok: false, reason: sawResponse ? "not_found" : "api_failed" }
+  return null
 }
 
 export function extractOrderNumber(text: string) {
@@ -355,31 +353,6 @@ function formatOrderBranchPhrase(branch: string) {
   if (/אתר\s+אינטרנט/i.test(label)) return "באתר אינטרנט"
   if (/^סניף\s+/i.test(label)) return `ב${label.replace(/^סניף\s+/i, "")}`
   return `ב${label}`
-}
-
-/** Customer wants a receipt / invoice link — not shipping status tracking. */
-export function isDigitalDocumentRequest(body: string) {
-  const text = body.trim()
-  if (!text) return false
-  if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
-  return (
-    /(?:של(?:ח|וף|לח)|ה(?:ביא|וציא))(?:\s+לי|\s+ל)?\s*(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
-      text
-    ) ||
-    /(?:קבלה|חשבונית(?:\s+מס)?(?:\s+קבלה)?)\s+(?:של|ע(?:ל|בור)|ל)/i.test(text) ||
-    /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))\s+(?:לי\s+)?(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
-      text
-    )
-  )
-}
-
-export function activeDigitalDocumentRequest(history: HistoryMessage[]) {
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const message = history[index]
-    if (message.role !== "user") continue
-    if (isDigitalDocumentRequest(message.content)) return true
-  }
-  return false
 }
 
 export function isPureOrderConfirmation(body: string) {
@@ -762,26 +735,6 @@ async function lookupOrderByReference(input: {
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
 
-async function deliverDigitalDocumentOutcome(lookupPhone: string) {
-  const doc = await lookupDigitalDocument(lookupPhone)
-  if (doc.ok) return buildDigitalDocumentReply(doc.link)
-  if (doc.reason === "not_found") return buildDigitalDocumentNotFoundReply()
-  return buildDigitalDocumentLookupFailureReply()
-}
-
-export function shouldHandleDigitalDocumentOrderFlow(
-  body: string,
-  history: HistoryMessage[] = []
-) {
-  if (!activeDigitalDocumentRequest(history) && !isDigitalDocumentRequest(body)) return false
-  return (
-    isPhoneLookupConfirmPending(history) ||
-    isOrderConfirmationPending(history) ||
-    isAlternatePhoneRequestPending(history) ||
-    isDigitalDocumentRequest(body)
-  )
-}
-
 async function lookupAndStartOrderConfirm(
   phone: string,
   empathize?: (reply: string) => string
@@ -797,32 +750,24 @@ async function resolveOrderConfirmationFlow(input: {
   body: string
   lookupPhone: string
   history: HistoryMessage[]
-  documentMode?: boolean
 }) {
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply()
 
   const sorted = orders
-  const documentMode = input.documentMode ?? false
   const explicitOrder = extractOrderNumber(input.body)
 
   if (explicitOrder) {
     const matched = findOrderByNumber(sorted, explicitOrder)
-    if (matched) {
-      if (documentMode) return deliverDigitalDocumentOutcome(input.lookupPhone)
-      return buildOrderStatusReply(matched)
-    }
+    if (matched) return buildOrderStatusReply(matched)
   }
 
   const pendingOrder = pendingOrderNumberFromHistory(input.history)
 
   if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
-    if (matched) {
-      if (documentMode) return deliverDigitalDocumentOutcome(input.lookupPhone)
-      return buildOrderStatusReply(matched)
-    }
+    if (matched) return buildOrderStatusReply(matched)
     return buildOrderNumberNotFoundReply(pendingOrder)
   }
 
@@ -858,8 +803,6 @@ export async function resolveOrderShippingReply(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
-  const documentMode =
-    activeDigitalDocumentRequest(history) || isDigitalDocumentRequest(body)
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
 
@@ -868,7 +811,7 @@ export async function resolveOrderShippingReply(input: {
       extractPhoneFromText(body) ||
       resolveLookupPhoneFromHistory(history, whatsappPhone)
     if (!lookupPhone) return buildPhoneLookupDeclinedReply()
-    return resolveOrderConfirmationFlow({ body, lookupPhone, history, documentMode })
+    return resolveOrderConfirmationFlow({ body, lookupPhone, history })
   }
 
   if (isAlternatePhoneRequestPending(history)) {
