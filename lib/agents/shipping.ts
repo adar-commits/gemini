@@ -1,5 +1,6 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
+import { isDigitalDocumentRequest } from "@/lib/agents/order-lookup"
 
 /** General delivery policy (times, cost, areas) — FAQ, not order lookup. */
 export function isShippingPolicyQuestion(body: string) {
@@ -26,6 +27,7 @@ export function isShippingStatusQuestion(body: string) {
 
   if (isShippingPolicyQuestion(text)) return false
   if (isCustomerServiceOpener(text)) return false
+  if (isDigitalDocumentRequest(text)) return false
 
   if (
     /איפה\s+(?:ה)?(?:משלוח|הזמנה|חבילה)/i.test(text) ||

@@ -9,6 +9,7 @@ import {
   sendCustomerText,
   unassignCustomer,
 } from "@/lib/landbot/client"
+import { PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
@@ -190,6 +191,9 @@ export async function handleLandbotInbound(
     result = await runMasterConversation(conversationId, turn, {
       customerName: customerName || undefined,
       phone: options?.phone?.trim() || undefined,
+      onPriorityApiCall: replyEnabled
+        ? () => sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
+        : undefined,
     })
   } catch (error) {
     console.error("[handle-inbound] runMasterConversation failed", error)

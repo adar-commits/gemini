@@ -350,12 +350,58 @@ export function findOrderByNumber(
   )
 }
 
+function formatOrderBranchPhrase(branch: string) {
+  const label = branch.trim()
+  if (/אתר\s+אינטרנט/i.test(label)) return "באתר אינטרנט"
+  if (/^סניף\s+/i.test(label)) return `ב${label.replace(/^סניף\s+/i, "")}`
+  return `ב${label}`
+}
+
+/** Customer wants a receipt / invoice link — not shipping status tracking. */
+export function isDigitalDocumentRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
+  return (
+    /(?:של(?:ח|וף|לח)|ה(?:ביא|וציא))(?:\s+לי|\s+ל)?\s*(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
+      text
+    ) ||
+    /(?:קבלה|חשבונית(?:\s+מס)?(?:\s+קבלה)?)\s+(?:של|ע(?:ל|בור)|ל)/i.test(text) ||
+    /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))\s+(?:לי\s+)?(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
+      text
+    )
+  )
+}
+
+export function activeDigitalDocumentRequest(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    if (isDigitalDocumentRequest(message.content)) return true
+  }
+  return false
+}
+
+export function isPureOrderConfirmation(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  if (extractPhoneFromText(text)) return false
+  if (/^(?:כן(?:\s+כן)?(?:\s+אני)?\s+)?(?:עדיין\s+)?(?:כאן|פה)/iu.test(text)) return false
+  return isOrderConfirmationYes(text)
+}
+
+export function isPurePhoneLookupConfirmYes(body: string) {
+  return isPureOrderConfirmation(body)
+}
 export function isOrderConfirmationPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return /האם מדובר (?:על )?הזמנה/i.test(message.content)
+    return (
+      /(?:האם מדובר (?:על )?הזמנה|נדמה לי שמצאתי את ההזמנה)/i.test(message.content) ||
+      /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(message.content)
+    )
   }
   return false
 }
@@ -410,13 +456,13 @@ function formatOrderPrice(price: number | null) {
 /** Ask customer to confirm a single order (branch, age, total as cues). */
 export function buildOrderConfirmationPrompt(order: OrderShipmentStatus) {
   const price = formatOrderPrice(order.totalPrice)
-  const branch = order.branchLabel
+  const branchPhrase = formatOrderBranchPhrase(order.branchLabel)
   const daysPhrase = formatDaysAgoPhrase(daysSinceOrder(order.raw))
-  const placedPhrase = daysPhrase ? ` בוצעה ${daysPhrase}` : ""
+  const placedPhrase = daysPhrase ? `, בוצעה ${daysPhrase}` : ""
   const pricePhrase = price ? ` על סך ${price} ש׳׳ח` : ""
 
   return `${CUSTOMER_HEADER}
-אוקיי מצאתי, האם מדובר על הזמנה ${order.orderNumber}${placedPhrase} בסניף ${branch}${pricePhrase}?`
+אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${order.orderNumber})`
 }
 
 export function buildOrderConfirmationClarifyPrompt(order: OrderShipmentStatus) {
@@ -510,7 +556,7 @@ export function orderLookupEnabled() {
 export function formatDisplayPhone(phone: string) {
   const digits = phoneForOrderApi(phone)
   if (digits.length === 10 && digits.startsWith("0")) {
-    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+    return `(${digits.slice(0, 4)}-${digits.slice(4)})`
   }
   return digits || phone.trim()
 }
@@ -570,6 +616,7 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
     return (
+      /האם היא רשומה על המספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
       /האם ההזמנה על המספר/i.test(message.content)
     )
@@ -634,7 +681,8 @@ function maybeApplyCancellationEmpathy(
 
 export function buildPhoneLookupConfirmPrompt(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
-אני יכול לנסות לאתר את ההזמנה לפי הטלפון שלך, האם ההזמנה היא על טלפון מס׳ ${formatDisplayPhone(whatsappPhone)}?`
+אני צריך לאתר את ההזמנה שלך קודם, האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? (${formatDisplayPhone(whatsappPhone)})
+אם לא, אשמח לציון המספר הנכון.`
 }
 
 export function buildPhoneLookupDeclinedReply() {
@@ -714,6 +762,26 @@ async function lookupOrderByReference(input: {
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
 
+async function deliverDigitalDocumentOutcome(lookupPhone: string) {
+  const doc = await lookupDigitalDocument(lookupPhone)
+  if (doc.ok) return buildDigitalDocumentReply(doc.link)
+  if (doc.reason === "not_found") return buildDigitalDocumentNotFoundReply()
+  return buildDigitalDocumentLookupFailureReply()
+}
+
+export function shouldHandleDigitalDocumentOrderFlow(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (!activeDigitalDocumentRequest(history) && !isDigitalDocumentRequest(body)) return false
+  return (
+    isPhoneLookupConfirmPending(history) ||
+    isOrderConfirmationPending(history) ||
+    isAlternatePhoneRequestPending(history) ||
+    isDigitalDocumentRequest(body)
+  )
+}
+
 async function lookupAndStartOrderConfirm(
   phone: string,
   empathize?: (reply: string) => string
@@ -729,24 +797,32 @@ async function resolveOrderConfirmationFlow(input: {
   body: string
   lookupPhone: string
   history: HistoryMessage[]
+  documentMode?: boolean
 }) {
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply()
 
   const sorted = orders
+  const documentMode = input.documentMode ?? false
   const explicitOrder = extractOrderNumber(input.body)
 
   if (explicitOrder) {
     const matched = findOrderByNumber(sorted, explicitOrder)
-    if (matched) return buildOrderStatusReply(matched)
+    if (matched) {
+      if (documentMode) return deliverDigitalDocumentOutcome(input.lookupPhone)
+      return buildOrderStatusReply(matched)
+    }
   }
 
   const pendingOrder = pendingOrderNumberFromHistory(input.history)
 
-  if (pendingOrder && isOrderConfirmationYes(input.body)) {
+  if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
-    if (matched) return buildOrderStatusReply(matched)
+    if (matched) {
+      if (documentMode) return deliverDigitalDocumentOutcome(input.lookupPhone)
+      return buildOrderStatusReply(matched)
+    }
     return buildOrderNumberNotFoundReply(pendingOrder)
   }
 
@@ -782,6 +858,8 @@ export async function resolveOrderShippingReply(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
+  const documentMode =
+    activeDigitalDocumentRequest(history) || isDigitalDocumentRequest(body)
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
 
@@ -790,7 +868,7 @@ export async function resolveOrderShippingReply(input: {
       extractPhoneFromText(body) ||
       resolveLookupPhoneFromHistory(history, whatsappPhone)
     if (!lookupPhone) return buildPhoneLookupDeclinedReply()
-    return resolveOrderConfirmationFlow({ body, lookupPhone, history })
+    return resolveOrderConfirmationFlow({ body, lookupPhone, history, documentMode })
   }
 
   if (isAlternatePhoneRequestPending(history)) {
@@ -804,7 +882,7 @@ export async function resolveOrderShippingReply(input: {
     const alternatePhone = extractPhoneFromText(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
 
-    if (isPhoneLookupConfirmYes(body)) {
+    if (isPurePhoneLookupConfirmYes(body)) {
       if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
       return lookupAndStartOrderConfirm(whatsappPhone, empathize)
     }
@@ -819,7 +897,8 @@ export async function resolveOrderShippingReply(input: {
 
     if (whatsappPhone) {
       return `${CUSTOMER_HEADER}
-לא הבנתי — האם ההזמנה היא על טלפון מס׳ ${formatDisplayPhone(whatsappPhone)}?`
+לא הבנתי — האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? (${formatDisplayPhone(whatsappPhone)})
+אם לא, אשמח לציון המספר הנכון.`
     }
 
     return buildPhoneLookupDeclinedReply()

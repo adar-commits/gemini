@@ -1,3 +1,4 @@
+import { bindPriorityApiBeforeCall } from "@/lib/agents/priority-webhook"
 import { buildThanksReply, buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import {
   bindOrchestraTier,
@@ -57,6 +58,7 @@ import {
   buildShippingNoPhoneReply,
   lookupDigitalDocument,
   resolveOrderShippingReply,
+  shouldHandleDigitalDocumentOrderFlow,
   isBotHelpJustDelivered,
   isExplicitHumanRequest,
   isHelpInsufficient,
@@ -258,6 +260,10 @@ async function runT0DeterministicPaths(
 
   if (shouldHandlePostPurchaseCaseFlow(body, history)) {
     return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+  }
+
+  if (shouldHandleDigitalDocumentOrderFlow(body, history)) {
+    return shippingResult(conversationId, body, route, preview, phone, history)
   }
 
   if (shouldHandleOrderShippingFlow(body, history)) {
@@ -1202,6 +1208,7 @@ async function tryBranchInventoryResult(
 }
 
 function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
+  if (shouldHandleDigitalDocumentOrderFlow(body, history)) return false
   if (shouldHandleServicePraiseFlow(body, history)) return false
   if (shouldHandlePostPurchaseCaseFlow(body, history)) return false
   if (isPreorderDelayComplaint(body)) return false
@@ -1228,6 +1235,13 @@ function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) 
   return isShippingStatusQuestion(body)
 }
 
+function shouldHandleOrderLookupFlow(body: string, history: HistoryMessage[]) {
+  return (
+    shouldHandleDigitalDocumentOrderFlow(body, history) ||
+    shouldHandleOrderShippingFlow(body, history)
+  )
+}
+
 function shippingResult(
   conversationId: string,
   body: string,
@@ -1237,7 +1251,10 @@ function shippingResult(
   history?: HistoryMessage[]
 ): Promise<AgentResponse> {
   return resolveShippingStatusReply(body, phone, history).then(async (reply) => {
-    if (wasReplyRecentlySent(history ?? [], reply)) {
+    let outbound = reply.trim()
+    if (!outbound) {
+      outbound = buildNeverStuckReply()
+    } else if (wasReplyRecentlySent(history ?? [], outbound)) {
       return {
         ok: true,
         agent: "master" as const,
@@ -1251,7 +1268,7 @@ function shippingResult(
       conversationId,
       agent: "master",
       userText: body,
-      assistantText: reply,
+      assistantText: outbound,
       action: "shipping",
       preview,
     })
@@ -1259,7 +1276,7 @@ function shippingResult(
     return {
       ok: true,
       agent: "master" as const,
-      reply: assistantInserted ? reply : "",
+      reply: assistantInserted ? outbound : "",
       action: "shipping" as const,
       route,
     }
@@ -1515,8 +1532,15 @@ async function routeViaMasterLlm(
 export async function runMasterConversation(
   conversationId: string,
   turn: UserTurn,
-  options?: { customerName?: string; preview?: boolean; phone?: string }
+  options?: {
+    customerName?: string
+    preview?: boolean
+    phone?: string
+    onPriorityApiCall?: () => void | Promise<void>
+  }
 ): Promise<AgentResponse> {
+  bindPriorityApiBeforeCall(options?.onPriorityApiCall ?? null)
+  try {
   const runtime = await bindRuntimeConfig()
   beginTurnMetrics(conversationId, runtime.activeProfile)
 
@@ -1619,7 +1643,7 @@ export async function runMasterConversation(
         if (shouldHandlePostPurchaseCaseFlow(body, history)) {
           return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
         }
-        if (shouldHandleOrderShippingFlow(body, history)) {
+        if (shouldHandleOrderLookupFlow(body, history)) {
           return shippingResult(conversationId, body, route, preview, phone, history)
         }
         // Fall through — complete handoff / confirmation without re-asking.
@@ -2057,4 +2081,7 @@ export async function runMasterConversation(
     route,
     sharedOptions
   )
+  } finally {
+    bindPriorityApiBeforeCall(null)
+  }
 }

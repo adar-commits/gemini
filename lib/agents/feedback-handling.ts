@@ -10,7 +10,7 @@ import {
   buildPhoneLookupDeclinedReply,
   formatDisplayPhone,
   isPhoneLookupConfirmPending,
-  isPhoneLookupConfirmYes,
+  isPurePhoneLookupConfirmYes,
   isPhoneLookupConfirmNo,
   lookupOrdersByPhone,
   type OrderShipmentStatus,
@@ -113,7 +113,7 @@ export async function resolveServicePraiseReply(input: {
   const whatsappPhone = input.phone?.trim()
 
   if (isPhoneLookupConfirmPending(history) && isPraiseFlowActive(history)) {
-    if (isPhoneLookupConfirmYes(body)) {
+    if (isPurePhoneLookupConfirmYes(body)) {
       if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
       const orders = await lookupOrdersByPhone(whatsappPhone)
       if (orders == null) {

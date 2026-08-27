@@ -19,6 +19,7 @@ import {
   buildOrderLookupApiFailureReply,
   buildOrderNumberNotFoundReply,
   buildOrderPickExhaustedReply,
+  buildPhoneLookupConfirmPrompt,
   buildPhoneLookupDeclinedReply,
   extractOrderNumber,
   extractOrderReference,
@@ -31,7 +32,8 @@ import {
   isOrderConfirmationYes,
   isPhoneLookupConfirmNo,
   isPhoneLookupConfirmPending,
-  isPhoneLookupConfirmYes,
+  isPureOrderConfirmation,
+  isPurePhoneLookupConfirmYes,
   lookupOrdersByPhone,
   pendingOrderNumberFromHistory,
   resolveLookupPhoneFromHistory,
@@ -137,7 +139,7 @@ function withCasePrefix(reply: string, kind: PostPurchaseCaseKind) {
 
 function buildOpeningReply(kind: PostPurchaseCaseKind, whatsappPhone?: string) {
   const phoneQuestion = whatsappPhone?.trim()
-    ? `האם ההזמנה היא על טלפון מס׳ ${formatDisplayPhone(whatsappPhone)}?`
+    ? buildPhoneLookupConfirmPrompt(whatsappPhone).replace(`${CUSTOMER_HEADER}\n`, "")
     : "מה מספר הטלפון שבוצעה עליו ההזמנה?"
 
   if (kind === "defect") {
@@ -241,7 +243,7 @@ async function resolveOrderConfirmationFlow(input: {
 
   const pendingOrder = pendingOrderNumberFromHistory(input.history)
 
-  if (pendingOrder && isOrderConfirmationYes(input.body)) {
+  if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
     if (matched) return buildOrderConfirmedReply(input.kind, matched)
     return buildOrderNumberNotFoundReply(pendingOrder)
@@ -328,7 +330,7 @@ export async function resolvePostPurchaseCaseReply(input: {
     const alternatePhone = extractPhoneFromText(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(kind, alternatePhone)
 
-    if (isPhoneLookupConfirmYes(body)) {
+    if (isPurePhoneLookupConfirmYes(body)) {
       if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
       return lookupAndStartOrderConfirm(kind, whatsappPhone)
     }
@@ -342,8 +344,11 @@ export async function resolvePostPurchaseCaseReply(input: {
     }
 
     if (whatsappPhone) {
-      return `${CUSTOMER_HEADER}
-לא הבנתי — האם ההזמנה היא על טלפון מס׳ ${formatDisplayPhone(whatsappPhone)}?`
+      const prompt = buildPhoneLookupConfirmPrompt(whatsappPhone).replace(
+        `${CUSTOMER_HEADER}\n`,
+        `${CUSTOMER_HEADER}\nלא הבנתי — `
+      )
+      return prompt
     }
 
     return buildPhoneLookupDeclinedReply()
