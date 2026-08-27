@@ -89,6 +89,8 @@ import {
   isFinalizationQuestion,
   isConfirmationAffirmationWithExtra,
   buildHandoffResumeOffer,
+  buildConfirmationResumeOffer,
+  replyAwaitingCustomerInput,
   hasEmbeddedBusinessAsk,
   remainderAfterLeadingAffirmation,
 } from "@/lib/agents/compound-reply"
@@ -359,6 +361,14 @@ function finalizeReplyForPendingFlow(
   lastAgent: AgentId | null,
   body: string
 ): { text: string; replies?: string[]; action?: AgentAction } {
+  if (replyAwaitingCustomerInput(reply)) {
+    return { text: reply }
+  }
+
+  if (isInactivityPingPending(history) && isInactivityAckWithExtra(body)) {
+    return { text: reply.trimEnd() }
+  }
+
   if (isHumanHandoffPending(history) && isHandoffAffirmationWithExtra(body)) {
     const action = inferHumanHandoffAction(history, lastAgent)
     const stripped = reply
@@ -384,9 +394,7 @@ function finalizeReplyForPendingFlow(
 
   if (isConfirmationPending(history) && isConfirmationAffirmationWithExtra(body)) {
     const stripped = reply.trimEnd()
-    return {
-      text: `${stripped}\n\nמעולה. האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`,
-    }
+    return { text: `${stripped}\n\n${buildConfirmationResumeOffer()}` }
   }
 
   return { text: finalizeFaqReplyForContext(reply, history, lastAgent) }

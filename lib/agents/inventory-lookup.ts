@@ -99,6 +99,12 @@ export function isBranchInventoryQuestion(body: string) {
   if (mentionsStore && /יש\s+את(?:\s+זה|\s+הדגם)?/.test(text)) {
     return true
   }
+  if (
+    mentionsStock &&
+    /(?:ב(?:ל)?דוק|(?:י)?(?:וכל|בדוק))\s+(?:לי\s+)?(?:את\s+)?(?:ה)?מלאי|מלאי\s+של/i.test(text)
+  ) {
+    return true
+  }
   return false
 }
 

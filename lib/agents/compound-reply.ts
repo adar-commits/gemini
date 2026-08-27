@@ -65,6 +65,7 @@ export function isPureHandoffAffirmation(text: string) {
 
 export function isHandoffAffirmationWithExtra(text: string) {
   const body = text.trim()
+  if (isPureInactivityAck(body) || isInactivityAckWithExtra(body)) return false
   if (!startsWithHandoffAffirmation(body)) return false
   const remainder = remainderAfterLeadingAffirmation(body)
   if (!remainder || PURE_AFFIRMATION_TAIL.test(remainder)) return false
@@ -111,10 +112,30 @@ export function isFinalizationQuestion(content: string) {
 
 export function isConfirmationAffirmationWithExtra(text: string) {
   const body = text.trim()
+  if (isInactivityAckWithExtra(body)) return false
+  if (/^(?:כן(?:\s+כן)?(?:\s+אני)?\s+)?(?:עדיין\s+)?(?:כאן|פה)/iu.test(body)) return false
   if (!/^(?:כן|נכון|בדיוק|מדויק|yes)/iu.test(body)) return false
   const remainder = body.replace(/^(?:כן|נכון|בדיוק|מדויק|yes)(?:[\s,.!?]+)/iu, "").trim()
   if (!remainder) return false
+  if (isBranchInventoryQuestion(body) || isBranchInventoryQuestion(remainder)) return false
   return hasEmbeddedBusinessAsk(remainder) || remainder.split(/\s+/).length >= 3
+}
+
+/** Bot just asked for SKU, link, or another customer reply — do not append closure. */
+export function replyAwaitingCustomerInput(reply: string) {
+  const text = reply.trim()
+  if (!text) return false
+  return (
+    /(?:מק(?:״|"|')?ט|קישור\s+ל(?:דף)?|שלח(?:\/|)?(?:ו|י)?\s*קישור|אשמח\s+לקבל|אצטרך|אוכל\s+לקבל|יש\s+ל(?:ך|כם)\s+א(?:ת|ת))/.test(
+      text
+    ) ||
+    /כדי\s+לבדוק\s+מלאי/.test(text) ||
+    /\?\s*$/.test(text.split("\n").pop()?.trim() ?? "")
+  )
+}
+
+export function buildConfirmationResumeOffer() {
+  return "כשתרצו/י — נחזור לסיכום ונמשיך."
 }
 
 export function buildHandoffResumeOffer() {
