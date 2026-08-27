@@ -1,6 +1,11 @@
 const DEFAULT_PRIORITY_WEBHOOK_URL =
   "https://redcarpet.app.n8n.cloud/webhook/9a1bc56f-d8c6-472c-a665-833421632caf"
 
+/** Max wait for Priority/n8n tool responses — empty reply after this triggers fallbacks. */
+export const PRIORITY_API_TIMEOUT_MS = Number(
+  process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "15000"
+)
+
 export function priorityWebhookUrl(fallback = DEFAULT_PRIORITY_WEBHOOK_URL) {
   return (
     process.env.ORDER_LOOKUP_API_URL?.trim() ||
@@ -27,7 +32,7 @@ export async function callPriorityWebhook(input: {
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify(input),
-      signal: AbortSignal.timeout(Number(process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "15000")),
+      signal: AbortSignal.timeout(PRIORITY_API_TIMEOUT_MS),
     })
 
     if (!response.ok) return null

@@ -181,7 +181,8 @@ export function buildSkuRequestPrompt() {
 
 export function buildInventoryLookupFailureReply() {
   return `${CUSTOMER_HEADER}
-לא הצלחנו לבדוק את המלאי כרגע. האם להעביר ליועץ מכירות שיבדוק עבורך?`
+לא הצלחנו לבדוק את המלאי כרגע (ייתכן שהמערכת לא הגיבה תוך 15 שניות).
+האם להעביר ליועץ מכירות שיבדוק עבורך?`
 }
 
 export function buildInventoryNotFoundReply(sku: string) {
@@ -227,10 +228,14 @@ export function buildInventoryAvailabilityReply(row: InventoryBranchRow) {
 }
 
 async function replyForSku(sku: string) {
-  const result = await lookupInventoryBySku(sku)
-  if (result === undefined) return buildInventoryLookupFailureReply()
-  if (result == null) return buildInventoryNotFoundReply(sku)
-  return buildInventoryAvailabilityReply(result)
+  try {
+    const result = await lookupInventoryBySku(sku)
+    if (result === undefined) return buildInventoryLookupFailureReply()
+    if (result == null) return buildInventoryNotFoundReply(sku)
+    return buildInventoryAvailabilityReply(result)
+  } catch {
+    return buildInventoryLookupFailureReply()
+  }
 }
 
 export async function resolveBranchInventoryReply(input: {

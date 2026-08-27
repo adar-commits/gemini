@@ -51,6 +51,10 @@ import {
 import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
   buildDigitalDocumentReply,
+  buildDigitalDocumentLookupFailureReply,
+  buildDigitalDocumentNotFoundReply,
+  buildOrderLookupApiFailureReply,
+  buildShippingNoPhoneReply,
   lookupDigitalDocument,
   resolveOrderShippingReply,
   isBotHelpJustDelivered,
@@ -1085,18 +1089,30 @@ async function resolveSpecialist(
   }
 
   if (
-    options?.phone &&
     orderLookupEnabled() &&
     (result.action === "receipt" ||
       result.action === "invoice_tax" ||
       result.action === "invoice_tax_receipt")
   ) {
-    const link = await lookupDigitalDocument(options.phone)
-    if (link) {
-      result = {
-        ...result,
-        reply: normalizeReply("service", "reply", buildDigitalDocumentReply(link)),
-      }
+    const phone = options?.phone?.trim()
+    let replyText = buildDigitalDocumentLookupFailureReply()
+
+    if (!phone) {
+      replyText = buildShippingNoPhoneReply()
+    } else {
+      const doc = await lookupDigitalDocument(phone)
+      replyText = doc.ok
+        ? buildDigitalDocumentReply(doc.link)
+        : doc.reason === "not_found"
+          ? buildDigitalDocumentNotFoundReply()
+          : buildDigitalDocumentLookupFailureReply()
+    }
+
+    result = {
+      ...result,
+      agent: "service",
+      reply: normalizeReply("service", "reply", replyText),
+      action: "reply",
     }
   }
 
@@ -1224,7 +1240,12 @@ async function resolveShippingStatusReply(
   phone?: string,
   history?: HistoryMessage[]
 ) {
-  return resolveOrderShippingReply({ body, phone, history })
+  try {
+    const reply = await resolveOrderShippingReply({ body, phone, history })
+    return reply.trim() || buildOrderLookupApiFailureReply()
+  } catch {
+    return buildOrderLookupApiFailureReply()
+  }
 }
 
 function postPurchaseCaseResult(

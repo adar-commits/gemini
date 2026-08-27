@@ -285,21 +285,32 @@ export async function lookupOrdersByPhone(
   return sortOrdersNewestFirst(rows.map(mapPriorityOrderRow))
 }
 
+export type DigitalDocumentLookupResult =
+  | { ok: true; link: string }
+  | { ok: false; reason: "api_failed" | "not_found" | "invalid_phone" }
+
 export async function lookupDigitalDocument(
   phone: string
-): Promise<string | null> {
+): Promise<DigitalDocumentLookupResult> {
   const value = phoneForOrderApi(phone)
-  if (!value) return null
+  if (!value) return { ok: false, reason: "invalid_phone" }
 
-  for (const actionType of ["getDocument", "getReceipt"] as const) {
-    const data = await callOrderWebhook({ actionType, value })
-    if (typeof data === "object" && data != null && "result" in data) {
+  const [documentData, receiptData] = await Promise.all([
+    callOrderWebhook({ actionType: "getDocument", value }),
+    callOrderWebhook({ actionType: "getReceipt", value }),
+  ])
+
+  let sawResponse = false
+  for (const data of [documentData, receiptData]) {
+    if (data == null) continue
+    sawResponse = true
+    if (typeof data === "object" && "result" in data) {
       const link = String((data as { result: unknown }).result ?? "").trim()
-      if (link) return link
+      if (link) return { ok: true, link }
     }
   }
 
-  return null
+  return { ok: false, reason: sawResponse ? "not_found" : "api_failed" }
 }
 
 export function extractOrderNumber(text: string) {
@@ -474,6 +485,18 @@ ${link}
 אם צריך עוד משהו — כאן.`
 }
 
+export function buildDigitalDocumentLookupFailureReply() {
+  return `${CUSTOMER_HEADER}
+לא הצלחנו להוציא את המסמך הדיגיטלי כרגע (ייתכן שהמערכת לא הגיבה בזמן).
+האם להעביר לנציג שירות שישלח עבורך?`
+}
+
+export function buildDigitalDocumentNotFoundReply() {
+  return `${CUSTOMER_HEADER}
+לא מצאנו מסמך דיגיטלי לפי הטלפון הזה.
+האם להעביר לנציג שירות שיבדוק וישלח עבורך?`
+}
+
 export function buildNoOrdersFoundReply() {
   return `${CUSTOMER_HEADER}
 לא מצאנו הזמנות פעילות לפי הטלפון הזה.
@@ -627,7 +650,8 @@ export function buildShippingNoPhoneReply() {
 
 export function buildOrderLookupApiFailureReply() {
   return `${CUSTOMER_HEADER}
-לא הצלחנו לבדוק את ההזמנה כרגע. האם להעביר לנציג שירות שיבדוק עבורך?`
+לא הצלחנו לבדוק את ההזמנה כרגע (ייתכן שהמערכת לא הגיבה תוך 15 שניות).
+האם להעביר לנציג שירות שיבדוק עבורך?`
 }
 
 export function buildOrderNumberNotFoundReply(orderNumber: string) {
