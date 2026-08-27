@@ -133,6 +133,7 @@ function phoneForOrderApi(phone: string) {
 async function callOrderWebhook(input: {
   actionType: string
   value: string
+  documentType?: string
 }): Promise<unknown | null> {
   return callPriorityWebhook(input)
 }
@@ -290,12 +291,17 @@ export type DigitalDocumentLookupResult =
   | { ok: false; reason: "api_failed" | "not_found" | "invalid_phone" }
 
 export async function lookupDigitalDocument(
-  phone: string
+  phone: string,
+  documentType = "קבלה"
 ): Promise<DigitalDocumentLookupResult> {
   const value = phoneForOrderApi(phone)
   if (!value) return { ok: false, reason: "invalid_phone" }
 
-  const data = await callOrderWebhook({ actionType: "getDocument", value })
+  const data = await callOrderWebhook({
+    actionType: "getDocument",
+    value,
+    documentType,
+  })
   if (data == null) return { ok: false, reason: "api_failed" }
 
   const link = parseDocumentLinkFromPayload(data)

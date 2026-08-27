@@ -53,6 +53,9 @@ import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplain
 import {
   resolveDigitalDocumentFlowReply,
   shouldHandleDigitalDocumentFlow,
+  DOCUMENT_TYPE_RECEIPT,
+  DOCUMENT_TYPE_TAX_INVOICE,
+  DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
 } from "@/lib/agents/digital-document-flow"
 import {
   buildDigitalDocumentReply,
@@ -1140,7 +1143,13 @@ async function resolveSpecialist(
     if (!phone) {
       replyText = buildShippingNoPhoneReply()
     } else {
-      const doc = await lookupDigitalDocument(phone)
+      const documentType =
+        result.action === "invoice_tax"
+          ? DOCUMENT_TYPE_TAX_INVOICE
+          : result.action === "invoice_tax_receipt"
+            ? DOCUMENT_TYPE_TAX_INVOICE_RECEIPT
+            : DOCUMENT_TYPE_RECEIPT
+      const doc = await lookupDigitalDocument(phone, documentType)
       replyText = doc.ok
         ? buildDigitalDocumentReply(doc.link)
         : doc.reason === "not_found"

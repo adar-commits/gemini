@@ -18,6 +18,10 @@ import {
 
 export type DocumentPurchaseChannel = "website" | "store"
 
+export const DOCUMENT_TYPE_RECEIPT = "קבלה"
+export const DOCUMENT_TYPE_TAX_INVOICE = "חשבונית מס"
+export const DOCUMENT_TYPE_TAX_INVOICE_RECEIPT = "חשבונית מס קבלה"
+
 const CHANNEL_QUESTION_MARKER = /מלאי(?:\s+ה)?סניף|אתר(?:\s+ה)?אינטרנט(?:\s+עם\s+שליח)?/i
 const LEGACY_TYPE_QUESTION_MARKER = /איזה\s+סוג\s+מסמך/i
 
@@ -138,14 +142,14 @@ function parseDocumentLink(data: unknown) {
   return null
 }
 
-async function fetchGetDocumentLink(phone: string, docType?: string) {
+async function fetchGetDocumentLink(phone: string, documentType: string) {
   const value = phoneForOrderApi(phone)
   if (!value) return { link: null as string | null, sawResponse: false }
 
   const data = await callPriorityWebhook({
     actionType: "getDocument",
     value,
-    ...(docType ? { docType } : {}),
+    documentType,
   })
 
   return {
@@ -168,7 +172,7 @@ export async function lookupDigitalDocumentsForChannel(
   }
 
   if (channel === "store") {
-    const doc = await fetchGetDocumentLink(lookupPhone, "tax_invoice_receipt")
+    const doc = await fetchGetDocumentLink(lookupPhone, DOCUMENT_TYPE_TAX_INVOICE_RECEIPT)
     if (doc.link) return { ok: true as const, links: [doc.link] }
     return {
       ok: false as const,
@@ -178,8 +182,8 @@ export async function lookupDigitalDocumentsForChannel(
   }
 
   const [receipt, invoice] = await Promise.all([
-    fetchGetDocumentLink(lookupPhone, "receipt"),
-    fetchGetDocumentLink(lookupPhone, "tax_invoice"),
+    fetchGetDocumentLink(lookupPhone, DOCUMENT_TYPE_RECEIPT),
+    fetchGetDocumentLink(lookupPhone, DOCUMENT_TYPE_TAX_INVOICE),
   ])
 
   const links = uniqueLinks([receipt.link, invoice.link])
