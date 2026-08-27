@@ -4,6 +4,7 @@ import {
   buildInactivityCloseReply,
   buildInactivityPingReply,
 } from "@/lib/agents/inactivity"
+import { resolveCronSecret } from "@/lib/agents/cron-auth"
 import {
   getSessionInactivityState,
   recordProactiveAssistantMessage,
@@ -12,6 +13,10 @@ import {
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { inactivityWatchUrl } from "@/lib/landbot/sync-hook"
+
+/** Chunk close waits so serverless (maxDuration ~300s) can chain to 15+ min. */
+const CLOSE_WATCH_CHUNK_MS = 240_000
 
 export type InactivityWatchPhase = "ping" | "close"
 
@@ -161,6 +166,96 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
   return null
 }
 
+export async function scheduleInactivityCloseWatch(payload: {
+  conversationId: string
+  customerId: number
+  customerName?: string
+  customerPhone?: string
+  watchPingSentAt: string
+}) {
+  const secret = resolveCronSecret()
+  const url = inactivityWatchUrl()
+  if (!secret) {
+    console.warn(
+      "[inactivity-watch] close schedule skipped — set CRON_SECRET for chained close"
+    )
+    return false
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${secret}`,
+      },
+      body: JSON.stringify({
+        phase: "close",
+        conversationId: payload.conversationId,
+        customerId: payload.customerId,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        watchPingSentAt: payload.watchPingSentAt,
+      }),
+    })
+    if (!response.ok) {
+      console.warn(
+        "[inactivity-watch] close schedule failed",
+        payload.conversationId,
+        response.status
+      )
+      return false
+    }
+    return true
+  } catch (error) {
+    console.warn("[inactivity-watch] close schedule error", payload.conversationId, error)
+    return false
+  }
+}
+
+async function runClosePhase(payload: InactivityWatchPayload) {
+  const watchPingSentAt = asText(payload.watchPingSentAt)
+  if (!watchPingSentAt) {
+    return { ok: true, skipped: "missing_watch_ping_sent_at" as const }
+  }
+
+  const dueAt = Date.parse(watchPingSentAt) + INACTIVITY_CLOSE_AFTER_PING_MS
+  const remaining = dueAt - Date.now()
+
+  if (remaining > CLOSE_WATCH_CHUNK_MS) {
+    await sleep(CLOSE_WATCH_CHUNK_MS)
+    await scheduleInactivityCloseWatch({
+      conversationId: payload.conversationId,
+      customerId: payload.customerId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      watchPingSentAt,
+    })
+    return { ok: true, rescheduled: true as const }
+  }
+
+  if (remaining > 0) {
+    await sleep(remaining)
+  }
+
+  const skip = await shouldSendClose({ ...payload, watchPingSentAt })
+  if (skip) {
+    console.log("[inactivity-watch] close skipped", payload.conversationId, skip)
+    return { ok: true, skipped: skip }
+  }
+
+  const reply = buildInactivityCloseReply()
+  await assignToApiAgent(payload.customerId)
+  await sendCustomerText(payload.customerId, reply)
+  await recordProactiveAssistantMessage({
+    conversationId: payload.conversationId,
+    assistantText: reply,
+    action: "inactivity_close",
+  })
+
+  return { ok: true, sent: "close" as const }
+}
+
 export async function runInactivityWatch(payload: InactivityWatchPayload) {
   if (payload.phase === "ping") {
     await sleep(INACTIVITY_PING_MS)
@@ -179,29 +274,25 @@ export async function runInactivityWatch(payload: InactivityWatchPayload) {
       action: "inactivity_ping",
     })
 
+    const session = await getSessionInactivityState(payload.conversationId)
+    const watchPingSentAt = asText(session?.inactivity_ping_sent_at)
+    if (watchPingSentAt) {
+      void scheduleInactivityCloseWatch({
+        conversationId: payload.conversationId,
+        customerId: payload.customerId,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        watchPingSentAt,
+      })
+    }
+
     return { ok: true, sent: "ping" as const }
   }
 
-  await sleep(INACTIVITY_CLOSE_AFTER_PING_MS)
-  const skip = await shouldSendClose(payload)
-  if (skip) {
-    console.log("[inactivity-watch] close skipped", payload.conversationId, skip)
-    return { ok: true, skipped: skip }
-  }
-
-  const reply = buildInactivityCloseReply()
-  await assignToApiAgent(payload.customerId)
-  await sendCustomerText(payload.customerId, reply)
-  await recordProactiveAssistantMessage({
-    conversationId: payload.conversationId,
-    assistantText: reply,
-    action: "inactivity_close",
-  })
-
-  return { ok: true, sent: "close" as const }
+  return runClosePhase(payload)
 }
 
-/** Ping after INACTIVITY_PING_MS; close is handled by the conversation-idle cron. */
+/** Ping after INACTIVITY_PING_MS; close chains via scheduleInactivityCloseWatch (+ cron backup). */
 export async function runInactivityPipeline(input: {
   conversationId: string
   customerId: number

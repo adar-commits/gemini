@@ -4,10 +4,11 @@ import {
   buildInactivityCloseReply,
   buildInactivityPingReply,
 } from "@/lib/agents/inactivity"
-import { recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 
 type IdleSessionRow = {
   conversation_id: string
@@ -259,6 +260,17 @@ export async function processInactivityTimeouts() {
           assistantText: reply,
           action: "inactivity_ping",
         })
+        const pingSession = await getSessionInactivityState(row.conversation_id)
+        const watchPingSentAt = asText(pingSession?.inactivity_ping_sent_at)
+        if (watchPingSentAt) {
+          void scheduleInactivityCloseWatch({
+            conversationId: row.conversation_id,
+            customerId,
+            customerName: row.customer_name ?? undefined,
+            customerPhone: row.customer_phone ?? undefined,
+            watchPingSentAt,
+          })
+        }
         results.pinged += 1
         continue
       }

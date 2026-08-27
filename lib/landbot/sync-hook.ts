@@ -14,6 +14,20 @@ export function landbotWebhookUrl() {
   return "https://gemini-xi-one-77.vercel.app/api/landbot/webhook"
 }
 
+/** Base origin for internal cron/watch callbacks (no path). */
+export function internalApiOrigin() {
+  const webhook = landbotWebhookUrl()
+  try {
+    return new URL(webhook).origin
+  } catch {
+    return "https://gemini-xi-one-77.vercel.app"
+  }
+}
+
+export function inactivityWatchUrl() {
+  return `${internalApiOrigin()}/api/landbot/inactivity-watch`
+}
+
 export function landbotHookToken() {
   return (
     process.env.LANDBOT_WEBHOOK_TOKEN?.trim() ||

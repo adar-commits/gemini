@@ -7,8 +7,12 @@
 1. Bot sends message with a question → starts watch (`runInactivityPipeline`)
 2. **3 minutes** silence → proactive ping (`INACTIVITY_PING_MS=180000`)
 3. Customer replies `כן`/`פה` → ack + resume thread
-4. **15 minutes** after ping, still silent → close message + cron marks session
+4. **15 minutes** after ping, still silent → close message (chained `inactivity-watch` + cron backup)
 5. **Skip** ping/close if already `human_sales` / `human_service`
+
+## Close scheduling (v2 fix)
+
+Serverless cannot sleep 15 minutes in one invocation. After each ping, the app chains `/api/landbot/inactivity-watch` with `phase=close` in ~4-minute chunks until the close deadline. **`CRON_SECRET` must be set** (same as Vercel cron auth). `/api/cron/conversation-idle` remains a backup sweeper.
 
 ## Copy (v2 — neutral Hebrew)
 

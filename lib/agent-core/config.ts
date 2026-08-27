@@ -58,5 +58,15 @@ export function activeModelSummary() {
     faq: AGENT_CONFIG.faq.model(),
     sales: AGENT_CONFIG.sales.model(),
     service: AGENT_CONFIG.service.model(),
+    salesIntakeMode: salesIntakeMode(),
   }
+}
+
+/** llm = Opus drives intake; scripted = legacy deterministic quiz; hybrid = script only mid-quiz */
+export type SalesIntakeMode = "llm" | "scripted" | "hybrid"
+
+export function salesIntakeMode(): SalesIntakeMode {
+  const raw = process.env.SALES_INTAKE_MODE?.trim().toLowerCase()
+  if (raw === "scripted" || raw === "hybrid" || raw === "llm") return raw
+  return "llm"
 }

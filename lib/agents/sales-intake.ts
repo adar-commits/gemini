@@ -1,4 +1,5 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
+import { salesIntakeMode } from "@/lib/agent-core/config"
 import { isProductInventoryQuestion, isSpecificProductMention, extractRequestedModel } from "@/lib/agents/product-handoff"
 import { isBareSkuMessage, isBranchInventoryQuestion } from "@/lib/agents/inventory-lookup"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
@@ -266,8 +267,9 @@ export function shouldUseSalesIntakeFastPath(
   history: HistoryMessage[],
   lastAgent: AgentId | null
 ) {
+  const mode = salesIntakeMode()
+
   if (isShippingPolicyQuestion(body) || isShippingStatusQuestion(body)) return false
-  if (mentionsPetInText(body)) return true
   if (isFaqTopicSwitch(body)) return false
   if (isServiceTopicSwitch(body)) return false
   if (isDissatisfactionWithoutDefect(body)) return false
@@ -279,14 +281,32 @@ export function shouldUseSalesIntakeFastPath(
   if (isBranchInventoryQuestion(body) || isBareSkuMessage(body)) return false
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
-  if (isSalesQuizContext(history, lastAgent)) {
-    if (isIntakeTopicPivot(body, history)) return false
-    return true
+
+  if (mode === "scripted") {
+    if (mentionsPetInText(body)) return true
+    if (isSalesQuizContext(history, lastAgent)) {
+      if (isIntakeTopicPivot(body, history)) return false
+      return true
+    }
+    if (hasOngoingSalesIntake(history)) {
+      return classifySalesIntakeReply(body, history) === "answer"
+    }
+    if (isSalesConsultationTrigger(body)) return true
+    return false
   }
+
+  if (mode === "hybrid") {
+    if (isSalesConsultationTrigger(body) && !hasOngoingSalesIntake(history)) return true
+  }
+
+  // llm (default) + hybrid mid-quiz: scripted only while confirming intake summary
+  if (isConfirmationPending(history)) return true
+
   if (hasOngoingSalesIntake(history)) {
+    if (isIntakeTopicPivot(body, history)) return false
     return classifySalesIntakeReply(body, history) === "answer"
   }
-  if (isSalesConsultationTrigger(body)) return true
+
   return false
 }
 
