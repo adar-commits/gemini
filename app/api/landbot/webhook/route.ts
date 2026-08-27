@@ -40,6 +40,7 @@ export async function GET() {
     note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after ~3.5s silence since the last customer message.",
     policy: landbotPhonePolicy(),
     models: activeModelSummary(),
+    verifyInference: "/api/agents/verify-inference (GET=config, POST=live probe)",
     inactivity: {
       pingMs: INACTIVITY_PING_MS,
       closeAfterPingMs: INACTIVITY_CLOSE_AFTER_PING_MS,

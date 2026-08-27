@@ -1,6 +1,7 @@
 /** Owner-confirmed model & inference settings — v2 single source. */
 
 import { agentRoutingMode } from "@/lib/agent-core/routing-mode"
+import { modelResolutionReport } from "@/lib/agent-core/model-resolution"
 
 /** Top-tier defaults (Vercel AI Gateway provider/model slugs). Override via env. */
 const DEFAULT_SPECIALIST = "anthropic/claude-opus-4.6"
@@ -55,6 +56,10 @@ export function routerConfig() {
 
 /** For logs / health checks */
 export function activeModelSummary() {
+  const resolution = modelResolutionReport({
+    router: DEFAULT_ROUTER,
+    specialist: DEFAULT_SPECIALIST,
+  })
   return {
     router: AGENT_CONFIG.router.model(),
     faq: AGENT_CONFIG.faq.model(),
@@ -62,6 +67,13 @@ export function activeModelSummary() {
     service: AGENT_CONFIG.service.model(),
     salesIntakeMode: salesIntakeMode(),
     routingMode: agentRoutingMode(),
+    resolution,
+    envOverridesCodeDefaults:
+      resolution.router.source !== "code_default" ||
+      resolution.faq.source !== "code_default" ||
+      resolution.sales.source !== "code_default" ||
+      resolution.service.source !== "code_default",
+    globalOverride: process.env.AGENT_MODEL?.trim() || null,
   }
 }
 
