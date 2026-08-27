@@ -3,6 +3,7 @@ import {
   INACTIVITY_PING_MS,
   buildInactivityCloseReply,
   buildInactivityPingReply,
+  isInactivityAssistantMessage,
 } from "@/lib/agents/inactivity"
 import { getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { getAgentSupabase } from "@/lib/agents/supabase"
@@ -58,6 +59,28 @@ async function lastMessageRole(conversationId: string) {
   if (error) throw error
   if (data?.role === "user" || data?.role === "assistant") return data.role
   return null
+}
+
+async function getLastAssistantMessage(conversationId: string) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_messages")
+    .select("content, created_at")
+    .eq("conversation_id", conversationId)
+    .eq("role", "assistant")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+async function lastAssistantIsInactivityPing(conversationId: string) {
+  const lastAssistant = await getLastAssistantMessage(conversationId)
+  if (!lastAssistant?.content) return null
+  if (!isInactivityAssistantMessage(String(lastAssistant.content))) return null
+  return String(lastAssistant.created_at)
 }
 
 async function isBotWaitingForUser(row: IdleSessionRow) {
@@ -233,6 +256,33 @@ export async function processInactivityTimeouts() {
         Boolean(pingSentAt) &&
         Boolean(lastUserAt) &&
         Date.parse(lastUserAt) >= Date.parse(pingSentAt) - 1000
+
+      const inactivityPingAt = await lastAssistantIsInactivityPing(row.conversation_id)
+      if (inactivityPingAt) {
+        const sinceInactivityPingMs = msSince(inactivityPingAt)
+        const userRepliedAfterInactivityPing =
+          Boolean(lastUserAt) &&
+          Date.parse(lastUserAt) >= Date.parse(inactivityPingAt) - 1000
+
+        if (
+          sinceInactivityPingMs >= INACTIVITY_CLOSE_AFTER_PING_MS &&
+          !userRepliedAfterInactivityPing
+        ) {
+          const reply = buildInactivityCloseReply()
+          await assignToApiAgent(customerId)
+          await sendCustomerText(customerId, reply)
+          await recordProactiveAssistantMessage({
+            conversationId: row.conversation_id,
+            assistantText: reply,
+            action: "inactivity_close",
+          })
+          results.closed += 1
+          continue
+        }
+
+        results.skipped += 1
+        continue
+      }
 
       if (
         pingSentAt &&

@@ -3,6 +3,7 @@ import {
   INACTIVITY_PING_MS,
   buildInactivityCloseReply,
   buildInactivityPingReply,
+  isInactivityAssistantMessage,
 } from "@/lib/agents/inactivity"
 import { resolveCronSecret } from "@/lib/agents/cron-auth"
 import {
@@ -87,6 +88,21 @@ function resolveWatchPhone(payload: InactivityWatchPayload, sessionPhone?: unkno
   return asText(payload.customerPhone) || asText(sessionPhone) || undefined
 }
 
+async function lastAssistantIsInactivityPing(conversationId: string) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_messages")
+    .select("content")
+    .eq("conversation_id", conversationId)
+    .eq("role", "assistant")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return Boolean(data?.content && isInactivityAssistantMessage(String(data.content)))
+}
+
 async function shouldSendPing(payload: InactivityWatchPayload) {
   const watchAssistantAt = asText(payload.watchAssistantAt)
   if (!watchAssistantAt) return "missing_watch_assistant_at" as const
@@ -97,6 +113,9 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
     return "phone_not_allowed" as const
   }
   if (asText(session.inactivity_closed_at)) return "already_closed" as const
+  if (await lastAssistantIsInactivityPing(payload.conversationId)) {
+    return "ping_already_sent" as const
+  }
   if (asText(session.inactivity_ping_sent_at)) return "ping_already_sent" as const
   if (!sameTimestamp(asText(session.last_assistant_at), watchAssistantAt)) {
     return "assistant_timestamp_changed" as const

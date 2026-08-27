@@ -53,6 +53,7 @@ import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplain
 import {
   resolveDigitalDocumentFlowReply,
   shouldHandleDigitalDocumentFlow,
+  isDigitalDocumentRequest,
   DOCUMENT_TYPE_RECEIPT,
   DOCUMENT_TYPE_TAX_INVOICE,
   DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
@@ -1692,6 +1693,52 @@ export async function runMasterConversation(
   if (isInactivityPingPending(history)) {
     const ackWithExtra = isInactivityAckWithExtra(body)
     const pureAck = isPureInactivityAck(body) || isInactivityStillHereReply(body)
+
+    if (ackWithExtra) {
+      if (
+        isSalesTopicSwitch(body) ||
+        isSalesConsultationTrigger(body) ||
+        /רוצ(?:ה|ים|ות)\s+לקנות/i.test(body)
+      ) {
+        return finish(
+          await resolveSpecialist(
+            conversationId,
+            turn,
+            "sales",
+            history,
+            true,
+            route,
+            sharedOptions
+          )
+        )
+      }
+      if (isFaqTopicSwitch(body)) {
+        return finish(
+          await resolveSpecialist(
+            conversationId,
+            turn,
+            "faq",
+            history,
+            true,
+            route,
+            sharedOptions
+          )
+        )
+      }
+      if (isServiceTopicSwitch(body) && !isDigitalDocumentRequest(body)) {
+        return finish(
+          await resolveSpecialist(
+            conversationId,
+            turn,
+            "service",
+            history,
+            true,
+            route,
+            sharedOptions
+          )
+        )
+      }
+    }
 
     if (!ackWithExtra && pureAck) {
       const prior = lastNonInactivityAssistantText(history)
