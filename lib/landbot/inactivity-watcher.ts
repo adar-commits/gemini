@@ -92,7 +92,7 @@ async function lastAssistantIsInactivityPing(conversationId: string) {
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
     .from("hom_agent_messages")
-    .select("content")
+    .select("content, created_at")
     .eq("conversation_id", conversationId)
     .eq("role", "assistant")
     .order("created_at", { ascending: false })
@@ -100,7 +100,15 @@ async function lastAssistantIsInactivityPing(conversationId: string) {
     .maybeSingle()
 
   if (error) throw error
-  return Boolean(data?.content && isInactivityAssistantMessage(String(data.content)))
+  if (!data?.content || !isInactivityAssistantMessage(String(data.content))) return null
+  return String(data.created_at)
+}
+
+async function resolveInactivityPingTimestamp(conversationId: string, fallback?: string) {
+  const fromMessage = await lastAssistantIsInactivityPing(conversationId)
+  if (fromMessage) return fromMessage
+  const session = await getSessionInactivityState(conversationId)
+  return asText(session?.inactivity_ping_sent_at) || asText(fallback) || null
 }
 
 async function shouldSendPing(payload: InactivityWatchPayload) {
@@ -156,11 +164,19 @@ async function userRepliedAfterPing(
 }
 
 async function shouldSendClose(payload: InactivityWatchPayload) {
-  const watchPingSentAt = asText(payload.watchPingSentAt)
+  const watchPingSentAt =
+    (await resolveInactivityPingTimestamp(
+      payload.conversationId,
+      payload.watchPingSentAt
+    )) ?? null
   if (!watchPingSentAt) return "missing_watch_ping_sent_at" as const
 
   if (await userRepliedAfterPing(payload.conversationId, watchPingSentAt)) {
     return "user_replied_after_ping" as const
+  }
+
+  if (Date.now() - Date.parse(watchPingSentAt) < INACTIVITY_CLOSE_AFTER_PING_MS) {
+    return "not_due_yet" as const
   }
 
   const session = await getSessionInactivityState(payload.conversationId)
@@ -169,11 +185,8 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
     return "phone_not_allowed" as const
   }
   if (asText(session.inactivity_closed_at)) return "already_closed" as const
-  if (!asText(session.inactivity_ping_sent_at)) {
-    return "ping_cleared" as const
-  }
-  if (!sameTimestamp(asText(session.inactivity_ping_sent_at), watchPingSentAt)) {
-    return "ping_timestamp_changed" as const
+  if (!(await lastAssistantIsInactivityPing(payload.conversationId))) {
+    return "ping_not_last_assistant" as const
   }
   if (!botIsWaiting(session)) return "bot_not_waiting" as const
   if (await hasPendingBuffer(payload.conversationId)) return "pending_buffer" as const
@@ -233,7 +246,11 @@ export async function scheduleInactivityCloseWatch(payload: {
 }
 
 async function runClosePhase(payload: InactivityWatchPayload) {
-  const watchPingSentAt = asText(payload.watchPingSentAt)
+  const watchPingSentAt =
+    (await resolveInactivityPingTimestamp(
+      payload.conversationId,
+      payload.watchPingSentAt
+    )) ?? ""
   if (!watchPingSentAt) {
     return { ok: true, skipped: "missing_watch_ping_sent_at" as const }
   }
@@ -259,6 +276,16 @@ async function runClosePhase(payload: InactivityWatchPayload) {
 
   const skip = await shouldSendClose({ ...payload, watchPingSentAt })
   if (skip) {
+    if (skip === "not_due_yet") {
+      await scheduleInactivityCloseWatch({
+        conversationId: payload.conversationId,
+        customerId: payload.customerId,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        watchPingSentAt,
+      })
+      return { ok: true, rescheduled: true as const }
+    }
     console.log("[inactivity-watch] close skipped", payload.conversationId, skip)
     return { ok: true, skipped: skip }
   }

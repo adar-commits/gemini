@@ -22,6 +22,11 @@ type IdleSessionRow = {
   last_action: string | null
 }
 
+type CloseCandidate = IdleSessionRow & { pingAt: string }
+
+const IDLE_SCAN_LIMIT = 80
+const CLOSE_SCAN_LIMIT = 80
+
 function asText(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
 }
@@ -65,7 +70,7 @@ async function getLastAssistantMessage(conversationId: string) {
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
     .from("hom_agent_messages")
-    .select("content, created_at")
+    .select("content, created_at, action")
     .eq("conversation_id", conversationId)
     .eq("role", "assistant")
     .order("created_at", { ascending: false })
@@ -81,6 +86,28 @@ async function lastAssistantIsInactivityPing(conversationId: string) {
   if (!lastAssistant?.content) return null
   if (!isInactivityAssistantMessage(String(lastAssistant.content))) return null
   return String(lastAssistant.created_at)
+}
+
+async function userRepliedAfterTimestamp(conversationId: string, sinceIso: string) {
+  const sinceMs = Date.parse(sinceIso)
+  if (!Number.isFinite(sinceMs)) return false
+
+  const session = await getSessionInactivityState(conversationId)
+  const lastUserAt = asText(session?.last_user_at)
+  if (lastUserAt && Date.parse(lastUserAt) >= sinceMs - 1000) return true
+
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_messages")
+    .select("created_at")
+    .eq("conversation_id", conversationId)
+    .eq("role", "user")
+    .gt("created_at", new Date(sinceMs - 1000).toISOString())
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return Boolean(data?.created_at)
 }
 
 async function isBotWaitingForUser(row: IdleSessionRow) {
@@ -173,23 +200,12 @@ async function hasPendingBuffer(conversationId: string) {
   return msSince(String(data.updated_at)) < INACTIVITY_PING_MS
 }
 
-async function loadIdleSessions(limit = 40) {
+async function hydrateSessionRows(
+  rows: Array<Omit<IdleSessionRow, "last_action">>
+): Promise<IdleSessionRow[]> {
+  if (!rows.length) return []
+
   const supabase = getAgentSupabase()
-  const { data, error } = await supabase
-    .from("hom_agent_sessions")
-    .select(
-      "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
-    )
-    .is("inactivity_closed_at", null)
-    .not("last_assistant_at", "is", null)
-    .order("last_assistant_at", { ascending: true })
-    .limit(limit)
-
-  if (error) throw error
-
-  const rows = (data ?? []) as Omit<IdleSessionRow, "last_action">[]
-  if (!rows.length) return [] as IdleSessionRow[]
-
   const conversationIds = rows.map((row) => row.conversation_id)
   const { data: lastMessages, error: messageError } = await supabase
     .from("hom_agent_messages")
@@ -213,16 +229,148 @@ async function loadIdleSessions(limit = 40) {
   }))
 }
 
+async function loadIdleSessions(limit = IDLE_SCAN_LIMIT) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_sessions")
+    .select(
+      "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+    )
+    .is("inactivity_closed_at", null)
+    .not("last_assistant_at", "is", null)
+    .order("last_assistant_at", { ascending: true })
+    .limit(limit)
+
+  if (error) throw error
+  return hydrateSessionRows((data ?? []) as Omit<IdleSessionRow, "last_action">[])
+}
+
+/** Sessions past the post-ping close deadline — scanned first so recent pings are not starved. */
+async function loadSessionsDueForClose(limit = CLOSE_SCAN_LIMIT): Promise<CloseCandidate[]> {
+  const supabase = getAgentSupabase()
+  const cutoff = new Date(Date.now() - INACTIVITY_CLOSE_AFTER_PING_MS).toISOString()
+  const pingAtByConversation = new Map<string, string>()
+
+  const { data: fromSessions, error: sessionError } = await supabase
+    .from("hom_agent_sessions")
+    .select(
+      "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+    )
+    .is("inactivity_closed_at", null)
+    .not("inactivity_ping_sent_at", "is", null)
+    .lt("inactivity_ping_sent_at", cutoff)
+    .limit(limit)
+
+  if (sessionError) throw sessionError
+
+  for (const row of fromSessions ?? []) {
+    const conversationId = asText(row.conversation_id)
+    const pingAt = asText(row.inactivity_ping_sent_at)
+    if (conversationId && pingAt) pingAtByConversation.set(conversationId, pingAt)
+  }
+
+  const { data: pingMessages, error: messageError } = await supabase
+    .from("hom_agent_messages")
+    .select("conversation_id, created_at, content")
+    .eq("role", "assistant")
+    .eq("action", "inactivity_ping")
+    .lt("created_at", cutoff)
+    .order("created_at", { ascending: false })
+    .limit(limit * 3)
+
+  if (messageError) throw messageError
+
+  for (const message of pingMessages ?? []) {
+    const conversationId = asText(message.conversation_id)
+    const createdAt = asText(message.created_at)
+    if (!conversationId || !createdAt) continue
+    if (!isInactivityAssistantMessage(String(message.content ?? ""))) continue
+    if (!pingAtByConversation.has(conversationId)) {
+      pingAtByConversation.set(conversationId, createdAt)
+    }
+  }
+
+  if (!pingAtByConversation.size) return []
+
+  const conversationIds = [...pingAtByConversation.keys()]
+  const { data: sessions, error: hydrateError } = await supabase
+    .from("hom_agent_sessions")
+    .select(
+      "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+    )
+    .in("conversation_id", conversationIds)
+    .is("inactivity_closed_at", null)
+
+  if (hydrateError) throw hydrateError
+
+  const hydrated = await hydrateSessionRows(
+    (sessions ?? []) as Omit<IdleSessionRow, "last_action">[]
+  )
+
+  const due: CloseCandidate[] = []
+  for (const row of hydrated) {
+    const pingAt =
+      (await lastAssistantIsInactivityPing(row.conversation_id)) ??
+      pingAtByConversation.get(row.conversation_id) ??
+      asText(row.inactivity_ping_sent_at)
+    if (!pingAt) continue
+    if (msSince(pingAt) < INACTIVITY_CLOSE_AFTER_PING_MS) continue
+    due.push({ ...row, pingAt })
+  }
+
+  return due
+}
+
+async function attemptInactivityClose(row: CloseCandidate) {
+  if (shouldSkipIdle(row)) return "skipped" as const
+  if (await hasPendingBuffer(row.conversation_id)) return "skipped" as const
+  if (!(await isBotWaitingForUser(row))) return "skipped" as const
+
+  const customerId = parseCustomerId(row.conversation_id)
+  if (!customerId) return "skipped" as const
+  if (!shouldReplyPhone(row.customer_phone)) return "skipped" as const
+
+  const pingAt = await lastAssistantIsInactivityPing(row.conversation_id)
+  if (!pingAt) return "skipped" as const
+  if (await userRepliedAfterTimestamp(row.conversation_id, pingAt)) {
+    return "skipped" as const
+  }
+  if (msSince(pingAt) < INACTIVITY_CLOSE_AFTER_PING_MS) return "skipped" as const
+
+  const reply = buildInactivityCloseReply()
+  await assignToApiAgent(customerId)
+  await sendCustomerText(customerId, reply)
+  await recordProactiveAssistantMessage({
+    conversationId: row.conversation_id,
+    assistantText: reply,
+    action: "inactivity_close",
+  })
+  return "closed" as const
+}
+
 export async function processInactivityTimeouts() {
   const backfilled = await backfillSessionActivityTimestamps()
+  const dueForClose = await loadSessionsDueForClose()
   const sessions = await loadIdleSessions()
   const results = {
     backfilled,
+    closeCandidates: dueForClose.length,
     scanned: sessions.length,
     pinged: 0,
     closed: 0,
     skipped: 0,
     errors: [] as string[],
+  }
+
+  for (const row of dueForClose) {
+    try {
+      const outcome = await attemptInactivityClose(row)
+      if (outcome === "closed") results.closed += 1
+      else results.skipped += 1
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Inactivity close failed"
+      results.errors.push(`${row.conversation_id}: ${message}`)
+    }
   }
 
   for (const row of sessions) {
@@ -250,55 +398,29 @@ export async function processInactivityTimeouts() {
 
       const waitingMs = msSince(row.last_assistant_at)
       const pingSentAt = asText(row.inactivity_ping_sent_at)
-      const sincePingMs = msSince(pingSentAt)
       const lastUserAt = asText(row.last_user_at)
+
+      const inactivityPingAt = await lastAssistantIsInactivityPing(row.conversation_id)
+      if (inactivityPingAt) {
+        results.skipped += 1
+        continue
+      }
+
       const userRepliedAfterPing =
         Boolean(pingSentAt) &&
         Boolean(lastUserAt) &&
         Date.parse(lastUserAt) >= Date.parse(pingSentAt) - 1000
 
-      const inactivityPingAt = await lastAssistantIsInactivityPing(row.conversation_id)
-      if (inactivityPingAt) {
-        const sinceInactivityPingMs = msSince(inactivityPingAt)
-        const userRepliedAfterInactivityPing =
-          Boolean(lastUserAt) &&
-          Date.parse(lastUserAt) >= Date.parse(inactivityPingAt) - 1000
-
-        if (
-          sinceInactivityPingMs >= INACTIVITY_CLOSE_AFTER_PING_MS &&
-          !userRepliedAfterInactivityPing
-        ) {
-          const reply = buildInactivityCloseReply()
-          await assignToApiAgent(customerId)
-          await sendCustomerText(customerId, reply)
-          await recordProactiveAssistantMessage({
-            conversationId: row.conversation_id,
-            assistantText: reply,
-            action: "inactivity_close",
-          })
+      if (
+        pingSentAt &&
+        msSince(pingSentAt) >= INACTIVITY_CLOSE_AFTER_PING_MS &&
+        !userRepliedAfterPing
+      ) {
+        const outcome = await attemptInactivityClose({ ...row, pingAt: pingSentAt })
+        if (outcome === "closed") {
           results.closed += 1
           continue
         }
-
-        results.skipped += 1
-        continue
-      }
-
-      if (
-        pingSentAt &&
-        sincePingMs >= INACTIVITY_CLOSE_AFTER_PING_MS &&
-        !userRepliedAfterPing
-      ) {
-        const reply = buildInactivityCloseReply()
-        await assignToApiAgent(customerId)
-        await sendCustomerText(customerId, reply)
-        await recordProactiveAssistantMessage({
-          conversationId: row.conversation_id,
-          assistantText: reply,
-          action: "inactivity_close",
-        })
-        results.closed += 1
-        continue
       }
 
       if (!pingSentAt && waitingMs >= INACTIVITY_PING_MS) {
