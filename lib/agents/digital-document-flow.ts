@@ -344,7 +344,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
 
     if (whatsappPhone) {
       return `${CUSTOMER_HEADER}
-לא הבנתי — האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? (${formatDisplayPhone(whatsappPhone)})
+לא הבנתי — האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? ${formatDisplayPhone(whatsappPhone)}
 אם לא, אשמח לציון המספר הנכון.`
     }
 
