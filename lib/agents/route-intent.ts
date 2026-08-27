@@ -20,6 +20,8 @@ import {
   isServiceTopicSwitch,
   isShippingStatusQuestion,
 } from "@/lib/agents/topic-switch"
+import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
+import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import { breaksPendingHandoff } from "@/lib/agents/handoff-wait"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
@@ -62,6 +64,10 @@ export function guessMasterRoute(body: string): MasterAction | null {
 
   if (isCustomerServiceOpener(text)) {
     return "ROUTE_TO_INFO_AGENT"
+  }
+
+  if (isDigitalDocumentRequest(text)) {
+    return "ROUTE_TO_SHIPPING_STATUS"
   }
 
   if (isServiceTopicSwitch(text)) {
@@ -125,8 +131,9 @@ export function guessMasterRoute(body: string): MasterAction | null {
   }
 
   if (
-    has(text, /^(שלום|היי|הי|אהלן|מה\s+נשמע|מה\s+קורה|בוקר\s+טוב|ערב\s+טוב)/) ||
-    has(text, /^(שלום|היי|אהלן)[\s,!?.]*$/i)
+    (has(text, /^(שלום|היי|הי|אהלן|מה\s+נשמע|מה\s+קורה|בוקר\s+טוב|ערב\s+טוב)/) ||
+      has(text, /^(שלום|היי|אהלן)[\s,!?.]*$/i)) &&
+    !hasImmediateBusinessAsk(text)
   ) {
     return "ROUTE_TO_INFO_AGENT"
   }

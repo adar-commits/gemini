@@ -4,6 +4,7 @@ import {
 } from "@/lib/agents/shipping"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import { isFaqPolicyQuestion } from "@/lib/agents/policy-subjects"
+import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 
 export { isFaqPolicyQuestion } from "@/lib/agents/policy-subjects"
 
@@ -33,6 +34,7 @@ export function isServiceTopicSwitch(body: string) {
   if (!text) return false
 
   if (isCustomerServiceOpener(text)) return false
+  if (isDigitalDocumentRequest(text)) return false
 
   if (
     /(?:הזמנה\s+)?מוקדמת|pre\s*-?\s*order|עיכוב.*מכולה|משלוח\s+חסר|תלונה\s+על\s+(?:שליח|זמנים)|פגם\s+ב(?:ה)?ובלה|טעות\s+בליקוט|זליג(?:ה|ת)\s+צבע/i.test(

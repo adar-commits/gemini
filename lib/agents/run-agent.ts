@@ -1504,6 +1504,9 @@ async function routeViaMasterLlm(
     route.push("master")
     const next = MASTER_ROUTE_MAP[guessed] ?? "faq"
     if (next === "shipping") {
+      if (shouldHandleDigitalDocumentFlow(body, history)) {
+        return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
+      }
       return shippingResult(conversationId, body, route, preview, phone || undefined, history)
     }
     return resolveSpecialist(
@@ -1569,6 +1572,9 @@ async function routeViaMasterLlm(
   ) as MasterAction
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
   if (next === "shipping") {
+    if (shouldHandleDigitalDocumentFlow(body, history)) {
+      return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
+    }
     return shippingResult(conversationId, body, route, preview, phone || undefined, history)
   }
   return resolveSpecialist(
@@ -1667,6 +1673,12 @@ export async function runMasterConversation(
     { lastAction, sessionSummary: conversationSummary, preview }
   )
   if (multiQuestion) return finish(multiQuestion)
+
+  if (shouldHandleDigitalDocumentFlow(body, history)) {
+    return finish(
+      await documentFlowResult(conversationId, body, route, preview, phone, history)
+    )
+  }
 
   const postHandoffFaq = await resolvePostHandoffFaqTurn(
     conversationId,
@@ -2132,6 +2144,9 @@ export async function runMasterConversation(
 
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
   if (next === "shipping") {
+    if (shouldHandleDigitalDocumentFlow(body, history)) {
+      return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
+    }
     return shippingResult(conversationId, body, route, preview, phone || undefined, history)
   }
 

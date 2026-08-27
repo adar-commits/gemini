@@ -25,9 +25,22 @@ export const DOCUMENT_TYPE_TAX_INVOICE_RECEIPT = "חשבונית מס קבלה"
 const CHANNEL_QUESTION_MARKER = /מלאי(?:\s+ה)?סניף|אתר(?:\s+ה)?אינטרנט(?:\s+עם\s+שליח)?/i
 const LEGACY_TYPE_QUESTION_MARKER = /איזה\s+סוג\s+מסמך/i
 
-/** Customer wants a digital receipt / invoice copy. */
+const LEADING_GREETING_RE =
+  /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+)*/iu
+
+function stripLeadingGreetings(text: string) {
+  let body = text.trim()
+  for (let i = 0; i < 3; i++) {
+    const next = body.replace(LEADING_GREETING_RE, "").trim()
+    if (next === body) break
+    body = next
+  }
+  return body
+}
+
+/** Customer wants a digital receipt / invoice copy (קבלה = receipt, not admission). */
 export function isDigitalDocumentRequest(body: string) {
-  const text = body.trim()
+  const text = stripLeadingGreetings(body.trim())
   if (!text) return false
   if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
   return (
@@ -38,7 +51,9 @@ export function isDigitalDocumentRequest(body: string) {
     /(?:קבלה|חשבונית(?:\s+מס)?(?:\s+קבלה)?)\s+(?:של|ע(?:ל|בור)|ל)/i.test(text) ||
     /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))\s+(?:לי\s+)?(?:בבקשה\s+)?(?:א(?:ת|ת)?\s+)?(?:ה)?(?:העתק|עותק|קבלה|חשבונית)/i.test(
       text
-    )
+    ) ||
+    /(?:ה)?קבלה(?:\s+שלי|\s+של)?/i.test(text) ||
+    /receipt|invoice\s+copy|copy\s+of\s+(?:my\s+)?(?:receipt|invoice)/i.test(text)
   )
 }
 

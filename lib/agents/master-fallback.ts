@@ -21,6 +21,7 @@ import {
 } from "@/lib/agents/shipping"
 import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 
 export type MasterFallbackKind = "sales_intake" | "handoff_offer"
 
@@ -58,6 +59,7 @@ function hasClearRoute(body: string, history: HistoryMessage[]) {
   if (isOffTopicQuestion(body)) return true
   if (isCasualGreeting(body)) return true
   if (hasImmediateBusinessAsk(body)) return true
+  if (isDigitalDocumentRequest(body)) return true
   if (guessMasterRoute(body)) return true
   if (isSalesConsultationTrigger(body)) return true
   if (mentionsPetInText(body)) return true
