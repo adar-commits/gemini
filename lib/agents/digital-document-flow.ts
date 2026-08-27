@@ -142,20 +142,25 @@ function parseDocumentLink(data: unknown) {
   return null
 }
 
-async function fetchGetDocumentLink(phone: string, documentType: string) {
-  const value = phoneForOrderApi(phone)
+async function fetchGetDocumentLink(input: { value: string; documentType: string }) {
+  const value = input.value.trim()
   if (!value) return { link: null as string | null, sawResponse: false }
 
   const data = await callPriorityWebhook({
     actionType: "getDocument",
     value,
-    documentType,
+    documentType: input.documentType,
   })
 
   return {
     link: parseDocumentLink(data),
     sawResponse: data != null,
   }
+}
+
+/** Store POS lookup — API expects the customer's phone in `value`. */
+function storeDocumentRequestValue(phone: string) {
+  return phoneForOrderApi(phone)
 }
 
 function uniqueLinks(links: Array<string | null | undefined>) {
@@ -172,7 +177,11 @@ export async function lookupDigitalDocumentsForChannel(
   }
 
   if (channel === "store") {
-    const doc = await fetchGetDocumentLink(lookupPhone, DOCUMENT_TYPE_TAX_INVOICE_RECEIPT)
+    const value = storeDocumentRequestValue(lookupPhone)
+    const doc = await fetchGetDocumentLink({
+      value,
+      documentType: DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
+    })
     if (doc.link) return { ok: true as const, links: [doc.link] }
     return {
       ok: false as const,
@@ -182,8 +191,8 @@ export async function lookupDigitalDocumentsForChannel(
   }
 
   const [receipt, invoice] = await Promise.all([
-    fetchGetDocumentLink(lookupPhone, DOCUMENT_TYPE_RECEIPT),
-    fetchGetDocumentLink(lookupPhone, DOCUMENT_TYPE_TAX_INVOICE),
+    fetchGetDocumentLink({ value: lookupPhone, documentType: DOCUMENT_TYPE_RECEIPT }),
+    fetchGetDocumentLink({ value: lookupPhone, documentType: DOCUMENT_TYPE_TAX_INVOICE }),
   ])
 
   const links = uniqueLinks([receipt.link, invoice.link])
@@ -291,8 +300,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
   }
 
   const resolvedChannel = channel!
-  const lookupPhone =
-    extractPhoneFromText(body) || resolveLookupPhoneFromHistory(history, whatsappPhone)
+  const lookupPhone = resolveDocumentLookupPhone(body, history, whatsappPhone)
 
   if (isAlternateDocumentPhonePending(history)) {
     if (lookupPhone) return deliverDocumentsForPhone(lookupPhone, resolvedChannel)
@@ -306,8 +314,9 @@ export async function resolveDigitalDocumentFlowReply(input: {
     }
 
     if (isPurePhoneLookupConfirmYes(body)) {
-      if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
-      return deliverDocumentsForPhone(whatsappPhone, resolvedChannel)
+      const confirmedPhone = resolveDocumentLookupPhone(body, history, whatsappPhone)
+      if (!confirmedPhone) return buildPhoneLookupDeclinedReply()
+      return deliverDocumentsForPhone(confirmedPhone, resolvedChannel)
     }
 
     if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
@@ -336,4 +345,16 @@ export async function resolveDigitalDocumentFlowReply(input: {
   }
 
   return buildPhoneLookupDeclinedReply()
+}
+
+function resolveDocumentLookupPhone(
+  body: string,
+  history: HistoryMessage[],
+  whatsappPhone?: string
+) {
+  return (
+    extractPhoneFromText(body) ||
+    resolveLookupPhoneFromHistory(history, whatsappPhone) ||
+    null
+  )
 }
