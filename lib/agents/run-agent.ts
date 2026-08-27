@@ -220,6 +220,16 @@ async function runT0DeterministicPaths(
     return faqReturnPolicyResult(conversationId, body, route, preview, history, lastAgent)
   }
 
+  const inventoryEarly = await tryBranchInventoryResult(
+    conversationId,
+    body,
+    history,
+    route,
+    true,
+    preview
+  )
+  if (inventoryEarly) return inventoryEarly
+
   if (isBranchListQuestion(body)) {
     return faqPendingFlowResult(
       conversationId,
@@ -247,16 +257,6 @@ async function runT0DeterministicPaths(
   if (shouldHandlePostPurchaseCaseFlow(body, history)) {
     return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
-
-  const inventory = await tryBranchInventoryResult(
-    conversationId,
-    body,
-    history,
-    route,
-    true,
-    preview
-  )
-  if (inventory) return inventory
 
   if (shouldHandleOrderShippingFlow(body, history)) {
     return shippingResult(conversationId, body, route, preview, phone, history)
@@ -592,6 +592,29 @@ async function resolvePostHandoffFaqTurn(
 ): Promise<AgentResponse | null> {
   if (!isPostHumanHandoff(sharedOptions.lastAction, history)) return null
   if (!hasEmbeddedBusinessAsk(body)) return null
+
+  if (shouldHandleBranchInventory(body, history)) {
+    const reply = normalizeReply(
+      "sales",
+      "reply",
+      await resolveBranchInventoryReply({ body, history })
+    )
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview: sharedOptions.preview,
+    })
+    return {
+      ok: true,
+      agent: "sales",
+      reply,
+      action: "reply",
+      route: [...route, "sales"],
+    }
+  }
 
   const answer = answerFaqQuestionDeterministic(body)
   if (!answer) return null

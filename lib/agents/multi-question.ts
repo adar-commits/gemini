@@ -4,6 +4,10 @@ import { recordLlmCall } from "@/lib/agent-core/turn-metrics"
 import { buildModelMessages } from "@/lib/agents/multimodal"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { buildBranchReplyForText, isBranchListQuestion } from "@/lib/agents/branches"
+import {
+  isBranchInventoryQuestion,
+  resolveBranchInventoryReply,
+} from "@/lib/agents/inventory-lookup"
 import { hasEmbeddedBusinessAsk } from "@/lib/agents/compound-reply"
 import {
   buildCarpetRentalPolicyReply,
@@ -142,6 +146,7 @@ export function answerFaqQuestionDeterministic(question: string) {
   if (isShippingPolicyQuestion(text) || subjects.includes("shipping_policy")) {
     return buildShippingPolicyReply()
   }
+  if (isBranchInventoryQuestion(text)) return null
   if (isBranchListQuestion(text) || subjects.includes("branches")) {
     return buildBranchReplyForText(text)
   }
@@ -163,6 +168,10 @@ export async function answerOrderedQuestions(
     const deterministic = answerFaqQuestionDeterministic(question)
     if (deterministic) {
       replies.push(deterministic)
+      continue
+    }
+    if (isBranchInventoryQuestion(question)) {
+      replies.push(await resolveBranchInventoryReply({ body: question, history: input.history }))
       continue
     }
     replies.push(await input.runFaqLlm(question))

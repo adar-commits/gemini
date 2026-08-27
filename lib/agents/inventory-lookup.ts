@@ -4,12 +4,16 @@ import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
+import {
+  extractBranchCityFromInventoryQuery,
+  normalizeBranchCityHint,
+} from "@/lib/agents/branches"
 
 const STORE_RE =
   /סניפ|סניף|חנויות|רשת(?:\s+הסניפ|\s+הסניף)?|stores?|branches/i
 
 const STOCK_RE =
-  /במלאי|מלאי|זמין(?:\s+ב)?(?:מלאי|חנות|סניפ|סניף)?|in\s+stock|תבדוק(?:ו)?\s+(?:מלאי|זמינות)|בדיקת\s+(?:מלאי|זמינות)/i
+  /במלאי|מלאי|זמינות|זמין(?:\s+ב)?(?:מלאי|חנות|סניפ|סניף)?|in\s+stock|(?:ת)?(?:וכל|בדוק)(?:\s+לי|\s+ל)?(?:\s+את)?\s*(?:ה)?מלאי|(?:ת)?בדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאי|בדיק(?:ת|ה)\s+(?:מלאי|זמינות)/i
 
 const HAVE_PRODUCT_RE =
   /יש\s+(?:ל(?:כם|נו)|אצל(?:כם|נו)|את(?:\s+זה|\s+הדגם)?)|האם\s+יש/i
@@ -174,7 +178,26 @@ function formatLocationName(name: string) {
   return name.replace(/\\"/g, '"').trim()
 }
 
-export function buildSkuRequestPrompt() {
+export function buildSkuRequestPrompt(context?: {
+  branch?: string | null
+  product?: string | null
+}) {
+  const branch = context?.branch ? normalizeBranchCityHint(context.branch) : null
+  const product = context?.product?.trim()
+
+  if (branch && product) {
+    return `${CUSTOMER_HEADER}
+כדי לבדוק מלאי של ${product} בסניף ${branch}, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
+  }
+  if (branch) {
+    return `${CUSTOMER_HEADER}
+כדי לבדוק מלאי בסניף ${branch}, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
+  }
+  if (product) {
+    return `${CUSTOMER_HEADER}
+כדי לבדוק מלאי של ${product} בסניפים, אצטרך את המק״ט (מספר הדגם, כולל מקף).`
+  }
+
   return `${CUSTOMER_HEADER}
 כדי לבדוק זמינות בסניפים אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
 }
@@ -197,25 +220,62 @@ export function buildSkuMissingHandoffReply() {
 אפשר לשלוח את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורך?`
 }
 
-export function buildInventoryAvailabilityReply(row: InventoryBranchRow) {
+function warehouseMatchesBranch(warehouseName: string, branchHint: string) {
+  const name = formatLocationName(warehouseName)
+  const city = normalizeBranchCityHint(branchHint)
+  if (!name || !city) return false
+  return name.includes(city) || city.includes(name)
+}
+
+function extractProductHintFromInventoryQuery(text: string) {
+  const match =
+    text.match(/(?:של|ע(?:ל|בור))\s+([א-תa-zA-Z0-9\s\-]{2,40}?)(?:\?|[\s,.]|$)/i) ||
+    text.match(/(?:ל)?דגם\s+([א-תa-zA-Z0-9\s\-]{2,40}?)(?:\?|[\s,.]|$)/i)
+  const product = match?.[1]?.trim()
+  if (!product) return null
+  if (/^(?:סניף|מלאי|המוצר|השטיח)$/i.test(product)) return null
+  return product
+}
+
+export function buildInventoryAvailabilityReply(
+  row: InventoryBranchRow,
+  branchFilter?: string | null
+) {
   const available: string[] = []
   const unavailable: string[] = []
 
   for (const location of row.warehouses_inventory) {
     const name = formatLocationName(location.warehouse)
     if (!name) continue
+    if (branchFilter && !warehouseMatchesBranch(name, branchFilter)) continue
     if (Number(location.quantity) > 0) available.push(name)
     else unavailable.push(name)
+  }
+
+  const branchLabel = branchFilter ? normalizeBranchCityHint(branchFilter) : null
+
+  if (branchFilter && available.length === 0 && unavailable.length === 0) {
+    return `${CUSTOMER_HEADER}
+בדקתי את הדגם ${row.sku} — לא מצאתי סניף ${branchLabel} ברשימת המלאי.
+אפשר לשלוח שוב את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורך?`
   }
 
   if (available.length === 0 && unavailable.length === 0) {
     return buildInventoryNotFoundReply(row.sku)
   }
 
-  const lines = [`בדקתי זמינות לדגם ${row.sku}:`]
+  const lines = [
+    branchLabel
+      ? `בדקתי זמינות לדגם ${row.sku} בסניף ${branchLabel}:`
+      : `בדקתי זמינות לדגם ${row.sku}:`,
+  ]
 
   if (available.length === 0) {
-    lines.push("כרגע אין במלאי באף אחד מהסניפים שבדקתי.")
+    lines.push(
+      branchLabel
+        ? `כרגע אין במלאי בסניף ${branchLabel}.`
+        : "כרגע אין במלאי באף אחד מהסניפים שבדקתי."
+    )
   } else {
     lines.push("", "*יש במלאי:*", ...available.map((name) => `• ${name}`))
     if (unavailable.length > 0) {
@@ -227,12 +287,12 @@ export function buildInventoryAvailabilityReply(row: InventoryBranchRow) {
   return `${CUSTOMER_HEADER}\n${lines.join("\n")}`
 }
 
-async function replyForSku(sku: string) {
+async function replyForSku(sku: string, branchFilter?: string | null) {
   try {
     const result = await lookupInventoryBySku(sku)
     if (result === undefined) return buildInventoryLookupFailureReply()
     if (result == null) return buildInventoryNotFoundReply(sku)
-    return buildInventoryAvailabilityReply(result)
+    return buildInventoryAvailabilityReply(result, branchFilter)
   } catch {
     return buildInventoryLookupFailureReply()
   }
@@ -245,15 +305,18 @@ export async function resolveBranchInventoryReply(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const sku = extractRecentSku(body, history)
+  const branch = extractBranchCityFromInventoryQuery(body)
+  const product = extractProductHintFromInventoryQuery(body)
+  const skuContext = { branch, product }
 
   if (isSkuRequestPending(history)) {
-    if (sku) return replyForSku(sku)
+    if (sku) return replyForSku(sku, branch)
     if (/אין(?:\s+לי)?|לא\s+יודע|לא\s+יש/i.test(body)) {
       return buildSkuMissingHandoffReply()
     }
-    return buildSkuRequestPrompt()
+    return buildSkuRequestPrompt(skuContext)
   }
 
-  if (sku) return replyForSku(sku)
-  return buildSkuRequestPrompt()
+  if (sku) return replyForSku(sku, branch)
+  return buildSkuRequestPrompt(skuContext)
 }

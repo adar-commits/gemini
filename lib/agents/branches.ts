@@ -12,6 +12,25 @@ const BRANCH_QUESTION_RE =
 const BRANCH_HOURS_RE =
   /(?:עד\s+מתי|מתי|מחר|היום|מוצ["']?ש).*?(?:פתוח|סגור|שעות)|(?:פתוח|סגור|שעות\s+(?:פעילות|פתיחה)).*?(?:סני[פף]|מחר|היום)/i
 
+/** Common Hebrew city abbreviations → canonical branch names from KB. */
+const CITY_ALIASES: Array<{ pattern: RegExp; canonical: string }> = [
+  { pattern: /ראשל(?:["״']?צ|ון(?:\s*לציון)?)/i, canonical: "ראשון לציון" },
+  { pattern: /ת(?:["״']?א|ל\s*א[-\s]?אביב)/i, canonical: "תל אביב" },
+  { pattern: /ב(?:["״']?ש|אר\s*שבע)/i, canonical: "באר שבע" },
+  { pattern: /פ(?:["״']?ת|תח\s*תקו?וה)/i, canonical: "פתח תקווה" },
+  { pattern: /ב(?:["״']?ב|ני\s*ברק)/i, canonical: "בני ברק" },
+  { pattern: /ק(?:["״']?ר|ריית\s*אתא)/i, canonical: "קריית אתא" },
+  { pattern: /נ(?:["״']?ת|תניה)/i, canonical: "נתניה" },
+]
+
+export function normalizeBranchCityHint(hint: string) {
+  const trimmed = hint.trim().replace(/["״']/g, "")
+  for (const { pattern, canonical } of CITY_ALIASES) {
+    if (pattern.test(trimmed) || pattern.test(hint.trim())) return canonical
+  }
+  return hint.trim()
+}
+
 const CITY_IN_BRANCH_QUERY_RE =
   /(?:ב|ב-)([א-ת'"\s]{2,20}?)(?:\?|[\s,.]|$)|(?:^|\s)([א-ת'"\s]{2,15})\s*—\s*סניף/i
 
@@ -25,6 +44,14 @@ type BranchEntry = {
 
 export function isBranchListQuestion(text: string) {
   const normalized = text.trim()
+  if (
+    /מלאi|זמינות|במלאi|inventory|in\s+stock|בדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi|תבדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi/i.test(
+      normalized
+    ) &&
+    /סניפ|סניף|חנות|store|branch/i.test(normalized)
+  ) {
+    return false
+  }
   return BRANCH_QUESTION_RE.test(normalized) || BRANCH_HOURS_RE.test(normalized)
 }
 
@@ -97,15 +124,21 @@ export function buildBranchListReply() {
 function findBranchCityHint(text: string) {
   const normalized = text.trim()
   const match =
-    normalized.match(/סני[פף](?:ים|ה)?\s+ב([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
+    normalized.match(/(?:ב)?סניף\s+([א-ת'"\s״]+?)(?:\s+של|\?|[\s,.]|$)/i) ||
+    normalized.match(/סני[פף](?:ים|ה)?\s+ב([א-ת'"\s״]+?)(?:\?|[\s,.]|$)/i) ||
     normalized.match(
-      /סני[פף](?:ים|ה)?\s+(?:ש(?:ל|ב)\s+)?([א-ת'"\s]+?)(?:\s+פתוח|\?|$)/i
+      /סני[פף](?:ים|ה)?\s+(?:ש(?:ל|ב)\s+)?([א-ת'"\s״]+?)(?:\s+פתוח|\?|$)/i
     ) ||
-    normalized.match(/(?:יש\s+(?:ל(?:כם|נו)\s+)?סני[פף](?:ים|ה)?\s+)(?:ב)?([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
+    normalized.match(/(?:יש\s+(?:ל(?:כם|נו)\s+)?סני[פף](?:ים|ה)?\s+)(?:ב)?([א-ת'"\s״]+?)(?:\?|[\s,.]|$)/i) ||
     normalized.match(CITY_IN_BRANCH_QUERY_RE)
 
   const city = match?.[1]?.trim() || match?.[2]?.trim()
-  return city || null
+  return city ? normalizeBranchCityHint(city) : null
+}
+
+/** City named in a branch stock-check question (e.g. בסניף ראשל"צ). */
+export function extractBranchCityFromInventoryQuery(text: string) {
+  return findBranchCityHint(text)
 }
 
 /** Full list or a single branch when the customer names a city (e.g. נתניה). */
@@ -118,7 +151,8 @@ export function buildBranchReplyForText(text: string) {
     (entry) =>
       entry.name.includes(cityHint) ||
       entry.address.includes(cityHint) ||
-      cityHint.includes(entry.name)
+      cityHint.includes(entry.name) ||
+      normalizeBranchCityHint(entry.name) === normalizeBranchCityHint(cityHint)
   )
 
   if (filtered.length === 1) {
