@@ -19,3 +19,16 @@ export function buildThanksReply(customerName?: string) {
     : "בשמחה, כאן אם צריך עוד משהו."
   return `${CUSTOMER_HEADER}\n${line}`
 }
+
+export function buildLlmFailureReply() {
+  return `${CUSTOMER_HEADER}
+רגע, משהו נתקע בצד שלי — סליחה על זה.
+אפשר לנסח שוב בקצרה, או שאעביר לנציג שימשיך מכאן?`
+}
+
+/** Last-resort customer text when the pipeline produced nothing sendable. */
+export function buildNeverStuckReply() {
+  return `${CUSTOMER_HEADER}
+אני כאן — נראה שההודעה לא עברה כמו שצריך.
+אפשר לנסות שוב, או שאעביר לנציג שירות?`
+}

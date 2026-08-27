@@ -5,7 +5,18 @@ import {
   type HistoryMessage,
 } from "@/lib/agents/types"
 
-const HISTORY_LIMIT = 10
+import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
+
+const DEFAULT_HISTORY_LIMIT = 40
+
+async function historyLimit() {
+  try {
+    const runtime = await getRuntimeConfig()
+    return runtime.historyLimit
+  } catch {
+    return DEFAULT_HISTORY_LIMIT
+  }
+}
 
 function asText(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
@@ -21,6 +32,7 @@ export type ConversationContext = {
   lastAction: string | null
   resetAt: string | null
   inactivityClosedAt: string | null
+  conversationSummary: string | null
 }
 
 function asAgentId(value: unknown): AgentId | null {
@@ -43,12 +55,14 @@ export async function getConversationContext(
   const supabase = getAgentSupabase()
   const { data: session } = await supabase
     .from("hom_agent_sessions")
-    .select("reset_at, last_agent, inactivity_closed_at")
+    .select("reset_at, last_agent, inactivity_closed_at, conversation_summary")
     .eq("conversation_id", conversationId)
     .maybeSingle()
 
   const resetAt = asText(session?.reset_at) || null
   const inactivityClosedAt = asText(session?.inactivity_closed_at) || null
+  const conversationSummary = asText(session?.conversation_summary) || null
+  const limit = await historyLimit()
   const stored = await loadStoredMessages(conversationId, resetAt)
   const lastStored = [...stored].reverse().find((row) => row.action || row.agent)
   const lastAgent =
@@ -61,31 +75,34 @@ export async function getConversationContext(
 
   if (resetAt) {
     return {
-      history: dedupeHistory(storedHistory).slice(-HISTORY_LIMIT),
+      history: dedupeHistory(storedHistory).slice(-limit),
       lastAgent,
       lastAction,
       resetAt,
       inactivityClosedAt,
+      conversationSummary,
     }
   }
 
   if (storedHistory.length >= 2 || (lastAgent && isSpecialistId(lastAgent))) {
     return {
-      history: dedupeHistory(storedHistory).slice(-HISTORY_LIMIT),
+      history: dedupeHistory(storedHistory).slice(-limit),
       lastAgent,
       lastAction,
       resetAt,
       inactivityClosedAt,
+      conversationSummary,
     }
   }
 
   const landbot = await loadLandbotMessages(conversationId, resetAt)
   return {
-    history: dedupeHistory([...landbot, ...storedHistory]).slice(-HISTORY_LIMIT),
+    history: dedupeHistory([...landbot, ...storedHistory]).slice(-limit),
     lastAgent,
     lastAction,
     resetAt,
     inactivityClosedAt,
+    conversationSummary,
   }
 }
 

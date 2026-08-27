@@ -1,11 +1,11 @@
 import { generateText } from "ai"
 import {
   activeModelSummary,
+  bindRuntimeConfig,
   routerConfig,
   specialistConfig,
 } from "@/lib/agent-core/config"
-import { modelResolutionReport } from "@/lib/agent-core/model-resolution"
-import { agentRoutingMode } from "@/lib/agent-core/routing-mode"
+import { getRuntimeConfig, runtimeConfigSnapshot } from "@/lib/agent-core/runtime-config"
 
 const CODE_DEFAULTS = {
   router: "anthropic/claude-sonnet-4.6",
@@ -76,36 +76,32 @@ async function probeModel(input: {
   }
 }
 
-export function inferenceConfigSnapshot() {
-  const resolution = modelResolutionReport(CODE_DEFAULTS)
-  const active = activeModelSummary()
-  const matchesCodeDefaults =
-    resolution.router.model === CODE_DEFAULTS.router &&
-    resolution.faq.model === CODE_DEFAULTS.specialist &&
-    resolution.sales.model === CODE_DEFAULTS.specialist &&
-    resolution.service.model === CODE_DEFAULTS.specialist
+export async function inferenceConfigSnapshot() {
+  await bindRuntimeConfig()
+  const runtime = await getRuntimeConfig()
+  const active = await activeModelSummary()
 
   return {
-    routingMode: agentRoutingMode(),
+    routingMode: runtime.routingMode,
     active,
-    resolution,
+    runtime: runtimeConfigSnapshot(runtime),
     codeDefaults: CODE_DEFAULTS,
-    envOverridesCodeDefaults: !matchesCodeDefaults,
     globalOverride: process.env.AGENT_MODEL?.trim() || null,
   }
 }
 
 /** Live gateway probes — confirms models are callable and returns gateway modelId. */
 export async function runInferenceProbes(options?: { includeSales?: boolean }) {
-  const resolution = modelResolutionReport(CODE_DEFAULTS)
+  await bindRuntimeConfig()
+  const runtime = await getRuntimeConfig()
   const router = routerConfig()
   const faq = specialistConfig("faq")
 
   const probes: InferenceProbeResult[] = [
     await probeModel({
       role: "router",
-      model: resolution.router.model,
-      source: resolution.router.source,
+      model: router.model(),
+      source: `profile:${runtime.activeProfile}`,
       prompt:
         'Classify silently. Customer: "קיבלתי שטיח ולא אוהב אותו". Reply with one token: FAQ',
       maxOutputTokens: router.maxOutputTokens,
@@ -113,8 +109,8 @@ export async function runInferenceProbes(options?: { includeSales?: boolean }) {
     }),
     await probeModel({
       role: "faq",
-      model: resolution.faq.model,
-      source: resolution.faq.source,
+      model: faq.model(),
+      source: `profile:${runtime.activeProfile}`,
       prompt:
         'Customer received a rug and dislikes it. One Hebrew sentence: mention 14-day return policy. No header.',
       maxOutputTokens: 120,
@@ -127,8 +123,8 @@ export async function runInferenceProbes(options?: { includeSales?: boolean }) {
     probes.push(
       await probeModel({
         role: "sales",
-        model: resolution.sales.model,
-        source: resolution.sales.source,
+        model: sales.model(),
+        source: `profile:${runtime.activeProfile}`,
         prompt: 'Reply in Hebrew with one word: שטיח',
         maxOutputTokens: 16,
         temperature: sales.temperature,
@@ -137,7 +133,7 @@ export async function runInferenceProbes(options?: { includeSales?: boolean }) {
   }
 
   return {
-    config: inferenceConfigSnapshot(),
+    config: await inferenceConfigSnapshot(),
     probes,
     verified:
       probes.every((probe) => probe.ok) &&

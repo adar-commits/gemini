@@ -1,14 +1,22 @@
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { mergeTurns, type UserTurn } from "@/lib/agents/user-turn"
 
-const DEBOUNCE_MS = Number(process.env.LANDBOT_DEBOUNCE_MS ?? 3500)
+import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
+
+const DEFAULT_DEBOUNCE_MS = 2000
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export function debounceWindowMs() {
-  return Number.isFinite(DEBOUNCE_MS) && DEBOUNCE_MS > 0 ? DEBOUNCE_MS : 3500
+export async function debounceWindowMs() {
+  try {
+    const runtime = await getRuntimeConfig()
+    return runtime.debounceMs
+  } catch {
+    const env = Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")
+    return Number.isFinite(env) && env > 0 ? env : DEFAULT_DEBOUNCE_MS
+  }
 }
 
 export async function enqueueCustomerTurn(conversationId: string, turn: UserTurn) {
@@ -35,7 +43,7 @@ export async function enqueueCustomerTurn(conversationId: string, turn: UserTurn
 export async function waitAndTakeBufferedTurn(
   conversationId: string
 ): Promise<UserTurn | null> {
-  const window = debounceWindowMs()
+  const window = await debounceWindowMs()
   const pollMs = 250
   const deadline = Date.now() + 120_000
 

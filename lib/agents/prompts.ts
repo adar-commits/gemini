@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { selectFaqKb } from "@/lib/agents/kb"
+import { getBoundOrchestraDecision } from "@/lib/agent-core/config"
 import type { AgentId } from "@/lib/agents/types"
 
 const root = join(process.cwd(), "lib/agents")
@@ -47,7 +48,8 @@ export function getSystemPrompt(agent: AgentId, userText = "") {
     return `${readAgentFile("prompts/sales.md")}\n${shared}\n${OUTPUT_CONTRACT}`
   }
   if (agent === "faq") {
-    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText)}\n${shared}\n${OUTPUT_CONTRACT}`
+    const tier = getBoundOrchestraDecision()?.tier ?? null
+    return `${readAgentFile("prompts/faq.md")}\n\n### VERIFIED KNOWLEDGE BASE\n${selectFaqKb(userText, tier)}\n${shared}\n${OUTPUT_CONTRACT}`
   }
   return `${readAgentFile("prompts/service.md")}\n${shared}\n${OUTPUT_CONTRACT}`
 }

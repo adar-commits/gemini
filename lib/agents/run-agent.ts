@@ -1,12 +1,21 @@
-import { generateText, jsonSchema, Output } from "ai"
-import { buildThanksReply } from "@/lib/agent-core/fallbacks"
-import { routerConfig, specialistConfig } from "@/lib/agent-core/config"
+import { buildThanksReply, buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import {
+  bindOrchestraTier,
+  bindRuntimeConfig,
+  routerConfig,
+  specialistConfig,
+} from "@/lib/agent-core/config"
+import { safeRunAgent } from "@/lib/agent-core/safe-run-agent"
+import {
+  beginTurnMetrics,
+  finishTurnMetrics,
+  setTurnTier,
+} from "@/lib/agent-core/turn-metrics"
 import { shouldRunDeterministicInterceptors, usesLlmFirstRouting } from "@/lib/agent-core/routing-mode"
 import { hasStructuredFlowPending } from "@/lib/agent-core/structured-flow"
-import { buildUserContent } from "@/lib/agents/multimodal"
+import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
-import { getSystemPrompt } from "@/lib/agents/prompts"
 import { guessMasterRoute, shouldContinueWithSpecialist, stickySpecialist } from "@/lib/agents/route-intent"
 import {
   buildProductInventoryHandoff,
@@ -145,8 +154,123 @@ import {
   type MasterAction,
 } from "@/lib/agents/types"
 
-function isAction(agent: AgentId, value: string): value is AgentAction {
-  return (ACTIONS_BY_AGENT[agent] as readonly string[]).includes(value)
+async function runT0DeterministicPaths(
+  conversationId: string,
+  turn: UserTurn,
+  history: HistoryMessage[],
+  route: AgentId[],
+  preview: boolean | undefined,
+  phone: string,
+  sharedOptions: {
+    customerName?: string
+    preview?: boolean
+    phone?: string
+    lastAgent: AgentId | null
+    lastAction: string | null
+    resetAt: string | null
+  }
+): Promise<AgentResponse | null> {
+  const body = summarizeTurn(turn)
+  const { lastAgent } = sharedOptions
+
+  if (isCustomerServiceOpener(body)) {
+    const reply = normalizeReply("faq", "reply", buildCustomerServiceTopicPrompt())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (isDissatisfactionWithoutDefect(body)) {
+    return faqDissatisfactionResult(conversationId, body, route, preview)
+  }
+
+  if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) {
+    return faqReturnPolicyResult(conversationId, body, route, preview, history, lastAgent)
+  }
+
+  if (isBranchListQuestion(body)) {
+    const reply = normalizeReply(
+      "faq",
+      "reply",
+      finalizeFaqReplyForContext(buildBranchReplyForText(body), history, lastAgent)
+    )
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (isShippingPolicyQuestion(body)) {
+    const reply = normalizeReply(
+      "faq",
+      "reply",
+      finalizeFaqReplyForContext(buildShippingPolicyReply(), history, lastAgent)
+    )
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (shouldHandlePostPurchaseCaseFlow(body, history)) {
+    return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+  }
+
+  const inventory = await tryBranchInventoryResult(
+    conversationId,
+    body,
+    history,
+    route,
+    true,
+    preview
+  )
+  if (inventory) return inventory
+
+  if (shouldHandleOrderShippingFlow(body, history)) {
+    return shippingResult(conversationId, body, route, preview, phone, history)
+  }
+
+  if (isServiceTopicSwitch(body)) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "service",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
+  if (isFaqTopicSwitch(body)) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "faq",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
+  return null
 }
 
 function normalizeReply(agent: AgentId, action: AgentAction, reply: string) {
@@ -212,16 +336,6 @@ function finalizeFaqReplyForContext(
   return `${withoutCleanEnding}\n\nרוצים להמשיך בבחירת השטיח?`
 }
 
-function toModelMessages(history: HistoryMessage[], turn: UserTurn) {
-  return [
-    ...history.map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
-    { role: "user" as const, content: buildUserContent(turn) },
-  ]
-}
-
 export async function runAgent(
   agent: AgentId,
   conversationId: string,
@@ -231,81 +345,24 @@ export async function runAgent(
     history?: HistoryMessage[]
     preview?: boolean
     faqSalesResume?: boolean
+    sessionSummary?: string | null
+    lastAgent?: AgentId | null
   }
 ): Promise<AgentResponse> {
-  const body = summarizeTurn(turn)
-  const history = options?.history ?? (await getConversationContext(conversationId)).history
-  const allowed = ACTIONS_BY_AGENT[agent]
-  const isMaster = agent === "master"
-  const inference = isMaster
-    ? routerConfig()
-    : specialistConfig(agent as "faq" | "sales" | "service")
-  const model = inference.model()
-
-  const result = await generateText({
-    model,
-    system: getSystemPrompt(agent, body),
-    messages: toModelMessages(history, turn),
-    temperature: inference.temperature,
-    maxOutputTokens: inference.maxOutputTokens,
-    output: Output.object({
-      name: "landbot_agent_turn",
-      description: isMaster
-        ? "Exactly one silent routing action"
-        : "Customer reply plus exactly one Landbot routing action",
-      schema: isMaster
-        ? jsonSchema<{ action: string }>({
-            type: "object",
-            additionalProperties: false,
-            required: ["action"],
-            properties: {
-              action: { type: "string", enum: [...MASTER_ACTIONS] },
-            },
-          })
-        : jsonSchema<{ action: string; reply: string }>({
-            type: "object",
-            additionalProperties: false,
-            required: ["action", "reply"],
-            properties: {
-              action: { type: "string", enum: [...allowed] },
-              reply: { type: "string" },
-            },
-          }),
-    }),
-  })
-
-  const fallback: AgentAction = isMaster ? "ROUTE_TO_INFO_AGENT" : "reply"
-  let rawAction = ""
-  let rawReply = ""
-  try {
-    rawAction = String(result.output.action ?? "")
-    rawReply =
-      "reply" in result.output ? String(result.output.reply ?? "") : ""
-  } catch {
-    rawAction = fallback
-  }
-  const action = isAction(agent, rawAction) ? rawAction : fallback
-  let reply = normalizeReply(agent, action, rawReply)
-  if (agent === "faq" && options?.faqSalesResume && action === "reply") {
-    reply = normalizeReply(agent, action, finalizeFaqReplyForContext(rawReply, history, "sales"))
-  }
-
-  await appendTurn({
-    conversationId,
-    agent,
-    userText: body,
-    assistantText: reply,
-    action,
+  const ctx = options?.history
+    ? null
+    : await getConversationContext(conversationId)
+  const history = options?.history ?? ctx!.history
+  const lastAgent = options?.lastAgent ?? ctx?.lastAgent ?? null
+  return safeRunAgent(agent, conversationId, turn, {
     persistUser: options?.persistUser,
+    history,
     preview: options?.preview,
+    faqSalesResume: options?.faqSalesResume,
+    sessionSummary: options?.sessionSummary,
+    finalizeFaqReply: (reply, hist) =>
+      finalizeFaqReplyForContext(reply, hist, lastAgent),
   })
-
-  return {
-    ok: true,
-    agent,
-    reply,
-    action: action as ConversationalAction | MasterAction,
-  }
 }
 
 async function faqReturnPolicyResult(
@@ -364,6 +421,7 @@ async function resolveSpecialist(
     lastAction?: string | null
     resetAt?: string | null
     preview?: boolean
+    sessionSummary?: string | null
   }
 ): Promise<AgentResponse> {
   route.push(specialist)
@@ -445,10 +503,22 @@ async function resolveSpecialist(
     )
     if (inventory) return inventory
 
+    if (isSpecialistId(specialist)) {
+      const orchestra = bindOrchestraTier({
+        body,
+        turn,
+        history,
+        specialist,
+      })
+      if (orchestra?.tier) setTurnTier(conversationId, orchestra.tier)
+    }
+
     let result = await runAgent(specialist, conversationId, turn, {
       persistUser,
       history,
       preview,
+      sessionSummary: options?.sessionSummary,
+      lastAgent: options?.lastAgent ?? null,
       faqSalesResume:
         specialist === "faq" &&
         wasSalesFlowActive(history, options?.lastAgent ?? null),
@@ -460,6 +530,8 @@ async function resolveSpecialist(
         persistUser: false,
         history,
         preview,
+        sessionSummary: options?.sessionSummary,
+        lastAgent: options?.lastAgent ?? null,
       })
     }
 
@@ -1069,10 +1141,74 @@ async function routeViaMasterLlm(
     lastAgent: AgentId | null
     lastAction: string | null
     resetAt: string | null
+    sessionSummary?: string | null
   }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
-  const master = await runAgent("master", conversationId, turn, { history, preview })
+  const { lastAgent, lastAction, sessionSummary } = sharedOptions
+
+  const guessed = guessMasterRoute(body)
+  if (guessed) {
+    route.push("master")
+    const next = MASTER_ROUTE_MAP[guessed] ?? "faq"
+    if (next === "shipping") {
+      return shippingResult(conversationId, body, route, preview, phone || undefined, history)
+    }
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      next,
+      history,
+      true,
+      route,
+      { ...sharedOptions, sessionSummary }
+    )
+  }
+
+  const sticky = stickySpecialist(lastAgent, lastAction)
+  if (sticky && shouldContinueWithSpecialist(body, history, sticky)) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      sticky,
+      history,
+      true,
+      route,
+      { ...sharedOptions, sessionSummary }
+    )
+  }
+
+  const masterFallback = resolveMasterFallback(body, history, lastAgent)
+  if (masterFallback?.kind === "sales_intake") {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "sales",
+      history,
+      true,
+      route,
+      { ...sharedOptions, sessionSummary }
+    )
+  }
+  if (masterFallback?.kind === "handoff_offer") {
+    const reply = normalizeReply("faq", "reply", buildMasterConfusedReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  const master = await runAgent("master", conversationId, turn, {
+    history,
+    preview,
+    sessionSummary,
+    lastAgent,
+  })
   route.push("master")
   const masterAction = (
     MASTER_ROUTE_MAP[master.action as MasterAction]
@@ -1099,8 +1235,11 @@ export async function runMasterConversation(
   turn: UserTurn,
   options?: { customerName?: string; preview?: boolean; phone?: string }
 ): Promise<AgentResponse> {
+  const runtime = await bindRuntimeConfig()
+  beginTurnMetrics(conversationId, runtime.activeProfile)
+
   const body = summarizeTurn(turn)
-  const { history, lastAgent, lastAction, resetAt } =
+  const { history, lastAgent, lastAction, resetAt, conversationSummary } =
     await getConversationContext(conversationId)
   const route: AgentId[] = []
   const preview = options?.preview
@@ -1112,6 +1251,7 @@ export async function runMasterConversation(
     lastAgent: AgentId | null
     lastAction: string | null
     resetAt: string | null
+    sessionSummary?: string | null
   } = {
     ...options,
     lastAgent,
@@ -1119,6 +1259,16 @@ export async function runMasterConversation(
     resetAt,
     preview,
     phone: phone || undefined,
+    sessionSummary: conversationSummary,
+  }
+
+  const finish = async (result: AgentResponse): Promise<AgentResponse> => {
+    const metrics = finishTurnMetrics(conversationId)
+    await maybeRefreshConversationSummary({ conversationId, history }).catch(() => {})
+    if (metrics) {
+      return { ...result, metrics }
+    }
+    return result
   }
 
   if (isWhatsappAutoresponder(body)) {
@@ -1205,9 +1355,9 @@ export async function runMasterConversation(
       preview,
       handoffPending: isHumanHandoffPending(history),
     })
-    if (casual) return casual
+    if (casual) return finish(casual)
 
-    return routeViaMasterLlm(
+    const t0 = await runT0DeterministicPaths(
       conversationId,
       turn,
       history,
@@ -1215,6 +1365,19 @@ export async function runMasterConversation(
       preview,
       phone,
       sharedOptions
+    )
+    if (t0) return finish(t0)
+
+    return finish(
+      await routeViaMasterLlm(
+        conversationId,
+        turn,
+        history,
+        route,
+        preview,
+        phone,
+        sharedOptions
+      )
     )
   }
 

@@ -1,9 +1,12 @@
 /** How turns are routed before the specialist LLM runs. */
 
+import { getBoundRuntime } from "@/lib/agent-core/config"
+
 export type AgentRoutingMode = "llm" | "hybrid" | "regex"
 
-/** Default llm — router + specialist think; regex only for structured mid-flow. */
 export function agentRoutingMode(): AgentRoutingMode {
+  const bound = getBoundRuntime()
+  if (bound) return bound.routingMode
   const raw = process.env.AGENT_ROUTING_MODE?.trim().toLowerCase()
   if (raw === "regex" || raw === "hybrid" || raw === "llm") return raw
   return "llm"
@@ -17,7 +20,6 @@ export function usesRegexRouting() {
   return agentRoutingMode() === "regex"
 }
 
-/** Hybrid: LLM router always; regex interceptors still run before specialist. */
 export function usesHybridRouting() {
   return agentRoutingMode() === "hybrid"
 }

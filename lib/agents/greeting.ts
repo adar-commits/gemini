@@ -61,8 +61,8 @@ export async function isCasualGreetingWithLearned(text: string) {
 
 /** Warm opening when the customer says hello before stating a need. */
 export function buildGreetingReply(_customerName?: string) {
-  return `שלום! כאן הום בוט :)
-אצלי הכל מצוין, תודה! איך אוכל לעזור לך היום? 🙂`
+  return `היי! כאן הום בוט :)
+שמח/ה שפניתם — במה אוכל לעזור היום?`
 }
 
 /** Natural reply to wellbeing / ping messages — not only on the opening turn. */
@@ -81,10 +81,10 @@ export function buildCasualSmallTalkReply(text: string, handoffPending = false) 
   }
 
   if (handoffPending) {
-    return `${CUSTOMER_HEADER}\n${line}\nהאם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`
+    return `${CUSTOMER_HEADER}\n${line}\nרוצים שאמשיך לעזור כאן, או להעביר ליועץ?`
   }
 
-  return `${CUSTOMER_HEADER}\n${line}\nאיך אוכל לעזור לך היום?`
+  return `${CUSTOMER_HEADER}\n${line}\nבמה אוכל לעזור?`
 }
 
 export function isOpeningTurn(historyUserMessages: number) {

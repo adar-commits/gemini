@@ -80,12 +80,22 @@ export type AgentRequest = {
   body: string
 }
 
+export type TurnMetrics = {
+  latency_ms?: number
+  llm_calls?: number
+  models_used?: string[]
+  tier?: string | null
+  profile?: string | null
+  fallback_layer?: string | null
+}
+
 export type AgentResponse = {
   ok: true
   agent: AgentId
   reply: string
   action: AgentAction
   route?: AgentId[]
+  metrics?: TurnMetrics
 }
 
 export const MASTER_ROUTE_MAP: Record<MasterAction, AgentId | "shipping"> = {

@@ -10,7 +10,7 @@ export const runtime = "nodejs"
 
 /** Config only — safe to curl without auth (no LLM spend). */
 export async function GET() {
-  const config = inferenceConfigSnapshot()
+  const config = await inferenceConfigSnapshot()
   return NextResponse.json({
     ok: true,
     ...config,

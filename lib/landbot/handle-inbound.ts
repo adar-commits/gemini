@@ -37,6 +37,11 @@ import {
 } from "@/lib/landbot/inactivity-watcher"
 import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
+import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import {
+  handleTrainerProfileCommand,
+  isTrainerProfileCommand,
+} from "@/lib/landbot/trainer-runtime"
 
 export type InboundMode = "reply" | "shadow"
 
@@ -165,11 +170,42 @@ export async function handleLandbotInbound(
     }
   }
 
-  const result = await runMasterConversation(conversationId, turn, {
-    customerName: customerName || undefined,
-    phone: options?.phone?.trim() || undefined,
-  })
-  const draftReply = outboundReply(result)
+  if (isTrainerPhone(options?.phone) && isTrainerProfileCommand(body)) {
+    const reply = (await handleTrainerProfileCommand(body)) ?? buildNeverStuckReply()
+    if (replyEnabled) {
+      await sendCustomerText(customerId, reply)
+    }
+    return {
+      ok: true,
+      agent: "master",
+      reply,
+      action: "reply",
+      mode,
+      draft_reply: reply,
+    }
+  }
+
+  let result: AgentResponse
+  try {
+    result = await runMasterConversation(conversationId, turn, {
+      customerName: customerName || undefined,
+      phone: options?.phone?.trim() || undefined,
+    })
+  } catch (error) {
+    console.error("[handle-inbound] runMasterConversation failed", error)
+    result = {
+      ok: true,
+      agent: "faq",
+      reply: buildNeverStuckReply(),
+      action: "reply",
+    }
+  }
+
+  let draftReply = outboundReply(result)
+  if (replyEnabled && !draftReply && result.action === "reply") {
+    draftReply = buildNeverStuckReply()
+    result = { ...result, reply: draftReply }
+  }
 
   if (replyEnabled) {
     if (draftReply) {

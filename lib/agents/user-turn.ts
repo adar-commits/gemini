@@ -1,3 +1,5 @@
+import { mediaMarker } from "@/lib/agents/multimodal"
+
 export type UserMediaPart = {
   kind: "image" | "audio" | "video" | "document"
   url: string
@@ -10,15 +12,18 @@ export type UserTurn = {
 }
 
 export function summarizeTurn(turn: UserTurn) {
-  const labels: Record<UserMediaPart["kind"], string> = {
-    image: "תמונה",
-    audio: "הודעת קול",
-    video: "סרטון",
-    document: "מסמך",
-  }
-  const mediaLines = turn.media.map(
-    (item) => `[${labels[item.kind]}${item.caption ? `: ${item.caption}` : ""}]`
-  )
+  const mediaLines = turn.media.map((item) => {
+    const label =
+      item.kind === "image"
+        ? "תמונה"
+        : item.kind === "audio"
+          ? "הודעת קול"
+          : item.kind === "video"
+            ? "סרטון"
+            : "מסמך"
+    const caption = item.caption ? `: ${item.caption}` : ""
+    return `[${label}${caption}]${mediaMarker(item.kind, item.url)}`
+  })
   return [turn.text.trim(), ...mediaLines].filter(Boolean).join("\n")
 }
 

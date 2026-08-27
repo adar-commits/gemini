@@ -34,12 +34,14 @@ function isHookAuthorized(request: Request) {
 
 export async function GET() {
   const { activeModelSummary } = await import("@/lib/agent-core/config")
+  const models = await activeModelSummary()
   return NextResponse.json({
     ok: true,
     method: "POST",
-    note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after ~3.5s silence since the last customer message.",
+    note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after debounce silence since the last customer message.",
     policy: landbotPhonePolicy(),
-    models: activeModelSummary(),
+    models,
+    runtimeConfig: "/api/agents/runtime-config",
     verifyInference: "/api/agents/verify-inference (GET=config, POST=live probe)",
     inactivity: {
       pingMs: INACTIVITY_PING_MS,

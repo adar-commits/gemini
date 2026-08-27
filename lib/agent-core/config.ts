@@ -1,50 +1,102 @@
-/** Owner-confirmed model & inference settings — v2 single source. */
+/** Model & inference settings — loaded from runtime config (Supabase) per turn. */
 
-import { agentRoutingMode } from "@/lib/agent-core/routing-mode"
-import { modelResolutionReport } from "@/lib/agent-core/model-resolution"
+import {
+  DEFAULT_PROFILE_NAME,
+  MODEL_PROFILES,
+  type ModelProfile,
+} from "@/lib/agent-core/model-profiles"
+import {
+  getRuntimeConfig,
+  runtimeConfigSnapshot,
+  type RuntimeConfig,
+} from "@/lib/agent-core/runtime-config"
+import {
+  modelForTier,
+  pickModelTier,
+  routerModelForTier,
+  type ModelTier,
+} from "@/lib/agent-core/model-orchestra"
+import type { HistoryMessage } from "@/lib/agents/types"
+import type { UserTurn } from "@/lib/agents/user-turn"
 
-/** Top-tier defaults (Vercel AI Gateway provider/model slugs). Override via env. */
-const DEFAULT_SPECIALIST = "anthropic/claude-opus-4.6"
-const DEFAULT_ROUTER = "anthropic/claude-sonnet-4.6"
+export type SpecialistKind = "faq" | "sales" | "service"
 
-function envModel(...keys: string[]) {
-  for (const key of keys) {
-    const value = process.env[key]?.trim()
-    if (value) return value
+type RoleConfig = {
+  model: () => string
+  temperature: number
+  maxOutputTokens: number
+}
+
+let boundRuntime: RuntimeConfig | null = null
+let boundTier: ModelTier | null = null
+let boundSpecialist: SpecialistKind | null = null
+
+const FALLBACK_PROFILE = MODEL_PROFILES[DEFAULT_PROFILE_NAME]
+
+function profile(): ModelProfile {
+  return boundRuntime?.profile ?? FALLBACK_PROFILE
+}
+
+function roleConfig(role: SpecialistKind | "router"): RoleConfig {
+  const p = profile()
+  const cfg = role === "router" ? p.router : p[role]
+  return {
+    model: () => {
+      if (role === "router") {
+        return routerModelForTier(p, boundTier ?? "T2")
+      }
+      if (boundSpecialist === role && boundTier) {
+        return modelForTier(p, role, boundTier)
+      }
+      return cfg.model
+    },
+    temperature: cfg.temperature,
+    maxOutputTokens: cfg.maxOutputTokens,
   }
-  return undefined
+}
+
+/** Call once at the start of each customer turn. */
+export async function bindRuntimeConfig() {
+  boundRuntime = await getRuntimeConfig()
+  boundTier = null
+  boundSpecialist = null
+  return boundRuntime
+}
+
+export function bindOrchestraTier(input: {
+  body: string
+  turn: UserTurn
+  history: HistoryMessage[]
+  specialist: SpecialistKind
+}) {
+  if (!boundRuntime) return
+  const decision = pickModelTier({
+    body: input.body,
+    turn: input.turn,
+    history: input.history,
+    specialist: input.specialist,
+    orchestraMode: boundRuntime.orchestraMode,
+  })
+  boundTier = decision.tier
+  boundSpecialist = input.specialist
+  return decision
+}
+
+export function getBoundRuntime() {
+  return boundRuntime
+}
+
+export function getBoundOrchestraDecision() {
+  if (!boundRuntime || !boundTier) return null
+  return { tier: boundTier, orchestraMode: boundRuntime.orchestraMode }
 }
 
 export const AGENT_CONFIG = {
-  router: {
-    model: () =>
-      envModel("AGENT_ROUTER_MODEL") ||
-      envModel("AGENT_MODEL") ||
-      DEFAULT_ROUTER,
-    temperature: 0.1,
-    maxOutputTokens: 96,
-  },
-  faq: {
-    model: () =>
-      envModel("AGENT_FAQ_MODEL", "AGENT_MODEL") || DEFAULT_SPECIALIST,
-    temperature: 0,
-    maxOutputTokens: 800,
-  },
-  sales: {
-    model: () =>
-      envModel("AGENT_SALES_MODEL", "AGENT_MODEL") || DEFAULT_SPECIALIST,
-    temperature: 0.25,
-    maxOutputTokens: 800,
-  },
-  service: {
-    model: () =>
-      envModel("AGENT_SERVICE_MODEL", "AGENT_MODEL") || DEFAULT_SPECIALIST,
-    temperature: 0.15,
-    maxOutputTokens: 800,
-  },
+  router: roleConfig("router"),
+  faq: roleConfig("faq"),
+  sales: roleConfig("sales"),
+  service: roleConfig("service"),
 } as const
-
-export type SpecialistKind = keyof Pick<typeof AGENT_CONFIG, "faq" | "sales" | "service">
 
 export function specialistConfig(agent: SpecialistKind) {
   return AGENT_CONFIG[agent]
@@ -54,34 +106,37 @@ export function routerConfig() {
   return AGENT_CONFIG.router
 }
 
+export function salesIntakeMode() {
+  const raw = process.env.SALES_INTAKE_MODE?.trim().toLowerCase()
+  if (raw === "scripted" || raw === "hybrid" || raw === "llm") return raw
+  return "llm" as const
+}
+
+export type SalesIntakeMode = ReturnType<typeof salesIntakeMode>
+
 /** For logs / health checks */
-export function activeModelSummary() {
-  const resolution = modelResolutionReport({
-    router: DEFAULT_ROUTER,
-    specialist: DEFAULT_SPECIALIST,
-  })
+export async function activeModelSummary() {
+  const runtime = await getRuntimeConfig()
   return {
-    router: AGENT_CONFIG.router.model(),
-    faq: AGENT_CONFIG.faq.model(),
-    sales: AGENT_CONFIG.sales.model(),
-    service: AGENT_CONFIG.service.model(),
+    ...runtimeConfigSummary(runtime),
     salesIntakeMode: salesIntakeMode(),
-    routingMode: agentRoutingMode(),
-    resolution,
-    envOverridesCodeDefaults:
-      resolution.router.source !== "code_default" ||
-      resolution.faq.source !== "code_default" ||
-      resolution.sales.source !== "code_default" ||
-      resolution.service.source !== "code_default",
-    globalOverride: process.env.AGENT_MODEL?.trim() || null,
+    routingMode: runtime.routingMode,
   }
 }
 
-export { agentRoutingMode, type AgentRoutingMode } from "@/lib/agent-core/routing-mode"
-export type SalesIntakeMode = "llm" | "scripted" | "hybrid"
-
-export function salesIntakeMode(): SalesIntakeMode {
-  const raw = process.env.SALES_INTAKE_MODE?.trim().toLowerCase()
-  if (raw === "scripted" || raw === "hybrid" || raw === "llm") return raw
-  return "llm"
+function runtimeConfigSummary(runtime: RuntimeConfig) {
+  return {
+    activeProfile: runtime.activeProfile,
+    profileLabel: runtime.profile.label,
+    router: runtime.profile.router.model,
+    faq: runtime.profile.faq.model,
+    sales: runtime.profile.sales.model,
+    service: runtime.profile.service.model,
+    debounceMs: runtime.debounceMs,
+    historyLimit: runtime.historyLimit,
+    orchestraMode: runtime.orchestraMode,
+    source: runtime.source,
+  }
 }
+
+export { agentRoutingMode, usesLlmFirstRouting, usesHybridRouting, usesRegexRouting, shouldRunDeterministicInterceptors } from "@/lib/agent-core/routing-mode"
