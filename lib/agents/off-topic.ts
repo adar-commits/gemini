@@ -1,5 +1,7 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { hasImmediateBusinessAsk, isCasualGreeting } from "@/lib/agents/greeting"
+import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { isPureHandoffAffirmation, isPureHandoffDecline } from "@/lib/agents/compound-reply"
 import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 
 export const OFF_TOPIC_HANDOFF_OFFER =
@@ -12,7 +14,9 @@ export const OFF_TOPIC_REDIRECT =
 function lastAssistantText(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
-    if (message.role === "assistant") return message.content
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message.content
   }
   return ""
 }
@@ -53,7 +57,7 @@ export function isOffTopicQuestion(body: string) {
   if (isCasualGreeting(text)) return false
   if (hasImmediateBusinessAsk(text)) return false
   if (isFaqTopicSwitch(text)) return false
-  if (isHumanHandoffAffirmation(text) || isHumanHandoffDecline(text)) return false
+  if (isPureHandoffAffirmation(text) || isPureHandoffDecline(text)) return false
   return matchesOffTopicPattern(text)
 }
 

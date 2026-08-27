@@ -105,6 +105,11 @@ export async function safeRunAgent(
     modelOverride?: string
     sessionSummary?: string | null
     finalizeFaqReply?: (reply: string, history: HistoryMessage[]) => string
+    postProcessReply?: (
+      reply: string,
+      history: HistoryMessage[],
+      body: string
+    ) => { text: string; action?: AgentAction }
   }
 ): Promise<AgentResponse & { fallbackLayer?: string }> {
   const body = summarizeTurn(turn)
@@ -179,8 +184,18 @@ export async function safeRunAgent(
     reply = buildConfusedFallbackReply()
   }
 
-  if (agent === "faq" && options?.faqSalesResume && action === "reply" && options.finalizeFaqReply) {
-    reply = normalizeReply(agent, action, options.finalizeFaqReply(rawReply, history))
+  let finalAction = action
+  if (options?.postProcessReply && finalAction === "reply") {
+    const processed = options.postProcessReply(rawReply, history, body)
+    if (processed.action) finalAction = processed.action
+    reply = normalizeReply(agent, finalAction, processed.text)
+  } else if (
+    agent === "faq" &&
+    options?.faqSalesResume &&
+    finalAction === "reply" &&
+    options.finalizeFaqReply
+  ) {
+    reply = normalizeReply(agent, finalAction, options.finalizeFaqReply(rawReply, history))
   }
 
   await appendTurn({
@@ -188,7 +203,7 @@ export async function safeRunAgent(
     agent,
     userText: body,
     assistantText: reply,
-    action,
+    action: finalAction,
     persistUser: options?.persistUser,
     preview: options?.preview,
   })
@@ -197,7 +212,7 @@ export async function safeRunAgent(
     ok: true,
     agent,
     reply,
-    action: action as ConversationalAction | MasterAction,
+    action: finalAction as ConversationalAction | MasterAction,
   }
 }
 

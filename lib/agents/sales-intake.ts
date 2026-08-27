@@ -14,6 +14,7 @@ import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topi
 import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
+import { isConfirmationAffirmationWithExtra } from "@/lib/agents/compound-reply"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 
 export type SalesIntake = {
@@ -1165,7 +1166,10 @@ function formatBudget(budget: string) {
 
 export function buildPostConfirmationReply(body: string, history: HistoryMessage[]) {
   const trimmed = body.trim()
-  if (/^(כן|נכון|בדיוק|מדויק|yes)/i.test(trimmed)) {
+  if (/^(?:כן|נכון|בדיוק|מדויק|yes)/i.test(trimmed)) {
+    if (isConfirmationAffirmationWithExtra(trimmed)) {
+      return buildConfirmationSummary(extractSalesIntake(history, body))
+    }
     return "מעולה. האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?"
   }
   return buildConfirmationSummary(extractSalesIntake(history, body))
@@ -1252,7 +1256,7 @@ function formatColorForSummary(intake: SalesIntake) {
 }
 
 export function isConfirmationPending(history: HistoryMessage[]) {
-  return /האם זה נכון עד כה|אני צודק/.test(lastAssistantText(history))
+  return /האם זה נכון עד כה|אני צודק/.test(lastIntakeAssistantText(history))
 }
 
 export function sanitizeSalesReply(reply: string, history: HistoryMessage[], body: string) {

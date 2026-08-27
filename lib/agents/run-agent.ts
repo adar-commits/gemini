@@ -72,12 +72,20 @@ import {
   buildHumanHandoffConfirmedReply,
   buildHumanHandoffDeclinedReply,
   inferHumanHandoffAction,
-  isHumanHandoffAffirmation,
-  isHumanHandoffDecline,
   isHumanHandoffPending,
   isOffTopicQuestion,
   OFF_TOPIC_REDIRECT,
 } from "@/lib/agents/off-topic"
+import {
+  isPureHandoffAffirmation,
+  isPureHandoffDecline,
+  isHandoffAffirmationWithExtra,
+  isPureInactivityAck,
+  isInactivityAckWithExtra,
+  isFinalizationQuestion,
+  isConfirmationAffirmationWithExtra,
+  buildHandoffResumeOffer,
+} from "@/lib/agents/compound-reply"
 import {
   buildCustomerServiceTopicPrompt,
   isCustomerServiceOpener,
@@ -111,9 +119,9 @@ import {
   isHandoffContextReply,
 } from "@/lib/agents/handoff-wait"
 import {
-  buildInactivityStillHereAck,
   isInactivityPingPending,
   isInactivityStillHereReply,
+  lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
 import {
   buildMasterConfusedReply,
@@ -195,37 +203,43 @@ async function runT0DeterministicPaths(
   }
 
   if (isBranchListQuestion(body)) {
-    const reply = normalizeReply(
+    const lastAgent = sharedOptions.lastAgent
+    const { reply, action } = applyPendingFlowFinalization(
       "faq",
-      "reply",
-      finalizeFaqReplyForContext(buildBranchReplyForText(body), history, lastAgent)
+      buildBranchReplyForText(body),
+      history,
+      lastAgent,
+      body
     )
     await appendTurn({
       conversationId,
       agent: "faq",
       userText: body,
       assistantText: reply,
-      action: "reply",
+      action,
       preview,
     })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+    return { ok: true, agent: "faq", reply, action, route: [...route, "faq"] }
   }
 
   if (isShippingPolicyQuestion(body)) {
-    const reply = normalizeReply(
+    const lastAgent = sharedOptions.lastAgent
+    const { reply, action } = applyPendingFlowFinalization(
       "faq",
-      "reply",
-      finalizeFaqReplyForContext(buildShippingPolicyReply(), history, lastAgent)
+      buildShippingPolicyReply(),
+      history,
+      lastAgent,
+      body
     )
     await appendTurn({
       conversationId,
       agent: "faq",
       userText: body,
       assistantText: reply,
-      action: "reply",
+      action,
       preview,
     })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+    return { ok: true, agent: "faq", reply, action, route: [...route, "faq"] }
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history)) {
@@ -336,6 +350,60 @@ function finalizeFaqReplyForContext(
   return `${withoutCleanEnding}\n\nרוצים להמשיך בבחירת השטיח?`
 }
 
+/** Answer side questions during handoff / confirmation, then close the loop. */
+function finalizeReplyForPendingFlow(
+  reply: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null,
+  body: string
+): { text: string; action?: AgentAction } {
+  if (isHumanHandoffPending(history) && isHandoffAffirmationWithExtra(body)) {
+    const action = inferHumanHandoffAction(history, lastAgent)
+    const stripped = reply
+      .replace(/\n*אפשר לעזור במשהו נוסף\?[^\n]*/i, "")
+      .replace(/\n*אם צריך עוד משהו[^\n]*/i, "")
+      .trimEnd()
+    return {
+      text: `${stripped}\n\n${buildHumanHandoffConfirmedReply(action)}`,
+      action,
+    }
+  }
+
+  if (
+    isHumanHandoffPending(history) &&
+    breaksPendingHandoff(body) &&
+    !isHandoffAffirmationWithExtra(body)
+  ) {
+    const stripped = reply.trimEnd()
+    if (/להמשיך\s+עם\s+העברה\s+ליועץ/i.test(stripped)) return { text: reply }
+    return { text: `${stripped}\n\n${buildHandoffResumeOffer()}` }
+  }
+
+  if (isConfirmationPending(history) && isConfirmationAffirmationWithExtra(body)) {
+    const stripped = reply.trimEnd()
+    return {
+      text: `${stripped}\n\nמעולה. האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`,
+    }
+  }
+
+  return { text: finalizeFaqReplyForContext(reply, history, lastAgent) }
+}
+
+function applyPendingFlowFinalization(
+  agent: AgentId,
+  baseReply: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null,
+  body: string
+) {
+  const finalized = finalizeReplyForPendingFlow(baseReply, history, lastAgent, body)
+  const action = finalized.action ?? "reply"
+  return {
+    reply: normalizeReply(agent, action, finalized.text),
+    action,
+  }
+}
+
 export async function runAgent(
   agent: AgentId,
   conversationId: string,
@@ -362,6 +430,8 @@ export async function runAgent(
     sessionSummary: options?.sessionSummary,
     finalizeFaqReply: (reply, hist) =>
       finalizeFaqReplyForContext(reply, hist, lastAgent),
+    postProcessReply: (reply, hist, userBody) =>
+      finalizeReplyForPendingFlow(reply, hist, lastAgent, userBody),
   })
 }
 
@@ -373,20 +443,22 @@ async function faqReturnPolicyResult(
   history?: HistoryMessage[],
   lastAgent?: AgentId | null
 ): Promise<AgentResponse> {
-  const reply = normalizeReply(
+  const { reply, action } = applyPendingFlowFinalization(
     "faq",
-    "reply",
-    finalizeFaqReplyForContext(buildReturnExchangePolicyReply(), history ?? [], lastAgent ?? null)
+    buildReturnExchangePolicyReply(),
+    history ?? [],
+    lastAgent ?? null,
+    body
   )
   await appendTurn({
     conversationId,
     agent: "faq",
     userText: body,
     assistantText: reply,
-    action: "reply",
+    action,
     preview,
   })
-  return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  return { ok: true, agent: "faq", reply, action, route: [...route, "faq"] }
 }
 
 async function faqDissatisfactionResult(
@@ -463,7 +535,7 @@ async function resolveSpecialist(
 
   if (isHumanHandoffPending(history) && isHandoffContextReply(body)) {
     const agent = specialist === "master" ? "faq" : specialist
-    if (isHumanHandoffAffirmation(body)) {
+    if (isPureHandoffAffirmation(body)) {
       const action = inferHumanHandoffAction(history, options?.lastAgent ?? null)
       const reply = `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`
       await appendTurn({
@@ -477,7 +549,7 @@ async function resolveSpecialist(
       })
       return { ok: true, agent, reply, action, route }
     }
-    if (isHumanHandoffDecline(body)) {
+    if (isPureHandoffDecline(body)) {
       const reply = normalizeReply(agent, "reply", buildHumanHandoffDeclinedReply())
       await appendTurn({
         conversationId,
@@ -584,39 +656,43 @@ async function resolveSpecialist(
     const lastAgent = options?.lastAgent ?? null
 
     if (matchPolicySubjects(body).includes("carpet_rental")) {
-      const reply = normalizeReply(
+      const { reply, action } = applyPendingFlowFinalization(
         replyAgent,
-        "reply",
-        finalizeFaqReplyForContext(buildCarpetRentalPolicyReply(), history, lastAgent)
+        buildCarpetRentalPolicyReply(),
+        history,
+        lastAgent,
+        body
       )
       await appendTurn({
         conversationId,
         agent: replyAgent,
         userText: body,
         assistantText: reply,
-        action: "reply",
+        action,
         persistUser,
         preview,
       })
-      return { ok: true, agent: replyAgent, reply, action: "reply", route: [...route, replyAgent] }
+      return { ok: true, agent: replyAgent, reply, action, route: [...route, replyAgent] }
     }
 
     if (isShippingPolicyQuestion(body)) {
-      const reply = normalizeReply(
+      const { reply, action } = applyPendingFlowFinalization(
         replyAgent,
-        "reply",
-        finalizeFaqReplyForContext(buildShippingPolicyReply(), history, lastAgent)
+        buildShippingPolicyReply(),
+        history,
+        lastAgent,
+        body
       )
       await appendTurn({
         conversationId,
         agent: replyAgent,
         userText: body,
         assistantText: reply,
-        action: "reply",
+        action,
         persistUser,
         preview,
       })
-      return { ok: true, agent: replyAgent, reply, action: "reply", route: [...route, replyAgent] }
+      return { ok: true, agent: replyAgent, reply, action, route: [...route, replyAgent] }
     }
 
     const inventory = await tryBranchInventoryResult(
@@ -630,21 +706,23 @@ async function resolveSpecialist(
     if (inventory) return inventory
 
     if (isBranchListQuestion(body)) {
-      const reply = normalizeReply(
+      const { reply, action } = applyPendingFlowFinalization(
         replyAgent,
-        "reply",
-        finalizeFaqReplyForContext(buildBranchReplyForText(body), history, lastAgent)
+        buildBranchReplyForText(body),
+        history,
+        lastAgent,
+        body
       )
       await appendTurn({
         conversationId,
         agent: replyAgent,
         userText: body,
         assistantText: reply,
-        action: "reply",
+        action,
         persistUser,
         preview,
       })
-      return { ok: true, agent: replyAgent, reply, action: "reply", route: [...route, replyAgent] }
+      return { ok: true, agent: replyAgent, reply, action, route: [...route, replyAgent] }
     }
 
     let result = await runAgent(replyAgent, conversationId, turn, {
@@ -732,7 +810,8 @@ async function resolveSpecialist(
 
   if (
     specialist === "sales" &&
-    shouldUseSalesIntakeFastPath(body, history, options?.lastAgent ?? null)
+    shouldUseSalesIntakeFastPath(body, history, options?.lastAgent ?? null) &&
+    !(isConfirmationPending(history) && isConfirmationAffirmationWithExtra(body))
   ) {
     const reply = normalizeReply(
       "sales",
@@ -1283,35 +1362,44 @@ export async function runMasterConversation(
     return { ok: true, agent: "master", reply: "", action: "end", route }
   }
 
-  if (isInactivityPingPending(history) && isInactivityStillHereReply(body)) {
-    if (
-      activePostPurchaseCaseKind(history) ||
-      isPhoneLookupConfirmPending(history) ||
-      isOrderConfirmationPending(history) ||
-      isAlternatePhoneRequestPending(history) ||
-      shouldHandlePostPurchaseCaseFlow(body, history)
-    ) {
-      return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
-    }
+  if (isInactivityPingPending(history)) {
+    const ackWithExtra = isInactivityAckWithExtra(body)
+    const pureAck = isPureInactivityAck(body) || isInactivityStillHereReply(body)
 
-    if (shouldHandleOrderShippingFlow(body, history)) {
-      return shippingResult(conversationId, body, route, preview, phone, history)
-    }
+    if (!ackWithExtra && pureAck) {
+      const prior = lastNonInactivityAssistantText(history)
+      const resumeStructuredFlow =
+        isFinalizationQuestion(prior) ||
+        isHumanHandoffPending(history) ||
+        isConfirmationPending(history) ||
+        activePostPurchaseCaseKind(history) ||
+        isPhoneLookupConfirmPending(history) ||
+        isOrderConfirmationPending(history) ||
+        isAlternatePhoneRequestPending(history)
 
-    const reply = normalizeReply(
-      "faq",
-      "reply",
-      buildInactivityStillHereAck(options?.customerName)
-    )
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action: "reply",
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+      if (resumeStructuredFlow) {
+        if (shouldHandlePostPurchaseCaseFlow(body, history)) {
+          return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+        }
+        if (shouldHandleOrderShippingFlow(body, history)) {
+          return shippingResult(conversationId, body, route, preview, phone, history)
+        }
+        // Fall through — complete handoff / confirmation without re-asking.
+      } else {
+        const name = options?.customerName?.trim()
+        const line = name ? `מעולה ${name}, אני כאן.` : "מעולה, אני כאן."
+        const reply = normalizeReply("faq", "reply", line)
+        await appendTurn({
+          conversationId,
+          agent: "faq",
+          userText: body,
+          assistantText: reply,
+          action: "reply",
+          preview,
+        })
+        return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+      }
+    }
   }
 
   if (isConversationClosing(body) && !isHumanHandoffPending(history)) {

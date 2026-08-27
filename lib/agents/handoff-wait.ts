@@ -10,17 +10,22 @@ import {
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
-import { isHumanHandoffAffirmation, isHumanHandoffDecline } from "@/lib/agents/off-topic"
+import {
+  isPureHandoffAffirmation,
+  isPureHandoffDecline,
+  isHandoffAffirmationWithExtra,
+} from "@/lib/agents/compound-reply"
 
-/** Customer is answering the pending handoff yes/no question. */
+/** Customer is answering the pending handoff yes/no question — pure כן/לא only. */
 export function isHandoffContextReply(body: string) {
-  return isHumanHandoffAffirmation(body) || isHumanHandoffDecline(body)
+  return isPureHandoffAffirmation(body) || isPureHandoffDecline(body)
 }
 
-/** New message changes subject — do not stay blocked waiting for handoff כן/לא. */
+/** New message changes subject — or yes/no plus an extra ask. */
 export function breaksPendingHandoff(body: string) {
   const text = body.trim()
   if (!text) return false
+  if (isHandoffAffirmationWithExtra(text)) return true
   if (isHandoffContextReply(text)) return false
 
   return (
