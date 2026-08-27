@@ -1,8 +1,8 @@
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
-const GREETING_RE =
-  /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+|$)/i
+const LEADING_GREETING_RE =
+  /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+)*/iu
 
 const GREETING_ONLY_RE = /^(?:שלום|היי|הי|אהלן)(?:[\s,!?.]+|$)/i
 
@@ -14,15 +14,33 @@ const PING_RE =
   /^(?:הלו|hello)\??$|אתה\s+(?:לא\s+)?(?:עונה|שם|מאזין|קיים)|יש\s+מישהו|מישהו\s+שם|למה\s+לא\s+עונ/i
 
 const BUSINESS_HINT_RE =
-  /שעות|סניפ|מדיניות|משלוח|החזר|תשלום|איך\s+מחזיר|רוצה\s+לקנות|מחיר|שטיח|פוף|קרוע|פגום|לא\s+קיבלתי|משלוח(\s+שלי)?|הזמנה/i
+  /שעות|סני[פף]|מדיניות|משלוח|החזר|תשלום|איך\s+מחזיר|רוצה\s+לקנות|מחיר|שטיח|פוף|קרוע|פגום|לא\s+קיבלתי|משלוח(\s+שלי)?|הזמנה|פתוח|סגור|עד\s+מתי|מתי\s+פתוח|מחר|היום|כתובת|איפה|מיקום|קריית|איירפורט/i
+
+function stripLeadingGreetings(text: string) {
+  let body = text.trim()
+  for (let i = 0; i < 3; i++) {
+    const next = body.replace(LEADING_GREETING_RE, "").trim()
+    if (next === body) break
+    body = next
+  }
+  return body
+}
 
 export function isCasualGreeting(text: string) {
   const body = text.trim()
   if (!body || body.length > 100) return false
-  if (GREETING_RE.test(body)) return true
-  if (GREETING_ONLY_RE.test(body)) return true
-  if (SMALL_TALK_RE.test(body) && body.split(/\s+/).length <= 8) return true
-  return false
+  if (hasImmediateBusinessAsk(body)) return false
+
+  const remainder = stripLeadingGreetings(body)
+  if (!remainder) return true
+  if (GREETING_ONLY_RE.test(remainder)) return true
+  if (SMALL_TALK_RE.test(remainder) && remainder.split(/\s+/).length <= 6) {
+    return true
+  }
+  if (/\?/.test(remainder) || remainder.split(/\s+/).length >= 4) return false
+  if (remainder.length >= 12) return false
+
+  return GREETING_ONLY_RE.test(body) || SMALL_TALK_RE.test(body)
 }
 
 /** Greeting, wellbeing check, or "are you there?" — works mid-conversation too. */

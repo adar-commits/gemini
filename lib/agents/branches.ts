@@ -7,7 +7,10 @@ const DEFAULT_HOURS = "א'-ה' 09:30-19:30, ו' 09:00-14:00"
 const AIRPORT_HOURS = "א'-ה' 09:30-18:00, ו' 09:00-14:00"
 
 const BRANCH_QUESTION_RE =
-  /(?:איזה|מה\s+ה|רשימ(?:ת|ה)\s+)?(?:ה)?סניפ|סניפים\s+יש|לסניף|כתובות?\s+(?:ה)?סניפ|יש\s+(?:ל(?:כם|נו)\s+)?סניף|סניף\s+ב|where\s+are\s+(?:your\s+)?(?:stores|branches)/i
+  /(?:איזה|מה\s+ה|רשימ(?:ת|ה)\s+)?(?:ה)?סני[פף](?:ים|ה)?|סניפים\s+יש|לסני[פף]|כתובות?\s+(?:ה)?סני[פף](?:ים|ה)?|יש\s+(?:ל(?:כם|נו)\s+)?סני[פף](?:ים|ה)?|סני[פף](?:ים|ה)?\s+(?:ב|ש(?:ל|ב)?\s+)?|where\s+are\s+(?:your\s+)?(?:stores|branches)/i
+
+const BRANCH_HOURS_RE =
+  /(?:עד\s+מתי|מתי|מחר|היום|מוצ["']?ש).*?(?:פתוח|סגור|שעות)|(?:פתוח|סגור|שעות\s+(?:פעילות|פתיחה)).*?(?:סני[פף]|מחר|היום)/i
 
 const CITY_IN_BRANCH_QUERY_RE =
   /(?:ב|ב-)([א-ת'"\s]{2,20}?)(?:\?|[\s,.]|$)|(?:^|\s)([א-ת'"\s]{2,15})\s*—\s*סניף/i
@@ -21,7 +24,8 @@ type BranchEntry = {
 }
 
 export function isBranchListQuestion(text: string) {
-  return BRANCH_QUESTION_RE.test(text.trim())
+  const normalized = text.trim()
+  return BRANCH_QUESTION_RE.test(normalized) || BRANCH_HOURS_RE.test(normalized)
 }
 
 function branchSectionFromKb() {
@@ -93,8 +97,11 @@ export function buildBranchListReply() {
 function findBranchCityHint(text: string) {
   const normalized = text.trim()
   const match =
-    normalized.match(/סניף\s+ב([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
-    normalized.match(/(?:יש\s+(?:ל(?:כם|נו)\s+)?סניף\s+)(?:ב)?([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
+    normalized.match(/סני[פף](?:ים|ה)?\s+ב([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
+    normalized.match(
+      /סני[פף](?:ים|ה)?\s+(?:ש(?:ל|ב)\s+)?([א-ת'"\s]+?)(?:\s+פתוח|\?|$)/i
+    ) ||
+    normalized.match(/(?:יש\s+(?:ל(?:כם|נו)\s+)?סני[פף](?:ים|ה)?\s+)(?:ב)?([א-ת'"\s]+?)(?:\?|[\s,.]|$)/i) ||
     normalized.match(CITY_IN_BRANCH_QUERY_RE)
 
   const city = match?.[1]?.trim() || match?.[2]?.trim()
