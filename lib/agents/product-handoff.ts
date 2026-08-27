@@ -2,7 +2,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isConversationClosing } from "@/lib/agents/conversation-close"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
-import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
+import { isProductDefectComplaint, isPostPurchaseDissatisfaction } from "@/lib/agents/inquiry-intent"
 import {
   isBareSkuMessage,
   isBranchInventoryQuestion,
@@ -37,7 +37,7 @@ function isLikelyProductModelName(name: string) {
   if (GARBAGE_MODEL_RE.test(trimmed)) return false
   if (/^(?:סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(trimmed)) return false
   if (ROOM_PREPOSITION_IN_NAME_RE.test(trimmed)) return false
-  if (/^(?:ו)?יש\b|פגם|ליקוי|בו\b/i.test(trimmed)) return false
+  if (/^(?:ו)?יש\b|פגם|ליקוי|בו\b|לצער|לא\s+א/i.test(trimmed)) return false
   if (HEBREW_COLOR_WORD_RE.test(trimmed)) return false
   if (STYLE_DESCRIPTOR_RE.test(trimmed)) return false
   const words = trimmed.split(/\s+/)
@@ -59,8 +59,19 @@ function isSalesConsultationTrigger(text: string) {
   return CONSULTATION_RE.test(text.trim())
 }
 
+function isReceivedProductContext(text: string) {
+  return (
+    /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|קיבלנו).*(?:את\s+)?(?:ה)?(?:שטיח|פוף|מוצר)/i.test(text) ||
+    /(?:את\s+)?(?:ה)?(?:שטיח|פוף).*(?:קיבל|הגיע|התקבל)/i.test(text)
+  )
+}
+
 export function extractRequestedModel(text: string): string | null {
-  const match = text.trim().match(REQUESTED_MODEL_RE)
+  const trimmed = text.trim()
+  if (!trimmed || isReceivedProductContext(trimmed) || isPostPurchaseDissatisfaction(trimmed)) {
+    return null
+  }
+  const match = trimmed.match(REQUESTED_MODEL_RE)
   if (!match) return null
   const name = match[1].trim().split(/\n/)[0].trim().replace(/\s+/g, " ")
   if (!isLikelyProductModelName(name)) return null
@@ -145,6 +156,7 @@ export function isProductInventoryQuestion(body: string) {
 export function isSpecificProductMention(body: string) {
   const text = body.trim()
   if (!text || isFaqTopicSwitch(text)) return false
+  if (isPostPurchaseDissatisfaction(text) || isProductDefectComplaint(text)) return false
   if (isBranchInventoryQuestion(text) || isBareSkuMessage(text)) return false
   if (isProductInventoryQuestion(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {

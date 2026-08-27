@@ -10,6 +10,8 @@ export function isDissatisfactionWithoutDefect(body: string) {
 /** Exchange/return options first, then soft service handoff offer (rescue the sale). */
 export function buildDissatisfactionRescueReply() {
   return `${CUSTOMER_HEADER}
+מצטער לשמוע שהשטיח לא התחבר אליך.
+
 ניתן להחליף מוצר שקיבלתם בסניפי הרשת, או להחזירו — בנקודות ההחזרה או באיסוף מהבית (בכפוף לתשלום).
 פרטים מלאים: https://returns.carpetshop.co.il/
 החלפה או החזרה — בתוך 14 יום מקבלת המוצר, כשהמוצר שלם וללא פגם או לכלוך.
