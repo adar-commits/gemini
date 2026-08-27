@@ -2,7 +2,7 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 import { isPostPurchaseDissatisfaction } from "@/lib/agents/inquiry-intent"
 
-/** Unhappy with product/fit — routes to order lookup + service, not FAQ policy. */
+/** Customer unhappy after delivery without defect wording — FAQ return/exchange policy first. */
 export function isDissatisfactionWithoutDefect(body: string) {
   return isPostPurchaseDissatisfaction(body)
 }

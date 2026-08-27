@@ -76,8 +76,11 @@ export function guessMasterRoute(body: string): MasterAction | null {
     return "ROUTE_TO_SHIPPING_STATUS"
   }
 
+  if (isPostPurchaseDissatisfaction(text) && !isProductDefectComplaint(text)) {
+    return "ROUTE_TO_INFO_AGENT"
+  }
+
   if (
-    isPostPurchaseDissatisfaction(text) ||
     isPreorderDelayComplaint(text) ||
     isProductDefectComplaint(text)
   ) {
@@ -96,9 +99,13 @@ export function guessMasterRoute(body: string): MasterAction | null {
   }
 
   if (
-    has(text, /לא\s+עונים|התאמת\s+מחיר|ו?זיכוי\s+כספי|מבצע.*\d+\s*%|לא\s+מה\s+שדיברנו|תלונה/) ||
+    has(text, /התאמת\s+מחיר|לא\s+קיבלתי\s+זיכוי|זיכוי\s+כספי|מתי.*זיכוי|מבצע.*\d+\s*%|לא\s+מה\s+שדיברנו/) ||
     has(text, /חייב(?:ו|ת)?\s+אותי|טעות\s+ב(?:ה)?זמנה/)
   ) {
+    return "ROUTE_TO_INFO_AGENT"
+  }
+
+  if (has(text, /לא\s+עונים|תלונה/)) {
     return "ROUTE_TO_SERVICE_AGENT"
   }
 

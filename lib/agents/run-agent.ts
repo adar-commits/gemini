@@ -1,4 +1,6 @@
 import { generateText, jsonSchema, Output } from "ai"
+import { buildThanksReply } from "@/lib/agent-core/fallbacks"
+import { routerConfig, specialistConfig } from "@/lib/agent-core/config"
 import { buildUserContent } from "@/lib/agents/multimodal"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
@@ -20,11 +22,10 @@ import {
 } from "@/lib/agents/product-handoff"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import {
-  buildClosingAckReply,
   isConversationClosing,
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
-import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import { buildDissatisfactionRescueReply, isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
   buildWebsiteIssueHandoffOffer,
   isWebsiteIssueComplaint,
@@ -75,12 +76,11 @@ import {
   buildGreetingReply,
   buildCasualSmallTalkReply,
   hasImmediateBusinessAsk,
-  isCasualGreetingWithLearned,
+  isCasualGreeting,
   isCasualSmallTalk,
   isOpeningTurn,
   shouldWelcomeAfterReset,
 } from "@/lib/agents/greeting"
-import { guessLearnedRoute, guessLearnedFastReply, learnedPromptRules, loadLearnedRules, matchesLearnedReplyGuard } from "@/lib/agents/learned-rules"
 import {
   buildBranchListReply,
   buildBranchReplyForText,
@@ -119,12 +119,6 @@ import {
   hasOngoingSalesIntake,
 } from "@/lib/agents/sales-intake"
 import {
-  formatOrchestraBrief,
-  orchestraMasterRoute,
-  runConversationOrchestra,
-  type OrchestraResult,
-} from "@/lib/agents/orchestra"
-import {
   buildShippingPolicyReply,
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
@@ -147,21 +141,6 @@ import {
   type HistoryMessage,
   type MasterAction,
 } from "@/lib/agents/types"
-
-const DEFAULT_MODEL = "anthropic/claude-sonnet-5"
-const DEFAULT_ROUTER_MODEL = "google/gemini-2.5-flash-lite"
-
-function specialistModel() {
-  return process.env.AGENT_MODEL?.trim() || DEFAULT_MODEL
-}
-
-function routerModel() {
-  return (
-    process.env.AGENT_ROUTER_MODEL?.trim() ||
-    process.env.AGENT_MODEL?.trim() ||
-    DEFAULT_ROUTER_MODEL
-  )
-}
 
 function isAction(agent: AgentId, value: string): value is AgentAction {
   return (ACTIONS_BY_AGENT[agent] as readonly string[]).includes(value)
@@ -248,7 +227,6 @@ export async function runAgent(
     persistUser?: boolean
     history?: HistoryMessage[]
     preview?: boolean
-    orchestraBrief?: string
     faqSalesResume?: boolean
   }
 ): Promise<AgentResponse> {
@@ -256,15 +234,17 @@ export async function runAgent(
   const history = options?.history ?? (await getConversationContext(conversationId)).history
   const allowed = ACTIONS_BY_AGENT[agent]
   const isMaster = agent === "master"
-  const model = isMaster ? routerModel() : specialistModel()
-  const learnedRules = isMaster ? "" : await learnedPromptRules(agent)
-  const orchestraBrief = options?.orchestraBrief ?? ""
+  const inference = isMaster
+    ? routerConfig()
+    : specialistConfig(agent as "faq" | "sales" | "service")
+  const model = inference.model()
 
   const result = await generateText({
     model,
-    system: `${getSystemPrompt(agent, body)}${learnedRules}${orchestraBrief}`,
+    system: getSystemPrompt(agent, body),
     messages: toModelMessages(history, turn),
-    maxOutputTokens: isMaster ? 80 : 800,
+    temperature: inference.temperature,
+    maxOutputTokens: inference.maxOutputTokens,
     output: Output.object({
       name: "landbot_agent_turn",
       description: isMaster
@@ -325,6 +305,24 @@ export async function runAgent(
   }
 }
 
+async function faqDissatisfactionResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean
+): Promise<AgentResponse> {
+  const reply = normalizeReply("faq", "reply", buildDissatisfactionRescueReply())
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview,
+  })
+  return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+}
+
 async function resolveSpecialist(
   conversationId: string,
   turn: UserTurn,
@@ -339,8 +337,6 @@ async function resolveSpecialist(
     lastAction?: string | null
     resetAt?: string | null
     preview?: boolean
-    orchestraBrief?: string
-    orchestra?: OrchestraResult
   }
 ): Promise<AgentResponse> {
   route.push(specialist)
@@ -349,17 +345,17 @@ async function resolveSpecialist(
   const preview = options?.preview
 
   if (isConversationClosing(body) && !isHumanHandoffPending(history)) {
-    const reply = buildClosingAckReply(options?.customerName)
+    const reply = buildThanksReply(options?.customerName)
     await appendTurn({
       conversationId,
       agent: "faq",
       userText: body,
       assistantText: reply,
-      action: "end",
+      action: "reply",
       persistUser,
       preview,
     })
-    return { ok: true, agent: "faq", reply, action: "end", route }
+    return { ok: true, agent: "faq", reply, action: "reply", route }
   }
 
   if (isNonSubstantiveFollowUp(body) && !isHumanHandoffPending(history)) {
@@ -377,14 +373,7 @@ async function resolveSpecialist(
   }
 
   if (isDissatisfactionWithoutDefect(body)) {
-    return postPurchaseCaseResult(
-      conversationId,
-      body,
-      route,
-      preview,
-      options?.phone,
-      history
-    )
+    return faqDissatisfactionResult(conversationId, body, route, preview)
   }
 
   if (isHumanHandoffPending(history) && isHandoffContextReply(body)) {
@@ -520,7 +509,6 @@ async function resolveSpecialist(
       persistUser,
       history,
       preview,
-      orchestraBrief: options?.orchestraBrief,
       faqSalesResume: wasSalesFlowActive(history, lastAgent),
     })
 
@@ -530,7 +518,6 @@ async function resolveSpecialist(
         persistUser: false,
         history,
         preview,
-        orchestraBrief: options?.orchestraBrief,
       })
     }
 
@@ -626,7 +613,7 @@ async function resolveSpecialist(
 
   if (
     specialist === "faq" &&
-    (await isCasualGreetingWithLearned(body)) &&
+    isCasualGreeting(body) &&
     !hasImmediateBusinessAsk(body) &&
     (isOpeningTurn(persistUser ? userTurns : userTurns + 1) ||
       shouldWelcomeAfterReset(
@@ -652,12 +639,10 @@ async function resolveSpecialist(
     persistUser,
     history,
     preview,
-    orchestraBrief: options?.orchestraBrief,
   })
 
   if (specialist === "sales" && result.reply) {
     const needsSanitize =
-      (await matchesLearnedReplyGuard("sales", result.reply)) ||
       /למי\s+הסלון\s+משמש/i.test(result.reply) ||
       FAKE_STOCK_REPLY_RE.test(result.reply) ||
       isStrictMisunderstandingReply(result.reply)
@@ -702,7 +687,6 @@ async function resolveSpecialist(
       persistUser: false,
       history,
       preview,
-      orchestraBrief: options?.orchestraBrief,
     })
   }
 
@@ -958,7 +942,7 @@ async function tryWelcomeGreeting(
   options?: { customerName?: string; preview?: boolean }
 ): Promise<AgentResponse | null> {
   const body = summarizeTurn(turn)
-  if (!(await isCasualGreetingWithLearned(body))) return null
+  if (!isCasualGreeting(body)) return null
   if (hasImmediateBusinessAsk(body)) return null
 
   const userTurns = context.history.filter((message) => message.role === "user").length
@@ -1007,13 +991,11 @@ export async function runMasterConversation(
   options?: { customerName?: string; preview?: boolean; phone?: string }
 ): Promise<AgentResponse> {
   const body = summarizeTurn(turn)
-  await loadLearnedRules()
   const { history, lastAgent, lastAction, resetAt } =
     await getConversationContext(conversationId)
   const route: AgentId[] = []
   const preview = options?.preview
   const phone = options?.phone?.trim() || ""
-  const userTurnCount = history.filter((m) => m.role === "user").length + 1
   let sharedOptions: {
     customerName?: string
     preview?: boolean
@@ -1021,8 +1003,6 @@ export async function runMasterConversation(
     lastAgent: AgentId | null
     lastAction: string | null
     resetAt: string | null
-    orchestraBrief?: string
-    orchestra?: OrchestraResult
   } = {
     ...options,
     lastAgent,
@@ -1072,16 +1052,16 @@ export async function runMasterConversation(
   }
 
   if (isConversationClosing(body) && !isHumanHandoffPending(history)) {
-    const reply = buildClosingAckReply(options?.customerName)
+    const reply = buildThanksReply(options?.customerName)
     await appendTurn({
       conversationId,
       agent: "faq",
       userText: body,
       assistantText: reply,
-      action: "end",
+      action: "reply",
       preview,
     })
-    return { ok: true, agent: "faq", reply, action: "end", route: [...route, "faq"] }
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
   if (isNonSubstantiveFollowUp(body) && !isHumanHandoffPending(history)) {
@@ -1141,21 +1121,7 @@ export async function runMasterConversation(
   }
 
   if (isDissatisfactionWithoutDefect(body)) {
-    return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
-  }
-
-  const learnedFast = await guessLearnedFastReply(body)
-  if (learnedFast) {
-    const reply = normalizeReply("faq", "reply", learnedFast)
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action: "reply",
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+    return faqDissatisfactionResult(conversationId, body, route, preview)
   }
 
   const welcome = await tryWelcomeGreeting(
@@ -1402,20 +1368,6 @@ export async function runMasterConversation(
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
-  const orchestra = await runConversationOrchestra({
-    body,
-    history,
-    lastAgent,
-    lastAction,
-    userTurnCount,
-    customerName: options?.customerName,
-  })
-  sharedOptions = {
-    ...sharedOptions,
-    orchestraBrief: formatOrchestraBrief(orchestra),
-    orchestra,
-  }
-
   const sticky = stickySpecialist(lastAgent, lastAction)
 
   if (sticky && shouldContinueWithSpecialist(body, history, sticky)) {
@@ -1430,9 +1382,7 @@ export async function runMasterConversation(
     )
   }
 
-  const learned = await guessLearnedRoute(body)
-  const guessed =
-    learned ?? guessMasterRoute(body) ?? orchestraMasterRoute(orchestra)
+  const guessed = guessMasterRoute(body)
   let masterAction: MasterAction
 
   if (guessed) {
@@ -1450,7 +1400,6 @@ export async function runMasterConversation(
     const master = await runAgent("master", conversationId, turn, {
       history,
       preview,
-      orchestraBrief: sharedOptions.orchestraBrief,
     })
     route.push("master")
     masterAction = (MASTER_ROUTE_MAP[master.action as MasterAction]

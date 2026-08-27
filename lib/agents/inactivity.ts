@@ -11,7 +11,7 @@ export const INACTIVITY_CLOSE_AFTER_PING_MS = Number(
 
 export function buildInactivityPingReply(customerName?: string) {
   const name = customerName?.trim()
-  const line = name ? `אתה עדיין שם ${name}?` : "אתה עדיין שם?"
+  const line = name ? `${name}, עדיין כאן?` : "עדיין כאן?"
   return `${CUSTOMER_HEADER}\n${line}`
 }
 
