@@ -223,7 +223,7 @@ export async function lookupDigitalDocumentsForChannel(
 
 export function buildDocumentChannelQuestion() {
   return `${CUSTOMER_HEADER}
-כדי להוציא את המסמך הנכון — האם המוצר נרכש מתוך מלאי הסניף או באמצעות אתר האינטרנט עם שליח?`
+ידוע לך האם המוצר סופק מתוך מלאי הסניף או דרך אתר האינטרנט עם שליח?`
 }
 
 export function buildDocumentChannelClarify() {

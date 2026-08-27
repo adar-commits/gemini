@@ -660,8 +660,8 @@ function maybeApplyCancellationEmpathy(
 
 export function buildPhoneLookupConfirmPrompt(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
-אני צריך לאתר את ההזמנה שלך קודם, האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? (${formatDisplayPhone(whatsappPhone)})
-אם לא, אשמח לציון המספר הנכון.`
+קודם אמצא את ההזמנה שלך בזריזות, האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? (${formatDisplayPhone(whatsappPhone)})
+אם לא, אשמח לקבל אותו.`
 }
 
 export function buildPhoneLookupDeclinedReply() {
