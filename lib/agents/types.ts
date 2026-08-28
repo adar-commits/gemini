@@ -83,10 +83,13 @@ export type AgentRequest = {
 export type TurnMetrics = {
   latency_ms?: number
   llm_calls?: number
+  input_tokens?: number
+  output_tokens?: number
   models_used?: string[]
   tier?: string | null
   profile?: string | null
   fallback_layer?: string | null
+  routing_path?: string | null
 }
 
 export type AgentResponse = {

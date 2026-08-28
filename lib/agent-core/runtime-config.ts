@@ -121,7 +121,7 @@ function codeDefaultConfig(): RuntimeConfig {
     },
     routingMode,
     debounceMs,
-    historyLimit: 40,
+    historyLimit: 18,
     orchestraMode: "conservative",
     updatedAt: null,
     updatedBy: null,
@@ -163,7 +163,7 @@ function rowToConfig(row: RuntimeRow): RuntimeConfig {
     debounceMs:
       typeof row.debounce_ms === "number" && row.debounce_ms > 0 ? row.debounce_ms : 2000,
     historyLimit:
-      typeof row.history_limit === "number" && row.history_limit > 0 ? row.history_limit : 40,
+      typeof row.history_limit === "number" && row.history_limit > 0 ? row.history_limit : 18,
     orchestraMode,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,

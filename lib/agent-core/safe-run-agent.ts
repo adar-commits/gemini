@@ -4,7 +4,8 @@ import {
   buildLlmFailureReply,
 } from "@/lib/agent-core/fallbacks"
 import { routerConfig, specialistConfig } from "@/lib/agent-core/config"
-import { recordLlmCall, setFallbackLayer } from "@/lib/agent-core/turn-metrics"
+import { setFallbackLayer } from "@/lib/agent-core/turn-metrics"
+import { recordTokenUsage, type TokenPurpose } from "@/lib/agent-core/token-usage"
 import { buildUserContent, buildModelMessages } from "@/lib/agents/multimodal"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { appendTurn } from "@/lib/agents/memory"
@@ -42,6 +43,7 @@ async function invokeAgentLlm(input: {
   history: HistoryMessage[]
   modelOverride?: string
   sessionSummary?: string | null
+  purpose?: TokenPurpose
 }) {
   const { agent, conversationId, turn, history } = input
   const isMaster = agent === "master"
@@ -50,8 +52,8 @@ async function invokeAgentLlm(input: {
     : specialistConfig(agent as "faq" | "sales" | "service")
   const model = input.modelOverride ?? inference.model()
   const body = summarizeTurn(turn)
-
-  recordLlmCall(conversationId, model)
+  const purpose: TokenPurpose =
+    input.purpose ?? (isMaster ? "master" : (agent as TokenPurpose))
 
   let system = getSystemPrompt(agent, body)
   if (input.sessionSummary?.trim()) {
@@ -60,7 +62,7 @@ async function invokeAgentLlm(input: {
 
   const allowed = ACTIONS_BY_AGENT[agent]
 
-  return generateText({
+  const result = await generateText({
     model,
     system,
     messages: buildModelMessages(history, turn),
@@ -91,6 +93,16 @@ async function invokeAgentLlm(input: {
           }),
     }),
   })
+
+  recordTokenUsage({
+    conversationId,
+    purpose,
+    agent,
+    model,
+    usage: result.usage,
+  })
+
+  return result
 }
 
 export async function safeRunAgent(
@@ -137,6 +149,7 @@ export async function safeRunAgent(
         history,
         modelOverride: options?.modelOverride,
         sessionSummary: options?.sessionSummary,
+        purpose: "retry",
       })
     } catch {
       setFallbackLayer(conversationId, "llm_failure_template")

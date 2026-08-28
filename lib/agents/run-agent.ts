@@ -10,8 +10,10 @@ import { safeRunAgent } from "@/lib/agent-core/safe-run-agent"
 import {
   beginTurnMetrics,
   finishTurnMetrics,
+  setRoutingPath,
   setTurnTier,
 } from "@/lib/agent-core/turn-metrics"
+import { confidentSkipMasterRoute } from "@/lib/agent-core/confident-route"
 import { shouldRunDeterministicInterceptors, usesLlmFirstRouting } from "@/lib/agent-core/routing-mode"
 import { hasStructuredFlowPending } from "@/lib/agent-core/structured-flow"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
@@ -104,9 +106,9 @@ import {
   remainderAfterLeadingAffirmation,
 } from "@/lib/agents/compound-reply"
 import {
+  answerCombinedQuestions,
   answerFaqQuestionDeterministic,
   answerFaqQuestionWithLlm,
-  answerOrderedQuestions,
   looksLikeMultipleQuestions,
   splitOrderedQuestions,
 } from "@/lib/agents/multi-question"
@@ -570,39 +572,36 @@ async function resolveMultiQuestionTurn(
     specialist: "faq",
   })
 
-  let rawReplies = await answerOrderedQuestions(questions, {
+  setRoutingPath(conversationId, "multi_combined")
+
+  let combined = await answerCombinedQuestions(questions, {
     conversationId,
     history,
-    runFaqLlm: (question) =>
-      answerFaqQuestionWithLlm(question, {
-        conversationId,
-        history,
-        sessionSummary: sharedOptions.sessionSummary,
-      }),
+    sessionSummary: sharedOptions.sessionSummary,
   })
 
   const postKind = isPostHumanHandoff(sharedOptions.lastAction, history)
     ? postHandoffKind(sharedOptions.lastAction, history)
     : null
-  if (postKind && rawReplies.length > 0) {
-    const lastIndex = rawReplies.length - 1
-    const last = rawReplies[lastIndex]!
-    if (!/היועץ כבר קיבל|הנציג כבר קיבל/i.test(last)) {
-      rawReplies[lastIndex] = `${last}\n\n${buildPostHandoffFooter(postKind)}`
+  if (postKind && combined) {
+    if (!/היועץ כבר קיבל|הנציג כבר קיבל/i.test(combined)) {
+      combined = `${combined}\n\n${buildPostHandoffFooter(postKind)}`
     }
   }
 
-  if (goal?.reply) rawReplies.push(goal.reply)
+  if (goal?.reply) {
+    combined = combined ? `${combined}\n\n${goal.reply}` : goal.reply
+  }
 
   const action = goal?.action ?? "reply"
-  const replies = rawReplies.map((part) => normalizeReply("faq", action, part))
-  if (replies.length === 0) return null
+  const reply = normalizeReply("faq", action, combined)
+  if (!reply) return null
 
-  await persistAgentReplies({
+  await appendTurn({
     conversationId,
     agent: "faq",
     userText: body,
-    replies,
+    assistantText: reply,
     action,
     preview: sharedOptions.preview,
   })
@@ -610,8 +609,7 @@ async function resolveMultiQuestionTurn(
   return {
     ok: true,
     agent: "faq",
-    reply: replies[0] ?? "",
-    replies,
+    reply,
     action,
     route: [...route, "faq"],
   }
@@ -1568,10 +1566,11 @@ async function routeViaMasterLlm(
   const body = summarizeTurn(turn)
   const { lastAgent, lastAction, sessionSummary } = sharedOptions
 
-  const guessed = guessMasterRoute(body)
-  if (guessed) {
+  const confident = confidentSkipMasterRoute(body, history)
+  if (confident) {
+    setRoutingPath(conversationId, "t1_skip_master")
     route.push("master")
-    const next = MASTER_ROUTE_MAP[guessed] ?? "faq"
+    const next = MASTER_ROUTE_MAP[confident.action] ?? "faq"
     if (next === "shipping") {
       if (shouldHandleDigitalDocumentFlow(body, history)) {
         return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
@@ -1591,6 +1590,7 @@ async function routeViaMasterLlm(
 
   const sticky = stickySpecialist(lastAgent, lastAction)
   if (sticky && shouldContinueWithSpecialist(body, history, sticky)) {
+    setRoutingPath(conversationId, "sticky")
     return resolveSpecialist(
       conversationId,
       turn,
@@ -1626,6 +1626,8 @@ async function routeViaMasterLlm(
     })
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
+
+  setRoutingPath(conversationId, "master_llm")
 
   const master = await runAgent("master", conversationId, turn, {
     history,

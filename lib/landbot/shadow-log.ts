@@ -23,10 +23,13 @@ export async function logShadowTurn(input: {
     replied: input.replied,
     latency_ms: metrics?.latency_ms ?? null,
     llm_calls: metrics?.llm_calls ?? null,
+    input_tokens: metrics?.input_tokens ?? null,
+    output_tokens: metrics?.output_tokens ?? null,
     models_used: metrics?.models_used ?? null,
     tier: metrics?.tier ?? null,
     profile: metrics?.profile ?? null,
     fallback_layer: metrics?.fallback_layer ?? null,
+    routing_path: metrics?.routing_path ?? null,
   })
   if (error) throw error
 }

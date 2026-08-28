@@ -1,6 +1,6 @@
 import { generateText, jsonSchema, Output } from "ai"
 import { specialistConfig } from "@/lib/agent-core/config"
-import { recordLlmCall } from "@/lib/agent-core/turn-metrics"
+import { recordTokenUsage } from "@/lib/agent-core/token-usage"
 import { buildModelMessages } from "@/lib/agents/multimodal"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { buildBranchReplyForText, isBranchListQuestion } from "@/lib/agents/branches"
@@ -9,14 +9,21 @@ import {
   resolveBranchInventoryReply,
 } from "@/lib/agents/inventory-lookup"
 import { hasEmbeddedBusinessAsk } from "@/lib/agents/compound-reply"
+import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import {
   buildCarpetRentalPolicyReply,
   buildReturnExchangePolicyReply,
   matchPolicySubjects,
   type PolicySubjectId,
 } from "@/lib/agents/policy-subjects"
-import { buildShippingPolicyReply, isShippingPolicyQuestion } from "@/lib/agents/shipping"
+import {
+  buildShippingPolicyReply,
+  isShippingPolicyQuestion,
+  isShippingStatusQuestion,
+} from "@/lib/agents/shipping"
 import { isDissatisfactionWithoutDefect, buildDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
+import { isSalesConsultationTrigger } from "@/lib/agents/sales-intake"
+import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 const SPLIT_SCHEMA = jsonSchema<{ questions: string[] }>({
@@ -83,6 +90,39 @@ function splitByQuestionMarks(body: string) {
   return chunks.length >= 2 ? chunks : []
 }
 
+function questionPriority(question: string) {
+  const text = question.trim()
+  if (isDigitalDocumentRequest(text) || isShippingStatusQuestion(text)) return 0
+  if (isSalesConsultationTrigger(text) || /רוצה\s+לקנות|מחפש(?:ים|ת|ים)?/i.test(text)) return 1
+  return 2
+}
+
+export function pickPrimaryQuestion(questions: string[], _history: HistoryMessage[]) {
+  if (questions.length === 0) return null
+  if (questions.length === 1) return questions[0]!
+  const sorted = [...questions].sort(
+    (a, b) => questionPriority(a) - questionPriority(b)
+  )
+  return sorted[0]!
+}
+
+function stripCustomerHeader(text: string) {
+  return text
+    .replace(/^(?:\*הום בוט :\)\*\n?)+/g, "")
+    .replace(new RegExp(`^${CUSTOMER_HEADER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`), "")
+    .trim()
+}
+
+export function combineMultiQuestionReply(parts: string[]) {
+  const body = parts
+    .map(stripCustomerHeader)
+    .filter(Boolean)
+    .join("\n\n")
+    .trim()
+  if (!body) return ""
+  return `${CUSTOMER_HEADER}\n${body}`
+}
+
 export async function splitOrderedQuestions(
   body: string,
   conversationId: string
@@ -109,7 +149,6 @@ export async function splitOrderedQuestions(
 
   const inference = specialistConfig("faq")
   const model = inference.model()
-  recordLlmCall(conversationId, model)
 
   const result = await generateText({
     model,
@@ -124,6 +163,14 @@ Do not merge unrelated questions. Do not invent questions.`,
       description: "Ordered list of distinct customer questions",
       schema: SPLIT_SCHEMA,
     }),
+  })
+
+  recordTokenUsage({
+    conversationId,
+    purpose: "split",
+    agent: "faq",
+    model,
+    usage: result.usage,
   })
 
   const questions = result.output.questions
@@ -154,32 +201,6 @@ export function answerFaqQuestionDeterministic(question: string) {
   return null
 }
 
-export async function answerOrderedQuestions(
-  questions: string[],
-  input: {
-    conversationId: string
-    history: HistoryMessage[]
-    runFaqLlm: (question: string) => Promise<string>
-  }
-) {
-  const replies: string[] = []
-
-  for (const question of questions) {
-    const deterministic = answerFaqQuestionDeterministic(question)
-    if (deterministic) {
-      replies.push(deterministic)
-      continue
-    }
-    if (isBranchInventoryQuestion(question)) {
-      replies.push(await resolveBranchInventoryReply({ body: question, history: input.history }))
-      continue
-    }
-    replies.push(await input.runFaqLlm(question))
-  }
-
-  return replies.filter(Boolean)
-}
-
 const FAQ_REPLY_SCHEMA = jsonSchema<{ reply: string }>({
   type: "object",
   additionalProperties: false,
@@ -188,6 +209,113 @@ const FAQ_REPLY_SCHEMA = jsonSchema<{ reply: string }>({
     reply: { type: "string" },
   },
 })
+
+const FAQ_BATCH_SCHEMA = jsonSchema<{ reply: string }>({
+  type: "object",
+  additionalProperties: false,
+  required: ["reply"],
+  properties: {
+    reply: { type: "string" },
+  },
+})
+
+async function answerFaqQuestionsWithLlmBatch(
+  questions: string[],
+  input: {
+    conversationId: string
+    history: HistoryMessage[]
+    sessionSummary?: string | null
+  }
+) {
+  if (questions.length === 0) return ""
+
+  const inference = specialistConfig("faq")
+  const model = inference.model()
+  const numbered = questions.map((q, i) => `${i + 1}. ${q}`).join("\n")
+
+  let system = getSystemPrompt("faq", questions.join(" | "))
+  if (input.sessionSummary?.trim()) {
+    system += `\n\n### CONVERSATION SUMMARY (internal)\n${input.sessionSummary.trim()}\n`
+  }
+  system += `\n\nAnswer ALL numbered customer questions below in ONE warm Hebrew WhatsApp message.
+Use short paragraphs separated by blank lines. Cover every question. No header prefix in the reply body.`
+
+  const result = await generateText({
+    model,
+    system,
+    messages: buildModelMessages(input.history, { text: numbered, media: [] }),
+    temperature: inference.temperature,
+    maxOutputTokens: Math.min(inference.maxOutputTokens, 700),
+    output: Output.object({
+      name: "faq_combined_answer",
+      description: "Combined FAQ answer for multiple questions",
+      schema: FAQ_BATCH_SCHEMA,
+    }),
+  })
+
+  recordTokenUsage({
+    conversationId: input.conversationId,
+    purpose: "faq",
+    agent: "faq",
+    model,
+    usage: result.usage,
+  })
+
+  return result.output.reply.trim()
+}
+
+/** Resolve multi-question turns into one combined customer-facing reply (max 1 FAQ LLM call). */
+export async function answerCombinedQuestions(
+  questions: string[],
+  input: {
+    conversationId: string
+    history: HistoryMessage[]
+    sessionSummary?: string | null
+  }
+) {
+  const parts: string[] = []
+  const llmNeeded: string[] = []
+
+  for (const question of questions) {
+    const deterministic = answerFaqQuestionDeterministic(question)
+    if (deterministic) {
+      parts.push(stripCustomerHeader(deterministic))
+      continue
+    }
+    if (isBranchInventoryQuestion(question)) {
+      parts.push(
+        stripCustomerHeader(
+          await resolveBranchInventoryReply({ body: question, history: input.history })
+        )
+      )
+      continue
+    }
+    llmNeeded.push(question)
+  }
+
+  if (llmNeeded.length > 0) {
+    const batchReply = await answerFaqQuestionsWithLlmBatch(llmNeeded, input)
+    if (batchReply) parts.push(stripCustomerHeader(batchReply))
+  }
+
+  return combineMultiQuestionReply(parts)
+}
+
+/** @deprecated Prefer answerCombinedQuestions for customer turns. */
+export async function answerOrderedQuestions(
+  questions: string[],
+  input: {
+    conversationId: string
+    history: HistoryMessage[]
+    runFaqLlm: (question: string) => Promise<string>
+  }
+) {
+  const combined = await answerCombinedQuestions(questions, {
+    conversationId: input.conversationId,
+    history: input.history,
+  })
+  return combined ? [combined] : []
+}
 
 export async function answerFaqQuestionWithLlm(
   question: string,
@@ -199,7 +327,6 @@ export async function answerFaqQuestionWithLlm(
 ) {
   const inference = specialistConfig("faq")
   const model = inference.model()
-  recordLlmCall(input.conversationId, model)
 
   let system = getSystemPrompt("faq", question)
   if (input.sessionSummary?.trim()) {
@@ -219,6 +346,14 @@ export async function answerFaqQuestionWithLlm(
       description: "Single FAQ answer",
       schema: FAQ_REPLY_SCHEMA,
     }),
+  })
+
+  recordTokenUsage({
+    conversationId: input.conversationId,
+    purpose: "faq",
+    agent: "faq",
+    model,
+    usage: result.usage,
   })
 
   return result.output.reply.trim()
