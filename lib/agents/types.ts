@@ -98,6 +98,8 @@ export type AgentResponse = {
   action: AgentAction
   route?: AgentId[]
   metrics?: TurnMetrics
+  /** True when outbound text was intentionally omitted (e.g. duplicate webhook). */
+  duplicateSuppressed?: boolean
 }
 
 export const MASTER_ROUTE_MAP: Record<MasterAction, AgentId | "shipping"> = {

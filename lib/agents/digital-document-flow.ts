@@ -16,14 +16,34 @@ import {
   resolveLookupPhoneFromHistory,
 } from "@/lib/agents/order-lookup"
 
+/** Courier delivery → receipt + tax invoice. Branch pickup → tax invoice receipt only. */
 export type DocumentPurchaseChannel = "website" | "store"
 
 export const DOCUMENT_TYPE_RECEIPT = "קבלה"
 export const DOCUMENT_TYPE_TAX_INVOICE = "חשבונית מס"
 export const DOCUMENT_TYPE_TAX_INVOICE_RECEIPT = "חשבונית מס קבלה"
 
-const CHANNEL_QUESTION_MARKER = /מלאי(?:\s+ה)?סניף|אתר(?:\s+ה)?אינטרנט(?:\s+עם\s+שליח)?/i
+const CHANNEL_QUESTION_MARKER =
+  /(?:סופק(?:ו)?\s+מהסניף|באמצעות\s+שליח|מלאי(?:\s+ה)?סניף|אתר(?:\s+ה)?אינטרנט(?:\s+עם\s+שליח)?)/i
 const LEGACY_TYPE_QUESTION_MARKER = /איזה\s+סוג\s+מסמך/i
+const PHONE_QUESTION_MARKER =
+  /האם היא רשומה על המספר|האם ההזמנה (?:היא )?על טלפון|האם ההזמנה על המספר/i
+const ALTERNATE_PHONE_QUESTION_MARKER = /מה מספר הטלפון שבוצעה עליו ההזמנה/i
+const DOCUMENT_MISUNDERSTANDING_MARKER =
+  /נראה\s+ש(?:ה)?הודעה\s+לא\s+עברה|לא\s+ה(?:בנ|צל)(?:תי)?\s+—\s+האם/i
+
+type DocumentQuestionKind = "channel" | "phone" | "alternate_phone"
+
+type DocumentFlowState = {
+  active: boolean
+  channel: DocumentPurchaseChannel | null
+  channelQuestionSent: boolean
+  phoneQuestionSent: boolean
+  alternatePhoneQuestionSent: boolean
+  phoneConfirmed: boolean
+  lastQuestionKind: DocumentQuestionKind | null
+  misunderstandingSinceLastQuestion: boolean
+}
 
 const LEADING_GREETING_RE =
   /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+)*/iu
@@ -36,6 +56,136 @@ function stripLeadingGreetings(text: string) {
     body = next
   }
   return body
+}
+
+function documentQuestionKind(content: string): DocumentQuestionKind | null {
+  if (CHANNEL_QUESTION_MARKER.test(content)) return "channel"
+  if (ALTERNATE_PHONE_QUESTION_MARKER.test(content)) return "alternate_phone"
+  if (PHONE_QUESTION_MARKER.test(content)) return "phone"
+  return null
+}
+
+function isDocumentFlowMisunderstandingReply(content: string) {
+  return DOCUMENT_MISUNDERSTANDING_MARKER.test(content)
+}
+
+/** Consecutive document-flow questions at the end of the thread (accidental double-reply). */
+export function trailingDocumentAssistantBurst(history: HistoryMessage[]) {
+  const burst: HistoryMessage[] = []
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") break
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isDocumentFlowMisunderstandingReply(message.content)) {
+      if (burst.length > 0) break
+      continue
+    }
+    const kind = documentQuestionKind(message.content)
+    if (!kind) {
+      if (burst.length > 0) break
+      break
+    }
+    burst.unshift(message)
+  }
+  return burst
+}
+
+function isBranchFulfillmentUncertainty(text: string) {
+  return /(?:לא\s+(?:זוכר|יודע|בטוח)|(?:א|ב)יזה\s+סניף|איזה\s+סניף)/i.test(text)
+}
+
+function isShortAmbiguousAnswer(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || trimmed.length > 24) return false
+  return /^(?:כן|לא|אוקיי|סבבה|נכון|בטח|yes|👍)(?:[\s,.!?]*|$)/iu.test(trimmed)
+}
+
+function mentionsAlternatePhoneIntent(body: string) {
+  return /טלפון|מס(?:'|׳|פר)?|אחר|אח(?:י|ות)?|בעל|אשה|של/i.test(body)
+}
+
+function buildPhoneLookupClarify(whatsappPhone: string) {
+  return `${CUSTOMER_HEADER}
+לא הבנתי — האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? ${formatDisplayPhone(whatsappPhone)}
+אם לא, אשמח לציון המספר הנכון.`
+}
+
+function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState {
+  const state: DocumentFlowState = {
+    active: false,
+    channel: null,
+    channelQuestionSent: false,
+    phoneQuestionSent: false,
+    alternatePhoneQuestionSent: false,
+    phoneConfirmed: false,
+    lastQuestionKind: null,
+    misunderstandingSinceLastQuestion: false,
+  }
+
+  for (const message of history) {
+    if (message.role === "user") {
+      if (isDigitalDocumentRequest(message.content)) {
+        state.active = true
+        continue
+      }
+      if (!state.active) continue
+
+      const parsedChannel = parseDocumentPurchaseChannel(message.content)
+      if (parsedChannel && state.channelQuestionSent) {
+        state.channel = parsedChannel
+      }
+
+      if (
+        state.phoneQuestionSent &&
+        (isPurePhoneLookupConfirmYes(message.content) ||
+          Boolean(extractPhoneFromText(message.content)))
+      ) {
+        state.phoneConfirmed = true
+      }
+      continue
+    }
+
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) continue
+
+    const kind = documentQuestionKind(message.content)
+    if (kind) {
+      state.active = true
+      state.lastQuestionKind = kind
+      state.misunderstandingSinceLastQuestion = false
+      if (kind === "channel") state.channelQuestionSent = true
+      if (kind === "phone") state.phoneQuestionSent = true
+      if (kind === "alternate_phone") state.alternatePhoneQuestionSent = true
+      continue
+    }
+
+    if (isDocumentFlowMisunderstandingReply(message.content) && state.active) {
+      state.misunderstandingSinceLastQuestion = true
+    }
+  }
+
+  if (activeDigitalDocumentRequest(history)) state.active = true
+  return state
+}
+
+function buildDocumentRecoveryPrefix(input: {
+  history: HistoryMessage[]
+  body: string
+  channelFromBody: DocumentPurchaseChannel | null
+  phoneConfirmYes: boolean
+  phoneFromBody: string | null
+}) {
+  const burst = trailingDocumentAssistantBurst(input.history)
+  const answeredPending =
+    Boolean(input.channelFromBody) ||
+    input.phoneConfirmYes ||
+    Boolean(input.phoneFromBody)
+  if (!answeredPending) return ""
+
+  if (burst.length >= 2) return "אוקיי, קיבלתי.\n"
+  if (computeDocumentFlowState(input.history).misunderstandingSinceLastQuestion) {
+    return "אוקיי, קיבלתי.\n"
+  }
+  return ""
 }
 
 /** Customer wants a digital receipt / invoice copy (קבלה = receipt, not admission). */
@@ -76,14 +226,21 @@ export function activeDigitalDocumentRequest(history: HistoryMessage[]) {
   return false
 }
 
+function hasDocumentFlowContext(history: HistoryMessage[]) {
+  const state = computeDocumentFlowState(history)
+  return (
+    state.active ||
+    activeDigitalDocumentRequest(history) ||
+    state.channelQuestionSent ||
+    state.phoneQuestionSent ||
+    state.alternatePhoneQuestionSent
+  )
+}
+
 export function isDocumentChannelQuestionPending(history: HistoryMessage[]) {
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const message = history[index]
-    if (message.role !== "assistant") continue
-    if (isInactivityAssistantMessage(message.content)) continue
-    return CHANNEL_QUESTION_MARKER.test(message.content)
-  }
-  return false
+  if (!hasDocumentFlowContext(history)) return false
+  const state = computeDocumentFlowState(history)
+  return state.channelQuestionSent && !state.channel
 }
 
 export function isLegacyDocumentTypeQuestionPending(history: HistoryMessage[]) {
@@ -96,34 +253,26 @@ export function isLegacyDocumentTypeQuestionPending(history: HistoryMessage[]) {
   return false
 }
 
-function isInDocumentFlowContext(history: HistoryMessage[]) {
+export function isDocumentPhoneLookupPending(history: HistoryMessage[]) {
+  if (!hasDocumentFlowContext(history)) return false
+  const state = computeDocumentFlowState(history)
   return (
-    activeDigitalDocumentRequest(history) ||
-    isDocumentChannelQuestionPending(history) ||
-    isLegacyDocumentTypeQuestionPending(history)
+    state.phoneQuestionSent &&
+    !state.phoneConfirmed &&
+    !state.alternatePhoneQuestionSent &&
+    Boolean(state.channel)
   )
 }
 
-export function isDocumentPhoneLookupPending(history: HistoryMessage[]) {
-  if (!isInDocumentFlowContext(history)) return false
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const message = history[index]
-    if (message.role !== "assistant") continue
-    if (isInactivityAssistantMessage(message.content)) continue
-    return /האם היא רשומה על המספר|האם ההזמנה (?:היא )?על טלפון/i.test(message.content)
-  }
-  return false
+export function isAlternateDocumentPhonePending(history: HistoryMessage[]) {
+  if (!hasDocumentFlowContext(history)) return false
+  const state = computeDocumentFlowState(history)
+  return state.alternatePhoneQuestionSent && !state.phoneConfirmed
 }
 
-export function isAlternateDocumentPhonePending(history: HistoryMessage[]) {
-  if (!isInDocumentFlowContext(history)) return false
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const message = history[index]
-    if (message.role !== "assistant") continue
-    if (isInactivityAssistantMessage(message.content)) continue
-    return /מה מספר הטלפון שבוצעה עליו ההזמנה/i.test(message.content)
-  }
-  return false
+export function isDocumentFlowMisunderstandingPending(history: HistoryMessage[]) {
+  if (!hasDocumentFlowContext(history)) return false
+  return computeDocumentFlowState(history).misunderstandingSinceLastQuestion
 }
 
 /** Deterministic document copy flow — any step after the first ask. */
@@ -137,6 +286,7 @@ export function isActiveDigitalDocumentFlow(
   if (isLegacyDocumentTypeQuestionPending(history)) return true
   if (isDocumentPhoneLookupPending(history)) return true
   if (isAlternateDocumentPhonePending(history)) return true
+  if (isDocumentFlowMisunderstandingPending(history)) return true
   if (isDocumentTypeSelection(body) && activeDigitalDocumentRequest(history)) return true
   return false
 }
@@ -236,44 +386,34 @@ export function buildDocumentChannelQuestion() {
 
 export function buildDocumentChannelClarify() {
   return `${CUSTOMER_HEADER}
-לא הבנתי — האם הרכישה הייתה בסניף או דרך אתר האינטרנט (עם משלוח)?`
+לא הבנתי — האם המוצרים סופקו מהסניף, או באמצעות שליח?`
 }
 
+/**
+ * Fulfillment method — not purchase location.
+ * Courier → website docs. Branch pickup → חשבונית מס קבלה only.
+ */
 export function parseDocumentPurchaseChannel(body: string): DocumentPurchaseChannel | null {
   const text = body.trim()
-  if (!text) return null
+  if (!text || isBranchFulfillmentUncertainty(text)) return null
 
   if (
-    /(?:אינטרנט|אתר|משלוח|שליח|online|website|ד(?:רך|״רך)\s+(?:ה)?א(?:תר|ינטרנט))/i.test(
+    /(?:שליח|משלוח|נשלח|הובל(?:ה|ת)|courier|delivery|נשלח(?:ו)?\s+(?:אלי|ע(?:ד|ל)|ב(?:מש|)?)|(?:דרך|מ(?:ה|)?)\s*(?:ה)?(?:אתר|אינטרנט))/i.test(
       text
     )
   ) {
     return "website"
   }
 
-  if (/(?:מלאי\s+(?:ה)?סניף|בסניף|מהסניף|בחנות|מהחנות|ברשת|סניף)/i.test(text)) {
+  if (
+    /(?:מהסניף|מ(?:ה)?(?:חנות|מלאי\s+(?:ה)?סניף)|נ(?:לקח|אס(?:ף|פ)|מס(?:ר|ר))(?:ו)?\s+(?:מה)?(?:סניף|חנות)|אס(?:פתי|פ(?:תי|נו))|לקחתי\s+(?:מה)?(?:סניף|חנות)|(?:סופק(?:ו)?|נמס(?:ר|ר)(?:ו)?)\s+(?:מה)?(?:סניף|חנות))/i.test(
+      text
+    )
+  ) {
     return "store"
   }
 
   return null
-}
-
-function activeDocumentPurchaseChannel(history: HistoryMessage[]): DocumentPurchaseChannel | null {
-  let sawChannelQuestion = false
-  for (const message of history) {
-    if (message.role === "assistant" && CHANNEL_QUESTION_MARKER.test(message.content)) {
-      sawChannelQuestion = true
-      continue
-    }
-    if (!sawChannelQuestion || message.role !== "user") continue
-    const channel = parseDocumentPurchaseChannel(message.content)
-    if (channel) return channel
-  }
-  return null
-}
-
-function mentionsAlternatePhoneIntent(body: string) {
-  return /טלפון|מס(?:'|׳|פר)?|אחר|אח(?:י|ות)?|בעל|אשה|של/i.test(body)
 }
 
 function buildMultiDocumentReply(links: string[]) {
@@ -293,83 +433,6 @@ async function deliverDocumentsForPhone(phone: string, channel: DocumentPurchase
   return buildDigitalDocumentLookupFailureReply()
 }
 
-export async function resolveDigitalDocumentFlowReply(input: {
-  body: string
-  phone?: string
-  history?: HistoryMessage[]
-}) {
-  const history = input.history ?? []
-  const body = input.body.trim()
-  const whatsappPhone = input.phone?.trim()
-
-  const channelFromBody = parseDocumentPurchaseChannel(body)
-  const channelFromHistory = activeDocumentPurchaseChannel(history)
-  const channel = channelFromBody ?? channelFromHistory
-
-  if (
-    isDocumentChannelQuestionPending(history) ||
-    isLegacyDocumentTypeQuestionPending(history)
-  ) {
-    if (!channel) {
-      if (isDocumentTypeSelection(body)) {
-        return buildDocumentChannelQuestion()
-      }
-      return buildDocumentChannelClarify()
-    }
-  } else if (isDigitalDocumentRequest(body) || isDocumentTypeSelection(body)) {
-    if (!channel) return buildDocumentChannelQuestion()
-  } else if (!channel) {
-    return buildDocumentChannelQuestion()
-  }
-
-  const resolvedChannel = channel!
-  const lookupPhone = resolveDocumentLookupPhone(body, history, whatsappPhone)
-
-  if (isAlternateDocumentPhonePending(history)) {
-    if (lookupPhone) return deliverDocumentsForPhone(lookupPhone, resolvedChannel)
-    return `${CUSTOMER_HEADER}
-לא זיהיתי מספר טלפון — שלח/i את המספר (למשל 050-1234567).`
-  }
-
-  if (isDocumentPhoneLookupPending(history)) {
-    if (lookupPhone && !isPurePhoneLookupConfirmYes(body)) {
-      return deliverDocumentsForPhone(lookupPhone, resolvedChannel)
-    }
-
-    if (isPurePhoneLookupConfirmYes(body)) {
-      const confirmedPhone = resolveDocumentLookupPhone(body, history, whatsappPhone)
-      if (!confirmedPhone) return buildPhoneLookupDeclinedReply()
-      return deliverDocumentsForPhone(confirmedPhone, resolvedChannel)
-    }
-
-    if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
-      return buildAlternatePhoneRequestPrompt()
-    }
-
-    if (isOrderConfirmationNo(body)) {
-      return buildPhoneLookupDeclinedReply()
-    }
-
-    if (whatsappPhone) {
-      return `${CUSTOMER_HEADER}
-לא הבנתי — האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? ${formatDisplayPhone(whatsappPhone)}
-אם לא, אשמח לציון המספר הנכון.`
-    }
-
-    return buildPhoneLookupDeclinedReply()
-  }
-
-  if (lookupPhone && extractPhoneFromText(body)) {
-    return deliverDocumentsForPhone(lookupPhone, resolvedChannel)
-  }
-
-  if (whatsappPhone) {
-    return buildPhoneLookupConfirmPrompt(whatsappPhone)
-  }
-
-  return buildPhoneLookupDeclinedReply()
-}
-
 function resolveDocumentLookupPhone(
   body: string,
   history: HistoryMessage[],
@@ -380,4 +443,122 @@ function resolveDocumentLookupPhone(
     resolveLookupPhoneFromHistory(history, whatsappPhone) ||
     null
   )
+}
+
+function withRecoveryPrefix(prefix: string, reply: string) {
+  if (!prefix) return reply
+  if (reply.startsWith(CUSTOMER_HEADER)) {
+    return `${CUSTOMER_HEADER}\n${prefix}${reply.slice(CUSTOMER_HEADER.length).replace(/^\n+/, "")}`
+  }
+  return `${prefix}${reply}`
+}
+
+export async function resolveDigitalDocumentFlowReply(input: {
+  body: string
+  phone?: string
+  history?: HistoryMessage[]
+}) {
+  const history = input.history ?? []
+  const body = input.body.trim()
+  const whatsappPhone = input.phone?.trim()
+  const state = computeDocumentFlowState(history)
+  const channelFromBody = parseDocumentPurchaseChannel(body)
+  const channel = channelFromBody ?? state.channel
+  const phoneFromBody = extractPhoneFromText(body)
+  const phoneConfirmYes = isPurePhoneLookupConfirmYes(body)
+  const recoveryPrefix = buildDocumentRecoveryPrefix({
+    history,
+    body,
+    channelFromBody,
+    phoneConfirmYes,
+    phoneFromBody,
+  })
+
+  if (isAlternateDocumentPhonePending(history)) {
+    if (phoneFromBody && channel) {
+      return withRecoveryPrefix(
+        recoveryPrefix,
+        await deliverDocumentsForPhone(phoneFromBody, channel)
+      )
+    }
+    return withRecoveryPrefix(
+      recoveryPrefix,
+      `${CUSTOMER_HEADER}
+לא זיהיתי מספר טלפון — שלח/i את המספר (למשל 050-1234567).`
+    )
+  }
+
+  const phoneStepOpen =
+    state.phoneQuestionSent &&
+    !state.phoneConfirmed &&
+    Boolean(channel) &&
+    (isDocumentPhoneLookupPending(history) ||
+      state.misunderstandingSinceLastQuestion ||
+      trailingDocumentAssistantBurst(history).some(
+        (message) => documentQuestionKind(message.content) === "phone"
+      ))
+
+  if (phoneStepOpen) {
+    if (phoneFromBody && !phoneConfirmYes) {
+      return withRecoveryPrefix(
+        recoveryPrefix,
+        await deliverDocumentsForPhone(phoneFromBody, channel!)
+      )
+    }
+
+    if (phoneConfirmYes) {
+      const confirmedPhone = resolveDocumentLookupPhone(body, history, whatsappPhone)
+      if (!confirmedPhone) return buildPhoneLookupDeclinedReply()
+      return withRecoveryPrefix(
+        recoveryPrefix,
+        await deliverDocumentsForPhone(confirmedPhone, channel!)
+      )
+    }
+
+    if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
+      return buildAlternatePhoneRequestPrompt()
+    }
+
+    if (isOrderConfirmationNo(body)) {
+      return buildPhoneLookupDeclinedReply()
+    }
+
+    if (body && !channelFromBody && whatsappPhone) {
+      return withRecoveryPrefix(recoveryPrefix, buildPhoneLookupClarify(whatsappPhone))
+    }
+
+    return buildPhoneLookupDeclinedReply()
+  }
+
+  if (!channel) {
+    if (
+      isDocumentChannelQuestionPending(history) ||
+      isLegacyDocumentTypeQuestionPending(history) ||
+      state.channelQuestionSent
+    ) {
+      if (body && !phoneConfirmYes && !isShortAmbiguousAnswer(body)) {
+        return withRecoveryPrefix(recoveryPrefix, buildDocumentChannelClarify())
+      }
+      return withRecoveryPrefix(recoveryPrefix, buildDocumentChannelQuestion())
+    }
+
+    if (isDigitalDocumentRequest(body) || isDocumentTypeSelection(body)) {
+      return buildDocumentChannelQuestion()
+    }
+
+    return buildDocumentChannelQuestion()
+  }
+
+  if (phoneFromBody) {
+    return withRecoveryPrefix(
+      recoveryPrefix,
+      await deliverDocumentsForPhone(phoneFromBody, channel)
+    )
+  }
+
+  if (whatsappPhone) {
+    return buildPhoneLookupConfirmPrompt(whatsappPhone)
+  }
+
+  return buildPhoneLookupDeclinedReply()
 }

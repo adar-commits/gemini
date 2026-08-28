@@ -1341,6 +1341,7 @@ function documentFlowResult(
         reply: "",
         action: "reply" as const,
         route,
+        duplicateSuppressed: true,
       }
     }
 
