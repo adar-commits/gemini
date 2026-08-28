@@ -301,6 +301,22 @@ async function runT0DeterministicPaths(
     )
   }
 
+  if (
+    shouldUseSalesIntakeFastPath(body, history, sharedOptions.lastAgent) ||
+    (isSalesConsultationTrigger(body) && !isProductAvailabilityQuestion(body)) ||
+    isSalesTopicSwitch(body)
+  ) {
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      "sales",
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
   return null
 }
 
@@ -808,6 +824,30 @@ async function resolveSpecialist(
       if (orchestra?.tier) setTurnTier(conversationId, orchestra.tier)
     }
 
+    if (
+      specialist === "sales" &&
+      (isSalesConsultationTrigger(body) || isSalesTopicSwitch(body)) &&
+      !isProductAvailabilityQuestion(body) &&
+      !hasOngoingSalesIntake(history) &&
+      !isConfirmationPending(history)
+    ) {
+      const reply = normalizeReply(
+        "sales",
+        "reply",
+        buildSalesIntakeReply(history, body)
+      )
+      await appendTurn({
+        conversationId,
+        agent: "sales",
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        persistUser,
+        preview,
+      })
+      return { ok: true, agent: "sales", reply, action: "reply", route }
+    }
+
     let result = await runAgent(specialist, conversationId, turn, {
       persistUser,
       history,
@@ -839,6 +879,33 @@ async function resolveSpecialist(
         ...result,
         reply: normalizeReply("sales", "reply", buildProductInventoryHandoff()),
       }
+    }
+
+    if (
+      !result.reply &&
+      (result.action === "reply" ||
+        (isHumanHandoffPending(history) && !breaksPendingHandoff(body)))
+    ) {
+      const fallbackReply =
+        specialist === "sales" &&
+        (isSalesConsultationTrigger(body) || isSalesTopicSwitch(body))
+          ? buildSalesIntakeReply(history, body)
+          : buildStuckHandoffReply()
+      const reply = normalizeReply(
+        specialist === "master" ? "faq" : specialist,
+        "reply",
+        fallbackReply
+      )
+      await appendTurn({
+        conversationId,
+        agent: specialist === "master" ? "faq" : specialist,
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        persistUser,
+        preview,
+      })
+      return { ...result, agent: specialist === "master" ? "faq" : specialist, reply, action: "reply", route }
     }
 
     return { ...result, route }
