@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.factory/
+.part*-create-result.json
+.part*-validate-result.json
+.unified-create-result.json
+.workflow-details.json
