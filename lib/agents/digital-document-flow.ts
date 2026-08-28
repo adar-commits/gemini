@@ -96,8 +96,16 @@ export function isLegacyDocumentTypeQuestionPending(history: HistoryMessage[]) {
   return false
 }
 
+function isInDocumentFlowContext(history: HistoryMessage[]) {
+  return (
+    activeDigitalDocumentRequest(history) ||
+    isDocumentChannelQuestionPending(history) ||
+    isLegacyDocumentTypeQuestionPending(history)
+  )
+}
+
 export function isDocumentPhoneLookupPending(history: HistoryMessage[]) {
-  if (!isActiveDigitalDocumentFlow(history)) return false
+  if (!isInDocumentFlowContext(history)) return false
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
@@ -108,7 +116,7 @@ export function isDocumentPhoneLookupPending(history: HistoryMessage[]) {
 }
 
 export function isAlternateDocumentPhonePending(history: HistoryMessage[]) {
-  if (!isActiveDigitalDocumentFlow(history)) return false
+  if (!isInDocumentFlowContext(history)) return false
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
