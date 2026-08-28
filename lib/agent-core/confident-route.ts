@@ -42,6 +42,10 @@ export function confidentSkipMasterRoute(
     return { kind: "shipping_status", action: "ROUTE_TO_SHIPPING_STATUS" }
   }
 
+  if (/התאמת\s+מחיר|זיכוי|מבצע.*\d+\s*%|לא\s+קיבלתי\s+זיכוי/i.test(text)) {
+    return null
+  }
+
   if (
     (isSalesConsultationTrigger(text) || /רוצה\s+לקנות|מחפש(?:ים|ת|ים)?(?:\s+ל(?:קנות|רכוש))?/i.test(text)) &&
     !isProductAvailabilityQuestion(text) &&

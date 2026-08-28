@@ -14,6 +14,7 @@ import {
   setTurnTier,
 } from "@/lib/agent-core/turn-metrics"
 import { confidentSkipMasterRoute } from "@/lib/agent-core/confident-route"
+import { logRouteDisagreement } from "@/lib/agent-core/route-disagreement"
 import { shouldRunDeterministicInterceptors, usesLlmFirstRouting } from "@/lib/agent-core/routing-mode"
 import { hasStructuredFlowPending } from "@/lib/agent-core/structured-flow"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
@@ -193,6 +194,11 @@ import {
   type MasterAction,
 } from "@/lib/agents/types"
 
+function markT0Routing(conversationId: string, result: AgentResponse): AgentResponse {
+  setRoutingPath(conversationId, "t0")
+  return result
+}
+
 async function runT0DeterministicPaths(
   conversationId: string,
   turn: UserTurn,
@@ -222,15 +228,34 @@ async function runT0DeterministicPaths(
       action: "reply",
       preview,
     })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+    return markT0Routing(conversationId, {
+      ok: true,
+      agent: "faq",
+      reply,
+      action: "reply",
+      route: [...route, "faq"],
+    })
   }
 
   if (isDissatisfactionWithoutDefect(body)) {
-    return faqDissatisfactionResult(conversationId, body, route, preview)
+    return markT0Routing(
+      conversationId,
+      await faqDissatisfactionResult(conversationId, body, route, preview)
+    )
   }
 
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) {
-    return faqReturnPolicyResult(conversationId, body, route, preview, history, lastAgent)
+    return markT0Routing(
+      conversationId,
+      await faqReturnPolicyResult(
+        conversationId,
+        body,
+        route,
+        preview,
+        history,
+        lastAgent
+      )
+    )
   }
 
   const inventoryEarly = await tryBranchInventoryResult(
@@ -241,65 +266,86 @@ async function runT0DeterministicPaths(
     true,
     preview
   )
-  if (inventoryEarly) return inventoryEarly
+  if (inventoryEarly) return markT0Routing(conversationId, inventoryEarly)
 
   if (isBranchListQuestion(body)) {
-    return faqPendingFlowResult(
+    return markT0Routing(
       conversationId,
-      body,
-      buildBranchReplyForText(body),
-      history,
-      sharedOptions.lastAgent,
-      route,
-      { preview }
+      await faqPendingFlowResult(
+        conversationId,
+        body,
+        buildBranchReplyForText(body),
+        history,
+        sharedOptions.lastAgent,
+        route,
+        { preview }
+      )
     )
   }
 
   if (isShippingPolicyQuestion(body)) {
-    return faqPendingFlowResult(
+    return markT0Routing(
       conversationId,
-      body,
-      buildShippingPolicyReply(),
-      history,
-      sharedOptions.lastAgent,
-      route,
-      { preview }
+      await faqPendingFlowResult(
+        conversationId,
+        body,
+        buildShippingPolicyReply(),
+        history,
+        sharedOptions.lastAgent,
+        route,
+        { preview }
+      )
     )
   }
 
   if (shouldHandleDigitalDocumentFlow(body, history)) {
-    return documentFlowResult(conversationId, body, route, preview, phone, history)
+    return markT0Routing(
+      conversationId,
+      await documentFlowResult(conversationId, body, route, preview, phone, history)
+    )
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history)) {
-    return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+    return markT0Routing(
+      conversationId,
+      await postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+    )
   }
 
   if (shouldHandleOrderShippingFlow(body, history)) {
-    return shippingResult(conversationId, body, route, preview, phone, history)
+    return markT0Routing(
+      conversationId,
+      await shippingResult(conversationId, body, route, preview, phone, history)
+    )
   }
 
   if (isServiceTopicSwitch(body) && !shouldHandleDigitalDocumentFlow(body, history)) {
-    return resolveSpecialist(
+    return markT0Routing(
       conversationId,
-      turn,
-      "service",
-      history,
-      true,
-      route,
-      sharedOptions
+      await resolveSpecialist(
+        conversationId,
+        turn,
+        "service",
+        history,
+        true,
+        route,
+        sharedOptions
+      )
     )
   }
 
   if (isFaqTopicSwitch(body)) {
-    return resolveSpecialist(
+    return markT0Routing(
       conversationId,
-      turn,
-      "faq",
-      history,
-      true,
-      route,
-      sharedOptions
+      await resolveSpecialist(
+        conversationId,
+        turn,
+        "faq",
+        history,
+        true,
+        route,
+        sharedOptions
+      )
     )
   }
 
@@ -308,14 +354,17 @@ async function runT0DeterministicPaths(
     (isSalesConsultationTrigger(body) && !isProductAvailabilityQuestion(body)) ||
     isSalesTopicSwitch(body)
   ) {
-    return resolveSpecialist(
+    return markT0Routing(
       conversationId,
-      turn,
-      "sales",
-      history,
-      true,
-      route,
-      sharedOptions
+      await resolveSpecialist(
+        conversationId,
+        turn,
+        "sales",
+        history,
+        true,
+        route,
+        sharedOptions
+      )
     )
   }
 
@@ -1641,6 +1690,14 @@ async function routeViaMasterLlm(
       ? master.action
       : "ROUTE_TO_INFO_AGENT"
   ) as MasterAction
+
+  logRouteDisagreement({
+    conversationId,
+    phone: sharedOptions.phone,
+    body,
+    guessedRoute: guessMasterRoute(body),
+    masterAction,
+  })
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
   if (next === "shipping") {
     if (shouldHandleDigitalDocumentFlow(body, history)) {
@@ -1672,7 +1729,6 @@ export async function runMasterConversation(
   bindPriorityApiBeforeCall(options?.onPriorityApiCall ?? null)
   try {
   const runtime = await bindRuntimeConfig()
-  beginTurnMetrics(conversationId, runtime.activeProfile)
 
   const body = summarizeTurn(turn)
   const { history, lastAgent, lastAction, resetAt, conversationSummary } =
@@ -1680,6 +1736,7 @@ export async function runMasterConversation(
   const route: AgentId[] = []
   const preview = options?.preview
   const phone = options?.phone?.trim() || ""
+  beginTurnMetrics(conversationId, runtime.activeProfile, phone)
   let sharedOptions: {
     customerName?: string
     preview?: boolean
@@ -1875,6 +1932,7 @@ export async function runMasterConversation(
   const structuredFlow = hasStructuredFlowPending(history)
 
   if (shouldHandleDigitalDocumentFlow(body, history)) {
+    setRoutingPath(conversationId, "t0")
     return finish(
       await documentFlowResult(conversationId, body, route, preview, phone, history)
     )

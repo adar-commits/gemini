@@ -8,13 +8,18 @@ export type TurnMetrics = {
   modelsUsed: string[]
   tier: ModelTier | null
   profile: string | null
+  phone: string | null
   fallbackLayer: string | null
   routingPath: string | null
 }
 
 const store = new Map<string, TurnMetrics>()
 
-export function beginTurnMetrics(conversationId: string, profile: string) {
+export function beginTurnMetrics(
+  conversationId: string,
+  profile: string,
+  phone?: string | null
+) {
   store.set(conversationId, {
     startedAt: Date.now(),
     llmCalls: 0,
@@ -23,9 +28,14 @@ export function beginTurnMetrics(conversationId: string, profile: string) {
     modelsUsed: [],
     tier: null,
     profile,
+    phone: phone?.trim() || null,
     fallbackLayer: null,
     routingPath: null,
   })
+}
+
+export function getTurnPhone(conversationId: string) {
+  return store.get(conversationId)?.phone ?? null
 }
 
 export function recordLlmCall(conversationId: string, model: string) {

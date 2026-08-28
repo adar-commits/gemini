@@ -1,5 +1,5 @@
 import { getBoundOrchestraDecision, getBoundRuntime } from "@/lib/agent-core/config"
-import { recordLlmCall, recordTurnTokens, getRoutingPath } from "@/lib/agent-core/turn-metrics"
+import { recordLlmCall, recordTurnTokens, getRoutingPath, getTurnPhone } from "@/lib/agent-core/turn-metrics"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import type { AgentId } from "@/lib/agents/types"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
@@ -48,13 +48,14 @@ export function recordTokenUsage(input: {
   const tier = input.tier ?? orchestra?.tier ?? null
   const profile = input.profile ?? runtime?.activeProfile ?? null
   const routingPath = input.routingPath ?? getRoutingPath(input.conversationId)
+  const phone = input.phone ?? getTurnPhone(input.conversationId)
 
   void (async () => {
     try {
       const supabase = getAgentSupabase()
       await supabase.from("hom_agent_token_usage").insert({
         conversation_id: input.conversationId,
-        phone: input.phone?.trim() || null,
+        phone: phone?.trim() || null,
         purpose: input.purpose,
         agent: input.agent ?? null,
         model: input.model,

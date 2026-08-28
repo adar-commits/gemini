@@ -9,7 +9,16 @@ import {
   resolveBranchInventoryReply,
 } from "@/lib/agents/inventory-lookup"
 import { hasEmbeddedBusinessAsk } from "@/lib/agents/compound-reply"
-import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
+import {
+  isDigitalDocumentRequest,
+  isDocumentChannelQuestionPending,
+  isDocumentPhoneLookupPending,
+} from "@/lib/agents/digital-document-flow"
+import { isHumanHandoffPending } from "@/lib/agents/off-topic"
+import {
+  isOrderConfirmationPending,
+  isPhoneLookupConfirmPending,
+} from "@/lib/agents/order-lookup"
 import {
   buildCarpetRentalPolicyReply,
   buildReturnExchangePolicyReply,
@@ -22,7 +31,7 @@ import {
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
 import { isDissatisfactionWithoutDefect, buildDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
-import { isSalesConsultationTrigger } from "@/lib/agents/sales-intake"
+import { isSalesConsultationTrigger, isConfirmationPending } from "@/lib/agents/sales-intake"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -90,6 +99,35 @@ function splitByQuestionMarks(body: string) {
   return chunks.length >= 2 ? chunks : []
 }
 
+function structuredFlowPrimaryHint(
+  history: HistoryMessage[],
+  questions: string[]
+): string | null {
+  if (isConfirmationPending(history) || isHumanHandoffPending(history)) {
+    const answer = questions.find((q) =>
+      /^(?:כן|לא|yes|no)(?:[\s,.!?]|$)/i.test(q.trim())
+    )
+    if (answer) return answer
+  }
+  if (
+    isDocumentPhoneLookupPending(history) ||
+    isPhoneLookupConfirmPending(history) ||
+    isOrderConfirmationPending(history)
+  ) {
+    const phone = questions.find((q) => /[\d\-]{9,}/.test(q))
+    if (phone) return phone
+    const short = questions.find((q) => /^(?:כן|לא)\b/i.test(q.trim()))
+    if (short) return short
+  }
+  if (isDocumentChannelQuestionPending(history)) {
+    const channel = questions.find((q) =>
+      /מלאי|אתר|סניף|online|website|מהאתר|מהסניף/i.test(q)
+    )
+    if (channel) return channel
+  }
+  return null
+}
+
 function questionPriority(question: string) {
   const text = question.trim()
   if (isDigitalDocumentRequest(text) || isShippingStatusQuestion(text)) return 0
@@ -97,13 +135,38 @@ function questionPriority(question: string) {
   return 2
 }
 
-export function pickPrimaryQuestion(questions: string[], _history: HistoryMessage[]) {
+export function pickPrimaryQuestion(questions: string[], history: HistoryMessage[]) {
   if (questions.length === 0) return null
   if (questions.length === 1) return questions[0]!
+
+  const flowHint = structuredFlowPrimaryHint(history, questions)
+  if (flowHint) return flowHint
+
   const sorted = [...questions].sort(
     (a, b) => questionPriority(a) - questionPriority(b)
   )
   return sorted[0]!
+}
+
+export function orderQuestionsByPriority(
+  questions: string[],
+  history: HistoryMessage[]
+) {
+  const primary = pickPrimaryQuestion(questions, history)
+  if (!primary) return questions
+  return [primary, ...questions.filter((q) => q !== primary)]
+}
+
+function dedupeReplyParts(parts: string[]) {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const part of parts) {
+    const normalized = part.replace(/\s+/g, " ").trim().toLowerCase()
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    out.push(part)
+  }
+  return out
 }
 
 function stripCustomerHeader(text: string) {
@@ -114,9 +177,9 @@ function stripCustomerHeader(text: string) {
 }
 
 export function combineMultiQuestionReply(parts: string[]) {
-  const body = parts
-    .map(stripCustomerHeader)
-    .filter(Boolean)
+  const body = dedupeReplyParts(
+    parts.map(stripCustomerHeader).filter(Boolean)
+  )
     .join("\n\n")
     .trim()
   if (!body) return ""
@@ -273,10 +336,11 @@ export async function answerCombinedQuestions(
     sessionSummary?: string | null
   }
 ) {
+  const ordered = orderQuestionsByPriority(questions, input.history)
   const parts: string[] = []
   const llmNeeded: string[] = []
 
-  for (const question of questions) {
+  for (const question of ordered) {
     const deterministic = answerFaqQuestionDeterministic(question)
     if (deterministic) {
       parts.push(stripCustomerHeader(deterministic))

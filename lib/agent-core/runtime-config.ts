@@ -122,7 +122,7 @@ function codeDefaultConfig(): RuntimeConfig {
     routingMode,
     debounceMs,
     historyLimit: 18,
-    orchestraMode: "conservative",
+    orchestraMode: "off",
     updatedAt: null,
     updatedBy: null,
     source: hasEmergency ? "env_emergency" : "code_default",

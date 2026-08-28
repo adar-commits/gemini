@@ -6,7 +6,7 @@ create table if not exists public.hom_agent_runtime_config (
   routing_mode text not null default 'llm',
   debounce_ms int not null default 2000,
   history_limit int not null default 18,
-  orchestra_mode text not null default 'conservative',
+  orchestra_mode text not null default 'off',
   updated_at timestamptz not null default now(),
   updated_by text
 );
@@ -24,7 +24,7 @@ values (
   'llm',
   2000,
   18,
-  'conservative',
+  'off',
   'migration'
 )
 on conflict (id) do nothing;
