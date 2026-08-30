@@ -391,29 +391,46 @@ export function buildDocumentChannelClarify() {
 
 /**
  * Fulfillment method — not purchase location.
- * Courier → website docs. Branch pickup → חשבונית מס קבלה only.
+ * Online/internet orders are always courier → website docs.
+ * Branch pickup → חשבונית מס קבלה only.
  */
 export function parseDocumentPurchaseChannel(body: string): DocumentPurchaseChannel | null {
   const text = body.trim()
   if (!text || isBranchFulfillmentUncertainty(text)) return null
 
-  if (
-    /(?:שליח|משלוח|נשלח|הובל(?:ה|ת)|courier|delivery|נשלח(?:ו)?\s+(?:אלי|ע(?:ד|ל)|ב(?:מש|)?)|(?:דרך|מ(?:ה|)?)\s*(?:ה)?(?:אתר|אינטרנט))/i.test(
-      text
-    )
-  ) {
-    return "website"
-  }
-
-  if (
-    /(?:מהסניף|מ(?:ה)?(?:חנות|מלאי\s+(?:ה)?סניף)|נ(?:לקח|אס(?:ף|פ)|מס(?:ר|ר))(?:ו)?\s+(?:מה)?(?:סניף|חנות)|אס(?:פתי|פ(?:תי|נו))|לקחתי\s+(?:מה)?(?:סניף|חנות)|(?:סופק(?:ו)?|נמס(?:ר|ר)(?:ו)?)\s+(?:מה)?(?:סניף|חנות))/i.test(
-      text
-    )
-  ) {
-    return "store"
-  }
+  if (parseCourierFulfillment(text)) return "website"
+  if (parseBranchFulfillment(text)) return "store"
 
   return null
+}
+
+function parseCourierFulfillment(text: string) {
+  if (
+    /(?:שליח|משלוח|נשלח|הובל(?:ה|ת)|courier|delivery|נשלח(?:ו)?\s+(?:אלי|ע(?:ד|ל)|ב(?:מש|)?))/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+
+  // Online = always courier (there is no physical "internet" pickup point).
+  if (
+    /(?:^|[\s,.!?-])?(?:אינטרנט|online|website)(?:[\s,.!?]|$)/i.test(text) ||
+    /(?:ב|מ|דרך)\s*(?:ה)?(?:אינטרנט|אתר(?:\s+ה(?:אינטרנט|חברה))?)\b/i.test(text) ||
+    /(?:הזמנ(?:תי|ת|נ(?:ו|תם|תן)?)|קנ(?:יתי|ית(?:ם|ן)?)|רכש(?:תי|ת(?:ם|ן)?)).*(?:ב(?:ה)?|מ(?:ה)?|דרך\s*(?:ה)?)?(?:אינטרנט|אתר)/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+
+  return false
+}
+
+function parseBranchFulfillment(text: string) {
+  return /(?:מהסניף|מ(?:ה)?(?:חנות|מלאי\s+(?:ה)?סניף)|נ(?:לקח|אס(?:ף|פ)|מס(?:ר|ר))(?:ו)?\s+(?:מה)?(?:סניף|חנות)|אס(?:פתי|פ(?:תי|נו))|לקחתי\s+(?:מה)?(?:סניף|חנות)|(?:סופק(?:ו)?|נמס(?:ר|ר)(?:ו)?)\s+(?:מה)?(?:סניף|חנות))/i.test(
+    text
+  )
 }
 
 function buildMultiDocumentReply(links: string[]) {
