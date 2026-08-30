@@ -445,7 +445,7 @@ function normalizeReply(agent: AgentId, action: AgentAction, reply: string) {
 const FAKE_STOCK_REPLY_RE =
   /אבדוק(?:\s+(?:א(?:ם|ת)|ע(?:ם|ד))?|\s+ב)?(?:מלאי|זמינות)|בודק(?:ים)?\s+(?:ב)?(?:מלאי|זמינות)|(?:יש|קיים)\s+(?:ל(?:כם|נו)\s+)?(?:ב)?(?:מלאי|זמינות)/i
 
-function sanitizeFaqProductReply(body: string, reply: string) {
+function sanitizeFaqProductReply(body: string, reply: string, history: HistoryMessage[] = []) {
   if (!reply.trim()) return reply
   if (isInventoryAvailabilityReply(reply)) return reply
   if (isBranchInventoryQuestion(body) || isBareSkuMessage(body)) return reply
@@ -1191,7 +1191,7 @@ async function resolveSpecialist(
     }
 
     if (result.reply) {
-      const sanitized = sanitizeFaqProductReply(body, result.reply)
+      const sanitized = sanitizeFaqProductReply(body, result.reply, history)
       if (sanitized !== result.reply) {
         result = {
           ...result,
@@ -1340,7 +1340,7 @@ async function resolveSpecialist(
   }
 
   if (specialist === "faq" && result.reply) {
-    const sanitized = sanitizeFaqProductReply(body, result.reply)
+    const sanitized = sanitizeFaqProductReply(body, result.reply, history)
     if (sanitized !== result.reply) {
       result = {
         ...result,
