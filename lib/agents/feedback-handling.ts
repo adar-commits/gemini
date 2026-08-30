@@ -45,6 +45,7 @@ function isPraiseFlowActive(history: HistoryMessage[]) {
 }
 
 export function shouldHandleServicePraiseFlow(body: string, history: HistoryMessage[]) {
+  if (isBranchReviewLinkRequest(body)) return false
   if (isPraiseFlowActive(history)) return true
   if (isServicePraise(body) && isPhoneLookupConfirmPending(history)) return true
   return isServicePraise(body)

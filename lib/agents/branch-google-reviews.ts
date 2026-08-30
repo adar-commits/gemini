@@ -62,23 +62,33 @@ export function isWebsiteBranch(branchCode?: string | null, branchLabel?: string
   return /^(?:אתר|website|אונליין)$/i.test(label)
 }
 
+const REVIEW_TOPIC_RE =
+  /(?:דירוג|ביקורת|review|לדרג|דרג(?:ו|י|נו)?|google|חו(?:ות|׳|')\s*דעת|feedback|פידבק)/i
+
 /** Customer asks for the Google write-review / QR link for a branch. */
 export function isBranchReviewLinkRequest(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return false
 
-  const mentionsReview =
-    /(?:דירוג|ביקורת|review|לדרג|דרג(?:ו|י|נו)?|google)/i.test(trimmed)
+  const mentionsReview = REVIEW_TOPIC_RE.test(trimmed)
   const mentionsLink =
     /(?:לינק|קישור|link|qr|writereview|write[\s-]?review)/i.test(trimmed)
-
-  if (mentionsReview && mentionsLink) return true
-
-  return (
-    /(?:אפשר|אשמח|רוצ(?:ה|ים|ות)|ת(?:וכ|ן)\s+ל(?:שלוח|תת)).{0,40}(?:לינק|קישור).{0,40}(?:דירוג|ביקורת)/i.test(
+  const mentionsBranch = /(?:על|ב|ל)(?:ה)?\s*סניף|(?:^|\s)(?:ב)?סניף\s+[א-ת]/i.test(trimmed)
+  const wantsToLeaveReview =
+    /(?:רוצ(?:ה|ים|ות)|א(?:פשר|שמח)|מ(?:עונ(?:יין|יינת)|בקש(?:ה|ת)?)).{0,35}(?:ל)?(?:ה)?(?:שאיר|כתוב|פרסם|דרג).{0,35}(?:חו(?:ות|׳|')\s*דעת|ביקורת|דירוג|review)/i.test(
       trimmed
     ) ||
-    /(?:לינק|קישור).{0,40}(?:דירוג|ביקורת).{0,40}סניף/i.test(trimmed)
+    /(?:להשאיר|לכתוב|לפרסם)\s+(?:חו(?:ות|׳|')\s*דעת|ביקורת|דירוג)/i.test(trimmed)
+
+  if (mentionsReview && mentionsLink) return true
+  if (wantsToLeaveReview) return true
+  if (mentionsReview && mentionsBranch) return true
+
+  return (
+    /(?:אפשר|אשמח|רוצ(?:ה|ים|ות)|ת(?:וכ|ן)\s+ל(?:שלוח|תת)).{0,40}(?:לינק|קישור).{0,40}(?:דירוג|ביקורת|חו(?:ות|׳|')\s*דעת)/i.test(
+      trimmed
+    ) ||
+    /(?:לינק|קישור).{0,40}(?:דירוג|ביקורת|חו(?:ות|׳|')\s*דעת).{0,40}סניף/i.test(trimmed)
   )
 }
 
@@ -94,7 +104,7 @@ export function extractBranchLabelFromReviewRequest(text: string) {
   }
 
   const branchAfterReview = trimmed.match(
-    /(?:דירוג|ביקורת|review|לדרג).{0,30}(?:ב)?סניף\s+([א-ת'"\s״]+?)(?:\?|[\s,.]|$)/i
+    /(?:דירוג|ביקורת|review|לדרג|חו(?:ות|׳|')\s*דעת).{0,40}(?:על|ב|ל)?(?:ה)?\s*(?:ב)?סניף\s+([א-ת'"\s״]+?)(?:\s+שירות|[\s,.]|$)/i
   )
   if (branchAfterReview?.[1]) {
     const label = branchAfterReview[1].trim()
