@@ -609,6 +609,82 @@ export function isHelpInsufficient(body: string) {
   )
 }
 
+function lastOrderStatusAssistantText(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (/בדקתי,/i.test(message.content) && /נכון לתאריך/i.test(message.content)) {
+      return message.content
+    }
+    if (/לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(message.content)) {
+      return message.content
+    }
+  }
+  return ""
+}
+
+/** Follow-up after a status reply — "מה זה אומר?", "לא הבנתי", etc. */
+export function isOrderStatusClarificationQuestion(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 120) return false
+
+  return (
+    /^מה\s+(?:זה|ה(?:סטטוס|משמעות))\s+אומר/i.test(text) ||
+    /^מה\s+(?:זה|זאת|הכוונה)/i.test(text) ||
+    /^(?:לא\s+)?הבנתי(?:\s+א(?:ת|ת)?)?(?:\s+מה)?(?:\s+(?:זה|הסטטוס))?/i.test(text) ||
+    /(?:מה\s+(?:ה)?(?:פירוש|משמעות)|ת(?:וכל|וכלי)\s+לה(?:סביר|סביר))/i.test(text) ||
+    /^מה\s+קור(?:ה|ה)\s+(?:ע(?:ם|כש)|כש)/i.test(text)
+  )
+}
+
+export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
+  const statusText = lastOrderStatusAssistantText(history)
+
+  if (/נארז במחסן|ממתין לאיסוף/i.test(statusText)) {
+    return `${CUSTOMER_HEADER}
+בקצרה — השטיח כבר נארז במחסן שלנו, וחברת השליחויות עדיין לא אספה אותו.
+לאחר האיסוף השליח יתאם איתך טלפונית את מועד ההגעה.
+
+אם תרצו עדכון מדויק יותר — האם להעביר לנציג שירות?`
+  }
+
+  if (/נארז ונאסף|צפוי להגיע/i.test(statusText)) {
+    return `${CUSTOMER_HEADER}
+בקצרה — המשלוח כבר יצא מהמחסן ונמצא בדרך.
+השליח יתאם איתך טלפונית ביום האספקה.
+
+האם להעביר לנציג שירות לעדכון נוסף?`
+  }
+
+  if (/טרם הועברה לחברת השליחויות|עדיין בטיפול/i.test(statusText)) {
+    return `${CUSTOMER_HEADER}
+בקצרה — ההזמנה עדיין בהכנה/טיפול במחסן, וטרם הועברה לחברת השליחויות.
+ברגע שתצא לשליח — תקבלו עדכון.
+
+האם להעביר לנציג שירות שיבדוק ויתעדכן?`
+  }
+
+  if (/נמסר באמצעות שליח/i.test(statusText)) {
+    return `${CUSTOMER_HEADER}
+לפי הסטטוס במערכת — המשלוח סומן כנמסר.
+אם משהו לא תואם למציאות, אפשר להעביר לנציג שירות שיבדוק.
+
+האם להעביר לנציג שירות?`
+  }
+
+  if (/מוכנה לאיסוף/i.test(statusText)) {
+    return `${CUSTOMER_HEADER}
+ההזמנה מוכנה לאיסוף עצמי מהמחסן — לפי הפרטים שנשלחו קודם.
+
+האם להעביר לנציג שירות לעזרה נוספת?`
+  }
+
+  return `${CUSTOMER_HEADER}
+בקצרה — הסטטוס מתאר את מצב ההזמנה במערכת לפי העדכון האחרון.
+אם משהו לא ברור או צריך בירור — האם להעביר לנציג שירות שיסביר ויתעדכן?`
+}
+
 export function buildOrderPickExhaustedReply() {
   return `${CUSTOMER_HEADER}
 לא מצאנו התאמה בין ההזמנות שבמערכת לפנייה שלך.

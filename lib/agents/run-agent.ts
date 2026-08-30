@@ -72,10 +72,12 @@ import {
 } from "@/lib/agents/digital-document-flow"
 import {
   buildOrderLookupApiFailureReply,
+  buildOrderStatusClarificationReply,
   resolveOrderShippingReply,
   isBotHelpJustDelivered,
   isExplicitHumanRequest,
   isHelpInsufficient,
+  isOrderStatusClarificationQuestion,
   isOrderConfirmationPending,
   isOrderConfirmationYes,
   isOrderConfirmationNo,
@@ -1588,13 +1590,13 @@ function shippingResult(
     if (!outbound) {
       outbound = buildNeverStuckReply()
     } else if (wasReplyRecentlySent(history ?? [], outbound)) {
-      return {
-        ok: true,
-        agent: "master" as const,
-        reply: "",
-        action: "shipping" as const,
-        route,
-      }
+      outbound = normalizeReply(
+        "faq",
+        "reply",
+        isBotHelpJustDelivered(history ?? [])
+          ? buildOrderStatusClarificationReply(history ?? [])
+          : buildNeverStuckReply()
+      )
     }
 
     const { assistantInserted } = await appendTurn({
@@ -2025,6 +2027,19 @@ export async function runMasterConversation(
     return finish(
       await documentFlowResult(conversationId, body, route, preview, phone, history)
     )
+  }
+
+  if (isBotHelpJustDelivered(history) && isOrderStatusClarificationQuestion(body)) {
+    const reply = normalizeReply("faq", "reply", buildOrderStatusClarificationReply(history))
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({ ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] })
   }
 
   const postHandoffFaq = await resolvePostHandoffFaqTurn(
