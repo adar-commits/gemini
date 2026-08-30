@@ -69,6 +69,7 @@ export const SILENT_ACTIONS = new Set<AgentAction>([
 ])
 
 export const CUSTOMER_HEADER = "*הום בוט :)*"
+export const CUSTOMER_NATURAL_CLOSE = "אם צריך עוד משהו — אני כאן."
 
 export type HistoryMessage = {
   role: "user" | "assistant"

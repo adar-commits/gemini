@@ -1,4 +1,4 @@
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isValidIsraeliMobilePhone } from "@/lib/agents/phone-for-api"
@@ -445,7 +445,7 @@ function buildMultiDocumentReply(links: string[]) {
 הנה הקישורים למסמכים הדיגיטליים:
 ${lines.join("\n")}
 
-אם צריך עוד משהו — כאן.`
+${CUSTOMER_NATURAL_CLOSE}`
 }
 
 async function deliverDocumentsForPhone(phone: string, channel: DocumentPurchaseChannel) {

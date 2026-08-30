@@ -1,5 +1,5 @@
 import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
@@ -292,7 +292,7 @@ export function buildInventoryAvailabilityReply(
     }
   }
 
-  lines.push("", "אם צריך עוד משהו — כאן.")
+  lines.push("", CUSTOMER_NATURAL_CLOSE)
   return `${CUSTOMER_HEADER}\n${lines.join("\n")}`
 }
 

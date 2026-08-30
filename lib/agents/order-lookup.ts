@@ -1,5 +1,5 @@
 import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent } from "@/lib/agents/inquiry-intent"
@@ -620,7 +620,7 @@ export function buildDigitalDocumentReply(link: string) {
 הנה הקישור למסמך הדיגיטלי:
 ${link}
 
-אם צריך עוד משהו — כאן.`
+${CUSTOMER_NATURAL_CLOSE}`
 }
 
 export function buildDigitalDocumentLookupFailureReply() {

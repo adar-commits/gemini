@@ -69,8 +69,8 @@ export function coerceOperationalReply(
 export function buildThanksReply(customerName?: string) {
   const name = customerName?.trim()
   const line = name
-    ? `בשמחה ${name}, כאן אם צריך עוד משהו.`
-    : "בשמחה, כאן אם צריך עוד משהו."
+    ? `בשמחה ${name}, אני כאן אם צריך עוד משהו.`
+    : "בשמחה, אני כאן אם צריך עוד משהו."
   return `${CUSTOMER_HEADER}\n${line}`
 }
 
