@@ -69,17 +69,9 @@ import {
   resolveDigitalDocumentFlowReply,
   shouldHandleDigitalDocumentFlow,
   isDigitalDocumentRequest,
-  DOCUMENT_TYPE_RECEIPT,
-  DOCUMENT_TYPE_TAX_INVOICE,
-  DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
 } from "@/lib/agents/digital-document-flow"
 import {
-  buildDigitalDocumentReply,
-  buildDigitalDocumentLookupFailureReply,
-  buildDigitalDocumentNotFoundReply,
   buildOrderLookupApiFailureReply,
-  buildShippingNoPhoneReply,
-  lookupDigitalDocument,
   resolveOrderShippingReply,
   isBotHelpJustDelivered,
   isExplicitHumanRequest,
@@ -1332,32 +1324,14 @@ async function resolveSpecialist(
       result.action === "invoice_tax" ||
       result.action === "invoice_tax_receipt")
   ) {
-    const phone = options?.phone?.trim()
-    let replyText = buildDigitalDocumentLookupFailureReply()
-
-    if (!phone) {
-      replyText = buildShippingNoPhoneReply()
-    } else {
-      const documentType =
-        result.action === "invoice_tax"
-          ? DOCUMENT_TYPE_TAX_INVOICE
-          : result.action === "invoice_tax_receipt"
-            ? DOCUMENT_TYPE_TAX_INVOICE_RECEIPT
-            : DOCUMENT_TYPE_RECEIPT
-      const doc = await lookupDigitalDocument(phone, documentType)
-      replyText = doc.ok
-        ? buildDigitalDocumentReply(doc.link)
-        : doc.reason === "not_found"
-          ? buildDigitalDocumentNotFoundReply()
-          : buildDigitalDocumentLookupFailureReply()
-    }
-
-    result = {
-      ...result,
-      agent: "service",
-      reply: normalizeReply("service", "reply", replyText),
-      action: "reply",
-    }
+    return documentFlowResult(
+      conversationId,
+      body,
+      route,
+      preview,
+      options?.phone,
+      history
+    )
   }
 
   return { ...result, route }

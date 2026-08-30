@@ -3,6 +3,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
+import { isValidInventorySku } from "@/lib/agents/phone-for-api"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 import {
   extractBranchCityFromInventoryQuery,
@@ -169,7 +170,10 @@ export async function lookupInventoryBySku(
   sku: string
 ): Promise<InventoryBranchRow | null | undefined> {
   const value = sku.trim()
-  if (!value) return undefined
+  if (!value || !isValidInventorySku(value)) {
+    console.warn("[inventory-lookup] blocked getInventoryBranch — invalid SKU", { sku })
+    return undefined
+  }
 
   const data = await callPriorityWebhook({
     actionType: "getInventoryBranch",

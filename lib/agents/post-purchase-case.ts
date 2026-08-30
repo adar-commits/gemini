@@ -21,6 +21,7 @@ import {
   buildOrderPickExhaustedReply,
   buildPhoneLookupConfirmPrompt,
   buildPhoneLookupDeclinedReply,
+  channelPhone,
   extractOrderNumber,
   extractOrderReference,
   extractPhoneFromText,
@@ -37,6 +38,7 @@ import {
   requiresOrderIdentification,
   orderSummaryFromConfirmationHistory,
   resolveLookupPhoneFromHistory,
+  userProvidedPhone,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
 
@@ -298,16 +300,11 @@ async function resolveOrderConfirmationFlow(input: {
 
 async function lookupOrderByReference(input: {
   orderReference: string
-  whatsappPhone?: string
+  lookupPhone: string
   body: string
   kind: PostPurchaseCaseKind
 }) {
-  const lookupPhone =
-    extractPhoneFromText(input.body) ||
-    resolveLookupPhoneFromHistory([], input.whatsappPhone)
-  if (!lookupPhone) return buildPhoneLookupDeclinedReply()
-
-  const orders = await lookupOrdersByPhone(lookupPhone)
+  const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
 
   const prefixed = extractOrderNumber(input.orderReference)
@@ -318,7 +315,7 @@ async function lookupOrderByReference(input: {
       ) ?? null
 
   if (matched) return buildOrderConfirmedReply(input.kind, matched)
-  if (orders.length === 0) return buildNoOrdersFoundReply(lookupPhone)
+  if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
 
@@ -333,27 +330,26 @@ export async function resolvePostPurchaseCaseReply(input: {
   const kind = resolveCaseKind(body, history)
 
   if (isOrderConfirmationPending(history)) {
-    const lookupPhone =
-      extractPhoneFromText(body) ||
-      resolveLookupPhoneFromHistory(history, whatsappPhone)
+    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
     if (!lookupPhone) return buildPhoneLookupDeclinedReply()
     return resolveOrderConfirmationFlow({ body, lookupPhone, history, kind })
   }
 
   if (isAlternatePhoneRequestPending(history)) {
-    const alternatePhone = extractPhoneFromText(body)
+    const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(kind, alternatePhone)
     return `${CUSTOMER_HEADER}
 לא זיהיתי מספר טלפון — שלח/י את המספר (למשל 050-1234567).`
   }
 
   if (isPhoneLookupConfirmPending(history)) {
-    const alternatePhone = extractPhoneFromText(body)
+    const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(kind, alternatePhone)
 
     if (isPurePhoneLookupConfirmYes(body)) {
-      if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
-      return lookupAndStartOrderConfirm(kind, whatsappPhone)
+      const confirmed = channelPhone(whatsappPhone)
+      if (!confirmed) return buildPhoneLookupDeclinedReply()
+      return lookupAndStartOrderConfirm(kind, confirmed)
     }
 
     if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
@@ -377,10 +373,12 @@ export async function resolvePostPurchaseCaseReply(input: {
 
   const orderReference = extractOrderReference(body)
   if (orderReference) {
-    return lookupOrderByReference({ orderReference, whatsappPhone, body, kind })
+    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+    if (!lookupPhone) return buildOpeningReply(kind, whatsappPhone)
+    return lookupOrderByReference({ orderReference, lookupPhone, body, kind })
   }
 
-  const providedPhone = extractPhoneFromText(body)
+  const providedPhone = userProvidedPhone(body)
   if (providedPhone) {
     return lookupAndStartOrderConfirm(kind, providedPhone)
   }

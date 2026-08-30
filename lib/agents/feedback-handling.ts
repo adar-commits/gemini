@@ -8,6 +8,7 @@ import {
 } from "@/lib/agents/branch-google-reviews"
 import {
   buildPhoneLookupDeclinedReply,
+  channelPhone,
   formatDisplayPhone,
   isPhoneLookupConfirmPending,
   isPurePhoneLookupConfirmYes,
@@ -114,8 +115,9 @@ export async function resolveServicePraiseReply(input: {
 
   if (isPhoneLookupConfirmPending(history) && isPraiseFlowActive(history)) {
     if (isPurePhoneLookupConfirmYes(body)) {
-      if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
-      const orders = await lookupOrdersByPhone(whatsappPhone)
+      const confirmed = channelPhone(whatsappPhone)
+      if (!confirmed) return buildPhoneLookupDeclinedReply()
+      const orders = await lookupOrdersByPhone(confirmed)
       if (orders == null) {
         return `${CUSTOMER_HEADER}
 לא הצלחנו לבדוק את ההזמנה כרגע. תודה רבה על המילים החמות!`

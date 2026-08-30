@@ -1,3 +1,4 @@
+import { validatePriorityApiPayload } from "@/lib/agents/phone-for-api"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 const DEFAULT_PRIORITY_WEBHOOK_URL =
@@ -84,10 +85,22 @@ export async function callPriorityWebhook(input: {
     return null
   }
 
+  const validated = validatePriorityApiPayload(input)
+  if (!validated.ok) {
+    console.warn("[priority-api] blocked invalid payload", {
+      actionType: input.actionType,
+      value: input.value,
+      reason: validated.reason,
+      conversationId: priorityApiLogContext.conversationId ?? null,
+      whatsappPhone: priorityApiLogContext.whatsappPhone ?? null,
+    })
+    return null
+  }
+
   try {
     console.info("[priority-api] request", {
       actionType: input.actionType,
-      value: input.value,
+      value: validated.value,
       conversationId: priorityApiLogContext.conversationId ?? null,
       whatsappPhone: priorityApiLogContext.whatsappPhone ?? null,
     })
@@ -100,7 +113,7 @@ export async function callPriorityWebhook(input: {
       },
       body: JSON.stringify({
         actionType: input.actionType,
-        value: input.value,
+        value: validated.value,
         ...(input.documentType ? { documentType: input.documentType } : {}),
       }),
       signal: AbortSignal.timeout(PRIORITY_API_TIMEOUT_MS),

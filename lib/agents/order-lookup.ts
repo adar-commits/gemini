@@ -5,6 +5,12 @@ import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplain
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
+import {
+  isValidIsraeliMobilePhone,
+  normalizePhoneForOrderApi,
+} from "@/lib/agents/phone-for-api"
+
+export { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
 
 const CANCELLATION_EMPATHY_PREFIX =
   "אני מצטער לשמוע, בוא ננסה קודם לאתר את ההזמנה שלך.."
@@ -122,14 +128,6 @@ export function buildDeliveryStatusMessage(input: {
 
 function lookupConfigured() {
   return true
-}
-
-export function normalizePhoneForOrderApi(phone: string) {
-  let digits = phone.replace(/\D/g, "")
-  if (digits.startsWith("00")) digits = digits.slice(2)
-  if (digits.startsWith("972")) digits = `0${digits.slice(3)}`
-  if (digits.length === 9 && digits.startsWith("5")) digits = `0${digits}`
-  return digits
 }
 
 function phoneForOrderApi(phone: string) {
@@ -282,6 +280,12 @@ function parseOrdersPayload(data: unknown): PriorityOrderRow[] {
 export async function lookupOrdersByPhone(
   phone: string
 ): Promise<OrderShipmentStatus[] | null> {
+  if (!isValidIsraeliMobilePhone(phone)) {
+    console.warn("[order-lookup] blocked getOrders — phone not from channel/user input", {
+      phone,
+    })
+    return null
+  }
   const value = phoneForOrderApi(phone)
   if (!value) return null
 
@@ -300,6 +304,9 @@ export async function lookupDigitalDocument(
   phone: string,
   documentType = "קבלה"
 ): Promise<DigitalDocumentLookupResult> {
+  if (!isValidIsraeliMobilePhone(phone)) {
+    return { ok: false, reason: "invalid_phone" }
+  }
   const value = phoneForOrderApi(phone)
   if (!value) return { ok: false, reason: "invalid_phone" }
 
@@ -640,37 +647,82 @@ export function extractPhoneFromText(text: string) {
   return null
 }
 
-/** Phone used for order lookup — explicit alternate since last phone prompt, else WhatsApp. */
-export function resolveLookupPhoneFromHistory(
+export function channelPhone(whatsappPhone?: string | null) {
+  if (!whatsappPhone?.trim()) return null
+  const digits = phoneForOrderApi(whatsappPhone)
+  return isValidIsraeliMobilePhone(digits) ? digits : null
+}
+
+/** Mobile number explicitly typed by the customer in this message. */
+export function userProvidedPhone(body: string) {
+  const phone = extractPhoneFromText(body)
+  return phone && isValidIsraeliMobilePhone(phone) ? phone : null
+}
+
+function isPhoneLookupConfirmAssistantMessage(content: string) {
+  return (
+    /האם (?:היא )?רשומה על המספר/i.test(content) ||
+    /האם ההזמנה (?:היא )?על טלפון/i.test(content) ||
+    /האם ההזמנה על המספר/i.test(content)
+  )
+}
+
+function isAlternatePhoneAssistantMessage(content: string) {
+  return /מה מספר הטלפון שבוצעה עליו ההזמנה/i.test(content)
+}
+
+/**
+ * Phone authorized for Priority lookup: WhatsApp/Landbot after customer confirmed,
+ * or a number the customer typed after we asked for alternate phone.
+ */
+export function authorizedLookupPhoneFromHistory(
   history: HistoryMessage[],
   whatsappPhone?: string
 ) {
-  const normalizedWhatsapp = whatsappPhone ? phoneForOrderApi(whatsappPhone) : null
+  const channel = channelPhone(whatsappPhone)
+  let authorized: string | null = null
 
-  let scanFrom = 0
-  for (let index = history.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < history.length; index += 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    if (
-      /מה מספר הטלפון שבוצעה עליו ההזמנה|האם (?:היא )?רשומה על המספר|האם ההזמנה (?:היא )?על טלפון/i.test(
-        message.content
-      )
-    ) {
-      scanFrom = index + 1
-      break
+
+    if (isPhoneLookupConfirmAssistantMessage(message.content)) {
+      for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
+        const reply = history[replyIndex]
+        if (reply.role === "assistant") continue
+        if (reply.role === "user") {
+          if (isPurePhoneLookupConfirmYes(reply.content) && channel) {
+            authorized = channel
+          }
+          break
+        }
+      }
+    }
+
+    if (isAlternatePhoneAssistantMessage(message.content)) {
+      for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
+        const reply = history[replyIndex]
+        if (reply.role !== "user") continue
+        const typed = userProvidedPhone(reply.content)
+        if (typed) authorized = typed
+        break
+      }
     }
   }
 
-  let lookupPhone = normalizedWhatsapp
-  for (let index = scanFrom; index < history.length; index += 1) {
-    const message = history[index]
-    if (message.role !== "user") continue
-    const phone = extractPhoneFromText(message.content)
-    if (phone) lookupPhone = phone
-  }
+  return authorized
+}
 
-  return lookupPhone || null
+/** Phone for order lookup — current message, or previously authorized channel/typed number only. */
+export function resolveLookupPhoneFromHistory(
+  history: HistoryMessage[],
+  whatsappPhone?: string,
+  body?: string
+) {
+  const fromBody = body ? userProvidedPhone(body) : null
+  if (fromBody) return fromBody
+  return authorizedLookupPhoneFromHistory(history, whatsappPhone)
 }
 
 /** @deprecated Legacy step — new flows skip straight to phone confirm. */
@@ -819,15 +871,10 @@ export function buildAlternatePhoneRequestPrompt() {
 
 async function lookupOrderByReference(input: {
   orderReference: string
-  whatsappPhone?: string
+  lookupPhone: string
   body: string
 }) {
-  const lookupPhone =
-    extractPhoneFromText(input.body) ||
-    (input.whatsappPhone ? phoneForOrderApi(input.whatsappPhone) : null)
-  if (!lookupPhone) return buildPhoneLookupDeclinedReply()
-
-  const orders = await lookupOrdersByPhone(lookupPhone)
+  const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
 
   const prefixed = extractOrderNumber(input.orderReference)
@@ -838,7 +885,7 @@ async function lookupOrderByReference(input: {
       ) ?? null
 
   if (matched) return buildOrderStatusReply(matched)
-  if (orders.length === 0) return buildNoOrdersFoundReply(lookupPhone)
+  if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
 
@@ -919,27 +966,26 @@ export async function resolveOrderShippingReply(input: {
     maybeApplyCancellationEmpathy(reply, body, history)
 
   if (isOrderConfirmationPending(history)) {
-    const lookupPhone =
-      extractPhoneFromText(body) ||
-      resolveLookupPhoneFromHistory(history, whatsappPhone)
+    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
     if (!lookupPhone) return buildPhoneLookupDeclinedReply()
     return resolveOrderConfirmationFlow({ body, lookupPhone, history })
   }
 
   if (isAlternatePhoneRequestPending(history)) {
-    const alternatePhone = extractPhoneFromText(body)
+    const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
     return `${CUSTOMER_HEADER}
 לא זיהיתי מספר טלפון — שלח/י את המספר (למשל 050-1234567).`
   }
 
   if (isPhoneLookupConfirmPending(history)) {
-    const alternatePhone = extractPhoneFromText(body)
+    const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
 
     if (isPurePhoneLookupConfirmYes(body)) {
-      if (!whatsappPhone) return buildPhoneLookupDeclinedReply()
-      return lookupAndStartOrderConfirm(whatsappPhone, empathize)
+      const confirmed = channelPhone(whatsappPhone)
+      if (!confirmed) return buildPhoneLookupDeclinedReply()
+      return lookupAndStartOrderConfirm(confirmed, empathize)
     }
 
     if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
@@ -962,7 +1008,12 @@ export async function resolveOrderShippingReply(input: {
   if (isOrderNumberRequestPending(history)) {
     const orderReference = extractOrderReference(body)
     if (orderReference) {
-      return lookupOrderByReference({ orderReference, whatsappPhone, body })
+      const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+      if (!lookupPhone) {
+        if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+        return buildPhoneLookupDeclinedReply()
+      }
+      return lookupOrderByReference({ orderReference, lookupPhone, body })
     }
 
     if (whatsappPhone) {
@@ -973,10 +1024,15 @@ export async function resolveOrderShippingReply(input: {
 
   const orderReference = extractOrderReference(body)
   if (orderReference) {
-    return lookupOrderByReference({ orderReference, whatsappPhone, body })
+    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+    if (!lookupPhone) {
+      if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+      return buildPhoneLookupDeclinedReply()
+    }
+    return lookupOrderByReference({ orderReference, lookupPhone, body })
   }
 
-  const providedPhone = extractPhoneFromText(body)
+  const providedPhone = userProvidedPhone(body)
   if (providedPhone && orderLookupEnabled()) {
     return lookupAndStartOrderConfirm(providedPhone, empathize)
   }

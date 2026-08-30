@@ -1,6 +1,7 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { isValidIsraeliMobilePhone } from "@/lib/agents/phone-for-api"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 import {
   buildAlternatePhoneRequestPrompt,
@@ -14,6 +15,7 @@ import {
   isOrderConfirmationNo,
   isPurePhoneLookupConfirmYes,
   resolveLookupPhoneFromHistory,
+  userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 
 /** Courier delivery → receipt + tax invoice. Branch pickup → tax invoice receipt only. */
@@ -344,6 +346,9 @@ export async function lookupDigitalDocumentsForChannel(
   phone: string,
   channel: DocumentPurchaseChannel
 ) {
+  if (!isValidIsraeliMobilePhone(phone)) {
+    return { ok: false as const, reason: "invalid_phone" as const, links: [] as string[] }
+  }
   const lookupPhone = phoneForOrderApi(phone)
   if (!lookupPhone) {
     return { ok: false as const, reason: "invalid_phone" as const, links: [] as string[] }
@@ -455,11 +460,7 @@ function resolveDocumentLookupPhone(
   history: HistoryMessage[],
   whatsappPhone?: string
 ) {
-  return (
-    extractPhoneFromText(body) ||
-    resolveLookupPhoneFromHistory(history, whatsappPhone) ||
-    null
-  )
+  return resolveLookupPhoneFromHistory(history, whatsappPhone, body)
 }
 
 function withRecoveryPrefix(prefix: string, reply: string) {
@@ -492,10 +493,11 @@ export async function resolveDigitalDocumentFlowReply(input: {
   })
 
   if (isAlternateDocumentPhonePending(history)) {
-    if (phoneFromBody && channel) {
+    const typed = userProvidedPhone(body)
+    if (typed && channel) {
       return withRecoveryPrefix(
         recoveryPrefix,
-        await deliverDocumentsForPhone(phoneFromBody, channel)
+        await deliverDocumentsForPhone(typed, channel)
       )
     }
     return withRecoveryPrefix(
@@ -517,9 +519,11 @@ export async function resolveDigitalDocumentFlowReply(input: {
 
   if (phoneStepOpen) {
     if (phoneFromBody && !phoneConfirmYes) {
+      const typed = userProvidedPhone(body)
+      if (!typed) return buildPhoneLookupDeclinedReply()
       return withRecoveryPrefix(
         recoveryPrefix,
-        await deliverDocumentsForPhone(phoneFromBody, channel!)
+        await deliverDocumentsForPhone(typed, channel!)
       )
     }
 
@@ -567,9 +571,11 @@ export async function resolveDigitalDocumentFlowReply(input: {
   }
 
   if (phoneFromBody) {
+    const typed = userProvidedPhone(body)
+    if (!typed) return buildPhoneLookupDeclinedReply()
     return withRecoveryPrefix(
       recoveryPrefix,
-      await deliverDocumentsForPhone(phoneFromBody, channel)
+      await deliverDocumentsForPhone(typed, channel)
     )
   }
 
