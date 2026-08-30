@@ -36,7 +36,6 @@ import {
   lookupOrdersByPhone,
   pendingOrderNumberFromHistory,
   requiresOrderIdentification,
-  orderSummaryFromConfirmationHistory,
   resolveLookupPhoneFromHistory,
   userProvidedPhone,
   type OrderShipmentStatus,
@@ -248,11 +247,6 @@ async function resolveOrderConfirmationFlow(input: {
   kind: PostPurchaseCaseKind
 }) {
   const pendingOrder = pendingOrderNumberFromHistory(input.history)
-
-  if (pendingOrder && isPureOrderConfirmation(input.body)) {
-    const cached = orderSummaryFromConfirmationHistory(input.history, pendingOrder)
-    if (cached) return buildOrderConfirmedReply(input.kind, cached)
-  }
 
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()

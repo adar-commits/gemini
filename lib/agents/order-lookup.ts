@@ -907,11 +907,6 @@ async function resolveOrderConfirmationFlow(input: {
 }) {
   const pendingOrder = pendingOrderNumberFromHistory(input.history)
 
-  if (pendingOrder && isPureOrderConfirmation(input.body)) {
-    const cached = orderSummaryFromConfirmationHistory(input.history, pendingOrder)
-    if (cached) return buildOrderStatusReply(cached)
-  }
-
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
