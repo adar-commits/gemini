@@ -16,6 +16,7 @@ import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
 import { isConfirmationAffirmationWithExtra } from "@/lib/agents/compound-reply"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
 export type SalesIntake = {
   product?: string
@@ -159,7 +160,51 @@ export function mentionsPetInText(text: string) {
   return PET_MENTION_RE.test(text.trim())
 }
 
+const SALES_PHOTO_REQUEST_RE =
+  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|תמונה\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה/i
+
+export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return SALES_PHOTO_REQUEST_RE.test(message.content)
+  }
+  return false
+}
+
+export function turnHasCustomerImage(turn: UserTurn) {
+  if (turn.media.some((part) => part.kind === "image")) return true
+  return /\[media:image:/i.test(summarizeTurn(turn))
+}
+
+/** Sales quiz, scripted intake, or waiting for a room photo — not order lookup. */
+export function isActiveSalesConsultation(
+  history: HistoryMessage[],
+  lastAgent: AgentId | null
+) {
+  return (
+    hasOngoingSalesIntake(history) ||
+    isSalesQuizContext(history, lastAgent) ||
+    isSalesPhotoRequestPending(history)
+  )
+}
+
+/** Block order/shipment tools unless the customer clearly pivoted to post-purchase. */
+export function blocksOrderLookupForSalesConsultation(
+  body: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null
+) {
+  if (!isActiveSalesConsultation(history, lastAgent)) return false
+  if (isIntakeTopicPivot(body, history)) return false
+  if (isShippingStatusQuestion(body)) return false
+  if (/(?:ה)?(?:קבלה|חשבונית)|receipt|invoice/i.test(body.trim())) return false
+  return true
+}
+
 export function hasOngoingSalesIntake(history: HistoryMessage[]) {
+  if (isSalesPhotoRequestPending(history)) return true
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
@@ -283,12 +328,13 @@ export function shouldUseSalesIntakeFastPath(
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
 
+  if (isSalesQuizContext(history, lastAgent)) {
+    if (isIntakeTopicPivot(body, history)) return false
+    return true
+  }
+
   if (mode === "scripted") {
     if (mentionsPetInText(body)) return true
-    if (isSalesQuizContext(history, lastAgent)) {
-      if (isIntakeTopicPivot(body, history)) return false
-      return true
-    }
     if (hasOngoingSalesIntake(history)) {
       return classifySalesIntakeReply(body, history) === "answer"
     }
@@ -1345,4 +1391,16 @@ function questionOrder(kind: string) {
   const order = ["product", "space", "bedroom", "children", "pets", "style", "sofa", "budget", "practical", "confirm"]
   const index = order.indexOf(kind)
   return index === -1 ? 0 : index
+}
+
+/** Customer attached a room photo during the sales quiz — never trigger order lookup. */
+export function buildSalesPhotoReceivedReply(history: HistoryMessage[], body: string) {
+  const ack = "תודה, קיבלתי את התמונה.\n"
+  const continued = buildSalesIntakeReply(history, body)
+  if (continued.includes("קיבלתי את התמונה")) return continued
+  if (continued.startsWith("*הום בוט :)")) {
+    const header = "*הום בוט :)*\n"
+    return `${header}${ack}${continued.slice(header.length).replace(/^\n+/, "")}`
+  }
+  return `${ack}${continued}`
 }

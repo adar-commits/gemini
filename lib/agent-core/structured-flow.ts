@@ -1,4 +1,4 @@
-import type { HistoryMessage } from "@/lib/agents/types"
+import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isInactivityPingPending } from "@/lib/agents/inactivity"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import {
@@ -18,13 +18,13 @@ import {
   isProductUrlRequestPending,
 } from "@/lib/agents/product-handoff"
 import { activePostPurchaseCaseKind } from "@/lib/agents/post-purchase-case"
-import { isConfirmationPending } from "@/lib/agents/sales-intake"
+import { isConfirmationPending, isActiveSalesConsultation } from "@/lib/agents/sales-intake"
 
 /**
  * Deterministic handlers still apply in LLM mode — e.g. כן/לא on order confirm,
  * phone lookup steps, handoff binding, inactivity ack.
  */
-export function hasStructuredFlowPending(history: HistoryMessage[]) {
+export function hasStructuredFlowPending(history: HistoryMessage[], lastAgent: AgentId | null = null) {
   return (
     isInactivityPingPending(history) ||
     isHumanHandoffPending(history) ||
@@ -35,6 +35,7 @@ export function hasStructuredFlowPending(history: HistoryMessage[]) {
     isProductHandoffPending(history) ||
     isConfirmationPending(history) ||
     activePostPurchaseCaseKind(history) != null ||
+    isActiveSalesConsultation(history, lastAgent) ||
     isActiveDigitalDocumentFlow(history) ||
     isDocumentChannelQuestionPending(history) ||
     isLegacyDocumentTypeQuestionPending(history) ||

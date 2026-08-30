@@ -43,6 +43,10 @@ import {
   DEFECT_FLOW_MARKER,
   flowMarkerFromText,
 } from "@/lib/agents/post-purchase-case.constants"
+import {
+  blocksOrderLookupForSalesConsultation,
+} from "@/lib/agents/sales-intake"
+import type { AgentId } from "@/lib/agents/types"
 
 export { DEFECT_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 
@@ -90,7 +94,12 @@ export function hasProductDefectContext(body: string, history: HistoryMessage[] 
   return hasCaseContext(body, history, isProductDefectComplaint)
 }
 
-export function shouldHandlePostPurchaseCaseFlow(body: string, history: HistoryMessage[]) {
+export function shouldHandlePostPurchaseCaseFlow(
+  body: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
+  if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) return false
 
   if (activePostPurchaseCaseKind(history)) return true

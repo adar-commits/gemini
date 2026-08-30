@@ -168,6 +168,11 @@ import {
   sanitizeSalesReply,
   shouldUseSalesIntakeFastPath,
   hasOngoingSalesIntake,
+  isSalesPhotoRequestPending,
+  turnHasCustomerImage,
+  isActiveSalesConsultation,
+  blocksOrderLookupForSalesConsultation,
+  buildSalesPhotoReceivedReply,
 } from "@/lib/agents/sales-intake"
 import {
   buildShippingPolicyReply,
@@ -298,21 +303,32 @@ async function runT0DeterministicPaths(
     )
   }
 
-  if (shouldHandleDigitalDocumentFlow(body, history)) {
+  if (
+    turnHasCustomerImage(turn) &&
+    isSalesPhotoRequestPending(history) &&
+    isActiveSalesConsultation(history, sharedOptions.lastAgent)
+  ) {
+    return markT0Routing(
+      conversationId,
+      await salesPhotoUploadResult(conversationId, body, route, preview, history)
+    )
+  }
+
+  if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
     return markT0Routing(
       conversationId,
       await documentFlowResult(conversationId, body, route, preview, phone, history)
     )
   }
 
-  if (shouldHandlePostPurchaseCaseFlow(body, history)) {
+  if (shouldHandlePostPurchaseCaseFlow(body, history, sharedOptions.lastAgent)) {
     return markT0Routing(
       conversationId,
       await postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
     )
   }
 
-  if (shouldHandleOrderShippingFlow(body, history)) {
+  if (shouldHandleOrderShippingFlow(body, history, sharedOptions.lastAgent)) {
     return markT0Routing(
       conversationId,
       await shippingResult(conversationId, body, route, preview, phone, history)
@@ -850,7 +866,7 @@ async function resolveSpecialist(
     }
   }
 
-  if (usesLlmFirstRouting() && !hasStructuredFlowPending(history)) {
+  if (usesLlmFirstRouting() && !hasStructuredFlowPending(history, options?.lastAgent ?? null)) {
     const inventory = await tryBranchInventoryResult(
       conversationId,
       body,
@@ -1334,10 +1350,15 @@ async function tryBranchInventoryResult(
   }
 }
 
-function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) {
+function shouldHandleOrderShippingFlow(
+  body: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
+  if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
   if (shouldHandleDigitalDocumentFlow(body, history)) return false
   if (shouldHandleServicePraiseFlow(body, history)) return false
-  if (shouldHandlePostPurchaseCaseFlow(body, history)) return false
+  if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) return false
   if (isPreorderDelayComplaint(body)) return false
   if (shouldHandleBranchInventory(body, history)) return false
 
@@ -1362,11 +1383,66 @@ function shouldHandleOrderShippingFlow(body: string, history: HistoryMessage[]) 
   return isShippingStatusQuestion(body)
 }
 
-function shouldHandleOrderLookupFlow(body: string, history: HistoryMessage[]) {
+function shouldHandleOrderLookupFlow(
+  body: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
   return (
-    shouldHandleDigitalDocumentFlow(body, history) ||
-    shouldHandleOrderShippingFlow(body, history)
+    shouldHandleDigitalDocumentFlowGuarded(body, history, lastAgent) ||
+    shouldHandleOrderShippingFlow(body, history, lastAgent)
   )
+}
+
+function shouldHandleDigitalDocumentFlowGuarded(
+  body: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
+  if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
+  return shouldHandleDigitalDocumentFlow(body, history)
+}
+
+async function salesPhotoUploadResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean,
+  history?: HistoryMessage[]
+): Promise<AgentResponse> {
+  const reply = normalizeReply(
+    "sales",
+    "reply",
+    buildSalesPhotoReceivedReply(history ?? [], body)
+  )
+
+  if (wasReplyRecentlySent(history ?? [], reply)) {
+    return {
+      ok: true,
+      agent: "sales" as const,
+      reply: "",
+      action: "reply" as const,
+      route: [...route, "sales"],
+      duplicateSuppressed: true,
+    }
+  }
+
+  const { assistantInserted } = await appendTurn({
+    conversationId,
+    agent: "sales",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview,
+  })
+
+  return {
+    ok: true,
+    agent: "sales" as const,
+    reply: assistantInserted ? reply : "",
+    action: "reply" as const,
+    route: [...route, "sales"],
+  }
 }
 
 function documentFlowResult(
@@ -1621,7 +1697,7 @@ async function routeViaMasterLlm(
     route.push("master")
     const next = MASTER_ROUTE_MAP[confident.action] ?? "faq"
     if (next === "shipping") {
-      if (shouldHandleDigitalDocumentFlow(body, history)) {
+      if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
         return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
       }
       return shippingResult(conversationId, body, route, preview, phone || undefined, history)
@@ -1700,7 +1776,7 @@ async function routeViaMasterLlm(
   })
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
   if (next === "shipping") {
-    if (shouldHandleDigitalDocumentFlow(body, history)) {
+    if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
       return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
     }
     return shippingResult(conversationId, body, route, preview, phone || undefined, history)
@@ -1802,7 +1878,17 @@ export async function runMasterConversation(
   )
   if (multiQuestion) return finish(multiQuestion)
 
-  if (shouldHandleDigitalDocumentFlow(body, history)) {
+  if (
+    turnHasCustomerImage(turn) &&
+    isSalesPhotoRequestPending(history) &&
+    isActiveSalesConsultation(history, lastAgent)
+  ) {
+    return finish(
+      await salesPhotoUploadResult(conversationId, body, route, preview, history)
+    )
+  }
+
+  if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
     return finish(
       await documentFlowResult(conversationId, body, route, preview, phone, history)
     )
@@ -1879,10 +1965,10 @@ export async function runMasterConversation(
         isAlternatePhoneRequestPending(history)
 
       if (resumeStructuredFlow) {
-        if (shouldHandlePostPurchaseCaseFlow(body, history)) {
+        if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {
           return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
         }
-        if (shouldHandleOrderLookupFlow(body, history)) {
+        if (shouldHandleOrderLookupFlow(body, history, lastAgent)) {
           return shippingResult(conversationId, body, route, preview, phone, history)
         }
         // Fall through — complete handoff / confirmation without re-asking.
@@ -1929,9 +2015,9 @@ export async function runMasterConversation(
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
-  const structuredFlow = hasStructuredFlowPending(history)
+  const structuredFlow = hasStructuredFlowPending(history, lastAgent)
 
-  if (shouldHandleDigitalDocumentFlow(body, history)) {
+  if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
     setRoutingPath(conversationId, "t0")
     return finish(
       await documentFlowResult(conversationId, body, route, preview, phone, history)
@@ -2093,11 +2179,11 @@ export async function runMasterConversation(
     return faqReturnPolicyResult(conversationId, body, route, preview, history, lastAgent)
   }
 
-  if (shouldHandlePostPurchaseCaseFlow(body, history)) {
+  if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {
     return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
   }
 
-  if (shouldHandleDigitalDocumentFlow(body, history)) {
+  if (shouldHandleDigitalDocumentFlowGuarded(body, history, lastAgent)) {
     return documentFlowResult(conversationId, body, route, preview, phone, history)
   }
 
@@ -2111,11 +2197,11 @@ export async function runMasterConversation(
   )
   if (inventory) return inventory
 
-  if (shouldHandleOrderShippingFlow(body, history)) {
+  if (shouldHandleOrderShippingFlow(body, history, lastAgent)) {
     return shippingResult(conversationId, body, route, preview, phone, history)
   }
 
-  if (isServiceTopicSwitch(body) && !shouldHandleDigitalDocumentFlow(body, history)) {
+  if (isServiceTopicSwitch(body) && !shouldHandleDigitalDocumentFlowGuarded(body, history, lastAgent)) {
     return resolveSpecialist(
       conversationId,
       turn,
@@ -2319,7 +2405,7 @@ export async function runMasterConversation(
 
   const next = MASTER_ROUTE_MAP[masterAction] ?? "faq"
   if (next === "shipping") {
-    if (shouldHandleDigitalDocumentFlow(body, history)) {
+    if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
       return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
     }
     return shippingResult(conversationId, body, route, preview, phone || undefined, history)
