@@ -30,8 +30,9 @@ function matchesOffTopicPattern(text: string) {
   )
 }
 
-export function isHumanHandoffPending(history: HistoryMessage[]) {
-  const last = lastAssistantText(history)
+export function isHumanHandoffOfferText(text: string) {
+  const last = text.trim()
+  if (!last) return false
   return (
     /שנעביר את השיחה לנציג אנושי/.test(last) ||
     /האם להעביר את הפנייה כעת ליועץ מכירות/.test(last) ||
@@ -42,6 +43,10 @@ export function isHumanHandoffPending(history: HistoryMessage[]) {
     /לא לגמרי הבנתי.*(?:להעביר|נציג)/.test(last) ||
     /שאעביר את השיחה לנציג שירות/.test(last)
   )
+}
+
+export function isHumanHandoffPending(history: HistoryMessage[]) {
+  return isHumanHandoffOfferText(lastAssistantText(history))
 }
 
 export function isHumanHandoffAffirmation(body: string) {

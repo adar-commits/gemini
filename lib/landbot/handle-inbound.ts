@@ -1,4 +1,5 @@
 import { runMasterConversation } from "@/lib/agents/run-agent"
+import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getSessionInactivityState } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
@@ -256,31 +257,42 @@ export async function handleLandbotInbound(
     }
 
     if (result.action === "human_sales" || result.action === "human_service") {
+      await clearInactivityWatchState(conversationId)
       const human = pickHumanAgentId(result.action, customerId)
       if (human) await assignToHuman(customerId, human)
       else await unassignCustomer(customerId)
     } else if (outboundMessages.length > 0) {
-      const session = await getSessionInactivityState(conversationId)
-      const watchAssistantAt = session?.last_assistant_at
-      if (watchAssistantAt) {
-        const watchInput = {
-          conversationId,
-          customerId,
-          customerName: customerName || undefined,
-          customerPhone:
-            options?.phone?.trim() ||
-            (typeof session.customer_phone === "string"
-              ? session.customer_phone.trim()
-              : undefined),
-          watchAssistantAt: String(watchAssistantAt),
-        }
-        after(async () => {
-          try {
-            await runInactivityPipeline(watchInput)
-          } catch (error) {
-            console.error("[inactivity-watch] pipeline failed", error)
-          }
+      const lastOutbound = outboundMessages[outboundMessages.length - 1] ?? ""
+      if (
+        shouldSkipInactivityForHumanWait({
+          lastAction: result.action,
+          lastAssistantText: lastOutbound,
         })
+      ) {
+        await clearInactivityWatchState(conversationId)
+      } else {
+        const session = await getSessionInactivityState(conversationId)
+        const watchAssistantAt = session?.last_assistant_at
+        if (watchAssistantAt) {
+          const watchInput = {
+            conversationId,
+            customerId,
+            customerName: customerName || undefined,
+            customerPhone:
+              options?.phone?.trim() ||
+              (typeof session.customer_phone === "string"
+                ? session.customer_phone.trim()
+                : undefined),
+            watchAssistantAt: String(watchAssistantAt),
+          }
+          after(async () => {
+            try {
+              await runInactivityPipeline(watchInput)
+            } catch (error) {
+              console.error("[inactivity-watch] pipeline failed", error)
+            }
+          })
+        }
       }
     }
   } else {

@@ -1,3 +1,4 @@
+import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_PING_MS,
@@ -72,6 +73,39 @@ async function lastMessageAction(conversationId: string) {
   return asText(data?.action)
 }
 
+async function lastMeaningfulAssistantMessage(conversationId: string) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_messages")
+    .select("content, action")
+    .eq("conversation_id", conversationId)
+    .eq("role", "assistant")
+    .order("created_at", { ascending: false })
+    .limit(8)
+
+  if (error) throw error
+  for (const row of data ?? []) {
+    const content = String(row.content ?? "")
+    if (isInactivityAssistantMessage(content)) continue
+    return {
+      content,
+      action: asText(row.action),
+    }
+  }
+  return null
+}
+
+async function isHumanWaitingConversation(conversationId: string) {
+  const [lastAction, meaningful] = await Promise.all([
+    lastMessageAction(conversationId),
+    lastMeaningfulAssistantMessage(conversationId),
+  ])
+  return shouldSkipInactivityForHumanWait({
+    lastAction: lastAction || meaningful?.action,
+    lastAssistantText: meaningful?.content,
+  })
+}
+
 async function hasPendingBuffer(conversationId: string) {
   const supabase = getAgentSupabase()
   const { data } = await supabase
@@ -131,8 +165,7 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
   if (!botIsWaiting(session)) return "bot_not_waiting" as const
   if (await hasPendingBuffer(payload.conversationId)) return "pending_buffer" as const
 
-  const action = await lastMessageAction(payload.conversationId)
-  if (action === "human_service" || action === "human_sales") {
+  if (await isHumanWaitingConversation(payload.conversationId)) {
     return "human_handoff" as const
   }
   return null
@@ -191,8 +224,7 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
   if (!botIsWaiting(session)) return "bot_not_waiting" as const
   if (await hasPendingBuffer(payload.conversationId)) return "pending_buffer" as const
 
-  const action = await lastMessageAction(payload.conversationId)
-  if (action === "human_service" || action === "human_sales") {
+  if (await isHumanWaitingConversation(payload.conversationId)) {
     return "human_handoff" as const
   }
   return null

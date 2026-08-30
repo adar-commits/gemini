@@ -1,3 +1,4 @@
+import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_PING_MS,
@@ -79,6 +80,25 @@ async function getLastAssistantMessage(conversationId: string) {
 
   if (error) throw error
   return data
+}
+
+async function getLastMeaningfulAssistantMessage(conversationId: string) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_messages")
+    .select("content, created_at, action")
+    .eq("conversation_id", conversationId)
+    .eq("role", "assistant")
+    .order("created_at", { ascending: false })
+    .limit(8)
+
+  if (error) throw error
+  for (const row of data ?? []) {
+    const content = String(row.content ?? "")
+    if (isInactivityAssistantMessage(content)) continue
+    return row
+  }
+  return null
 }
 
 async function lastAssistantIsInactivityPing(conversationId: string) {
@@ -186,6 +206,15 @@ function shouldSkipIdle(row: IdleSessionRow) {
   const lastAction = asText(row.last_action)
   if (lastAction === "human_service" || lastAction === "human_sales") return true
   return false
+}
+
+async function shouldSkipIdleForHumanWait(row: IdleSessionRow) {
+  if (shouldSkipIdle(row)) return true
+  const meaningful = await getLastMeaningfulAssistantMessage(row.conversation_id)
+  return shouldSkipInactivityForHumanWait({
+    lastAction: asText(row.last_action) || asText(meaningful?.action),
+    lastAssistantText: meaningful?.content ? String(meaningful.content) : null,
+  })
 }
 
 async function hasPendingBuffer(conversationId: string) {
@@ -322,7 +351,7 @@ async function loadSessionsDueForClose(limit = CLOSE_SCAN_LIMIT): Promise<CloseC
 }
 
 async function attemptInactivityClose(row: CloseCandidate) {
-  if (shouldSkipIdle(row)) return "skipped" as const
+  if (await shouldSkipIdleForHumanWait(row)) return "skipped" as const
   if (await hasPendingBuffer(row.conversation_id)) return "skipped" as const
   if (!(await isBotWaitingForUser(row))) return "skipped" as const
 
@@ -375,7 +404,7 @@ export async function processInactivityTimeouts() {
 
   for (const row of sessions) {
     try {
-      if (shouldSkipIdle(row)) {
+      if (await shouldSkipIdleForHumanWait(row)) {
         results.skipped += 1
         continue
       }
