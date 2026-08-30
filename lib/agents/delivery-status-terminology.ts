@@ -10,6 +10,9 @@ const PICKUP_READY_MESSAGE = `איזה כיף! ההזמנה מוכנה לאיס�
 const PROCESSING_NOT_SENT_MESSAGE =
   "ההזמנה עדיין בטיפול וטרם הועברה לחברת השליחויות."
 
+const PACKED_AWAITING_COURIER_MESSAGE =
+  "השטיח נארז במחסני החברה וממתין לאיסוף של חברת השליחויות"
+
 const PICKUP_PROCESSING_MESSAGE =
   "ההזמנה עדיין בטיפול וטרם מוכנה לאיסוף עצמי."
 
@@ -42,6 +45,10 @@ export function buildDeliveryStatusMessage(input: {
   if (statusId === "6") return deliveredByCourierMessage(input.deliveryDate)
   if (statusId === "23") return SELF_PICKUP_COLLECTED_MESSAGE
   if (statusId === "1") return PROCESSING_NOT_SENT_MESSAGE
+  if (statusId === "2") return PACKED_AWAITING_COURIER_MESSAGE
+  if (/משלוח\s+נוצר|ממתין\s+לאיסוף\s+ש(?:ל|ל)?(?:חברת\s+)?(?:ה)?שליח/i.test(input.deliveryStatusDesc ?? "")) {
+    return PACKED_AWAITING_COURIER_MESSAGE
+  }
 
   return UNKNOWN_STATUS_MESSAGE
 }

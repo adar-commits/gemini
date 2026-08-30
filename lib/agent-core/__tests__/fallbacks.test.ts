@@ -15,7 +15,13 @@ describe("api failure fallbacks", () => {
     assert.match(reply, /האם להעביר לנציג שירות/)
   })
 
-  it("detects hollow order status reply without delivery text", () => {
+  it("detects hollow checked order status reply without delivery text", () => {
+    const reply = `${CUSTOMER_HEADER}
+בדקתי,  נכון לתאריך 30.8.2026`
+    assert.equal(isHollowOrderStatusReply(reply), true)
+  })
+
+  it("detects hollow order status reply without delivery text (legacy)", () => {
     const reply = `${CUSTOMER_HEADER}
 לגבי הזמנה SO26019842 (אתר אינטרנט):
 

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-terminology"
-import { describeShipmentStatus, mapPriorityOrderRow } from "@/lib/agents/order-lookup"
+import {
+  buildDeliveryStatusMessage,
+} from "@/lib/agents/delivery-status-terminology"
+import {
+  buildOrderStatusReply,
+  mapPriorityOrderRow,
+} from "@/lib/agents/order-lookup"
 
 describe("delivery status terminology", () => {
   it("maps in-transit codes 3/4/5/80 to the shared message", () => {
@@ -48,6 +53,20 @@ describe("delivery status terminology", () => {
     )
   })
 
+  it("maps packed-awaiting-courier code 2 and shipment-created label", () => {
+    assert.match(
+      buildDeliveryStatusMessage({ deliveryStatusId: "2" }),
+      /נארז במחסני החברה/
+    )
+    assert.match(
+      buildDeliveryStatusMessage({
+        deliveryStatusId: "99",
+        deliveryStatusDesc: "משלוח נוצר",
+      }),
+      /ממתין לאיסוף/
+    )
+  })
+
   it("builds full shipment status from Priority row", () => {
     const order = mapPriorityOrderRow({
       ORDNAME: "SO26019842",
@@ -57,6 +76,22 @@ describe("delivery status terminology", () => {
       CURDATE: "2026-08-20T00:00:00Z",
     })
     assert.match(order.statusDescription, /נארז ונאסף מהמחסנים/)
-    assert.match(order.statusDescription, /עדכון סטטוס אחרון/)
+    assert.doesNotMatch(order.statusDescription, /עדכון סטטוס אחרון/)
+  })
+
+  it("builds checked status reply with as-of date for shipment created", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26019842",
+      ZPIT_DELSTATUSCODE: "2",
+      ZPIT_DELSTATUSDES: "משלוח נוצר",
+      ZPIT_UDATE: "2026-08-30T14:00:00+03:00",
+      Y_7455_0_ESH: "אתר אינטרנט",
+    })
+    const reply = buildOrderStatusReply(order)
+    assert.match(reply, /בדקתי,/)
+    assert.match(reply, /נארז במחסני החברה/)
+    assert.match(reply, /נכון לתאריך/)
+    assert.doesNotMatch(reply, /לגבי הזמנה/)
+    assert.doesNotMatch(reply, /סטטוס:/)
   })
 })

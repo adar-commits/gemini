@@ -163,22 +163,21 @@ export function sortOrdersNewestFirst(orders: OrderShipmentStatus[]) {
   )
 }
 
-/** Status text from ZPIT_DELSTATUSCODE + ZPIT_DELSTATUSDES + ZPIT_UDATE. */
+/** Customer-facing status body — date is appended in buildOrderStatusReply. */
 export function describeShipmentStatus(order: OrderShipmentStatus) {
   const deliveryDate =
     formatHebrewDate(order.raw.ZPIT_DELDATE) ??
     formatHebrewDate(order.raw.ZPIT_UDATE)
 
-  const message = buildDeliveryStatusMessage({
+  return buildDeliveryStatusMessage({
     deliveryStatusId: order.statusCode,
     deliveryStatusDesc: order.statusLabel || "לא ידוע",
     deliveryDate,
   })
+}
 
-  const updated = formatHebrewDateTime(order.raw.ZPIT_UDATE)
-  if (!updated) return message
-
-  return `${message}\nעדכון סטטוס אחרון: ${updated}.`
+function statusAsOfDate(order: OrderShipmentStatus) {
+  return formatHebrewDate(order.raw.ZPIT_UDATE) ?? formatHebrewDateTime(order.raw.ZPIT_UDATE)
 }
 
 export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus {
@@ -563,13 +562,12 @@ export function buildOrderConfirmationClarifyPrompt(order: OrderShipmentStatus) 
 }
 
 export function buildOrderStatusReply(order: OrderShipmentStatus) {
-  const status = order.statusDescription?.trim()
-  if (!status) return buildApiFailureReply()
+  const body = order.statusDescription?.trim()
+  if (!body) return buildApiFailureReply()
+  const asOf = statusAsOfDate(order)
+  const datePhrase = asOf ? ` נכון לתאריך ${asOf}` : ""
   return `${CUSTOMER_HEADER}
-לגבי הזמנה ${order.orderNumber} (${order.branchLabel}):
-${status}
-
-אם צריך עוד משהו — כאן. אפשר גם לכתוב נציג.`
+בדקתי, ${body}${datePhrase}`
 }
 
 export function isBotHelpJustDelivered(history: HistoryMessage[]) {
@@ -577,6 +575,7 @@ export function isBotHelpJustDelivered(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     return (
+      (/בדקתי,/i.test(message.content) && /נכון לתאריך/i.test(message.content)) ||
       (/לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(message.content) &&
         /(?:אפשר לעזור במשהו נוסף|אם צריך עוד משהו)/i.test(message.content)) ||
       /הנה הקישור למסמך/i.test(message.content)

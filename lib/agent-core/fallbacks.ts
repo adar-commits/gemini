@@ -26,6 +26,15 @@ ${API_FAILURE_HANDOFF_LINE[handoff]}`
 }
 
 export function isHollowOrderStatusReply(reply: string) {
+  if (/בדקתי,/i.test(reply)) {
+    const withoutBoilerplate = reply
+      .replace(CUSTOMER_HEADER, "")
+      .replace(/^בדקתי,\s*/i, "")
+      .replace(/נכון לתאריך[^\n.]*/gi, "")
+      .trim()
+    return withoutBoilerplate.length < 24
+  }
+
   if (!/לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(reply)) return false
   const withoutBoilerplate = reply
     .replace(CUSTOMER_HEADER, "")

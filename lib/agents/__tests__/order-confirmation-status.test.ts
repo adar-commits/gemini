@@ -13,16 +13,22 @@ describe("order confirmation status reply", () => {
     branchLabel: "אתר אינטרנט",
     statusCode: "3",
     statusLabel: "בדרך ללקוח",
-    statusDescription: "המשלוח בדרך אליך.\nעדכון סטטוס אחרון: 30.8.2026, 14:00.",
+    statusDescription: "המשלוח נארז ונאסף מהמחסנים, צפוי להגיע בימים הקרובים. התיאום יתבצע על ידי השליח ביום האספקה.",
     branchCode: null,
     totalPrice: 0,
-    raw: { ORDNAME: "SO26019842", CURDATE: "2026-08-20T00:00:00Z" },
+    raw: {
+      ORDNAME: "SO26019842",
+      CURDATE: "2026-08-20T00:00:00Z",
+      ZPIT_UDATE: "2026-08-30T14:00:00+03:00",
+    },
   }
 
-  it("includes delivery status text from a full order payload", () => {
+  it("includes delivery status text with checked phrasing", () => {
     const reply = buildOrderStatusReply(fullOrder)
-    assert.match(reply, /בדרך ללקוח|בדרך אליך/)
-    assert.match(reply, /SO26019842/)
+    assert.match(reply, /בדקתי,/)
+    assert.match(reply, /נארז ונאסף מהמחסנים/)
+    assert.match(reply, /נכון לתאריך/)
+    assert.doesNotMatch(reply, /לגבי הזמנה/)
   })
 
   it("cached confirmation summary has no status — falls back to API failure handoff", () => {
