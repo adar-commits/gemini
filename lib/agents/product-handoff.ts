@@ -17,7 +17,7 @@ const REQUESTED_MODEL_RE =
   /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9 \-]{1,30}?)(?=\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|\s+ל(?:סלון|חדר|מרפס|חצר|מסדרון|גינה|מחסן|ה\b)|[\n,.!?]|$)/i
 
 const GARBAGE_MODEL_RE =
-  /^(?:בבקשה|כמה|עולה|מידה|גודל|יש|לקנות|שטיח|פוף|בגודל|במידה|אפשר|רוצה|מחפש|מסוימ(?:ת|ה)|מוצר|דגם|בבקשה\s+כמה\s+עולה)/i
+  /^(?:בבקשה|כמה|עולה|מידה|גודל|יש|לקנות|שטיח|פוף|בגודל|במידה|אפשר|רוצה|מחפש|מסוימ(?:ת|ה)|מוצר|דגם|בבקשה\s+כמה\s+עולה|באינטרנט|מהאתר|לא\s+מ(?:סתדר|צא|וצא)|לא\s+מוצא)/i
 
 const ROOM_TARGET_RE =
   /^(?:לחדר\s+ילדים|חדר\s+(?:ילדים|שינה|ילד|נוער|תינוקות)|לסלון|סלון|למסדרון|מסדרון|מטבח|מרפסת|כניסה)(?:\s|$)/i
@@ -39,6 +39,7 @@ function isLikelyProductModelName(name: string) {
   if (/^(?:סלון|חדר|גדול|קטן|יוקרתי|מודרני|עבה|דק|חלק|מחוספס)/i.test(trimmed)) return false
   if (ROOM_PREPOSITION_IN_NAME_RE.test(trimmed)) return false
   if (/^(?:ו)?יש\b|פגם|ליקוי|בו\b|לצער|לא\s+א/i.test(trimmed)) return false
+  if (/באינטרנט|לא\s+מ(?:סתדר|צא|וצא)|לא\s+מוצא|קשה\s+ל(?:מצוא|חפש)/i.test(trimmed)) return false
   if (HEBREW_COLOR_WORD_RE.test(trimmed)) return false
   if (STYLE_DESCRIPTOR_RE.test(trimmed)) return false
   const words = trimmed.split(/\s+/)

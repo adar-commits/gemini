@@ -55,7 +55,13 @@ const PET_CLARIFICATION_RE =
   /^(?:אבל|רק|הוא|היא|לא\s+נכנס|בסדר|בכל\s+זאת)/i
 
 const UNKNOWN_ANSWER_RE =
-  /^(?:לא\s+יודע(?:ת)?|אני\s+לא\s+יודע(?:\s+ה(?:אמת|אמת)?)?|לא\s+בטוח(?:ה)?|לא\s+מבין|אין\s+לי\s+מושג|לא\s+ממש|לא\s+כ(?:\"|״|')?כ|עזוב(?:\s+אותי)?)/i
+  /^(?:לא\s+יודע(?:ת)?|אני\s+לא\s+יודע(?:\s+ה(?:אמת|אמת)?)?|לא\s+בטוח(?:ה)?|לא\s+מבין|אין\s+לי\s+מושג|לא\s+ממש|לא\s+כ(?:\"|״|')?כ|עזוב(?:\s+אותי)?|לא\s+משנה|לא\s+אכפת|אין\s+העדפה|בכל\s+סגנון|כל\s+סגנון|מה\s+ש(?:בא|י)?(?:בא|)?(?:לך|כם))/i
+
+const UNKNOWN_ANSWER_ANYWHERE_RE =
+  /(?:^|[\s,.—-])(?:אין\s+לי\s+מושג|אין\s+ל(?:י|נו)\s+מושג|לא\s+יודע(?:ת)?|לא\s+בטוח(?:ה)?|לא\s+משנה|לא\s+אכפת|אין\s+העדפה|בכל\s+סגנון)(?:[\s,.!?]|$)/i
+
+const NO_STYLE_PREFERENCE_RE =
+  /^(?:האמת\s+ש(?:אין|לא)|אין\s+לי\s+מושג|אין\s+ל(?:י|נו)\s+מושג|לא\s+משנה|לא\s+אכפת|בכל\s+סגנון|כל\s+סגנון)/i
 
 const INTAKE_CORRECTION_RE =
   /כבר\s+שאלת|כבר\s+עניתי|עניתי\s+ש|אמרתי\s+ש|צודק/i
@@ -557,7 +563,39 @@ function normalizeSpaceAnswer(raw: string) {
 
 function isUnknownIntakeAnswer(text: string) {
   const trimmed = text.trim()
-  return UNKNOWN_ANSWER_RE.test(trimmed) || /^לא\s+מבין/i.test(trimmed)
+  if (!trimmed) return true
+  return (
+    UNKNOWN_ANSWER_RE.test(trimmed) ||
+    UNKNOWN_ANSWER_ANYWHERE_RE.test(trimmed) ||
+    NO_STYLE_PREFERENCE_RE.test(trimmed) ||
+    /^לא\s+מבין/i.test(trimmed)
+  )
+}
+
+function isMeaningfulRequestedModelForSummary(model?: string) {
+  const trimmed = model?.trim()
+  if (!trimmed || trimmed.length < 2) return false
+  if (/באינטרנט|מהאתר|לא\s+מ(?:סתדר|צא|וצא)|לא\s+מוצא|קשה\s+ל(?:מצוא|חפש)|לבדיקה/i.test(trimmed)) {
+    return false
+  }
+  if (trimmed.split(/\s+/).length > 4) return false
+  return true
+}
+
+function normalizePracticalForSummary(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || isUnknownIntakeAnswer(trimmed)) return null
+  if (/באינטרנט|לא\s+מסתדר|לבדיקה\s+ע"י/i.test(trimmed)) return null
+
+  if (/קל\s+לניקוי|נ(?:ית|)ן\s+ל(?:כבס|ניקוי)/i.test(trimmed)) {
+    if (/לא\s+קריטי|לא\s+חובה/i.test(trimmed)) {
+      return "אשמח שיהיה קל לניקוי אבל לא קריטי"
+    }
+    return "קל לניקוי"
+  }
+
+  if (trimmed.length > 70) return null
+  return trimmed
 }
 
 function isIntakeCorrection(text: string) {
@@ -828,7 +866,7 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
     intake.style = "ייחודי"
   } else if (color && !intake.style) {
     intake.style = "ללא העדפת סגנון"
-  } else if (!intake.style && combined.length <= 50) {
+  } else if (!intake.style && combined.length <= 50 && !isUnknownIntakeAnswer(combined)) {
     intake.style = combined.slice(0, 50)
   }
 }
@@ -1139,7 +1177,9 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
     extractRequestedModel(body) ||
     extractRequestedModel(text) ||
     undefined
-  if (requestedModel) intake.requestedModel = requestedModel
+  if (requestedModel && isMeaningfulRequestedModelForSummary(requestedModel)) {
+    intake.requestedModel = requestedModel
+  }
 
   if (!intake.bedroomUse) {
     if (/חדר\s+תינוקות|תינוק/.test(text)) intake.bedroomUse = "חדר תינוקות"
@@ -1309,7 +1349,6 @@ function nextIntakeQuestion(
   if (isLivingRoomSpace(intake.targetSpace) && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
     return sofaSizeQuestion(intake)
   }
-  if (!intake.budget) return BUDGET_Q
   if (needsPracticalNeeds(intake) && !intake.practicalNeeds) return PRACTICAL_Q
   return null
 }
@@ -1379,13 +1418,13 @@ export function buildConfirmationSummary(intake: SalesIntake) {
   const budgetPhrase = intake.budget
     ? `עד תקציב של ${formatBudget(intake.budget)} ש״ח`
     : ""
-  const practicalPhrase =
-    intake.practicalNeeds && !/לא\s+בטוח|לא\s+יודע/i.test(intake.practicalNeeds)
-      ? intake.practicalNeeds
+  const practicalPhrase = intake.practicalNeeds
+    ? normalizePracticalForSummary(intake.practicalNeeds)
+    : null
+  const modelPhrase =
+    isMeaningfulRequestedModelForSummary(intake.requestedModel)
+      ? `עם עניין בדגם "${intake.requestedModel}" (לבדיקה ע"י יועץ)`
       : ""
-  const modelPhrase = intake.requestedModel
-    ? `עם עניין בדגם "${intake.requestedModel}" (לבדיקה ע"י יועץ)`
-    : ""
 
   let summary = `אנחנו מחפשים לך ${product}${space}`
   if (sizeLabel) summary += ` בגודל ${sizeLabel}`
@@ -1432,13 +1471,25 @@ function formatSizeForSummary(intake: SalesIntake) {
 
 function formatStyleForSummary(intake: SalesIntake) {
   const style = intake.style?.trim()
-  if (style === "ייחודי" && intake.favoredColor) return null
-  if (!style || /לא\s+בטוח|לא\s+יודע/i.test(style)) return "ללא העדפת סגנון"
-  if (style === "ללא העדפת סגנון") return style
+  if (
+    style === "ייחודי" &&
+    intake.favoredColor &&
+    !isUnknownIntakeAnswer(intake.favoredColor)
+  ) {
+    return null
+  }
+  if (
+    !style ||
+    isUnknownIntakeAnswer(style) ||
+    style === "ללא העדפת סגנון" ||
+    /לא\s+בטוח|לא\s+יודע/i.test(style)
+  ) {
+    return "בכל סגנון"
+  }
   if (style === "ייחודי") return "בסגנון ייחודי"
   if (/יוקרתי|מודרני|כפרי/.test(style)) return `בסגנון ${style}`
-  if (intake.favoredColor && style.includes(intake.favoredColor)) return "ללא העדפת סגנון"
-  if (style.length > 35) return "ללא העדפת סגנון"
+  if (intake.favoredColor && style.includes(intake.favoredColor)) return "בכל סגנון"
+  if (style.length > 35 || isUnknownIntakeAnswer(style)) return "בכל סגנון"
   return `בסגנון ${style}`
 }
 
@@ -1446,10 +1497,10 @@ function formatPetsForSummary(intake: SalesIntake) {
   if (intake.pets === "none") return "ללא בעלי חיים"
   if (intake.pets === "yes") {
     if (intake.petsDetail && petsDontEnterSpace(intake.petsDetail)) return "ללא בעלי חיים"
-    if (intake.petsDetail && intake.petsDetail.length <= 25) {
-      return `עם ${intake.petsDetail}`
+    if (intake.petsDetail && intake.petsDetail.length <= 25 && !isUnknownIntakeAnswer(intake.petsDetail)) {
+      return `מתאים ל${intake.petsDetail}`
     }
-    return "עם בעלי חיים"
+    return "מתאים לבעלי חיים"
   }
   return null
 }
