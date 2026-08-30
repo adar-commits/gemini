@@ -44,7 +44,7 @@ import {
   isConversationClosing,
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
-import { buildDissatisfactionRescueReply, isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import { buildDissatisfactionRescueReply, isDissatisfactionWithoutDefect, isDissatisfactionRescuePending, resolveDissatisfactionRescueChoice, buildDissatisfactionRescueClarifyReply, buildDissatisfactionRescuePortalReply } from "@/lib/agents/dissatisfaction"
 import {
   buildWebsiteIssueHandoffOffer,
   isWebsiteIssueComplaint,
@@ -783,6 +783,57 @@ async function faqDissatisfactionResult(
     preview,
   })
   return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+}
+
+async function dissatisfactionRescueFollowUpResult(
+  conversationId: string,
+  body: string,
+  history: HistoryMessage[],
+  route: AgentId[],
+  preview?: boolean
+): Promise<AgentResponse | null> {
+  if (!isDissatisfactionRescuePending(history)) return null
+
+  const choice = resolveDissatisfactionRescueChoice(body)
+  if (!choice) return null
+
+  if (choice === "clarify") {
+    const reply = normalizeReply("faq", "reply", buildDissatisfactionRescueClarifyReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  if (choice === "portal") {
+    const reply = normalizeReply("faq", "reply", buildDissatisfactionRescuePortalReply())
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
+  }
+
+  const action = choice === "sales" ? "human_sales" : "human_service"
+  const reply = `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action,
+    preview,
+  })
+  return { ok: true, agent: "faq", reply, action, route: [...route, "faq"] }
 }
 
 async function resolveSpecialist(
@@ -1889,6 +1940,15 @@ export async function runMasterConversation(
     { lastAction, sessionSummary: conversationSummary, preview }
   )
   if (multiQuestion) return finish(multiQuestion)
+
+  const dissatisfactionFollowUp = await dissatisfactionRescueFollowUpResult(
+    conversationId,
+    body,
+    history,
+    route,
+    preview
+  )
+  if (dissatisfactionFollowUp) return finish(dissatisfactionFollowUp)
 
   if (
     turnHasCustomerImage(turn) &&
