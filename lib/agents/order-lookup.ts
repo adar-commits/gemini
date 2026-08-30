@@ -1,7 +1,9 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
-import { isReturnFlowCorrection, isReturnPolicyQuestion } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, mentionsReturnIntent } from "@/lib/agents/inquiry-intent"
+import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 
 const CANCELLATION_EMPATHY_PREFIX =
@@ -320,6 +322,81 @@ function parseDocumentLinkFromPayload(data: unknown) {
 export function extractOrderNumber(text: string) {
   const match = text.match(/\b((?:SO|IN|OV)\d+)\b/i)
   return match?.[1]?.toUpperCase() ?? null
+}
+
+/** Order-specific eligibility — not a general policy/options question. */
+export function isOrderSpecificEligibilityQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (
+    /(?:עבר(?:ו)?|יותר\s+מ|לפני)\s*(?:\d+|י(?:מ)?(?:ים)?|שבוע|חודש)/i.test(text) &&
+    mentionsReturnIntent(text)
+  ) {
+    return true
+  }
+  if (
+    /האם\s+(?:אפשר|עדיין\s+אפשר|עדיין)/i.test(text) &&
+    mentionsReturnIntent(text) &&
+    /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|הזמנה)/i.test(text)
+  ) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Order lookup is only for shipping status, digital documents, explicit return execution,
+ * or a question tied to a specific order (reference, timeframe, eligibility).
+ */
+export function requiresOrderIdentification(body: string, history: HistoryMessage[] = []) {
+  if (isShippingStatusQuestion(body)) return true
+  if (isDigitalDocumentRequest(body)) return true
+  if (isPreorderDelayComplaint(body)) return true
+  if (extractOrderReference(body) || extractOrderNumber(body)) return true
+  if (isOrderSpecificEligibilityQuestion(body)) return true
+  if (/^(?:החזרה|ביצוע\s+החזרה)(?:[\s,.!?]|$)/i.test(body.trim())) return true
+
+  if (
+    isPhoneLookupConfirmPending(history) ||
+    isOrderConfirmationPending(history) ||
+    isAlternatePhoneRequestPending(history)
+  ) {
+    return true
+  }
+
+  return false
+}
+
+/** Reuse order cues from a confirmation prompt — avoids a second Priority lookup on "נכון". */
+export function orderSummaryFromConfirmationHistory(
+  history: HistoryMessage[],
+  orderNumber: string
+): OrderShipmentStatus | null {
+  const normalizedOrder = orderNumber.toUpperCase()
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (!message.content.includes(normalizedOrder)) continue
+
+    const branchMatch =
+      message.content.match(
+        /ב(?:וצעה[^?]*?)?(ב(?:סניף|אתר)[^,?]+?)(?:\s+על\s+סך|,|\?)/i
+      ) ??
+      message.content.match(/\(([^)]+)\)\s*$/i)
+    const branchLabel = branchMatch?.[1]?.trim() || "לא ידוע"
+
+    return {
+      orderNumber: normalizedOrder,
+      branchLabel,
+      statusCode: "",
+      statusLabel: "",
+      statusDescription: "",
+      branchCode: null,
+      totalPrice: null,
+      raw: { ORDNAME: normalizedOrder },
+    }
+  }
+  return null
 }
 
 /** Order reference from customer reply — prefixed (SO/IN/OV) or bare digits (not a phone). */
@@ -757,6 +834,13 @@ async function resolveOrderConfirmationFlow(input: {
   lookupPhone: string
   history: HistoryMessage[]
 }) {
+  const pendingOrder = pendingOrderNumberFromHistory(input.history)
+
+  if (pendingOrder && isPureOrderConfirmation(input.body)) {
+    const cached = orderSummaryFromConfirmationHistory(input.history, pendingOrder)
+    if (cached) return buildOrderStatusReply(cached)
+  }
+
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply()
@@ -768,8 +852,6 @@ async function resolveOrderConfirmationFlow(input: {
     const matched = findOrderByNumber(sorted, explicitOrder)
     if (matched) return buildOrderStatusReply(matched)
   }
-
-  const pendingOrder = pendingOrderNumberFromHistory(input.history)
 
   if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)

@@ -34,6 +34,8 @@ import {
   isPurePhoneLookupConfirmYes,
   lookupOrdersByPhone,
   pendingOrderNumberFromHistory,
+  requiresOrderIdentification,
+  orderSummaryFromConfirmationHistory,
   resolveLookupPhoneFromHistory,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
@@ -103,20 +105,27 @@ export function shouldHandlePostPurchaseCaseFlow(
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) return false
 
   if (activePostPurchaseCaseKind(history)) return true
+
+  const continuingLookup =
+    isPhoneLookupConfirmPending(history) ||
+    isOrderConfirmationPending(history) ||
+    isAlternatePhoneRequestPending(history)
+
+  if (!continuingLookup && !requiresOrderIdentification(body, history)) {
+    return false
+  }
+
   if (classifyPostPurchaseCase(body)) return true
   if (
     mentionsReturnIntent(body) &&
     !isReturnPolicyQuestion(body) &&
+    requiresOrderIdentification(body, history) &&
     /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|שטיח|פוף|מוצר|הזמנה)/i.test(body)
   ) {
     return true
   }
 
-  if (
-    isPhoneLookupConfirmPending(history) ||
-    isOrderConfirmationPending(history) ||
-    isAlternatePhoneRequestPending(history)
-  ) {
+  if (continuingLookup) {
     return activePostPurchaseCaseKind(history) != null || classifyPostPurchaseCase(body) != null
   }
 
@@ -236,6 +245,13 @@ async function resolveOrderConfirmationFlow(input: {
   history: HistoryMessage[]
   kind: PostPurchaseCaseKind
 }) {
+  const pendingOrder = pendingOrderNumberFromHistory(input.history)
+
+  if (pendingOrder && isPureOrderConfirmation(input.body)) {
+    const cached = orderSummaryFromConfirmationHistory(input.history, pendingOrder)
+    if (cached) return buildOrderConfirmedReply(input.kind, cached)
+  }
+
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply()
@@ -247,8 +263,6 @@ async function resolveOrderConfirmationFlow(input: {
     const matched = findOrderByNumber(sorted, explicitOrder)
     if (matched) return buildOrderConfirmedReply(input.kind, matched)
   }
-
-  const pendingOrder = pendingOrderNumberFromHistory(input.history)
 
   if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)

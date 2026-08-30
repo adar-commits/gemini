@@ -14,18 +14,28 @@ export const PRIORITY_API_PREMESSAGE = `${CUSTOMER_HEADER}
 type PriorityApiBeforeCall = (() => void | Promise<void>) | null
 
 let priorityApiBeforeCall: PriorityApiBeforeCall = null
-let lastPriorityApiPreMessageAt = 0
+let priorityApiPreMessageSentThisTurn = false
+let priorityApiPreMessageSkipGuard: (() => boolean) | null = null
 
 /** Landbot sends this once per customer turn before the first Priority/n8n call. */
 export function bindPriorityApiBeforeCall(handler: PriorityApiBeforeCall) {
   priorityApiBeforeCall = handler
 }
 
+export function resetPriorityApiTurnState() {
+  priorityApiPreMessageSentThisTurn = false
+}
+
+/** When true, skip the pre-message (e.g. already sent earlier in this conversation). */
+export function bindPriorityApiPreMessageGuard(guard: (() => boolean) | null) {
+  priorityApiPreMessageSkipGuard = guard
+}
+
 async function maybeSendPriorityApiPreMessage() {
   if (!priorityApiBeforeCall) return
-  const now = Date.now()
-  if (now - lastPriorityApiPreMessageAt < 2500) return
-  lastPriorityApiPreMessageAt = now
+  if (priorityApiPreMessageSentThisTurn) return
+  if (priorityApiPreMessageSkipGuard?.()) return
+  priorityApiPreMessageSentThisTurn = true
   await priorityApiBeforeCall()
 }
 

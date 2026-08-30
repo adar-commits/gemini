@@ -1,4 +1,8 @@
-import { bindPriorityApiBeforeCall } from "@/lib/agents/priority-webhook"
+import {
+  bindPriorityApiBeforeCall,
+  bindPriorityApiPreMessageGuard,
+  resetPriorityApiTurnState,
+} from "@/lib/agents/priority-webhook"
 import { buildThanksReply, buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import {
   bindOrchestraTier,
@@ -1803,12 +1807,20 @@ export async function runMasterConversation(
   }
 ): Promise<AgentResponse> {
   bindPriorityApiBeforeCall(options?.onPriorityApiCall ?? null)
+  resetPriorityApiTurnState()
   try {
   const runtime = await bindRuntimeConfig()
 
   const body = summarizeTurn(turn)
   const { history, lastAgent, lastAction, resetAt, conversationSummary } =
     await getConversationContext(conversationId)
+  bindPriorityApiPreMessageGuard(() =>
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        /אני על זה, כמה רגעים/i.test(message.content)
+    )
+  )
   const route: AgentId[] = []
   const preview = options?.preview
   const phone = options?.phone?.trim() || ""
@@ -2422,5 +2434,7 @@ export async function runMasterConversation(
   )
   } finally {
     bindPriorityApiBeforeCall(null)
+    bindPriorityApiPreMessageGuard(null)
+    resetPriorityApiTurnState()
   }
 }

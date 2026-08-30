@@ -98,6 +98,15 @@ export function isReturnPolicyQuestion(text: string) {
     return true
   }
 
+  if (
+    mentionsReturnIntent(trimmed) &&
+    /(?:מה\s+(?:ה)?(?:אפשרויות|אופציות)|איך\s+(?:אפשר|מ)?(?:ה)?(?:חזיר|ל(?:ה)?החזיר)|מה\s+(?:ה)?(?:מדיניות|תהליך|דרך)|מה\s+(?:ה)?(?:אפשר|מותר))/i.test(
+      trimmed
+    )
+  ) {
+    return true
+  }
+
   return false
 }
 
@@ -116,7 +125,9 @@ function matchesReturnRequest(text: string) {
   if (!text || isReturnPolicyQuestion(text) || isReturnFlowCorrection(text)) return false
   if (!mentionsReturnIntent(text)) return false
   if (FUTURE_PURCHASE_RE.test(text) && !RECEIVED_RE.test(text)) return false
-  return RECEIVED_RE.test(text) || PRODUCT_RE.test(text)
+  // Explicit execution after policy — not a general "what are my options?" ask.
+  if (/^(?:החזרה|ביצוע\s+החזרה)(?:[\s,.!?]|$)/i.test(text.trim())) return true
+  return false
 }
 
 function matchesDefect(text: string) {
