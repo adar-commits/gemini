@@ -16,6 +16,8 @@ type PriorityApiBeforeCall = (() => void | Promise<void>) | null
 let priorityApiBeforeCall: PriorityApiBeforeCall = null
 let priorityApiPreMessageSentThisTurn = false
 let priorityApiPreMessageSkipGuard: (() => boolean) | null = null
+let priorityApiEnabled = true
+let priorityApiLogContext: { conversationId?: string; whatsappPhone?: string } = {}
 
 /** Landbot sends this once per customer turn before the first Priority/n8n call. */
 export function bindPriorityApiBeforeCall(handler: PriorityApiBeforeCall) {
@@ -24,6 +26,20 @@ export function bindPriorityApiBeforeCall(handler: PriorityApiBeforeCall) {
 
 export function resetPriorityApiTurnState() {
   priorityApiPreMessageSentThisTurn = false
+  priorityApiEnabled = true
+  priorityApiLogContext = {}
+}
+
+/** Shadow / preview turns skip live n8n calls — avoids ghost getOrders from non-reply phones. */
+export function bindPriorityApiEnabled(enabled: boolean) {
+  priorityApiEnabled = enabled
+}
+
+export function bindPriorityApiLogContext(context: {
+  conversationId?: string
+  whatsappPhone?: string
+}) {
+  priorityApiLogContext = context
 }
 
 /** When true, skip the pre-message (e.g. already sent earlier in this conversation). */
@@ -58,7 +74,23 @@ export async function callPriorityWebhook(input: {
 
   const apiKey = process.env.ORDER_LOOKUP_API_KEY?.trim()
 
+  if (!priorityApiEnabled) {
+    console.info("[priority-api] skipped (shadow/preview)", {
+      actionType: input.actionType,
+      value: input.value,
+      conversationId: priorityApiLogContext.conversationId ?? null,
+      whatsappPhone: priorityApiLogContext.whatsappPhone ?? null,
+    })
+    return null
+  }
+
   try {
+    console.info("[priority-api] request", {
+      actionType: input.actionType,
+      value: input.value,
+      conversationId: priorityApiLogContext.conversationId ?? null,
+      whatsappPhone: priorityApiLogContext.whatsappPhone ?? null,
+    })
     await maybeSendPriorityApiPreMessage()
     const response = await fetch(url, {
       method: "POST",

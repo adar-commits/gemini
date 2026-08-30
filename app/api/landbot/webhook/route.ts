@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { shouldProcessPhone, shouldReplyPhone } from "@/lib/landbot/allowlist"
+import { landbotPhonePolicy, shouldProcessPhone, shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { normalizePhoneForOrderApi } from "@/lib/agents/order-lookup"
 import { cronSecretStatus } from "@/lib/agents/cron-auth"
 import {

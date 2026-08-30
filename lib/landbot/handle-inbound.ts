@@ -191,6 +191,7 @@ export async function handleLandbotInbound(
     result = await runMasterConversation(conversationId, turn, {
       customerName: customerName || undefined,
       phone: options?.phone?.trim() || undefined,
+      priorityApiEnabled: replyEnabled,
       onPriorityApiCall: replyEnabled
         ? () => sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
         : undefined,

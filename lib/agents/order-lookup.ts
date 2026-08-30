@@ -124,12 +124,16 @@ function lookupConfigured() {
   return true
 }
 
-function phoneForOrderApi(phone: string) {
+export function normalizePhoneForOrderApi(phone: string) {
   let digits = phone.replace(/\D/g, "")
   if (digits.startsWith("00")) digits = digits.slice(2)
   if (digits.startsWith("972")) digits = `0${digits.slice(3)}`
   if (digits.length === 9 && digits.startsWith("5")) digits = `0${digits}`
   return digits
+}
+
+function phoneForOrderApi(phone: string) {
+  return normalizePhoneForOrderApi(phone)
 }
 
 async function callOrderWebhook(input: {
@@ -599,9 +603,12 @@ export function buildDigitalDocumentNotFoundReply() {
 האם להעביר לנציג שירות שיבדוק וישלח עבורך?`
 }
 
-export function buildNoOrdersFoundReply() {
+export function buildNoOrdersFoundReply(lookupPhone?: string | null) {
+  const phoneHint = lookupPhone
+    ? ` (${formatDisplayPhone(lookupPhone)})`
+    : ""
   return `${CUSTOMER_HEADER}
-לא מצאנו הזמנות פעילות לפי הטלפון הזה.
+לא מצאנו הזמנות פעילות לפי הטלפון${phoneHint}.
 האם להעביר את השיחה לנציג שירות שיבדוק עבורך?`
 }
 
@@ -633,14 +640,31 @@ export function extractPhoneFromText(text: string) {
   return null
 }
 
-/** Phone used for order lookup — last user-provided number in the thread, else WhatsApp. */
+/** Phone used for order lookup — explicit alternate since last phone prompt, else WhatsApp. */
 export function resolveLookupPhoneFromHistory(
   history: HistoryMessage[],
   whatsappPhone?: string
 ) {
-  let lookupPhone = whatsappPhone ? phoneForOrderApi(whatsappPhone) : null
+  const normalizedWhatsapp = whatsappPhone ? phoneForOrderApi(whatsappPhone) : null
 
-  for (const message of history) {
+  let scanFrom = 0
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (
+      /מה מספר הטלפון שבוצעה עליו ההזמנה|האם (?:היא )?רשומה על המספר|האם ההזמנה (?:היא )?על טלפון/i.test(
+        message.content
+      )
+    ) {
+      scanFrom = index + 1
+      break
+    }
+  }
+
+  let lookupPhone = normalizedWhatsapp
+  for (let index = scanFrom; index < history.length; index += 1) {
+    const message = history[index]
     if (message.role !== "user") continue
     const phone = extractPhoneFromText(message.content)
     if (phone) lookupPhone = phone
@@ -814,7 +838,7 @@ async function lookupOrderByReference(input: {
       ) ?? null
 
   if (matched) return buildOrderStatusReply(matched)
-  if (orders.length === 0) return buildNoOrdersFoundReply()
+  if (orders.length === 0) return buildNoOrdersFoundReply(lookupPhone)
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
 
@@ -824,7 +848,7 @@ async function lookupAndStartOrderConfirm(
 ) {
   const orders = await lookupOrdersByPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
-  if (orders.length === 0) return buildNoOrdersFoundReply()
+  if (orders.length === 0) return buildNoOrdersFoundReply(phone)
   const reply = buildOrderConfirmationPrompt(orders[0]!)
   return empathize ? empathize(reply) : reply
 }
@@ -843,7 +867,7 @@ async function resolveOrderConfirmationFlow(input: {
 
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
-  if (orders.length === 0) return buildNoOrdersFoundReply()
+  if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
 
   const sorted = orders
   const explicitOrder = extractOrderNumber(input.body)
@@ -880,7 +904,7 @@ async function resolveOrderConfirmationFlow(input: {
   }
 
   if (sorted[0]) return buildOrderConfirmationPrompt(sorted[0]!)
-  return buildNoOrdersFoundReply()
+  return buildNoOrdersFoundReply(input.lookupPhone)
 }
 
 export async function resolveOrderShippingReply(input: {

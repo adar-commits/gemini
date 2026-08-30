@@ -1,5 +1,7 @@
 import {
   bindPriorityApiBeforeCall,
+  bindPriorityApiEnabled,
+  bindPriorityApiLogContext,
   bindPriorityApiPreMessageGuard,
   resetPriorityApiTurnState,
 } from "@/lib/agents/priority-webhook"
@@ -1861,11 +1863,20 @@ export async function runMasterConversation(
     customerName?: string
     preview?: boolean
     phone?: string
+    /** When false, skip live n8n/Priority calls (shadow mode). */
+    priorityApiEnabled?: boolean
     onPriorityApiCall?: () => void | Promise<void>
   }
 ): Promise<AgentResponse> {
   bindPriorityApiBeforeCall(options?.onPriorityApiCall ?? null)
   resetPriorityApiTurnState()
+  bindPriorityApiEnabled(
+    options?.priorityApiEnabled !== false && !options?.preview
+  )
+  bindPriorityApiLogContext({
+    conversationId,
+    whatsappPhone: options?.phone?.trim() || undefined,
+  })
   try {
   const runtime = await bindRuntimeConfig()
 
