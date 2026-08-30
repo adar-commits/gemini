@@ -49,6 +49,27 @@ function hasDeliveryTrackingIntent(text: string) {
     return true
   }
 
+  if (
+    /(?:הזמנתי|קניתי)/i.test(text) &&
+    /(?:לא\s+קיבלתי|עדיין\s+לא\s+(?:קיבל|הגיע)|טרם\s+(?:קיבל|הגיע))/i.test(text) &&
+    (DELIVERY_CONTEXT_RE.test(text) || PURCHASED_ITEM_RE.test(text) || /הזמנה/i.test(text))
+  ) {
+    return true
+  }
+
+  if (
+    /(?:הזמנתי|קניתי)/i.test(text) &&
+    /לפני\s+(?:\d+\s+)?(?:י(?:מ)?(?:ים)?|שבוע(?:יים)?|חודש(?:יים)?)/i.test(text) &&
+    /(?:לא\s+קיבל|עדיין\s+לא|טרם)/i.test(text) &&
+    (DELIVERY_CONTEXT_RE.test(text) || /משלוח|הזמנה/i.test(text))
+  ) {
+    return true
+  }
+
+  if (/(?:עדיין\s+)?לא\s+קיבלתי\s+(?:את\s+)?(?:ה)?(?:משלוח|הזמנה)/i.test(text)) {
+    return true
+  }
+
   return false
 }
 

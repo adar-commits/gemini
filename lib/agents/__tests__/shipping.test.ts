@@ -24,6 +24,13 @@ describe("isShippingStatusQuestion", () => {
     assert.equal(isShippingStatusQuestion("כמה ימים לוקח משלוח"), false)
   })
 
+  it("detects delayed delivery when order was placed but shipment not received", () => {
+    const delayed =
+      "הזמנתי לפני שבוע ועוד לא קיבלתי את המשלוח"
+    assert.equal(isShippingStatusQuestion(delayed), true)
+    assert.equal(guessMasterRoute(delayed), "ROUTE_TO_SHIPPING_STATUS")
+  })
+
   it("does not treat a new purchase intent as status lookup", () => {
     assert.equal(isShippingStatusQuestion("רוצה לקנות שטיח לסלון"), false)
   })

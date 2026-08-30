@@ -207,7 +207,12 @@ export async function handleLandbotInbound(
   }
 
   let draftReply = outboundReply(result)
-  if (replyEnabled && !draftReply && result.action === "reply" && !result.duplicateSuppressed) {
+  if (
+    replyEnabled &&
+    !draftReply &&
+    !result.duplicateSuppressed &&
+    (result.action === "reply" || result.action === "shipping")
+  ) {
     draftReply = buildNeverStuckReply()
     result = { ...result, reply: draftReply }
   }

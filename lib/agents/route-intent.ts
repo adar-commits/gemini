@@ -71,6 +71,10 @@ export function guessMasterRoute(body: string): MasterAction | null {
     return "ROUTE_TO_SHIPPING_STATUS"
   }
 
+  if (isShippingStatusQuestion(text) && !isPreorderDelayComplaint(text)) {
+    return "ROUTE_TO_SHIPPING_STATUS"
+  }
+
   if (isServiceTopicSwitch(text)) {
     return "ROUTE_TO_SERVICE_AGENT"
   }
@@ -81,10 +85,6 @@ export function guessMasterRoute(body: string): MasterAction | null {
 
   if (isFaqTopicSwitch(text)) {
     return "ROUTE_TO_INFO_AGENT"
-  }
-
-  if (isShippingStatusQuestion(text) && !isPreorderDelayComplaint(text)) {
-    return "ROUTE_TO_SHIPPING_STATUS"
   }
 
   if (isPostPurchaseDissatisfaction(text) && !isProductDefectComplaint(text)) {
