@@ -44,7 +44,13 @@ import {
   isConversationClosing,
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
-import { buildDissatisfactionRescueReply, isDissatisfactionWithoutDefect, isDissatisfactionRescuePending, resolveDissatisfactionRescueChoice, buildDissatisfactionRescueClarifyReply, buildDissatisfactionRescuePortalReply } from "@/lib/agents/dissatisfaction"
+import {
+  buildDissatisfactionRescueReply,
+  buildDissatisfactionRescuePortalReply,
+  getDissatisfactionRescueStage,
+  isDissatisfactionWithoutDefect,
+  resolveDissatisfactionRescueFollowUp,
+} from "@/lib/agents/dissatisfaction"
 import {
   buildWebsiteIssueHandoffOffer,
   isWebsiteIssueComplaint,
@@ -792,25 +798,13 @@ async function dissatisfactionRescueFollowUpResult(
   route: AgentId[],
   preview?: boolean
 ): Promise<AgentResponse | null> {
-  if (!isDissatisfactionRescuePending(history)) return null
+  const stage = getDissatisfactionRescueStage(history)
+  if (!stage) return null
 
-  const choice = resolveDissatisfactionRescueChoice(body)
-  if (!choice) return null
+  const followUp = resolveDissatisfactionRescueFollowUp(body, stage)
+  if (!followUp) return null
 
-  if (choice === "clarify") {
-    const reply = normalizeReply("faq", "reply", buildDissatisfactionRescueClarifyReply())
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: reply,
-      action: "reply",
-      preview,
-    })
-    return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
-  }
-
-  if (choice === "portal") {
+  if (followUp === "portal") {
     const reply = normalizeReply("faq", "reply", buildDissatisfactionRescuePortalReply())
     await appendTurn({
       conversationId,
@@ -823,7 +817,7 @@ async function dissatisfactionRescueFollowUpResult(
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
-  const action = choice === "sales" ? "human_sales" : "human_service"
+  const action = followUp === "sales" ? "human_sales" : "human_service"
   const reply = `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`
   await appendTurn({
     conversationId,
