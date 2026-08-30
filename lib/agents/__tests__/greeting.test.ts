@@ -11,7 +11,8 @@ describe("greeting reply", () => {
   it("uses masculine voice and a single bot name", () => {
     const reply = buildGreetingReply()
     assert.match(reply, /^(\*הום בוט :\)\*\n)/)
-    assert.match(reply, /שמח שפניתם/)
+    assert.match(reply, /שמח שפניתם אלינו/)
+    assert.match(reply, /😀/)
     assert.doesNotMatch(reply, /שמח\/ה/)
     assert.doesNotMatch(reply, /כאן הום בוט/)
   })

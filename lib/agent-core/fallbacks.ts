@@ -86,3 +86,9 @@ export function buildNeverStuckReply() {
 אני כאן — נראה שההודעה לא עברה כמו שצריך.
 אפשר לנסות שוב, או שאעביר לנציג שירות?`
 }
+
+/** Offer service handoff when the bot could not produce a reply in time. */
+export function buildProcessingStuckReply() {
+  return `${CUSTOMER_HEADER}
+מצטער, לא הצלחתי להבין — שאעביר את השיחה לנציג שירות?`
+}

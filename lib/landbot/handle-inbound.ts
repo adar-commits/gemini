@@ -38,7 +38,8 @@ import {
 } from "@/lib/landbot/inactivity-watcher"
 import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
-import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import { buildNeverStuckReply, buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
+import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
 import {
   handleTrainerProfileCommand,
   isTrainerProfileCommand,
@@ -187,6 +188,21 @@ export async function handleLandbotInbound(
   }
 
   let result: AgentResponse
+  const watchdog = startProcessingWatchdog({
+    replyEnabled,
+    onStuck: async () => {
+      const stuckReply = buildProcessingStuckReply()
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: stuckReply,
+        action: "reply",
+      })
+      await sendCustomerText(customerId, stuckReply)
+    },
+  })
+
   try {
     result = await runMasterConversation(conversationId, turn, {
       customerName: customerName || undefined,
@@ -213,17 +229,30 @@ export async function handleLandbotInbound(
     !result.duplicateSuppressed &&
     (result.action === "reply" || result.action === "shipping")
   ) {
-    draftReply = buildNeverStuckReply()
+    draftReply = buildProcessingStuckReply()
     result = { ...result, reply: draftReply }
+  }
+
+  if (
+    replyEnabled &&
+    !draftReply &&
+    result.duplicateSuppressed &&
+    (result.action === "reply" || result.action === "shipping")
+  ) {
+    draftReply = buildProcessingStuckReply()
+    result = { ...result, reply: draftReply, duplicateSuppressed: false }
   }
 
   const outboundMessages =
     result.replies?.filter((text) => text.trim()) ??
     (draftReply ? [draftReply] : [])
 
-  if (replyEnabled) {
+  if (replyEnabled && !watchdog.stuckAlreadySent()) {
     for (const text of outboundMessages) {
       await sendCustomerText(customerId, text)
+    }
+    if (outboundMessages.length > 0) {
+      watchdog.markReplySent()
     }
 
     if (result.action === "human_sales" || result.action === "human_service") {

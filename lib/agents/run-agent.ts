@@ -5,7 +5,7 @@ import {
   bindPriorityApiPreMessageGuard,
   resetPriorityApiTurnState,
 } from "@/lib/agents/priority-webhook"
-import { buildThanksReply, buildNeverStuckReply, coerceOperationalReply } from "@/lib/agent-core/fallbacks"
+import { buildThanksReply, buildNeverStuckReply, buildProcessingStuckReply, coerceOperationalReply } from "@/lib/agent-core/fallbacks"
 import {
   bindOrchestraTier,
   bindRuntimeConfig,
@@ -68,6 +68,9 @@ import {
 } from "@/lib/agents/post-purchase-case"
 import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
+  buildDocumentPurchaseLocationQuestion,
+  isDocumentChannelQuestionPending,
+  isDocumentChannelUncertaintyAnswer,
   resolveDigitalDocumentFlowReply,
   shouldHandleDigitalDocumentFlow,
   isDigitalDocumentRequest,
@@ -1558,17 +1561,21 @@ function documentFlowResult(
 ): Promise<AgentResponse> {
   return resolveDigitalDocumentFlowReply({ body, phone, history }).then(async (reply) => {
     let outbound = reply.trim()
-    if (!outbound) outbound = buildNeverStuckReply()
+    if (!outbound) outbound = buildProcessingStuckReply()
 
     if (wasReplyRecentlySent(history ?? [], outbound)) {
-      return {
-        ok: true,
-        agent: "master" as const,
-        reply: "",
-        action: "reply" as const,
-        route,
-        duplicateSuppressed: true,
+      if (
+        isDocumentChannelQuestionPending(history ?? []) &&
+        isDocumentChannelUncertaintyAnswer(body)
+      ) {
+        outbound = buildDocumentPurchaseLocationQuestion()
+      } else {
+        outbound = buildProcessingStuckReply()
       }
+    }
+
+    if (wasReplyRecentlySent(history ?? [], outbound)) {
+      outbound = buildProcessingStuckReply()
     }
 
     const { assistantInserted } = await appendTurn({

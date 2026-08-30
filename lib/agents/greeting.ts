@@ -81,7 +81,7 @@ export function dedupeGreetingBotName(reply: string) {
 /** Opening welcome — single header, no repeated bot name, masculine voice. */
 export function buildGreetingReply(_customerName?: string) {
   return `${CUSTOMER_HEADER}
-היי! שמח שפניתם — במה אוכל לעזור היום?`
+היי! שמח שפניתם אלינו — במה אוכל לעזור היום? 😀`
 }
 
 export function isSelfContainedGreetingReply(reply: string) {

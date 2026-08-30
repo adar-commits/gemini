@@ -27,6 +27,8 @@ export const DOCUMENT_TYPE_TAX_INVOICE_RECEIPT = "חשבונית מס קבלה"
 
 const CHANNEL_QUESTION_MARKER =
   /(?:סופק(?:ו)?\s+מהסניף|באמצעות\s+שליח|מלאי(?:\s+ה)?סניף|אתר(?:\s+ה)?אינטרנט(?:\s+עם\s+שליח)?)/i
+const PURCHASE_LOCATION_QUESTION_MARKER =
+  /האם\s+ה(?:ה)?זמנה\s+בוצעה\s+מ(?:ה)?(?:אינטרנט|הסניף)|מהאינטרנט\s+או\s+בסניף/i
 const LEGACY_TYPE_QUESTION_MARKER = /איזה\s+סוג\s+מסמך/i
 const PHONE_QUESTION_MARKER =
   /האם היא רשומה על המספר|האם ההזמנה (?:היא )?על טלפון|האם ההזמנה על המספר/i
@@ -34,12 +36,13 @@ const ALTERNATE_PHONE_QUESTION_MARKER = /מה מספר הטלפון שבוצעה
 const DOCUMENT_MISUNDERSTANDING_MARKER =
   /נראה\s+ש(?:ה)?הודעה\s+לא\s+עברה|לא\s+ה(?:בנ|צל)(?:תי)?\s+—\s+האם/i
 
-type DocumentQuestionKind = "channel" | "phone" | "alternate_phone"
+type DocumentQuestionKind = "channel" | "purchase_location" | "phone" | "alternate_phone"
 
 type DocumentFlowState = {
   active: boolean
   channel: DocumentPurchaseChannel | null
   channelQuestionSent: boolean
+  purchaseLocationQuestionSent: boolean
   phoneQuestionSent: boolean
   alternatePhoneQuestionSent: boolean
   phoneConfirmed: boolean
@@ -61,6 +64,7 @@ function stripLeadingGreetings(text: string) {
 }
 
 function documentQuestionKind(content: string): DocumentQuestionKind | null {
+  if (PURCHASE_LOCATION_QUESTION_MARKER.test(content)) return "purchase_location"
   if (CHANNEL_QUESTION_MARKER.test(content)) return "channel"
   if (ALTERNATE_PHONE_QUESTION_MARKER.test(content)) return "alternate_phone"
   if (PHONE_QUESTION_MARKER.test(content)) return "phone"
@@ -93,7 +97,13 @@ export function trailingDocumentAssistantBurst(history: HistoryMessage[]) {
 }
 
 function isBranchFulfillmentUncertainty(text: string) {
-  return /(?:לא\s+(?:זוכר|יודע|בטוח)|(?:א|ב)יזה\s+סניף|איזה\s+סניף)/i.test(text)
+  return /(?:לא\s+(?:זוכר(?:ת|ים|ות)?|יודע(?:ת|ים|ות)?|בטוח(?:ה|ים|ות)?)|(?:א|ב)יזה\s+סניף|איזה\s+סניף)/i.test(
+    text
+  )
+}
+
+export function isDocumentChannelUncertaintyAnswer(body: string) {
+  return isBranchFulfillmentUncertainty(body.trim())
 }
 
 function isShortAmbiguousAnswer(text: string) {
@@ -117,6 +127,7 @@ function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState 
     active: false,
     channel: null,
     channelQuestionSent: false,
+    purchaseLocationQuestionSent: false,
     phoneQuestionSent: false,
     alternatePhoneQuestionSent: false,
     phoneConfirmed: false,
@@ -155,6 +166,7 @@ function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState 
       state.lastQuestionKind = kind
       state.misunderstandingSinceLastQuestion = false
       if (kind === "channel") state.channelQuestionSent = true
+      if (kind === "purchase_location") state.purchaseLocationQuestionSent = true
       if (kind === "phone") state.phoneQuestionSent = true
       if (kind === "alternate_phone") state.alternatePhoneQuestionSent = true
       continue
@@ -239,6 +251,12 @@ function hasDocumentFlowContext(history: HistoryMessage[]) {
   )
 }
 
+export function isDocumentPurchaseLocationQuestionPending(history: HistoryMessage[]) {
+  if (!hasDocumentFlowContext(history)) return false
+  const state = computeDocumentFlowState(history)
+  return state.purchaseLocationQuestionSent && !state.channel
+}
+
 export function isDocumentChannelQuestionPending(history: HistoryMessage[]) {
   if (!hasDocumentFlowContext(history)) return false
   const state = computeDocumentFlowState(history)
@@ -285,6 +303,7 @@ export function isActiveDigitalDocumentFlow(
   if (isDigitalDocumentRequest(body)) return true
   if (activeDigitalDocumentRequest(history)) return true
   if (isDocumentChannelQuestionPending(history)) return true
+  if (isDocumentPurchaseLocationQuestionPending(history)) return true
   if (isLegacyDocumentTypeQuestionPending(history)) return true
   if (isDocumentPhoneLookupPending(history)) return true
   if (isAlternateDocumentPhonePending(history)) return true
@@ -389,9 +408,19 @@ export function buildDocumentChannelQuestion() {
 אין בעיה, האם המוצרים סופקו מהסניף או באמצעות שליח?`
 }
 
+export function buildDocumentPurchaseLocationQuestion() {
+  return `${CUSTOMER_HEADER}
+אין בעיה — האם ההזמנה בוצעה מהאינטרנט או בסניף?`
+}
+
 export function buildDocumentChannelClarify() {
   return `${CUSTOMER_HEADER}
 לא הבנתי — האם המוצרים סופקו מהסניף, או באמצעות שליח?`
+}
+
+export function buildDocumentPurchaseLocationClarify() {
+  return `${CUSTOMER_HEADER}
+לא הבנתי — האם ההזמנה בוצעה מהאינטרנט, או בסניף?`
 }
 
 /**
@@ -405,6 +434,30 @@ export function parseDocumentPurchaseChannel(body: string): DocumentPurchaseChan
 
   if (parseCourierFulfillment(text)) return "website"
   if (parseBranchFulfillment(text)) return "store"
+  if (parsePurchaseLocationChannel(text)) return parsePurchaseLocationChannel(text)
+
+  return null
+}
+
+/** After "אינטרנט או בסניף?" — online always means courier docs. */
+function parsePurchaseLocationChannel(text: string): DocumentPurchaseChannel | null {
+  if (
+    /^(?:אינטרנט|online|website|מהאינטרנט|באתר|מהאתר)$/i.test(text) ||
+    /(?:הזמנ(?:תי|ת|נ(?:ו|תם|תן)?)|קנ(?:יתי|ית(?:ם|ן)?)|רכש(?:תי|ת(?:ם|ן)?)).*(?:ב(?:ה)?|מ(?:ה)?|דרך\s*(?:ה)?)?(?:אינטרנט|אתר)/i.test(
+      text
+    )
+  ) {
+    return "website"
+  }
+
+  if (
+    /^(?:סניף|בסניף|מהסניף|בחנות|מהחנות|חנות)$/i.test(text) ||
+    /(?:הזמנ(?:תי|ת|נ(?:ו|תם|תן)?)|קנ(?:יתי|ית(?:ם|ן)?)|רכש(?:תי|ת(?:ם|ן)?)).*(?:ב(?:ה)?|מ(?:ה)?)?(?:סניף|חנות)/i.test(
+      text
+    )
+  ) {
+    return "store"
+  }
 
   return null
 }
@@ -552,11 +605,25 @@ export async function resolveDigitalDocumentFlowReply(input: {
   }
 
   if (!channel) {
+    if (isDocumentPurchaseLocationQuestionPending(history)) {
+      if (body && !isBranchFulfillmentUncertainty(body)) {
+        return withRecoveryPrefix(
+          recoveryPrefix,
+          buildDocumentPurchaseLocationClarify()
+        )
+      }
+      return withRecoveryPrefix(recoveryPrefix, buildDocumentPurchaseLocationQuestion())
+    }
+
     if (
       isDocumentChannelQuestionPending(history) ||
       isLegacyDocumentTypeQuestionPending(history) ||
       state.channelQuestionSent
     ) {
+      if (body && isBranchFulfillmentUncertainty(body)) {
+        return withRecoveryPrefix(recoveryPrefix, buildDocumentPurchaseLocationQuestion())
+      }
+
       if (body && !phoneConfirmYes && !isShortAmbiguousAnswer(body)) {
         return withRecoveryPrefix(recoveryPrefix, buildDocumentChannelClarify())
       }
