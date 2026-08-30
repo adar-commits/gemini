@@ -2,7 +2,10 @@ import { buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 /** If the pipeline has not sent anything after an inbound turn, offer service handoff. */
-export const PROCESSING_STUCK_MS = 15_000
+const PRIORITY_API_TIMEOUT_MS = Number(process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "15000")
+export const PROCESSING_STUCK_MS = Number(
+  process.env.PROCESSING_STUCK_MS ?? String(PRIORITY_API_TIMEOUT_MS + 10_000)
+)
 
 export type ProcessingWatchdogController = {
   markReplySent: () => void

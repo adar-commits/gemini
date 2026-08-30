@@ -78,6 +78,7 @@ import {
 import {
   buildOrderLookupApiFailureReply,
   buildOrderStatusClarificationReply,
+  buildDigitalDocumentLookupFailureReply,
   resolveOrderShippingReply,
   isBotHelpJustDelivered,
   isExplicitHumanRequest,
@@ -1561,7 +1562,7 @@ function documentFlowResult(
 ): Promise<AgentResponse> {
   return resolveDigitalDocumentFlowReply({ body, phone, history }).then(async (reply) => {
     let outbound = reply.trim()
-    if (!outbound) outbound = buildProcessingStuckReply()
+    if (!outbound) outbound = buildDigitalDocumentLookupFailureReply()
 
     if (wasReplyRecentlySent(history ?? [], outbound)) {
       if (
@@ -1569,8 +1570,8 @@ function documentFlowResult(
         isDocumentChannelUncertaintyAnswer(body)
       ) {
         outbound = buildDocumentPurchaseLocationQuestion()
-      } else {
-        outbound = buildProcessingStuckReply()
+      } else if (!outbound.includes("תקלה") && !outbound.includes("לא מצאנו")) {
+        outbound = buildDigitalDocumentLookupFailureReply()
       }
     }
 

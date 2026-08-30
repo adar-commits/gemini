@@ -210,7 +210,10 @@ export async function handleLandbotInbound(
       phone: options?.phone?.trim() || undefined,
       priorityApiEnabled: replyEnabled,
       onPriorityApiCall: replyEnabled
-        ? () => sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
+        ? async () => {
+            await sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
+            watchdog.markReplySent()
+          }
         : undefined,
     })
   } catch (error) {
