@@ -1882,6 +1882,36 @@ async function routeViaMasterLlm(
     return { ok: true, agent: "faq", reply, action: "reply", route: [...route, "faq"] }
   }
 
+  const guessed = guessMasterRoute(body)
+  if (guessed) {
+    setRoutingPath(conversationId, "t1_guess_master")
+    route.push("master")
+    await appendTurn({
+      conversationId,
+      agent: "master",
+      userText: body,
+      assistantText: "",
+      action: guessed,
+      preview,
+    })
+    const next = MASTER_ROUTE_MAP[guessed] ?? "faq"
+    if (next === "shipping") {
+      if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
+        return documentFlowResult(conversationId, body, route, preview, phone || undefined, history)
+      }
+      return shippingResult(conversationId, body, route, preview, phone || undefined, history)
+    }
+    return resolveSpecialist(
+      conversationId,
+      turn,
+      next,
+      history,
+      true,
+      route,
+      sharedOptions
+    )
+  }
+
   setRoutingPath(conversationId, "master_llm")
 
   const master = await runAgent("master", conversationId, turn, {
@@ -2210,6 +2240,19 @@ export async function runMasterConversation(
     )
   }
 
+  if (!structuredFlow) {
+    const t0 = await runT0DeterministicPaths(
+      conversationId,
+      turn,
+      history,
+      route,
+      preview,
+      phone,
+      sharedOptions
+    )
+    if (t0) return finish(t0)
+  }
+
   if (usesLlmFirstRouting() && !structuredFlow) {
     const welcome = await tryWelcomeGreeting(
       conversationId,
@@ -2224,17 +2267,6 @@ export async function runMasterConversation(
       handoffPending: isHumanHandoffPending(history),
     })
     if (casual) return finish(casual)
-
-    const t0 = await runT0DeterministicPaths(
-      conversationId,
-      turn,
-      history,
-      route,
-      preview,
-      phone,
-      sharedOptions
-    )
-    if (t0) return finish(t0)
 
     return finish(
       await routeViaMasterLlm(

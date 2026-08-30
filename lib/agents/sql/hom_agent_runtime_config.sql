@@ -3,7 +3,7 @@ create table if not exists public.hom_agent_runtime_config (
   id text primary key default 'production',
   active_profile text not null default 'balanced',
   profile_json jsonb not null default '{}'::jsonb,
-  routing_mode text not null default 'llm',
+  routing_mode text not null default 'hybrid',
   debounce_ms int not null default 2000,
   history_limit int not null default 18,
   orchestra_mode text not null default 'off',
@@ -21,7 +21,7 @@ values (
     "sales": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.25, "maxOutputTokens": 700},
     "service": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.15, "maxOutputTokens": 700}
   }'::jsonb,
-  'llm',
+  'hybrid',
   2000,
   18,
   'off',

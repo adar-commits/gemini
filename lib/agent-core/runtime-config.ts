@@ -104,7 +104,7 @@ function codeDefaultConfig(): RuntimeConfig {
   const routingMode: AgentRoutingMode =
     routingRaw === "regex" || routingRaw === "hybrid" || routingRaw === "llm"
       ? routingRaw
-      : "llm"
+      : "hybrid"
 
   const debounceEnv = Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")
   const debounceMs =
@@ -141,7 +141,7 @@ function rowToConfig(row: RuntimeRow): RuntimeConfig {
   const routingMode: AgentRoutingMode =
     routingRaw === "regex" || routingRaw === "hybrid" || routingRaw === "llm"
       ? routingRaw
-      : "llm"
+      : "hybrid"
 
   const orchestraRaw = row.orchestra_mode?.trim().toLowerCase()
   const orchestraMode: OrchestraMode =

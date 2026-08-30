@@ -9,7 +9,7 @@ export function agentRoutingMode(): AgentRoutingMode {
   if (bound) return bound.routingMode
   const raw = process.env.AGENT_ROUTING_MODE?.trim().toLowerCase()
   if (raw === "regex" || raw === "hybrid" || raw === "llm") return raw
-  return "llm"
+  return "hybrid"
 }
 
 export function usesLlmFirstRouting() {

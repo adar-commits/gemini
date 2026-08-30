@@ -39,6 +39,19 @@ describe("confidentSkipMasterRoute (council fixtures)", () => {
     assert.equal(guessMasterRoute("השטיח הגיע קרוע"), "ROUTE_TO_SERVICE_AGENT")
   })
 
+  it("guessMasterRoute catches generic branch FAQ phrasing", () => {
+    assert.equal(guessMasterRoute("איזה סניפים יש?"), "ROUTE_TO_INFO_AGENT")
+    assert.equal(guessMasterRoute("מתי פתוח?"), "ROUTE_TO_INFO_AGENT")
+  })
+
+  it("review-link and branch-address asks rely on T0, not guessMasterRoute", () => {
+    assert.equal(guessMasterRoute("מה כתובת הסניף בנתניה?"), null)
+    assert.equal(
+      guessMasterRoute("היי אני רוצה להשאיר חוות דעת על סניף סגולה"),
+      null
+    )
+  })
+
   it("#9 price match is not sales T1", () => {
     assert.equal(confidentSkipMasterRoute("התאמת מחיר", emptyHistory), null)
   })
