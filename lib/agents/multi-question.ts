@@ -21,6 +21,10 @@ import {
 } from "@/lib/agents/order-lookup"
 import { isRefundTimelineQuestion } from "@/lib/agents/inquiry-intent"
 import {
+  buildBranchReviewLinkReply,
+  isBranchReviewLinkRequest,
+} from "@/lib/agents/feedback-handling"
+import {
   buildCarpetRentalPolicyReply,
   buildRefundTimelinePolicyReply,
   buildReturnExchangePolicyReply,
@@ -255,6 +259,7 @@ export function answerFaqQuestionDeterministic(question: string) {
   const subjects = matchPolicySubjects(text)
   if (subjects.includes("carpet_rental")) return buildCarpetRentalPolicyReply()
   if (isRefundTimelineQuestion(text)) return buildRefundTimelinePolicyReply()
+  if (isBranchReviewLinkRequest(text)) return buildBranchReviewLinkReply(text)
   if (subjects.includes("returns_exchanges")) return buildReturnExchangePolicyReply()
   if (isShippingPolicyQuestion(text) || subjects.includes("shipping_policy")) {
     return buildShippingPolicyReply()

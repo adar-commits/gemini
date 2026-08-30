@@ -62,6 +62,48 @@ export function isWebsiteBranch(branchCode?: string | null, branchLabel?: string
   return /^(?:אתר|website|אונליין)$/i.test(label)
 }
 
+/** Customer asks for the Google write-review / QR link for a branch. */
+export function isBranchReviewLinkRequest(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+
+  const mentionsReview =
+    /(?:דירוג|ביקורת|review|לדרג|דרג(?:ו|י|נו)?|google)/i.test(trimmed)
+  const mentionsLink =
+    /(?:לינק|קישור|link|qr|writereview|write[\s-]?review)/i.test(trimmed)
+
+  if (mentionsReview && mentionsLink) return true
+
+  return (
+    /(?:אפשר|אשמח|רוצ(?:ה|ים|ות)|ת(?:וכ|ן)\s+ל(?:שלוח|תת)).{0,40}(?:לינק|קישור).{0,40}(?:דירוג|ביקורת)/i.test(
+      trimmed
+    ) ||
+    /(?:לינק|קישור).{0,40}(?:דירוג|ביקורת).{0,40}סניף/i.test(trimmed)
+  )
+}
+
+/** Resolve branch name from a direct review-link request (e.g. "סניף סגולה"). */
+export function extractBranchLabelFromReviewRequest(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  for (const entry of BRANCH_REVIEWS) {
+    if (entry.labels.some((pattern) => pattern.test(trimmed))) {
+      return entry.displayName
+    }
+  }
+
+  const branchAfterReview = trimmed.match(
+    /(?:דירוג|ביקורת|review|לדרג).{0,30}(?:ב)?סניף\s+([א-ת'"\s״]+?)(?:\?|[\s,.]|$)/i
+  )
+  if (branchAfterReview?.[1]) {
+    const label = branchAfterReview[1].trim()
+    if (resolveBranchGoogleReview(label)) return label
+  }
+
+  return null
+}
+
 /** Map Priority branch code / label to a Google review link (null = thank-you only). */
 export function resolveBranchGoogleReview(
   branchLabel: string,

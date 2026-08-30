@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { isRefundTimelineQuestion } from "@/lib/agents/inquiry-intent"
+import { isBranchReviewLinkRequest } from "@/lib/agents/branch-google-reviews"
 
 const kbPath = join(process.cwd(), "lib/agents/kb/faq.md")
 
@@ -22,6 +23,7 @@ const CITY_ALIASES: Array<{ pattern: RegExp; canonical: string }> = [
   { pattern: /ב(?:["״']?ב|ני\s*ברק)/i, canonical: "בני ברק" },
   { pattern: /ק(?:["״']?ר|ריית\s*אתא)/i, canonical: "קריית אתא" },
   { pattern: /נ(?:["״']?ת|תניה)/i, canonical: "נתניה" },
+  { pattern: /סגולה/i, canonical: "פתח תקווה" },
 ]
 
 export function normalizeBranchCityHint(hint: string) {
@@ -65,6 +67,7 @@ export function isReturnToBranchQuestion(text: string) {
 export function isBranchListQuestion(text: string) {
   const normalized = text.trim()
   if (isRefundTimelineQuestion(normalized)) return false
+  if (isBranchReviewLinkRequest(normalized)) return false
   if (
     /מלאi|זמינות|במלאi|inventory|in\s+stock|בדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi|תבדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi/i.test(
       normalized

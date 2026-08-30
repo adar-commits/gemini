@@ -3,6 +3,8 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   extractBranchLabelFromHistory,
+  extractBranchLabelFromReviewRequest,
+  isBranchReviewLinkRequest,
   isWebsiteBranch,
   resolveBranchGoogleReview,
 } from "@/lib/agents/branch-google-reviews"
@@ -88,6 +90,45 @@ ${branch.reviewUrl}
 
 אפשר לעזור במשהו נוסף?`
 }
+
+function buildBranchReviewLinkReplyBody(branchLabel: string) {
+  const branch = resolveBranchGoogleReview(branchLabel)
+  if (!branch) {
+    return `${CUSTOMER_HEADER}
+בשמחה! על איזה סניף תרצו/י לדרג? (למשל: סגולה, נתניה, בני ברק, קריית אתא)`
+  }
+
+  if (isWebsiteBranch(undefined, branch.displayName) || !branch.reviewUrl) {
+    return `${CUSTOMER_HEADER}
+תודה על הרצון לדרג!
+לרכישות מהאתר אין כרגע קישור ביקורת ייעודי — אפשר לפנות לשירות בטלפון *3076.
+
+אם צריך עוד משהו — אני כאן.`
+  }
+
+  return `${CUSTOMER_HEADER}
+בשמחה! זה הקישור לדירוג ב-Google של הסניף ב${branch.displayName}:
+${branch.reviewUrl}
+
+אם צריך עוד משהו — אני כאן.`
+}
+
+export function buildBranchReviewLinkReply(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const branchLabel =
+    extractBranchLabelFromReviewRequest(body) ??
+    extractBranchLabelFromHistory(history)
+
+  if (!branchLabel) {
+    return buildBranchReviewLinkReplyBody("")
+  }
+
+  return buildBranchReviewLinkReplyBody(branchLabel)
+}
+
+export { isBranchReviewLinkRequest }
 
 function buildServicePraisePhoneAsk(whatsappPhone?: string) {
   const intro = `${CUSTOMER_HEADER}

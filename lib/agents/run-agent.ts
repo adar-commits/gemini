@@ -58,6 +58,8 @@ import {
   isWebsiteIssueComplaint,
   resolveServicePraiseReply,
   shouldHandleServicePraiseFlow,
+  isBranchReviewLinkRequest,
+  buildBranchReviewLinkReply,
 } from "@/lib/agents/feedback-handling"
 import {
   resolvePostPurchaseCaseReply,
@@ -281,6 +283,13 @@ async function runT0DeterministicPaths(
         history,
         lastAgent
       )
+    )
+  }
+
+  if (isBranchReviewLinkRequest(body)) {
+    return markT0Routing(
+      conversationId,
+      await branchReviewLinkResult(conversationId, body, route, preview, history)
     )
   }
 
@@ -1713,6 +1722,31 @@ function servicePraiseResult(
   })
 }
 
+async function branchReviewLinkResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean,
+  history?: HistoryMessage[]
+): Promise<AgentResponse> {
+  const reply = normalizeReply("faq", "reply", buildBranchReviewLinkReply(body, history ?? []))
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview,
+  })
+  return {
+    ok: true,
+    agent: "faq",
+    reply,
+    action: "reply",
+    route: [...route, "faq"],
+  }
+}
+
 async function tryWelcomeGreeting(
   conversationId: string,
   turn: UserTurn,
@@ -2325,6 +2359,10 @@ export async function runMasterConversation(
 
   if (shouldHandleServicePraiseFlow(body, history)) {
     return servicePraiseResult(conversationId, body, route, preview, phone, history)
+  }
+
+  if (isBranchReviewLinkRequest(body)) {
+    return branchReviewLinkResult(conversationId, body, route, preview, history)
   }
 
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) {
