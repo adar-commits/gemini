@@ -140,12 +140,20 @@ export function isFaqPolicyQuestion(body: string) {
   return matchPolicySubjects(body).length > 0
 }
 
-export function buildReturnExchangePolicyReply() {
-  return `ניתן להחליף מוצר שקיבלתם בסניפי הרשת, או להחזירו — בנקודות ההחזרה או באיסוף מהבית (בכפוף לתשלום).
-פרטים מלאים: https://returns.carpetshop.co.il/
-החלפה או החזרה — בתוך 14 יום מקבלת המוצר, כשהמוצר שלם וללא פגם או לכלוך.
+export function buildReturnPolicyBody() {
+  return `ניתן להחזיר מוצר שהתקבל באחת משתי האפשרויות:
+1. החזרה לסניפי הרשת
+2. איסוף מהבית בתשלום
 
-רוצים לבצע החזרה על הזמנה שכבר קיבלתם? כתבו "החזרה" ונמשיך.`
+בכל החזרה, גם כאשר מחזירים את המוצר בסניף, יש לפתוח בקשת החזרה דרך פורטל ההחזרות:
+https://returns.carpetshop.co.il/
+ניתן לבצע החזרה בתוך 14 ימים מקבלת המוצר, כשהמוצר לא היה בשימוש, שלם וארוז באריזתו המקורית ובהתאם לתנאי ההחזרה.`
+}
+
+export function buildReturnExchangePolicyReply() {
+  return `${buildReturnPolicyBody()}
+
+אפשר לעזור במשהו נוסף?`
 }
 
 export function buildCarpetRentalPolicyReply() {
