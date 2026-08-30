@@ -1,0 +1,37 @@
+---
+description: Use AskQuestion for HoM bot intent/routing decisions — not open-ended question lists
+alwaysApply: true
+---
+
+# Intent routing — ask the operator with AskQuestion
+
+When HoM bot intent, routing, or Hebrew terminology is ambiguous, **use the AskQuestion tool** (structured multiple-choice). Do not dump 20–30 open questions in chat.
+
+## When to ask
+
+- New collision pair (two intents share Hebrew words, e.g. refund vs return-location)
+- Business policy chooses FAQ vs Service vs Shipping
+- After `docs/intent-routing-audit.md` gaps or a user-reported misroute
+
+## How to ask
+
+1. Read `docs/intent-routing-audit.md` first — do not re-ask what KB/code already defines
+2. **≤10 questions per round**, multiple-choice with a recommended default
+3. Offer **"I'll paste examples in chat"** when screenshots/failed chats are needed
+4. After answers: update T0 handlers + fixture tests in `lib/agents/__tests__/`
+
+## Routing architecture (do not regress)
+
+- **T0** = exact answers (URLs, API lookups, policy snippets) — `runT0DeterministicPaths`
+- **guessMasterRoute** = department only — before Master LLM
+- **LLM** = ambiguous routing or KB synthesis only
+- Production target: `routing_mode: hybrid` (see `lib/agents/sql/hom_agent_routing_hybrid.sql`)
+
+## Must NOT match pairs (always test both sides)
+
+| A | B |
+|---|---|
+| refund timeline | return location |
+| branch review link | branch address/hours |
+| return policy | return execution (Service) |
+| dissatisfaction | defect |
