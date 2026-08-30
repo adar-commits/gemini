@@ -18,15 +18,37 @@ describe("trainer-only allowlist", () => {
     assert.equal(shouldReplyPhone(""), false)
   })
 
-  it("ignores LANDBOT_PROCESS_PHONES=* when set in env", () => {
-    const previous = process.env.LANDBOT_PROCESS_PHONES
+  it("uses LANDBOT_TRAINER_PHONES when set", () => {
+    const previous = process.env.LANDBOT_TRAINER_PHONES
+    process.env.LANDBOT_TRAINER_PHONES = "+972523925554,+972547495083"
+    try {
+      assert.equal(shouldProcessPhone("+972523925554"), true)
+      assert.equal(shouldProcessPhone("+972547495083"), true)
+      assert.equal(shouldProcessPhone("972506703444"), false)
+      assert.deepEqual(landbotPhonePolicy().trainers, [
+        "+972523925554",
+        "+972547495083",
+      ])
+    } finally {
+      if (previous === undefined) delete process.env.LANDBOT_TRAINER_PHONES
+      else process.env.LANDBOT_TRAINER_PHONES = previous
+    }
+  })
+
+  it("ignores legacy LANDBOT_PROCESS_PHONES / LANDBOT_REPLY_PHONES", () => {
+    const prevProcess = process.env.LANDBOT_PROCESS_PHONES
+    const prevReply = process.env.LANDBOT_REPLY_PHONES
     process.env.LANDBOT_PROCESS_PHONES = "*"
+    process.env.LANDBOT_REPLY_PHONES = "*"
     try {
       assert.equal(shouldProcessPhone("972506703444"), false)
       assert.equal(landbotPhonePolicy().mode, "trainer_only")
+      assert.equal(landbotPhonePolicy().env, "LANDBOT_TRAINER_PHONES")
     } finally {
-      if (previous === undefined) delete process.env.LANDBOT_PROCESS_PHONES
-      else process.env.LANDBOT_PROCESS_PHONES = previous
+      if (prevProcess === undefined) delete process.env.LANDBOT_PROCESS_PHONES
+      else process.env.LANDBOT_PROCESS_PHONES = prevProcess
+      if (prevReply === undefined) delete process.env.LANDBOT_REPLY_PHONES
+      else process.env.LANDBOT_REPLY_PHONES = prevReply
     }
   })
 })

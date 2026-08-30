@@ -61,7 +61,7 @@ export async function GET(request: Request) {
       note: "optional fix description",
       reset: "optional — clear agent memory before preview (avoid on active chats)",
       force: "optional — send even if the live conversation has moved on",
-      phone: "optional — defaults to LANDBOT_TRAINER_PHONE",
+      phone: "optional — must be in LANDBOT_TRAINER_PHONES (defaults to first trainer)",
     },
   })
 }

@@ -8,24 +8,21 @@ function phoneKey(phone: string) {
   return value
 }
 
-function trainerPhones() {
-  const multi = process.env.LANDBOT_TRAINER_PHONES?.trim()
-  if (multi) {
-    return multi
+/** Comma/space-separated list — only these phones run AI and get WhatsApp replies. */
+export function trainerPhones() {
+  const raw = process.env.LANDBOT_TRAINER_PHONES?.trim()
+  if (raw) {
+    return raw
       .split(/[,\s]+/)
       .map((item) => item.trim())
       .filter(Boolean)
   }
-  const single = process.env.LANDBOT_TRAINER_PHONE?.trim()
-  if (single) return [single]
   return [DEFAULT_TRAINER_PHONE]
 }
 
 export function trainerPhone() {
   return trainerPhones()[0]
 }
-
-export { trainerPhones }
 
 export function isTrainerPhone(phone: string | null | undefined) {
   if (!phone?.trim()) return false

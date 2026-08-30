@@ -1,17 +1,13 @@
 import { isTrainerPhone, trainerPhones } from "@/lib/landbot/trainer"
 
 /**
- * Trainer-only gate: only configured trainer phones run the agent or receive replies.
- * LANDBOT_PROCESS_PHONES / LANDBOT_REPLY_PHONES are intentionally ignored so a stray
- * `*` in Vercel cannot silently burn tokens on real customer traffic.
- *
- * Configure trainers via LANDBOT_TRAINER_PHONE or LANDBOT_TRAINER_PHONES.
+ * Trainer-only gate: only `LANDBOT_TRAINER_PHONES` run the agent, receive replies,
+ * and call Priority/n8n. All other inbound WhatsApp messages are skipped.
  */
 export function shouldProcessPhone(phone: string | null | undefined) {
   return isTrainerPhone(phone)
 }
 
-/** Same as shouldProcessPhone — trainers get replies; everyone else is skipped. */
 export function shouldReplyPhone(phone: string | null | undefined) {
   return isTrainerPhone(phone)
 }
@@ -30,10 +26,10 @@ export function landbotPhonePolicy() {
   const trainers = trainerPhones()
   return {
     mode: "trainer_only" as const,
+    env: "LANDBOT_TRAINER_PHONES",
     trainers,
     process: trainers,
     reply: trainers,
-    note:
-      "Only trainer phones run AI and receive WhatsApp replies. Set LANDBOT_TRAINER_PHONE or LANDBOT_TRAINER_PHONES.",
+    note: "Set LANDBOT_TRAINER_PHONES (comma-separated). Only those numbers run AI and get replies.",
   }
 }
