@@ -4,6 +4,12 @@ import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, mentionsReturnIntent } from "@/lib/agents/inquiry-intent"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
+import {
+  isAwaitingSalesIntakeAnswer,
+  isLikelyBudgetIntakeAnswer,
+  isSalesIntakeAnswer,
+  pendingSalesIntakeQuestionKind,
+} from "@/lib/agents/sales-intake"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 import {
   isValidIsraeliMobilePhone,
@@ -363,7 +369,7 @@ export function requiresOrderIdentification(body: string, history: HistoryMessag
   if (isShippingStatusQuestion(body)) return true
   if (isDigitalDocumentRequest(body)) return true
   if (isPreorderDelayComplaint(body)) return true
-  if (extractOrderReference(body) || extractOrderNumber(body)) return true
+  if (extractOrderReference(body, history) || extractOrderNumber(body)) return true
   if (isOrderSpecificEligibilityQuestion(body)) return true
   if (/^(?:החזרה|ביצוע\s+החזרה)(?:[\s,.!?]|$)/i.test(body.trim())) return true
 
@@ -411,7 +417,13 @@ export function orderSummaryFromConfirmationHistory(
 }
 
 /** Order reference from customer reply — prefixed (SO/IN/OV) or bare digits (not a phone). */
-export function extractOrderReference(text: string) {
+export function extractOrderReference(text: string, history: HistoryMessage[] = []) {
+  if (isAwaitingSalesIntakeAnswer(history)) {
+    const kind = pendingSalesIntakeQuestionKind(history)
+    if (kind === "budget" && isLikelyBudgetIntakeAnswer(text)) return null
+    if (isSalesIntakeAnswer(text, history)) return null
+  }
+
   const prefixed = extractOrderNumber(text)
   if (prefixed) return prefixed
 
@@ -1001,7 +1013,7 @@ export async function resolveOrderShippingReply(input: {
   }
 
   if (isOrderNumberRequestPending(history)) {
-    const orderReference = extractOrderReference(body)
+    const orderReference = extractOrderReference(body, history)
     if (orderReference) {
       const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
       if (!lookupPhone) {

@@ -178,6 +178,7 @@ import {
   turnHasCustomerImage,
   isActiveSalesConsultation,
   blocksOrderLookupForSalesConsultation,
+  isAwaitingSalesIntakeAnswer,
   buildSalesPhotoReceivedReply,
 } from "@/lib/agents/sales-intake"
 import {
@@ -342,6 +343,25 @@ async function runT0DeterministicPaths(
     )
   }
 
+  if (
+    shouldUseSalesIntakeFastPath(body, history, sharedOptions.lastAgent) ||
+    (isSalesConsultationTrigger(body) && !isProductAvailabilityQuestion(body)) ||
+    isSalesTopicSwitch(body)
+  ) {
+    return markT0Routing(
+      conversationId,
+      await resolveSpecialist(
+        conversationId,
+        turn,
+        "sales",
+        history,
+        true,
+        route,
+        sharedOptions
+      )
+    )
+  }
+
   if (shouldHandleOrderShippingFlow(body, history, sharedOptions.lastAgent)) {
     return markT0Routing(
       conversationId,
@@ -371,25 +391,6 @@ async function runT0DeterministicPaths(
         conversationId,
         turn,
         "faq",
-        history,
-        true,
-        route,
-        sharedOptions
-      )
-    )
-  }
-
-  if (
-    shouldUseSalesIntakeFastPath(body, history, sharedOptions.lastAgent) ||
-    (isSalesConsultationTrigger(body) && !isProductAvailabilityQuestion(body)) ||
-    isSalesTopicSwitch(body)
-  ) {
-    return markT0Routing(
-      conversationId,
-      await resolveSpecialist(
-        conversationId,
-        turn,
-        "sales",
         history,
         true,
         route,
@@ -1409,7 +1410,7 @@ function shouldHandleOrderShippingFlow(
     return true
   }
 
-  if (extractOrderReference(body)) return true
+  if (extractOrderReference(body, history)) return true
 
   if (
     extractPhoneFromText(body) &&
@@ -1949,6 +1950,23 @@ export async function runMasterConversation(
   ) {
     return finish(
       await salesPhotoUploadResult(conversationId, body, route, preview, history)
+    )
+  }
+
+  if (
+    isAwaitingSalesIntakeAnswer(history) &&
+    shouldUseSalesIntakeFastPath(body, history, lastAgent)
+  ) {
+    return finish(
+      await resolveSpecialist(
+        conversationId,
+        turn,
+        "sales",
+        history,
+        true,
+        route,
+        sharedOptions
+      )
     )
   }
 

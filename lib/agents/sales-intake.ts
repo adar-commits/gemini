@@ -185,6 +185,7 @@ export function isActiveSalesConsultation(
 ) {
   return (
     hasOngoingSalesIntake(history) ||
+    isAwaitingSalesIntakeAnswer(history) ||
     isSalesQuizContext(history, lastAgent) ||
     isSalesPhotoRequestPending(history)
   )
@@ -196,6 +197,9 @@ export function blocksOrderLookupForSalesConsultation(
   history: HistoryMessage[],
   lastAgent: AgentId | null
 ) {
+  if (isAwaitingSalesIntakeAnswer(history) && isSalesIntakeAnswer(body, history)) {
+    return true
+  }
   if (!isActiveSalesConsultation(history, lastAgent)) return false
   if (isIntakeTopicPivot(body, history)) return false
   if (isShippingStatusQuestion(body)) return false
@@ -205,6 +209,7 @@ export function blocksOrderLookupForSalesConsultation(
 
 export function hasOngoingSalesIntake(history: HistoryMessage[]) {
   if (isSalesPhotoRequestPending(history)) return true
+  if (isAwaitingSalesIntakeAnswer(history)) return true
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
@@ -235,6 +240,23 @@ function lastIntakeQuestionKind(history: HistoryMessage[]): string | null {
   const last = lastIntakeAssistantText(history)
   if (!last) return null
   return questionKindForText(last)
+}
+
+/** Last scripted sales-quiz question waiting for a customer answer. */
+export function pendingSalesIntakeQuestionKind(history: HistoryMessage[]) {
+  return lastIntakeQuestionKind(history)
+}
+
+export function isAwaitingSalesIntakeAnswer(history: HistoryMessage[]) {
+  return pendingSalesIntakeQuestionKind(history) != null
+}
+
+export function isLikelyBudgetIntakeAnswer(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 40) return false
+  return /^(?:עד\s+|בסביבות\s+|באזור\s+|תקציב(?:\s+של)?\s+)?[\d,]+(?:\s*(?:ש[\"״']?ח|₪|שקל(?:ים)?))?(?:[\s,.!?]|$)/i.test(
+    text
+  )
 }
 
 function questionKindForText(question: string): string | null {
@@ -346,8 +368,12 @@ export function shouldUseSalesIntakeFastPath(
     if (isSalesConsultationTrigger(body) && !hasOngoingSalesIntake(history)) return true
   }
 
-  // llm (default) + hybrid mid-quiz: scripted only while confirming intake summary
+  // llm (default) + hybrid mid-quiz: stay scripted while any intake question is open
   if (isConfirmationPending(history)) return true
+  if (isAwaitingSalesIntakeAnswer(history)) {
+    if (isIntakeTopicPivot(body, history)) return false
+    return true
+  }
 
   if (hasOngoingSalesIntake(history)) {
     if (isIntakeTopicPivot(body, history)) return false

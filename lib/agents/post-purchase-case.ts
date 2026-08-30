@@ -365,7 +365,7 @@ export async function resolvePostPurchaseCaseReply(input: {
     return buildPhoneLookupDeclinedReply()
   }
 
-  const orderReference = extractOrderReference(body)
+  const orderReference = extractOrderReference(body, history)
   if (orderReference) {
     const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
     if (!lookupPhone) return buildOpeningReply(kind, whatsappPhone)
