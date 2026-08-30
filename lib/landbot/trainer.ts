@@ -18,14 +18,14 @@ function trainerPhones() {
   }
   const single = process.env.LANDBOT_TRAINER_PHONE?.trim()
   if (single) return [single]
-  const replyFirst = process.env.LANDBOT_REPLY_PHONES?.trim()?.split(/[,\s]+/)[0]
-  if (replyFirst) return [replyFirst.trim()]
   return [DEFAULT_TRAINER_PHONE]
 }
 
 export function trainerPhone() {
   return trainerPhones()[0]
 }
+
+export { trainerPhones }
 
 export function isTrainerPhone(phone: string | null | undefined) {
   if (!phone?.trim()) return false

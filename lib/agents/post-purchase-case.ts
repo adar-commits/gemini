@@ -235,7 +235,7 @@ function mentionsAlternatePhoneIntent(body: string) {
 async function lookupAndStartOrderConfirm(kind: PostPurchaseCaseKind, phone: string) {
   const orders = await lookupOrdersByPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
-  if (orders.length === 0) return buildNoOrdersFoundReply()
+  if (orders.length === 0) return buildNoOrdersFoundReply(phone)
   return withCasePrefix(buildOrderConfirmationPrompt(orders[0]!), kind)
 }
 
@@ -254,7 +254,7 @@ async function resolveOrderConfirmationFlow(input: {
 
   const orders = await lookupOrdersByPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
-  if (orders.length === 0) return buildNoOrdersFoundReply()
+  if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
 
   const sorted = orders
   const explicitOrder = extractOrderNumber(input.body)
@@ -293,7 +293,7 @@ async function resolveOrderConfirmationFlow(input: {
   if (sorted[0]) {
     return withCasePrefix(buildOrderConfirmationPrompt(sorted[0]!), input.kind)
   }
-  return buildNoOrdersFoundReply()
+  return buildNoOrdersFoundReply(input.lookupPhone)
 }
 
 async function lookupOrderByReference(input: {
@@ -318,7 +318,7 @@ async function lookupOrderByReference(input: {
       ) ?? null
 
   if (matched) return buildOrderConfirmedReply(input.kind, matched)
-  if (orders.length === 0) return buildNoOrdersFoundReply()
+  if (orders.length === 0) return buildNoOrdersFoundReply(lookupPhone)
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
 

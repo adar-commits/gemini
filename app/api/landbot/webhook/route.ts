@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
-import {
-  landbotPhonePolicy,
-  shouldProcessPhone,
-  shouldReplyPhone,
-} from "@/lib/landbot/allowlist"
+import { shouldProcessPhone, shouldReplyPhone } from "@/lib/landbot/allowlist"
+import { normalizePhoneForOrderApi } from "@/lib/agents/order-lookup"
 import { cronSecretStatus } from "@/lib/agents/cron-auth"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
@@ -38,7 +35,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     method: "POST",
-    note: "Landbot message hook. PROCESS phones run the agent; REPLY phones get WhatsApp answers. Bursts merge after debounce silence since the last customer message.",
+    note: "Landbot message hook. Only LANDBOT_TRAINER_PHONE(S) run AI and receive WhatsApp replies. All other phones are skipped before any LLM call.",
     policy: landbotPhonePolicy(),
     models,
     runtimeConfig: "/api/agents/runtime-config",
@@ -74,6 +71,16 @@ export async function POST(request: Request) {
   if (!phone) {
     const customer = await getCustomer(inbound.customerId).catch(() => null)
     phone = customer?.phone?.trim() || ""
+  }
+  if (phone) {
+    const local = normalizePhoneForOrderApi(phone)
+    if (/^0\d{9}$/.test(local)) {
+      phone = `+972${local.slice(1)}`
+    }
+  } else {
+    console.warn("[landbot-webhook] missing customer phone", {
+      customerId: inbound.customerId,
+    })
   }
   if (!shouldProcessPhone(phone)) {
     return NextResponse.json({

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:fixtures": "npx tsx --test lib/agents/__tests__/council-fixtures.test.ts"
+    "test:fixtures": "npx tsx --test lib/agents/__tests__/council-fixtures.test.ts lib/landbot/__tests__/allowlist.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
