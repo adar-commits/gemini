@@ -50,4 +50,39 @@ describe("buildConfirmationSummary", () => {
     const reply = buildSalesIntakeReply(history, "יוקרתי")
     assert.doesNotMatch(reply, /תקציב/)
   })
+
+  it("asks sofa size before pets when living room is known", () => {
+    const reply = buildSalesIntakeReply([], "היי אני מחפש שטיח לסלון")
+    assert.match(reply, /מידת הספה|גודל כללי של הסלון/)
+    assert.doesNotMatch(reply, /בעלי חיים/)
+  })
+
+  it("does not put placeholder unknown size in confirmation summary", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "מחפש שטיח לסלון", agent: null },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nמה מידת הספה או הגודל הכללי של הסלון?",
+        agent: "sales",
+      },
+      { role: "user", content: "כן", agent: null },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nהאם אמור להתאים לבעלי חיים?",
+        agent: "sales",
+      },
+      { role: "user", content: "כן", agent: null },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nאיזה סגנון או תחושה מחפשים — יוקרתי, מודרני, כפרי, או משהו אחר? יש צבע שאהוב?",
+        agent: "sales",
+      },
+    ]
+
+    const reply = buildSalesIntakeReply(history, "בז' או קרם, לא יודע מודרני")
+    assert.doesNotMatch(reply, /לא ידוע/)
+    assert.doesNotMatch(reply, /יועץ יבדוק/)
+    assert.match(reply, /בז/)
+  })
 })

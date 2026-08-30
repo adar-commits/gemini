@@ -35,6 +35,8 @@ export type SalesIntake = {
   roomPhotoReceived?: boolean
   budget?: string
   practicalNeeds?: string
+  /** Customer could not give size — omit from summary, do not re-ask. */
+  sizeUnknown?: boolean
 }
 
 const CONSULTATION_RE =
@@ -477,14 +479,6 @@ function applyAffirmationFromAssistantContext(
     else intake.targetSpace = "סלון"
   }
 
-  if (/ספה|מקום|גודל|מרפס|סלון|מיטה|רהיט/.test(last)) {
-    if (/מיטה|רהיט/.test(last) && !intake.furnitureSize) {
-      intake.furnitureSize = "לא ידוע — יועץ יבדוק"
-    } else if (!intake.sofaSize && !intake.rugSize) {
-      intake.sofaSize = "לא ידוע — יועץ יבדוק"
-    }
-  }
-
   if (/בעלי חיים|חתול|כלב|חיה/.test(last) && intake.pets == null) {
     if (mentionsRealPet(priorUser) || mentionsRealPet(body)) {
       intake.pets = "yes"
@@ -494,6 +488,61 @@ function applyAffirmationFromAssistantContext(
       if (detail) intake.petsDetail = detail.slice(0, 40)
     }
   }
+}
+function activeIntakeAnswerKind(
+  history: HistoryMessage[],
+  options?: { force?: boolean; kind?: string | null }
+) {
+  return options?.kind ?? lastIntakeQuestionKind(history)
+}
+
+function shouldApplyIntakeKind(
+  targetKind: string,
+  activeKind: string | null | undefined,
+  force?: boolean
+) {
+  if (activeKind === targetKind) return true
+  return Boolean(force && activeKind === targetKind)
+}
+
+function isPlaceholderIntakeValue(value?: string) {
+  return Boolean(value?.trim() && /לא\s+ידוע|יועץ\s+יבדוק/i.test(value))
+}
+
+function hasKnownRugSize(intake: SalesIntake) {
+  if (isPlaceholderIntakeValue(intake.rugSize)) return false
+  return Boolean(intake.rugSize?.trim())
+}
+
+function hasKnownSofaSize(intake: SalesIntake) {
+  if (isPlaceholderIntakeValue(intake.sofaSize)) return false
+  return Boolean(intake.sofaSize?.trim())
+}
+
+function hasKnownFurnitureSize(intake: SalesIntake) {
+  if (isPlaceholderIntakeValue(intake.furnitureSize)) return false
+  return Boolean(intake.furnitureSize?.trim())
+}
+
+function needsLivingRoomSizeQuestion(intake: SalesIntake) {
+  return (
+    intake.product === "שטיח" &&
+    isLivingRoomSpace(intake.targetSpace) &&
+    !hasKnownRugSize(intake) &&
+    !hasKnownSofaSize(intake) &&
+    !intake.sizeUnknown
+  )
+}
+
+function needsSpaceSizeQuestion(intake: SalesIntake) {
+  if (!intake.targetSpace || intake.product !== "שטיח") return false
+  if (needsLivingRoomSizeQuestion(intake)) return true
+  return needsFurnitureSizeQuestion(intake) && !hasKnownFurnitureSize(intake) && !intake.sizeUnknown
+}
+
+function spaceSizeQuestion(intake: SalesIntake) {
+  if (isLivingRoomSpace(intake.targetSpace)) return sofaSizeQuestion(intake)
+  return FURNITURE_SIZE_Q
 }
 function applyContextualIntakeAnswers(
   intake: SalesIntake,
@@ -510,34 +559,34 @@ function applyContextualIntakeAnswers(
 
   applyAffirmationFromAssistantContext(intake, history, body)
 
-  const kind = options?.kind ?? lastIntakeQuestionKind(history)
+  const kind = activeIntakeAnswerKind(history, options)
   if (!kind && !options?.force) return
 
   applyPetsAnswer(intake, history, body)
 
-  if (kind === "style" || (options?.force && !intake.style)) {
+  if (shouldApplyIntakeKind("style", kind, options?.force)) {
     applyStyleAnswer(intake, recentUserReplies(history, body))
   }
 
-  if ((kind === "bedroom" || options?.force) && !intake.bedroomUse) {
+  if (shouldApplyIntakeKind("bedroom", kind, options?.force) && !intake.bedroomUse) {
     const trimmed = body.trim()
     if (trimmed.length >= 2 && trimmed.length <= 60) {
       intake.bedroomUse = trimmed
     }
   }
 
-  if ((kind === "children" || options?.force) && !intake.childrenAge) {
+  if (shouldApplyIntakeKind("children", kind, options?.force) && !intake.childrenAge) {
     const trimmed = body.trim()
     if (trimmed.length >= 2 && trimmed.length <= 40) {
       intake.childrenAge = trimmed
     }
   }
 
-  if ((kind === "budget" || options?.force) && !intake.budget) {
+  if (shouldApplyIntakeKind("budget", kind, options?.force) && !intake.budget) {
     applyBudgetAnswer(intake, recentUserReplies(history, body))
   }
 
-  if ((kind === "practical" || options?.force) && !intake.practicalNeeds) {
+  if (shouldApplyIntakeKind("practical", kind, options?.force) && !intake.practicalNeeds) {
     const trimmed = body.trim()
     if (
       trimmed.length >= 2 &&
@@ -548,11 +597,15 @@ function applyContextualIntakeAnswers(
     }
   }
 
-  if ((kind === "sofa" || options?.force) && !intake.sofaSize && !intake.rugSize) {
+  if (
+    shouldApplyIntakeKind("sofa", kind, options?.force) &&
+    !hasKnownSofaSize(intake) &&
+    !hasKnownRugSize(intake)
+  ) {
     applySofaSizeAnswer(intake, recentUserReplies(history, body))
   }
 
-  if ((kind === "furniture" || options?.force) && !intake.furnitureSize) {
+  if (shouldApplyIntakeKind("furniture", kind, options?.force) && !hasKnownFurnitureSize(intake)) {
     applyFurnitureSizeAnswer(intake, recentUserReplies(history, body))
   }
 }
@@ -638,9 +691,9 @@ function intakeStepSatisfied(intake: SalesIntake, kind: string) {
     case "style":
       return styleStepComplete(intake)
     case "sofa":
-      return Boolean(intake.sofaSize || intake.rugSize)
+      return hasKnownSofaSize(intake) || hasKnownRugSize(intake) || Boolean(intake.sizeUnknown)
     case "furniture":
-      return Boolean(intake.furnitureSize)
+      return hasKnownFurnitureSize(intake) || Boolean(intake.sizeUnknown)
     case "photo":
       return Boolean(intake.roomPhotoReceived)
     case "budget":
@@ -898,7 +951,7 @@ function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
   }
 
   if (isUnknownIntakeAnswer(combined) || /לא\s+יודע/i.test(combined)) {
-    intake.sofaSize = "לא ידוע — יועץ יבדוק"
+    intake.sizeUnknown = true
     return
   }
 
@@ -917,7 +970,7 @@ function applyFurnitureSizeAnswer(intake: SalesIntake, answers: string[]) {
   if (!combined || isColloquialQuizAffirmation(combined)) return
 
   if (isUnknownIntakeAnswer(combined) || /לא\s+יודע/i.test(combined)) {
-    intake.furnitureSize = "לא ידוע — יועץ יבדוק"
+    intake.sizeUnknown = true
     return
   }
 
@@ -1344,11 +1397,9 @@ function nextIntakeQuestion(
   if (!intake.targetSpace) return spaceQuestion(intake)
   if (intake.targetSpace === "חדר שינה" && !intake.bedroomUse) return BEDROOM_USE_Q
   if (intake.household?.includes("ילד") && !intake.childrenAge) return CHILDREN_Q
+  if (needsSpaceSizeQuestion(intake)) return spaceSizeQuestion(intake)
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
   if (!styleStepComplete(intake)) return STYLE_Q
-  if (isLivingRoomSpace(intake.targetSpace) && intake.product === "שטיח" && !intake.rugSize && !intake.sofaSize) {
-    return sofaSizeQuestion(intake)
-  }
   if (needsPracticalNeeds(intake) && !intake.practicalNeeds) return PRACTICAL_Q
   return null
 }
@@ -1457,15 +1508,21 @@ export function buildSizeExchangeConfirmationSummary(intake: SalesIntake) {
 }
 
 function formatSizeForSummary(intake: SalesIntake) {
-  if (intake.rugSize && /^(?:קטן|בינוני|גדול)$/i.test(intake.rugSize)) {
-    return intake.rugSize
+  if (intake.rugSize && !isPlaceholderIntakeValue(intake.rugSize)) {
+    if (/^(?:קטן|בינוני|גדול)$/i.test(intake.rugSize)) return intake.rugSize
+    return intake.rugSize.replace(/\s+מטר$/, " מטר")
   }
-  if (intake.rugSize) return intake.rugSize.replace(/\s+מטר$/, " מטר")
-  if (intake.sofaSize && /^\d/.test(intake.sofaSize)) {
-    return `ספה ${intake.sofaSize} מטר`
+  if (intake.sofaSize && !isPlaceholderIntakeValue(intake.sofaSize)) {
+    if (/^\d/.test(intake.sofaSize)) return `ספה ${intake.sofaSize} מטר`
+    if (intake.sofaSize.length <= 20) return intake.sofaSize
   }
-  if (intake.sofaSize && intake.sofaSize.length <= 20) return intake.sofaSize
-  if (intake.furnitureSize && intake.furnitureSize.length <= 30) return intake.furnitureSize
+  if (
+    intake.furnitureSize &&
+    !isPlaceholderIntakeValue(intake.furnitureSize) &&
+    intake.furnitureSize.length <= 30
+  ) {
+    return intake.furnitureSize
+  }
   return null
 }
 
@@ -1615,12 +1672,11 @@ function questionOrder(kind: string) {
     "space",
     "bedroom",
     "children",
-    "pets",
-    "style",
     "sofa",
     "furniture",
     "photo",
-    "budget",
+    "pets",
+    "style",
     "practical",
     "confirm",
   ]
