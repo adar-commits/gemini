@@ -3,19 +3,22 @@ import { mergeTurns, type UserTurn } from "@/lib/agents/user-turn"
 
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 
-const DEFAULT_DEBOUNCE_MS = 2000
+const DEFAULT_DEBOUNCE_MS = 5000
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/** LAND BOT_DEBOUNCE_MS env wins when set — otherwise runtime config / default. */
 export async function debounceWindowMs() {
+  const env = Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")
+  if (Number.isFinite(env) && env > 0) return env
+
   try {
     const runtime = await getRuntimeConfig()
     return runtime.debounceMs
   } catch {
-    const env = Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")
-    return Number.isFinite(env) && env > 0 ? env : DEFAULT_DEBOUNCE_MS
+    return DEFAULT_DEBOUNCE_MS
   }
 }
 
@@ -91,4 +94,19 @@ export async function waitAndTakeBufferedTurn(
   if (!claimed?.parts || !Array.isArray(claimed.parts)) return null
 
   return mergeTurns(claimed.parts as UserTurn[])
+}
+
+/**
+ * Wait for quiet window after the last customer message, then run handler.
+ * Repeats if new messages arrived during processing (same processor lease).
+ */
+export async function drainConversationBuffer(input: {
+  conversationId: string
+  handler: (turn: UserTurn) => Promise<void>
+}) {
+  while (true) {
+    const turn = await waitAndTakeBufferedTurn(input.conversationId)
+    if (!turn) break
+    await input.handler(turn)
+  }
 }

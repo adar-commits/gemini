@@ -108,7 +108,7 @@ function codeDefaultConfig(): RuntimeConfig {
 
   const debounceEnv = Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")
   const debounceMs =
-    Number.isFinite(debounceEnv) && debounceEnv > 0 ? debounceEnv : 2000
+    Number.isFinite(debounceEnv) && debounceEnv > 0 ? debounceEnv : 5000
 
   return {
     activeProfile: DEFAULT_PROFILE_NAME,
@@ -161,7 +161,17 @@ function rowToConfig(row: RuntimeRow): RuntimeConfig {
     },
     routingMode,
     debounceMs:
-      typeof row.debounce_ms === "number" && row.debounce_ms > 0 ? row.debounce_ms : 2000,
+      typeof row.debounce_ms === "number" && row.debounce_ms > 0
+        ? Math.max(
+            row.debounce_ms,
+            Number.isFinite(Number(process.env.LANDBOT_DEBOUNCE_MS ?? ""))
+              ? Number(process.env.LANDBOT_DEBOUNCE_MS)
+              : 0
+          )
+        : Number.isFinite(Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")) &&
+            Number(process.env.LANDBOT_DEBOUNCE_MS) > 0
+          ? Number(process.env.LANDBOT_DEBOUNCE_MS)
+          : 5000,
     historyLimit:
       typeof row.history_limit === "number" && row.history_limit > 0 ? row.history_limit : 18,
     orchestraMode,

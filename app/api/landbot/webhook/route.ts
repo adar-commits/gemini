@@ -10,8 +10,13 @@ import { getCustomer } from "@/lib/landbot/client"
 import { handleLandbotInbound } from "@/lib/landbot/handle-inbound"
 import { claimInbound, releaseInbound } from "@/lib/landbot/inbound"
 import {
+  claimConversationProcessor,
+  releaseConversationProcessor,
+} from "@/lib/landbot/conversation-processor"
+import {
+  debounceWindowMs,
+  drainConversationBuffer,
   enqueueCustomerTurn,
-  waitAndTakeBufferedTurn,
 } from "@/lib/landbot/message-buffer"
 import { isCustomerChat, parseLandbotWebhook } from "@/lib/landbot/parse-webhook"
 
@@ -32,12 +37,14 @@ function isHookAuthorized(request: Request) {
 export async function GET() {
   const { activeModelSummary } = await import("@/lib/agent-core/config")
   const models = await activeModelSummary()
+  const debounceMs = await debounceWindowMs()
   return NextResponse.json({
     ok: true,
     method: "POST",
     note: "Landbot message hook. Only LANDBOT_TRAINER_PHONES run AI and receive WhatsApp replies. All other phones are skipped before any LLM call.",
     policy: landbotPhonePolicy(),
     models,
+    debounceMs,
     runtimeConfig: "/api/agents/runtime-config",
     verifyInference: "/api/agents/verify-inference (GET=config, POST=live probe)",
     inactivity: {
@@ -99,22 +106,37 @@ export async function POST(request: Request) {
 
   try {
     await enqueueCustomerTurn(inbound.conversationId, inbound.turn)
-    const turn = await waitAndTakeBufferedTurn(inbound.conversationId)
-    if (!turn) {
+
+    if (!(await claimConversationProcessor(inbound.conversationId))) {
+      return NextResponse.json({ ok: true, skipped: "processor_busy" })
+    }
+
+    let lastResult: Awaited<ReturnType<typeof handleLandbotInbound>> | null = null
+    try {
+      await drainConversationBuffer({
+        conversationId: inbound.conversationId,
+        handler: async (turn) => {
+          lastResult = await handleLandbotInbound(
+            inbound.customerId,
+            inbound.conversationId,
+            turn,
+            {
+              replyEnabled,
+              phone,
+              customerName: inbound.customerName,
+            }
+          )
+        },
+      })
+    } finally {
+      await releaseConversationProcessor(inbound.conversationId)
+    }
+
+    if (!lastResult) {
       return NextResponse.json({ ok: true, skipped: "debouncing" })
     }
 
-    const result = await handleLandbotInbound(
-      inbound.customerId,
-      inbound.conversationId,
-      turn,
-      {
-        replyEnabled,
-        phone,
-        customerName: inbound.customerName,
-      }
-    )
-    return NextResponse.json(result)
+    return NextResponse.json(lastResult)
   } catch (error) {
     await releaseInbound(inbound.messageKey)
     const message = error instanceof Error ? error.message : "Landbot inbound failed"

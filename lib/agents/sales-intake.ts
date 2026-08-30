@@ -1579,9 +1579,10 @@ export function sanitizeSalesReply(reply: string, history: HistoryMessage[], bod
   return buildSalesIntakeReply(history, body)
 }
 
-function openingAckPrefix(history: HistoryMessage[], intake: SalesIntake) {
+function openingAckPrefix(history: HistoryMessage[], intake: SalesIntake, nextQuestion: string) {
   if (hasOngoingSalesIntake(history)) return ""
   if (!intakeHasProgress(intake)) return ""
+  if (/^אוקיי/i.test(nextQuestion.trim())) return ""
   return "אוקיי הבנתי, "
 }
 
@@ -1654,7 +1655,8 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   }
 
   const question = formatIntakeQuestionReply(history, next, nextKind)
-  const openingPrefix = !intro && !answerAckPrefix ? openingAckPrefix(history, intake) : ""
+  const openingPrefix =
+    !intro && !answerAckPrefix ? openingAckPrefix(history, intake, question) : ""
   const reply = intro ? `${intro}\n${question}` : `${openingPrefix}${question}`
   const combined = `${correctionPrefix}${recoveryPrefix}${answerAckPrefix}${reply}`
   return combined.trimEnd()
