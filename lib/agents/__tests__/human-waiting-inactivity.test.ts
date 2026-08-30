@@ -14,14 +14,14 @@ describe("shouldSkipInactivityForHumanWait", () => {
     )
   })
 
-  it("skips while handoff offer is pending", () => {
+  it("keeps inactivity while handoff offer is pending", () => {
     assert.equal(
       shouldSkipInactivityForHumanWait({
         lastAction: "reply",
         lastAssistantText:
           "אוקיי במקרה כזה אצטרך להעביר אותך לנציג שירות אנושי,בסדר?",
       }),
-      true
+      false
     )
   })
 
