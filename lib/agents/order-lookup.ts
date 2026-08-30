@@ -12,11 +12,13 @@ import {
   pendingSalesIntakeQuestionKind,
 } from "@/lib/agents/sales-intake"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
+import { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-terminology"
 import {
   isValidIsraeliMobilePhone,
   normalizePhoneForOrderApi,
 } from "@/lib/agents/phone-for-api"
 
+export { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-terminology"
 export { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
 
 const CANCELLATION_EMPATHY_PREFIX =
@@ -71,66 +73,6 @@ function deliveredToFromRow(row: PriorityOrderRow) {
     if (text && text !== "Y" && text !== "N") return text
   }
   return null
-}
-
-/** Map ZPIT_DELSTATUSCODE + ZPIT_DELSTATUSDES (+ optional recipient) to customer message. */
-export function buildDeliveryStatusMessage(input: {
-  deliveryStatusId: string | number
-  deliveryStatusDesc: string
-  deliveryDeliveredTo?: string | null
-}) {
-  const statusId = String(input.deliveryStatusId ?? "").trim()
-  const statusDesc = input.deliveryStatusDesc.trim() || "לא ידוע"
-  const deliveredTo = input.deliveryDeliveredTo?.trim() || null
-
-  let detail = ""
-  let includeRecipient = false
-
-  switch (statusId) {
-    case "1":
-      detail =
-        "השטיח נארז במחסני החברה וממתין לאיסוף של חברת השליחויות"
-      break
-    case "2":
-      detail =
-        "השטיח נמסר לחברת השליחויות, שליח יצור עמך קשר בזמן הקרוב לתיאום מועד מסירה"
-      break
-    case "3":
-      detail = 'ע"פ רישומנו, השטיח נמסר ללקוח.'
-      includeRecipient = Boolean(deliveredTo)
-      break
-    case "4":
-      detail = "השטיח נאסף מהלקוח ובדרכו למחסני החברה"
-      break
-    case "5":
-    case "6":
-      detail =
-        "השטיח נאסף ע\"י חברת השליחויות, נמצא כעת בתהליך מיון וממתין להפצה בהתאם למסלולי החלוקה."
-      break
-    case "7":
-      detail = "המשלוח בוטל"
-      break
-    case "8":
-      detail =
-        "לא ידועים פרטים נוספים על המשלוח, נא לפנות לשירות הלקוחות בטלפון *3076"
-      break
-    case "9":
-    case "12":
-      detail =
-        "השטיח נאסף ע\"י חברת השליחויות וכרגע בתהליך מיון לקראת הפצתו ללקוח"
-      break
-    default:
-      detail =
-        "לא ידועים פרטים נוספים על המשלוח, נא לפנות לשירות הלקוחות בטלפון *3076"
-      break
-  }
-
-  const lines = [`*סטטוס*: ${statusDesc}`, `*פירוט נוסף*: ${detail}`]
-  if (includeRecipient && deliveredTo) {
-    lines.push(`שם המקבל: ${deliveredTo}`)
-  }
-
-  return lines.join("\n")
 }
 
 function lookupConfigured() {
@@ -223,10 +165,14 @@ export function sortOrdersNewestFirst(orders: OrderShipmentStatus[]) {
 
 /** Status text from ZPIT_DELSTATUSCODE + ZPIT_DELSTATUSDES + ZPIT_UDATE. */
 export function describeShipmentStatus(order: OrderShipmentStatus) {
+  const deliveryDate =
+    formatHebrewDate(order.raw.ZPIT_DELDATE) ??
+    formatHebrewDate(order.raw.ZPIT_UDATE)
+
   const message = buildDeliveryStatusMessage({
     deliveryStatusId: order.statusCode,
     deliveryStatusDesc: order.statusLabel || "לא ידוע",
-    deliveryDeliveredTo: order.deliveredTo,
+    deliveryDate,
   })
 
   const updated = formatHebrewDateTime(order.raw.ZPIT_UDATE)
