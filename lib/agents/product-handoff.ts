@@ -2,11 +2,12 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isConversationClosing } from "@/lib/agents/conversation-close"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
-import { isProductDefectComplaint, isPostPurchaseDissatisfaction } from "@/lib/agents/inquiry-intent"
+import { isProductDefectComplaint, isPostPurchaseDissatisfaction, isMissingOrPartialDeliveryComplaint } from "@/lib/agents/inquiry-intent"
 import {
   isBareSkuMessage,
   isBranchInventoryQuestion,
 } from "@/lib/agents/inventory-lookup"
+import { isServiceOrderIdentificationPending } from "@/lib/agents/order-lookup"
 import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 
 const CONSULTATION_RE =
@@ -153,10 +154,12 @@ export function isProductInventoryQuestion(body: string) {
 }
 
 /** Customer named or linked a specific product — not general carpet exploration. */
-export function isSpecificProductMention(body: string) {
+export function isSpecificProductMention(body: string, history: HistoryMessage[] = []) {
   const text = body.trim()
   if (!text || isFaqTopicSwitch(text)) return false
+  if (isServiceOrderIdentificationPending(history)) return false
   if (isPostPurchaseDissatisfaction(text) || isProductDefectComplaint(text)) return false
+  if (isMissingOrPartialDeliveryComplaint(text)) return false
   if (isBranchInventoryQuestion(text) || isBareSkuMessage(text)) return false
   if (isProductInventoryQuestion(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {

@@ -4,7 +4,9 @@ import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import {
   isAlternatePhoneRequestPending,
   isOrderConfirmationPending,
+  isOrderNumberRequestPending,
   isPhoneLookupConfirmPending,
+  isServiceOrderIdentificationPending,
 } from "@/lib/agents/order-lookup"
 import {
   isActiveDigitalDocumentFlow,
@@ -31,6 +33,8 @@ export function hasStructuredFlowPending(history: HistoryMessage[], lastAgent: A
     isOrderConfirmationPending(history) ||
     isPhoneLookupConfirmPending(history) ||
     isAlternatePhoneRequestPending(history) ||
+    isOrderNumberRequestPending(history) ||
+    isServiceOrderIdentificationPending(history) ||
     isProductUrlRequestPending(history) ||
     isProductHandoffPending(history) ||
     isConfirmationPending(history) ||

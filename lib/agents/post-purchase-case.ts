@@ -3,6 +3,7 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   classifyPostPurchaseCase,
+  isMissingOrPartialDeliveryComplaint,
   isPostPurchaseDissatisfaction,
   isPreorderDelayComplaint,
   isProductDefectComplaint,
@@ -29,10 +30,14 @@ import {
   isAlternatePhoneRequestPending,
   isOrderConfirmationNo,
   isOrderConfirmationPending,
+  isOrderNumberRequestPending,
+  isOrderNumberUnknownAnswer,
   isPhoneLookupConfirmNo,
   isPhoneLookupConfirmPending,
   isPureOrderConfirmation,
   isPurePhoneLookupConfirmYes,
+  isServiceOrderIdentificationPending,
+  isServiceProductIdentificationAnswer,
   lookupOrdersByPhone,
   pendingOrderNumberFromHistory,
   requiresOrderIdentification,
@@ -110,9 +115,15 @@ export function shouldHandlePostPurchaseCaseFlow(
   const continuingLookup =
     isPhoneLookupConfirmPending(history) ||
     isOrderConfirmationPending(history) ||
-    isAlternatePhoneRequestPending(history)
+    isAlternatePhoneRequestPending(history) ||
+    isOrderNumberRequestPending(history) ||
+    isServiceOrderIdentificationPending(history)
 
-  if (!continuingLookup && !requiresOrderIdentification(body, history)) {
+  if (
+    !continuingLookup &&
+    !requiresOrderIdentification(body, history) &&
+    !isMissingOrPartialDeliveryComplaint(body)
+  ) {
     return false
   }
 
@@ -127,7 +138,13 @@ export function shouldHandlePostPurchaseCaseFlow(
   }
 
   if (continuingLookup) {
-    return activePostPurchaseCaseKind(history) != null || classifyPostPurchaseCase(body) != null
+    return (
+      activePostPurchaseCaseKind(history) != null ||
+      classifyPostPurchaseCase(body) != null ||
+      isMissingOrPartialDeliveryComplaint(body) ||
+      isServiceOrderIdentificationPending(history) ||
+      isOrderNumberRequestPending(history)
+    )
   }
 
   return false
@@ -142,8 +159,19 @@ function resolveCaseKind(body: string, history: HistoryMessage[]): PostPurchaseC
   return (
     activePostPurchaseCaseKind(history) ??
     classifyPostPurchaseCase(body) ??
-    (mentionsReturnIntent(body) ? "return_request" : "dissatisfaction")
+    classifyPostPurchaseCaseFromHistory(history) ??
+    (mentionsReturnIntent(body) ? "return_request" : "missing_item")
   )
+}
+
+function classifyPostPurchaseCaseFromHistory(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    const kind = classifyPostPurchaseCase(message.content)
+    if (kind) return kind
+  }
+  return null
 }
 
 function withCasePrefix(reply: string, kind: PostPurchaseCaseKind) {
@@ -184,6 +212,15 @@ ${caseMarkerForKind(kind)}.
 ${phoneQuestion}`
   }
 
+  if (kind === "missing_item") {
+    return `${CUSTOMER_HEADER}
+${caseMarkerForKind(kind)}.
+נבין מה חסר ונטפל בזה.
+
+כדי להתקדם, נאתר קודם את ההזמנה.
+${phoneQuestion}`
+  }
+
   return `${CUSTOMER_HEADER}
 ${caseMarkerForKind(kind)}.
 נבדוק את סטטוס ההזמנה ונעביר לטיפול מתאים.
@@ -218,6 +255,16 @@ function buildOrderConfirmedReply(kind: PostPurchaseCaseKind, order: OrderShipme
 תודה, איתרנו את הזמנה ${order.orderNumber} (${order.branchLabel}).
 
 נבדוק יחד את האפשרויות — החלפה, החזר או פתרון אחר — לפי מדיניות החברה והמוצר.
+האם להעביר את הפנייה לנציג שירות שיטפל בזה?`
+  }
+
+  if (kind === "missing_item") {
+    return `${CUSTOMER_HEADER}
+תודה, איתרנו את הזמנה ${order.orderNumber} (${order.branchLabel}).
+
+${order.statusDescription}
+
+נמשיך לטפל בפריט החסר.
 האם להעביר את הפנייה לנציג שירות שיטפל בזה?`
   }
 
@@ -322,6 +369,16 @@ export async function resolvePostPurchaseCaseReply(input: {
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
   const kind = resolveCaseKind(body, history)
+
+  if (
+    isOrderNumberRequestPending(history) ||
+    isServiceOrderIdentificationPending(history)
+  ) {
+    if (isOrderNumberUnknownAnswer(body) || isServiceProductIdentificationAnswer(body, history)) {
+      if (whatsappPhone) return buildPhoneLookupConfirmPrompt(whatsappPhone)
+      return buildAlternatePhoneRequestPrompt()
+    }
+  }
 
   if (isOrderConfirmationPending(history)) {
     const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)

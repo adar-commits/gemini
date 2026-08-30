@@ -82,6 +82,7 @@ import {
   isPhoneLookupConfirmPending,
   isAlternatePhoneRequestPending,
   isOrderNumberRequestPending,
+  isServiceOrderIdentificationPending,
   extractOrderNumber,
   extractOrderReference,
   extractPhoneFromText,
@@ -433,7 +434,7 @@ function sanitizeFaqProductReply(body: string, reply: string) {
   if (isBranchInventoryQuestion(body) || isBareSkuMessage(body)) return reply
   if (
     !isProductInventoryQuestion(body) &&
-    !isSpecificProductMention(body) &&
+    !isSpecificProductMention(body, history) &&
     !FAKE_STOCK_REPLY_RE.test(reply)
   ) {
     return reply
@@ -1198,7 +1199,7 @@ async function resolveSpecialist(
     return { ok: true, agent: "sales", reply, action: "reply", route }
   }
 
-  if (isSpecificProductMention(body) && !hasProductUrl(body)) {
+  if (isSpecificProductMention(body, history) && !hasProductUrl(body)) {
     const reply = normalizeReply("sales", "reply", buildProductUrlRequest())
     await appendTurn({
       conversationId,
@@ -1423,7 +1424,8 @@ function shouldHandleOrderShippingFlow(
     isOrderNumberRequestPending(history) ||
     isAlternatePhoneRequestPending(history) ||
     isPhoneLookupConfirmPending(history) ||
-    isOrderConfirmationPending(history)
+    isOrderConfirmationPending(history) ||
+    isServiceOrderIdentificationPending(history)
   ) {
     return true
   }
@@ -2402,7 +2404,7 @@ export async function runMasterConversation(
     return { ok: true, agent: "sales", reply, action: "reply", route: [...route, "sales"] }
   }
 
-  if (isSpecificProductMention(body) && !hasProductUrl(body)) {
+  if (isSpecificProductMention(body, history) && !hasProductUrl(body)) {
     const reply = normalizeReply("sales", "reply", buildProductUrlRequest())
     await appendTurn({
       conversationId,
@@ -2415,7 +2417,7 @@ export async function runMasterConversation(
     return { ok: true, agent: "sales", reply, action: "reply", route: [...route, "sales"] }
   }
 
-  if (isSpecificProductMention(body) && hasProductUrl(body)) {
+  if (isSpecificProductMention(body, history) && hasProductUrl(body)) {
     const reply = normalizeReply("sales", "reply", buildProductHandoffAfterReference(body))
     await appendTurn({
       conversationId,

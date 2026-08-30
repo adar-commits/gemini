@@ -15,6 +15,7 @@ export type PostPurchaseCaseKind =
   | "dissatisfaction"
   | "preorder_delay"
   | "return_request"
+  | "missing_item"
 
 const RETURN_INTENT_RE =
   /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חזיר|החזר)|(?:ל)?החזיר(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החזר(?:ה|ות)?(?:\s|$)/i
@@ -170,6 +171,18 @@ function matchesPreorderDelay(text: string) {
   return false
 }
 
+const MISSING_ITEM_RE =
+  /(?:קיבלתי|הגיע(?:ה|ו)?)\s+רק|רק\s+(?:אח(?:ת|ד)|חלק|ח(?:מ)?יש(?:ה|ית)?)|(?:\d+|שת(?:י|יים|יים)?)\s+הזמנות.*(?:קיבלתי|הגיע).*רק|חסר(?:ים|ה)?\s+(?:לי\s+)?(?:פריט|מוצר|שטיח|חלק)|(?:לא\s+)?(?:קיבלתי|הגיע(?:ה|ו)?)\s+(?:את\s+)?(?:ה?(?:שני|2|שאר|מוצר|פריט|שטיח))|רק\s+חלק\s+מ(?:ן|)?(?:ה)?הזמנה|משלוח\s+חסר/i
+
+export function isMissingOrPartialDeliveryComplaint(body: string) {
+  return matchesMissingItem(body.trim())
+}
+
+function matchesMissingItem(text: string) {
+  if (!text) return false
+  return MISSING_ITEM_RE.test(text)
+}
+
 /** Classify post-purchase case from primary clause, then full message. */
 export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | null {
   const primary = primaryIntentText(body)
@@ -177,6 +190,9 @@ export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | n
 
   for (const text of candidates) {
     if (matchesReturnRequest(text)) return "return_request"
+  }
+  for (const text of candidates) {
+    if (matchesMissingItem(text)) return "missing_item"
   }
   for (const text of candidates) {
     if (matchesDefect(text)) return "defect"

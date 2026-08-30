@@ -2,7 +2,7 @@ import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
-import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, mentionsReturnIntent } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent } from "@/lib/agents/inquiry-intent"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
@@ -370,6 +370,7 @@ export function requiresOrderIdentification(body: string, history: HistoryMessag
   if (isShippingStatusQuestion(body)) return true
   if (isDigitalDocumentRequest(body)) return true
   if (isPreorderDelayComplaint(body)) return true
+  if (isMissingOrPartialDeliveryComplaint(body)) return true
   if (extractOrderReference(body, history) || extractOrderNumber(body)) return true
   if (isOrderSpecificEligibilityQuestion(body)) return true
   if (/^(?:החזרה|ביצוע\s+החזרה)(?:[\s,.!?]|$)/i.test(body.trim())) return true
@@ -377,9 +378,73 @@ export function requiresOrderIdentification(body: string, history: HistoryMessag
   if (
     isPhoneLookupConfirmPending(history) ||
     isOrderConfirmationPending(history) ||
-    isAlternatePhoneRequestPending(history)
+    isAlternatePhoneRequestPending(history) ||
+    isOrderNumberRequestPending(history) ||
+    isServiceOrderIdentificationPending(history)
   ) {
     return true
+  }
+
+  return false
+}
+
+const ORDER_NUMBER_REQUEST_RE =
+  /(?:אוכל לקבל|מה)\s+(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)|מספר(?:י)?\s+(?:ה)?הזמנ(?:ה|ות)/i
+
+const SERVICE_MISSING_PRODUCT_REQUEST_RE =
+  /(?:מה|איז(?:ה|ו))\s+(?:ה)?(?:מוצר|פריט|שטיח).*(?:לא\s+הגיע|חסר|עדיין\s+לא)|(?:מה|איז(?:ה|ו))\s+(?:עוד\s+)?(?:לא\s+)?(?:הגיע|קיבלת)/i
+
+export function isOrderNumberRequestPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return ORDER_NUMBER_REQUEST_RE.test(message.content)
+  }
+  return false
+}
+
+export function isServiceOrderIdentificationPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return (
+      ORDER_NUMBER_REQUEST_RE.test(message.content) ||
+      SERVICE_MISSING_PRODUCT_REQUEST_RE.test(message.content)
+    )
+  }
+  return false
+}
+
+export function isOrderNumberUnknownAnswer(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  return (
+    /^(?:לא\s+)?(?:יודע(?:ת|ים)?|זוכר(?:ת|ים)?|אין\s+(?:לי|ל(?:י|נו))(?:\s+מס(?:'|׳|פר)?|\s+מספר)?|לא\s+זוכר(?:ת|ים)?)(?:[\s,.!?]|$)/i.test(
+      text
+    ) || /^לא\s+יודע(?:ת|ים)?(?:[\s,.!?]|$)/i.test(text)
+  )
+}
+
+export function isServiceProductIdentificationAnswer(
+  body: string,
+  history: HistoryMessage[]
+) {
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  if (isOrderNumberUnknownAnswer(text)) return false
+  if (extractOrderNumber(text) || userProvidedPhone(text)) return false
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (SERVICE_MISSING_PRODUCT_REQUEST_RE.test(message.content)) {
+      return /(?:שטיח|פוף|מוצר|פריט|סלון|חדר|כרית|תמונ)/i.test(text)
+    }
+    if (ORDER_NUMBER_REQUEST_RE.test(message.content)) return false
+    break
   }
 
   return false
@@ -739,17 +804,6 @@ export function resolveLookupPhoneFromHistory(
 }
 
 /** @deprecated Legacy step — new flows skip straight to phone confirm. */
-export function isOrderNumberRequestPending(history: HistoryMessage[]) {
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const message = history[index]
-    if (message.role !== "assistant") continue
-    if (isInactivityAssistantMessage(message.content)) continue
-    return /אוכל לקבל את מספר ההזמנה/i.test(message.content)
-  }
-  return false
-}
-
-/** @deprecated Legacy step — new flows skip straight to phone confirm. */
 export function buildOrderNumberRequestPrompt() {
   return `${CUSTOMER_HEADER}
 אוכל לקבל את מספר ההזמנה שלך?`
@@ -1012,6 +1066,11 @@ export async function resolveOrderShippingReply(input: {
   }
 
   if (isOrderNumberRequestPending(history)) {
+    if (isOrderNumberUnknownAnswer(body)) {
+      if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+      return buildAlternatePhoneRequestPrompt()
+    }
+
     const orderReference = extractOrderReference(body, history)
     if (orderReference) {
       const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)

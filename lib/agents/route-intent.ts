@@ -30,6 +30,7 @@ import {
   isPostPurchaseDissatisfaction,
   isPreorderDelayComplaint,
   isProductDefectComplaint,
+  isMissingOrPartialDeliveryComplaint,
 } from "@/lib/agents/inquiry-intent"
 
 const BREAK_STICKY = new Set([
@@ -74,6 +75,10 @@ export function guessMasterRoute(body: string): MasterAction | null {
     return "ROUTE_TO_SERVICE_AGENT"
   }
 
+  if (isMissingOrPartialDeliveryComplaint(text)) {
+    return "ROUTE_TO_SERVICE_AGENT"
+  }
+
   if (isFaqTopicSwitch(text)) {
     return "ROUTE_TO_INFO_AGENT"
   }
@@ -99,6 +104,7 @@ export function guessMasterRoute(body: string): MasterAction | null {
     has(text, /(?:קיבלתי|הגיע(?:ה|ו)?).{0,80}(?:אבל|ויש|וזה)/) ||
     has(text, /(?:יש|קיים)\s+(?:ב(?:ו|ה|הם)?\s+)?(?:פגם|ליקוי)/) ||
     has(text, /לא\s+קיבלתי|מוצר\s+לא\s+נכון|חסר(ים)?\s+ב/) ||
+    has(text, /(?:קיבלתי|הגיע(?:ה|ו)?)\s+רק|רק\s+חלק\s+מ(?:ן|)?(?:ה)?הזמנה/) ||
     has(text, /הגיע\s+(קרוע|פגום|שבור|לא\s+נכון)/)
   ) {
     return "ROUTE_TO_SERVICE_AGENT"
