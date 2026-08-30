@@ -31,6 +31,8 @@ export type SalesIntake = {
   favoredColor?: string
   rugSize?: string
   sofaSize?: string
+  furnitureSize?: string
+  roomPhotoReceived?: boolean
   budget?: string
   practicalNeeds?: string
 }
@@ -62,7 +64,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|צבע שאהוב|מידת הספה|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|החדר משמש ביום|דרישות מיוחדות|משהו חשוב שכדאי|לפני שנגיע למחיר|ילדים קטנים/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|צבע שאהוב|מידת הספה|מידת המיטה|רהיט העיקרי|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|החדר משמש ביום|דרישות מיוחדות|משהו חשוב שכדאי|לפני שנגיע למחיר|ילדים קטנים|תמונה\s+תעזור\s+ליועץ\s+לדייק|אעזור\s+לדייק\s+את\s+המידה/i
 
 const HEBREW_COLOR_RE =
   /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
@@ -82,7 +84,10 @@ const PETS_Q = "האם אמור להתאים לבעלי חיים?"
 const STYLE_Q =
   "איזה סגנון או תחושה מחפשים — יוקרתי, מודרני, כפרי, או משהו אחר? יש צבע שאהוב?"
 const SOFA_SIZE_Q = "מה מידת הספה?"
-const SOFA_SIZE_Q_SALON = "ידוע לך מידת הספה או גודל כללי של הסלון?"
+const SOFA_SIZE_Q_SALON = "מה מידת הספה או הגודל הכללי של הסלון?"
+const FURNITURE_SIZE_Q = "מה מידת המיטה או הרהיט העיקרי בחדר?"
+const SIZE_EXCHANGE_PHOTO_Q =
+  "אפשר לצרף תמונה של החלל? התמונה תעזור ליועץ לדייק את המידה המתאימה."
 const BUDGET_Q = "ומה התקציב המשוער?"
 const PRACTICAL_Q =
   "יש משהו חשוב שכדאי לקחת בחשבון — ניקוי קל, עמידות, או משהו אחר?"
@@ -161,7 +166,27 @@ export function mentionsPetInText(text: string) {
 }
 
 const SALES_PHOTO_REQUEST_RE =
-  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|תמונה\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה/i
+  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|תמונה\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה/i
+
+/** Customer already has the product — needs help picking the right size (exchange / resize). */
+export function isSizeExchangeIntakeContext(history: HistoryMessage[], body = "") {
+  const text = allUserText(history, body)
+  const receivedProduct =
+    /(?:קיבלתי|קיבלנו|הגיע(?:ה|ו)?|התקבל)/i.test(text) &&
+    /(?:שטיח|פוף|מוצר|הזמנה)/i.test(text)
+  const sizeIssue =
+    /(?:גדול\s+מ(?:די|ידי)|קטן\s+מ(?:די|ידי)|לא\s+מתאים(?:\s+ל(?:י|נו))?)/i.test(text) ||
+    /לא\s+יודע(?:ת|ים)?(?:\s+מה)?\s*(?:ה)?(?:מידה|גודל)/i.test(text) ||
+    /(?:מידה|גודל)\s+(?:ש(?:אני|צריך|מתאים)|נכון|מתאים|אחר)/i.test(text)
+  const exchangeContext = /(?:החלפ(?:ה|ת)|להחליף|מידה\s+אחר(?:ת)?|גודל\s+אחר)/i.test(text)
+  return Boolean(receivedProduct && (sizeIssue || exchangeContext))
+}
+
+function hasRoomPhotoInHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) => message.role === "user" && /\[media:image:/i.test(message.content)
+  )
+}
 
 export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -267,6 +292,8 @@ function questionKindForText(question: string): string | null {
   if (/בעלי חיים|להתאים לבעלי/.test(question)) return "pets"
   if (/סגנון/.test(question)) return "style"
   if (/מידת הספה|גודל כללי של הסלון/.test(question)) return "sofa"
+  if (/מידת המיטה|רהיט העיקרי/.test(question)) return "furniture"
+  if (/תמונה\s+של\s+החלל|תמונה\s+תעזור\s+ליועץ\s+לדייק/.test(question)) return "photo"
   if (/תקציב/.test(question)) return "budget"
   if (/דרישות מיוחדות|משהו חשוב שכדאי/.test(question)) return "practical"
   if (/האם זה נכון|אני צודק/.test(question)) return "confirm"
@@ -443,8 +470,12 @@ function applyAffirmationFromAssistantContext(
     else intake.targetSpace = "סלון"
   }
 
-  if (/ספה|מקום|גודל|מרפס|סלון/.test(last)) {
-    intake.sofaSize = "לא ידוע — יועץ יבדוק"
+  if (/ספה|מקום|גודל|מרפס|סלון|מיטה|רהיט/.test(last)) {
+    if (/מיטה|רהיט/.test(last) && !intake.furnitureSize) {
+      intake.furnitureSize = "לא ידוע — יועץ יבדוק"
+    } else if (!intake.sofaSize && !intake.rugSize) {
+      intake.sofaSize = "לא ידוע — יועץ יבדוק"
+    }
   }
 
   if (/בעלי חיים|חתול|כלב|חיה/.test(last) && intake.pets == null) {
@@ -513,6 +544,10 @@ function applyContextualIntakeAnswers(
   if ((kind === "sofa" || options?.force) && !intake.sofaSize && !intake.rugSize) {
     applySofaSizeAnswer(intake, recentUserReplies(history, body))
   }
+
+  if ((kind === "furniture" || options?.force) && !intake.furnitureSize) {
+    applyFurnitureSizeAnswer(intake, recentUserReplies(history, body))
+  }
 }
 
 function normalizeSpaceAnswer(raw: string) {
@@ -565,6 +600,10 @@ function intakeStepSatisfied(intake: SalesIntake, kind: string) {
       return styleStepComplete(intake)
     case "sofa":
       return Boolean(intake.sofaSize || intake.rugSize)
+    case "furniture":
+      return Boolean(intake.furnitureSize)
+    case "photo":
+      return Boolean(intake.roomPhotoReceived)
     case "budget":
       return Boolean(intake.budget)
     case "practical":
@@ -599,7 +638,9 @@ const SOFT_REPROMPT: Partial<Record<string, string>> = {
   pets: "לגבי בעלי חיים — האם השטיח אמור להתאים?",
   style:
     "ומה לגבי הסגנון — יוקרתי, מודרני, כפרי, או משהו אחר? ואולי גם צבע מועדף?",
-  sofa: "ידוע לך מידת הספה או גודל כללי של הסלון?",
+  sofa: "מה מידת הספה או הגודל הכללי של הסלון?",
+  furniture: "מה מידת המיטה או הרהיט העיקרי בחדר?",
+  photo: "אפשר לצרף תמונה של החלל?",
   budget: "מה התקציב המשוער?",
   practical: "יש דרישות מיוחדות — למשל קל לניקוי/כביסה או עמיד?",
 }
@@ -818,6 +859,7 @@ function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
   }
 
   if (isUnknownIntakeAnswer(combined) || /לא\s+יודע/i.test(combined)) {
+    intake.sofaSize = "לא ידוע — יועץ יבדוק"
     return
   }
 
@@ -828,6 +870,43 @@ function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
 
   if (!intake.sofaSize && combined.length <= 30) {
     intake.sofaSize = combined
+  }
+}
+
+function applyFurnitureSizeAnswer(intake: SalesIntake, answers: string[]) {
+  const combined = answers.join(" ")
+  if (!combined || isColloquialQuizAffirmation(combined)) return
+
+  if (isUnknownIntakeAnswer(combined) || /לא\s+יודע/i.test(combined)) {
+    intake.furnitureSize = "לא ידוע — יועץ יבדוק"
+    return
+  }
+
+  const slashMatch = combined.match(/\b(\d{2,4})\s*[\/x×]\s*(\d{2,4})\b/)
+  if (slashMatch) {
+    intake.furnitureSize = `${slashMatch[1]}/${slashMatch[2]}`
+    return
+  }
+
+  const hebrewMeters = extractHebrewMeterSize(combined)
+  if (hebrewMeters) {
+    intake.furnitureSize = hebrewMeters
+    return
+  }
+
+  const numericMatch = combined.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
+  if (numericMatch) {
+    intake.furnitureSize = numericMatch[1].replace(/\s/g, "")
+    return
+  }
+
+  if (/זוגית|יחיד|מיטה|160|180|200|140|120|90|מטר|גדול|קטן|בינוני/.test(combined)) {
+    intake.furnitureSize = combined.slice(0, 80)
+    return
+  }
+
+  if (combined.length <= 40) {
+    intake.furnitureSize = combined
   }
 }
 
@@ -1012,6 +1091,9 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
       case "sofa":
         applySofaSizeAnswer(intake, answers)
         break
+      case "furniture":
+        applyFurnitureSizeAnswer(intake, answers)
+        break
       case "budget":
         applyBudgetAnswer(intake, answers)
         break
@@ -1164,6 +1246,10 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
 
   ensureImplicitStyle(intake)
 
+  if (hasRoomPhotoInHistory(history) || /\[media:image:/i.test(body)) {
+    intake.roomPhotoReceived = true
+  }
+
   return intake
 }
 
@@ -1180,7 +1266,39 @@ function spaceQuestion(intake: SalesIntake) {
   return SPACE_Q_OTHER
 }
 
-function nextIntakeQuestion(intake: SalesIntake): string | null {
+function needsFurnitureSizeQuestion(intake: SalesIntake) {
+  if (!intake.targetSpace) return false
+  return !isLivingRoomSpace(intake.targetSpace)
+}
+
+function nextSizeExchangeIntakeQuestion(intake: SalesIntake, history: HistoryMessage[]) {
+  if (!intake.product) return PRODUCT_Q
+  if (!intake.targetSpace) return spaceQuestion(intake)
+  if (
+    isLivingRoomSpace(intake.targetSpace) &&
+    intake.product === "שטיח" &&
+    !intake.rugSize &&
+    !intake.sofaSize
+  ) {
+    return sofaSizeQuestion(intake)
+  }
+  if (needsFurnitureSizeQuestion(intake) && !intake.furnitureSize) {
+    return FURNITURE_SIZE_Q
+  }
+  if (!intake.roomPhotoReceived && !hasRoomPhotoInHistory(history)) {
+    return SIZE_EXCHANGE_PHOTO_Q
+  }
+  return null
+}
+
+function nextIntakeQuestion(
+  intake: SalesIntake,
+  history: HistoryMessage[] = [],
+  body = ""
+): string | null {
+  if (isSizeExchangeIntakeContext(history, body)) {
+    return nextSizeExchangeIntakeQuestion(intake, history)
+  }
   if (!intake.product) return PRODUCT_Q
   if (!intake.targetSpace) return spaceQuestion(intake)
   if (intake.targetSpace === "חדר שינה" && !intake.bedroomUse) return BEDROOM_USE_Q
@@ -1214,6 +1332,9 @@ function visualConsultAck(body: string) {
 function introForFlow(text: string, history: HistoryMessage[], intake: SalesIntake) {
   const visualAck = visualConsultAck(text)
   if (visualAck) return visualAck
+  if (isSizeExchangeIntakeContext(history, text) && !hasOngoingSalesIntake(history)) {
+    return "בסדר, אעזור לדייק את המידה.\n"
+  }
   if (hasOngoingSalesIntake(history)) return ""
   if (intakeHasProgress(intake)) return ""
   if (
@@ -1283,6 +1404,18 @@ export function buildConfirmationSummary(intake: SalesIntake) {
   return `אוקיי, אז לסיכום ${summary}. אני צודק?`
 }
 
+export function buildSizeExchangeConfirmationSummary(intake: SalesIntake) {
+  const product = intake.product ?? "שטיח"
+  const space = intake.targetSpace ? ` ל${intake.targetSpace}` : ""
+  const sizeLabel =
+    formatSizeForSummary(intake) ||
+    (intake.furnitureSize && intake.furnitureSize.length <= 40 ? intake.furnitureSize : null)
+  let summary = `צריך ${product}${space}`
+  if (sizeLabel) summary += ` — מידה משוערת: ${sizeLabel}`
+  if (intake.roomPhotoReceived) summary += ", עם תמונת חלל"
+  return `אוקיי, אז לסיכום ${summary}. אני צודק?`
+}
+
 function formatSizeForSummary(intake: SalesIntake) {
   if (intake.rugSize && /^(?:קטן|בינוני|גדול)$/i.test(intake.rugSize)) {
     return intake.rugSize
@@ -1292,6 +1425,7 @@ function formatSizeForSummary(intake: SalesIntake) {
     return `ספה ${intake.sofaSize} מטר`
   }
   if (intake.sofaSize && intake.sofaSize.length <= 20) return intake.sofaSize
+  if (intake.furnitureSize && intake.furnitureSize.length <= 30) return intake.furnitureSize
   return null
 }
 
@@ -1360,9 +1494,10 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const doubleReplyJustHandled =
     recoveringFromDoubleReply && answeredEarlierInBurst(history, intake)
 
-  let next = nextIntakeQuestion(intake)
+  let next = nextIntakeQuestion(intake, history, body)
   const lastKind = lastIntakeQuestionKind(history)
   const nextKind = next ? questionKindForText(next) : null
+  const sizeExchange = isSizeExchangeIntakeContext(history, body)
 
   // Never repeat the same question — accept the reply and advance.
   if (next && lastKind && nextKind === lastKind && !doubleReplyJustHandled) {
@@ -1375,14 +1510,20 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
         reconcilePetsFromThread(intake, history, body)
       }
     }
-    next = nextIntakeQuestion(intake)
+    next = nextIntakeQuestion(intake, history, body)
   }
 
   // Never go backwards (e.g. re-ask pets after budget was already asked).
-  if (next && lastKind && nextKind && questionOrder(nextKind) < questionOrder(lastKind)) {
+  if (
+    next &&
+    lastKind &&
+    nextKind &&
+    !sizeExchange &&
+    questionOrder(nextKind) < questionOrder(lastKind)
+  ) {
     applyContextualIntakeAnswers(intake, history, body, { force: true })
     reconcilePetsFromThread(intake, history, body)
-    next = nextIntakeQuestion(intake)
+    next = nextIntakeQuestion(intake, history, body)
     if (next && nextKind && questionOrder(questionKindForText(next) ?? "") < questionOrder(lastKind)) {
       next = null
     }
@@ -1397,7 +1538,10 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
       : ""
 
   if (!next) {
-    return correctionPrefix + recoveryPrefix + buildConfirmationSummary(intake)
+    const summary = sizeExchange
+      ? buildSizeExchangeConfirmationSummary(intake)
+      : buildConfirmationSummary(intake)
+    return correctionPrefix + recoveryPrefix + summary
   }
 
   const question = formatIntakeQuestionReply(history, next, nextKind)
@@ -1414,7 +1558,20 @@ function intakeAnswerAcknowledgment(lastKind: string, body: string) {
 }
 
 function questionOrder(kind: string) {
-  const order = ["product", "space", "bedroom", "children", "pets", "style", "sofa", "budget", "practical", "confirm"]
+  const order = [
+    "product",
+    "space",
+    "bedroom",
+    "children",
+    "pets",
+    "style",
+    "sofa",
+    "furniture",
+    "photo",
+    "budget",
+    "practical",
+    "confirm",
+  ]
   const index = order.indexOf(kind)
   return index === -1 ? 0 : index
 }
