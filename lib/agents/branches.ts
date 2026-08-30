@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { isRefundTimelineQuestion } from "@/lib/agents/inquiry-intent"
 
 const kbPath = join(process.cwd(), "lib/agents/kb/faq.md")
 
@@ -48,6 +49,10 @@ export const RETURN_BRANCH_INTRO =
 export function isReturnToBranchQuestion(text: string) {
   const normalized = text.trim()
   if (!normalized) return false
+  if (isRefundTimelineQuestion(normalized)) return false
+  if (/(?:מסר(?:תי|נו|ה)|החזר(?:תי|נו|ה)|הבא(?:תי|נו)).{0,80}(?:סניף|חנות)/i.test(normalized)) {
+    return false
+  }
   return (
     /(?:להחזיר|החזר(?:ה|ים)?|מחזיר).{0,40}סניף|סניף.{0,40}(?:להחזיר|החזר)/i.test(
       normalized
@@ -59,6 +64,7 @@ export function isReturnToBranchQuestion(text: string) {
 
 export function isBranchListQuestion(text: string) {
   const normalized = text.trim()
+  if (isRefundTimelineQuestion(normalized)) return false
   if (
     /מלאi|זמינות|במלאi|inventory|in\s+stock|בדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi|תבדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi/i.test(
       normalized

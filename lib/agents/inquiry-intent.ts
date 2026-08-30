@@ -59,10 +59,35 @@ export function mentionsReturnIntent(text: string) {
 const FUTURE_PURCHASE_RE =
   /(?:אחר(?:י)?\s+ש(?:א)?|לפני\s+(?:ש(?:א)?)?|כש(?:א)?|בעתיד|אם\s+(?:א)?(?:קנ|רכ)|(?:א|)?(?:קנ(?:ה|ו|יתי)?|רכ(?:ש|יב)(?:ה|תי|ו)?)|(?:א|)?(?:רצ(?:ה|ו|ית)?|תרצ(?:ה|ו|ית)?)\s+(?:ל)?(?:קנ|רכ))/i
 
+const REFUND_TIMING_QUESTION_RE =
+  /מתי(?:\s+\S+){0,5}\s+(?:א(?:קבל|ראה)|(?:מ)?(?:קבל|גיע)|(?:י(?:ופיע|ראה|גיע|היה)))\s*(?:את\s+)?(?:ה)?(?:החזר(?:ה|ים|ת)?|זיכוי)/i
+
+const ALREADY_RETURNED_AT_BRANCH_RE =
+  /(?:מסר(?:תי|נו|ה)|החזר(?:תי|נו|ה)|הבא(?:תי|נו)|הגע(?:תי|נו)).{0,80}(?:סניף|חנות)/i
+
+/** Customer already returned and asks when money/credit arrives — not where/how to return. */
+export function isRefundTimelineQuestion(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+
+  if (REFUND_TIMING_QUESTION_RE.test(trimmed)) return true
+
+  if (
+    ALREADY_RETURNED_AT_BRANCH_RE.test(trimmed) &&
+    /(?:ה)?(?:החזר(?:ה|ים|ת)?|זיכוי)/i.test(trimmed)
+  ) {
+    return true
+  }
+
+  return false
+}
+
 /** Policy / hypothetical return question — not an active return request. */
 export function isReturnPolicyQuestion(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return false
+
+  if (isRefundTimelineQuestion(trimmed)) return true
 
   if (
     /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות)|מדיניות\s+(?:ה)?החזר)/i.test(trimmed) &&

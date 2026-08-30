@@ -64,7 +64,7 @@ import {
   shouldHandlePostPurchaseCaseFlow,
   activePostPurchaseCaseKind,
 } from "@/lib/agents/post-purchase-case"
-import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
   resolveDigitalDocumentFlowReply,
   shouldHandleDigitalDocumentFlow,
@@ -193,6 +193,7 @@ import {
 } from "@/lib/agents/shipping"
 import {
   buildCarpetRentalPolicyReply,
+  buildRefundTimelinePolicyReply,
   buildReturnExchangePolicyReply,
   matchPolicySubjects,
 } from "@/lib/agents/policy-subjects"
@@ -778,10 +779,13 @@ async function faqReturnPolicyResult(
   history?: HistoryMessage[],
   lastAgent?: AgentId | null
 ): Promise<AgentResponse> {
+  const replyBody = isRefundTimelineQuestion(body)
+    ? buildRefundTimelinePolicyReply()
+    : buildReturnExchangePolicyReply()
   return faqPendingFlowResult(
     conversationId,
     body,
-    buildReturnExchangePolicyReply(),
+    replyBody,
     history ?? [],
     lastAgent ?? null,
     route,
