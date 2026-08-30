@@ -59,15 +59,34 @@ export async function isCasualGreetingWithLearned(text: string) {
   return matchesLearnedGreeting(text)
 }
 
-/** Self-contained welcome — no separate *הום בוט :)* header line. */
+/** Strip LLM slash-gender forms — הום בוט is male. */
+export function sanitizeBotGenderSlashes(text: string) {
+  return text
+    .replace(/שמח\/ה/g, "שמח")
+    .replace(/מצטער\/ת/g, "מצטער")
+    .replace(/שמח\/ת/g, "שמח")
+}
+
+/** One *הום בוט :)* header — drop repeated name lines in the greeting body. */
+export function dedupeGreetingBotName(reply: string) {
+  if (!reply.includes(CUSTOMER_HEADER) && !reply.trim().startsWith("הום בוט :)")) {
+    return reply
+  }
+  return reply.replace(
+    /\n?היי!\s*כאן\s+הום\s+בוט\s*:?\)?\s*\n?/gi,
+    "\nהיי! "
+  )
+}
+
+/** Opening welcome — single header, no repeated bot name, masculine voice. */
 export function buildGreetingReply(_customerName?: string) {
-  return `היי! כאן הום בוט!
-שמח שפניתם אלינו, במה אוכל לעזור היום? 🙂`
+  return `${CUSTOMER_HEADER}
+היי! שמח שפניתם — במה אוכל לעזור היום?`
 }
 
 export function isSelfContainedGreetingReply(reply: string) {
   const text = reply.trim().replace(/^\*הום בוט :\)\*\n?/, "")
-  return /^היי!\s+כאן\s+הום\s+בוט!/i.test(text)
+  return /^היי!\s+(?:כאן\s+הום\s+בוט|שמח\s+שפניתם)/i.test(text)
 }
 
 /** Natural reply to wellbeing / ping messages — not only on the opening turn. */

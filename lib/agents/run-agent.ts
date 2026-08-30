@@ -131,11 +131,13 @@ import { isFaqTopicSwitch, isSalesTopicSwitch, isServiceTopicSwitch } from "@/li
 import {
   buildGreetingReply,
   buildCasualSmallTalkReply,
+  dedupeGreetingBotName,
   hasImmediateBusinessAsk,
   isCasualGreeting,
   isCasualSmallTalk,
   isOpeningTurn,
   isSelfContainedGreetingReply,
+  sanitizeBotGenderSlashes,
   shouldWelcomeAfterReset,
 } from "@/lib/agents/greeting"
 import {
@@ -408,6 +410,9 @@ function normalizeReply(agent: AgentId, action: AgentAction, reply: string) {
 
   let trimmed = reply.trim()
   if (!trimmed) return ""
+
+  trimmed = sanitizeBotGenderSlashes(trimmed)
+  trimmed = dedupeGreetingBotName(trimmed)
 
   trimmed = trimmed.replace(/^(?:\*הום בוט :\)\*\n?)+/g, `${CUSTOMER_HEADER}\n`)
   trimmed = trimmed.replace(
@@ -969,6 +974,30 @@ async function resolveSpecialist(
       return { ok: true, agent: "sales", reply, action: "reply", route }
     }
 
+    if (
+      specialist === "faq" &&
+      isCasualGreeting(body) &&
+      !hasImmediateBusinessAsk(body) &&
+      (isOpeningTurn(persistUser ? userTurns : userTurns + 1) ||
+        shouldWelcomeAfterReset(
+          options?.resetAt ?? null,
+          options?.lastAction ?? null,
+          history
+        ))
+    ) {
+      const reply = normalizeReply("faq", "reply", buildGreetingReply(options?.customerName))
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        persistUser,
+        preview,
+      })
+      return { ok: true, agent: "faq", reply, action: "reply", route }
+    }
+
     let result = await runAgent(specialist, conversationId, turn, {
       persistUser,
       history,
@@ -1248,7 +1277,7 @@ async function resolveSpecialist(
         history
       ))
   ) {
-    const reply = buildGreetingReply(options?.customerName)
+    const reply = normalizeReply("faq", "reply", buildGreetingReply(options?.customerName))
     await appendTurn({
       conversationId,
       agent: "faq",
@@ -1699,7 +1728,7 @@ async function tryWelcomeGreeting(
 
   if (!welcome) return null
 
-  const reply = buildGreetingReply(options?.customerName)
+  const reply = normalizeReply("faq", "reply", buildGreetingReply(options?.customerName))
   await appendTurn({
     conversationId,
     agent: "faq",
