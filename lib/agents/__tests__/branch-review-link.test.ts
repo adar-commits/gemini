@@ -5,6 +5,7 @@ import {
   extractBranchLabelFromReviewRequest,
   isBranchReviewLinkRequest,
   resolveBranchGoogleReview,
+  resolveWebsiteGoogleReview,
 } from "@/lib/agents/branch-google-reviews"
 import { buildBranchReviewLinkReply } from "@/lib/agents/feedback-handling"
 
@@ -41,5 +42,18 @@ describe("branch google review link requests", () => {
       assert.match(reply, /סגולה/, message)
       assert.doesNotMatch(reply, /הרב פינטו/, message)
     }
+  })
+
+  it("uses ראשון לציון link for website / online review asks", () => {
+    const website = resolveWebsiteGoogleReview()
+    assert.match(website.reviewUrl!, /writereview\?placeid=ChIJD-4TY4SzAhURoWab1AruIns/)
+    assert.match(website.displayName, /ראשון/)
+
+    const fromBranch = resolveBranchGoogleReview("אתר", "3000")
+    assert.equal(fromBranch?.reviewUrl, website.reviewUrl)
+
+    const reply = buildBranchReviewLinkReply("רוצה לדרג את הרכישה מהאתר")
+    assert.match(reply, /writereview\?placeid=ChIJD-4TY4SzAhURoWab1AruIns/)
+    assert.match(reply, /ראשון לציון/)
   })
 })

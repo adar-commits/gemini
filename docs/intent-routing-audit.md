@@ -88,7 +88,7 @@ Captured via structured Q&A. Implement in T0/routing + fixtures when code diverg
 | # | Topic | Decision |
 |---|---|---|
 | 1 | "רוצה להחזיר" before policy | **Depends:** dissatisfaction ("לא אוהב/לא מתאים") → **Sales** save-the-purchase path first. Plain return intent → **FAQ portal-first**. |
-| 2 | Website order review link | **Generic carpetshop / main brand Google link** (not per-branch). |
+| 2 | Website order review link | **ראשון לציון** writereview URL for online/website orders. |
 | 3 | באר שבע | **Address + "פתיחה בקרוב"** — no review link. |
 | 4 | Price match / missing credit | **Service** (billing/post-purchase). |
 | 5 | Preorder delay | **Service** complaint intake (not shipping lookup first). |
@@ -96,9 +96,9 @@ Captured via structured Q&A. Implement in T0/routing + fixtures when code diverg
 | 7 | Pozitive-only | **Same branches, no review links** for Pozitive-only context. |
 | 8 | After איפוס reset | **Fresh start** — do not infer branch from pre-reset history. |
 | 9 | Multi-question in one message | **Combined reply** (answer both in one message). |
-| 10 | Failed chat fixtures | **Owner will paste 3–5 examples** in a follow-up message. |
+| 10 | Failed chat fixtures | No screenshots available — use reported failures + new fixtures as they appear. |
 
-**Pending code alignment:** #2 generic website review link, #5 preorder → Service, #6 נציג → FAQ menu, #7 Pozitive review suppression.
+**Pending code alignment:** #5 preorder → Service, #6 נציג → FAQ menu, #7 Pozitive review suppression.
 
 ---
 

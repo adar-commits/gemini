@@ -55,6 +55,17 @@ const BRANCH_REVIEWS: Array<{
   },
 ]
 
+const RISHON_LEZION_REVIEW_URL =
+  "https://search.google.com/local/writereview?placeid=ChIJD-4TY4SzAhURoWab1AruIns"
+
+/** Website / online orders use the ראשון לציון Google review link. */
+export function resolveWebsiteGoogleReview(): BranchGoogleReview {
+  return {
+    displayName: "ראשון לציון",
+    reviewUrl: RISHON_LEZION_REVIEW_URL,
+  }
+}
+
 export function isWebsiteBranch(branchCode?: string | null, branchLabel?: string | null) {
   const code = branchCode?.trim()
   if (code === WEBSITE_BRANCH_CODE) return true
@@ -123,7 +134,7 @@ export function resolveBranchGoogleReview(
   const label = branchLabel.trim()
 
   if (isWebsiteBranch(code, label)) {
-    return { displayName: "אתר", reviewUrl: null }
+    return resolveWebsiteGoogleReview()
   }
 
   for (const entry of BRANCH_REVIEWS) {

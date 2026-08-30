@@ -7,6 +7,7 @@ import {
   isBranchReviewLinkRequest,
   isWebsiteBranch,
   resolveBranchGoogleReview,
+  resolveWebsiteGoogleReview,
 } from "@/lib/agents/branch-google-reviews"
 import {
   buildPhoneLookupDeclinedReply,
@@ -52,14 +53,10 @@ export function shouldHandleServicePraiseFlow(body: string, history: HistoryMess
 }
 
 function buildServicePraiseReplyForOrder(order: OrderShipmentStatus) {
-  if (isWebsiteBranch(order.branchCode, order.branchLabel)) {
-    return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
+  const branch = isWebsiteBranch(order.branchCode, order.branchLabel)
+    ? resolveWebsiteGoogleReview()
+    : resolveBranchGoogleReview(order.branchLabel, order.branchCode)
 
-אפשר לעזור במשהו נוסף?`
-  }
-
-  const branch = resolveBranchGoogleReview(order.branchLabel, order.branchCode)
   if (!branch?.reviewUrl) {
     return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחנו לעזור!
@@ -67,9 +64,13 @@ function buildServicePraiseReplyForOrder(order: OrderShipmentStatus) {
 אפשר לעזור במשהו נוסף?`
   }
 
+  const websiteNote = isWebsiteBranch(order.branchCode, order.branchLabel)
+    ? "לרכישות מהאתר — "
+    : ""
+
   return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחנו לעזור!
-אם תרצו/י, נשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
+${websiteNote}אם תרצו/י, נשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
 אפשר לעזור במשהו נוסף?`
@@ -93,22 +94,31 @@ ${branch.reviewUrl}
 }
 
 function buildBranchReviewLinkReplyBody(branchLabel: string) {
-  const branch = resolveBranchGoogleReview(branchLabel)
+  const branch =
+    branchLabel && isWebsiteBranch(undefined, branchLabel)
+      ? resolveWebsiteGoogleReview()
+      : resolveBranchGoogleReview(branchLabel)
+
   if (!branch) {
     return `${CUSTOMER_HEADER}
 בשמחה! על איזה סניף תרצו/י לדרג? (למשל: סגולה, נתניה, בני ברק, קריית אתא)`
   }
 
-  if (isWebsiteBranch(undefined, branch.displayName) || !branch.reviewUrl) {
+  if (!branch.reviewUrl) {
     return `${CUSTOMER_HEADER}
 תודה על הרצון לדרג!
-לרכישות מהאתר אין כרגע קישור ביקורת ייעודי — אפשר לפנות לשירות בטלפון *3076.
+אין כרגע קישור ביקורת לסניף הזה — אפשר לפנות לשירות בטלפון *3076.
 
 אם צריך עוד משהו — אני כאן.`
   }
 
+  const websiteNote =
+    branchLabel && isWebsiteBranch(undefined, branchLabel)
+      ? "לרכישות מהאתר — "
+      : ""
+
   return `${CUSTOMER_HEADER}
-בשמחה! זה הקישור לדירוג ב-Google של הסניף ב${branch.displayName}:
+בשמחה! ${websiteNote}זה הקישור לדירוג ב-Google של הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
 אם צריך עוד משהו — אני כאן.`
