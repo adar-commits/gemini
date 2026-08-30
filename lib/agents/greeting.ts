@@ -59,10 +59,15 @@ export async function isCasualGreetingWithLearned(text: string) {
   return matchesLearnedGreeting(text)
 }
 
-/** Warm opening when the customer says hello before stating a need. */
+/** Self-contained welcome — no separate *הום בוט :)* header line. */
 export function buildGreetingReply(_customerName?: string) {
-  return `היי! כאן הום בוט :)
-שמח/ה שפניתם — במה אוכל לעזור היום?`
+  return `היי! כאן הום בוט!
+שמח שפניתם אלינו, במה אוכל לעזור היום? 🙂`
+}
+
+export function isSelfContainedGreetingReply(reply: string) {
+  const text = reply.trim().replace(/^\*הום בוט :\)\*\n?/, "")
+  return /^היי!\s+כאן\s+הום\s+בוט!/i.test(text)
 }
 
 /** Natural reply to wellbeing / ping messages — not only on the opening turn. */

@@ -42,6 +42,21 @@ type BranchEntry = {
   hoursNote?: string
 }
 
+export const RETURN_BRANCH_INTRO =
+  "ניתן להחזיר לכל אחד מסניפינו ברחבי הארץ בכל ימי השבוע מלבד שישי, להלן כתובות הסניפים:"
+
+export function isReturnToBranchQuestion(text: string) {
+  const normalized = text.trim()
+  if (!normalized) return false
+  return (
+    /(?:להחזיר|החזר(?:ה|ים)?|מחזיר).{0,40}סניף|סניף.{0,40}(?:להחזיר|החזר)/i.test(
+      normalized
+    ) || /(?:רוצ(?:ה|ים|ות)|(?:א|)?עדיף)\s+(?:ל)?(?:ה)?החזיר\s+(?:ל)?(?:אחד\s+מ)?(?:ה)?סניפ/i.test(
+      normalized
+    )
+  )
+}
+
 export function isBranchListQuestion(text: string) {
   const normalized = text.trim()
   if (
@@ -141,11 +156,16 @@ export function extractBranchCityFromInventoryQuery(text: string) {
   return findBranchCityHint(text)
 }
 
+type BranchListOptions = {
+  returnContext?: boolean
+}
+
 /** Full list or a single branch when the customer names a city (e.g. נתניה). */
-export function buildBranchReplyForText(text: string) {
+export function buildBranchReplyForText(text: string, options?: BranchListOptions) {
   const entries = parseBranches(branchSectionFromKb())
+  const returnContext = options?.returnContext ?? isReturnToBranchQuestion(text)
   const cityHint = findBranchCityHint(text)
-  if (!cityHint) return formatBranchList(entries)
+  if (!cityHint) return formatBranchList(entries, { returnContext })
 
   const filtered = entries.filter(
     (entry) =>
@@ -158,18 +178,28 @@ export function buildBranchReplyForText(text: string) {
   if (filtered.length === 1) {
     const entry = filtered[0]!
     const hours = entry.hoursNote ?? DEFAULT_HOURS
+    if (returnContext) {
+      return `${RETURN_BRANCH_INTRO}
+
+*${entry.name}*
+${entry.address}${entry.phone ? ` · ${entry.phone}` : ""}
+*שעות פעילות:* ${hours}
+
+אני כאן.`
+    }
     return `*${entry.name}*
 ${entry.address}${entry.phone ? ` · ${entry.phone}` : ""}
 *שעות פעילות:* ${hours}
 
-אם צריך עוד משהו — כאן.`
+אני כאן.`
   }
 
-  if (filtered.length > 1) return formatBranchList(filtered)
-  return formatBranchList(entries)
+  if (filtered.length > 1) return formatBranchList(filtered, { returnContext })
+  return formatBranchList(entries, { returnContext })
 }
 
-function formatBranchList(entries: BranchEntry[]) {
+function formatBranchList(entries: BranchEntry[], options?: BranchListOptions) {
+  const returnContext = options?.returnContext ?? false
   const blocks =
     entries.length > 0
       ? entries.map(formatBranchBlock).join("\n\n")
@@ -178,8 +208,12 @@ function formatBranchList(entries: BranchEntry[]) {
 
   const hasAirportException = entries.some((entry) => entry.hoursNote)
 
-  return `*סניפי רשת השטיח האדום*
-ניתן להחזיר ולהחליף בסניפים הפעילים:
+  const intro = returnContext
+    ? RETURN_BRANCH_INTRO
+    : `*סניפי רשת השטיח האדום*
+ניתן להחזיר ולהחליף בסניפים הפעילים:`
+
+  return `${intro}
 
 ${blocks}
 
@@ -190,7 +224,7 @@ ${DEFAULT_HOURS}${
       : ""
   }
 
-אם צריך עוד משהו — כאן.`
+אני כאן.`
 }
 
 export type UncertaintyDepartment = "service" | "sales" | "faq"

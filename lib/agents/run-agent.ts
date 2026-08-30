@@ -140,12 +140,14 @@ import {
   isCasualGreeting,
   isCasualSmallTalk,
   isOpeningTurn,
+  isSelfContainedGreetingReply,
   shouldWelcomeAfterReset,
 } from "@/lib/agents/greeting"
 import {
   buildBranchListReply,
   buildBranchReplyForText,
   isBranchListQuestion,
+  isReturnToBranchQuestion,
 } from "@/lib/agents/branches"
 import {
   extractSku,
@@ -212,6 +214,14 @@ import {
 function markT0Routing(conversationId: string, result: AgentResponse): AgentResponse {
   setRoutingPath(conversationId, "t0")
   return result
+}
+
+function branchReplyForTurn(body: string, history: HistoryMessage[]) {
+  const returnContext =
+    isReturnToBranchQuestion(body) ||
+    (getDissatisfactionRescueStage(history) === "portal_referred" &&
+      /סניף|סניפ/i.test(body))
+  return buildBranchReplyForText(body, { returnContext })
 }
 
 async function runT0DeterministicPaths(
@@ -289,7 +299,7 @@ async function runT0DeterministicPaths(
       await faqPendingFlowResult(
         conversationId,
         body,
-        buildBranchReplyForText(body),
+        branchReplyForTurn(body, history),
         history,
         sharedOptions.lastAgent,
         route,
@@ -412,6 +422,9 @@ function normalizeReply(agent: AgentId, action: AgentAction, reply: string) {
   if (trimmed.startsWith(CUSTOMER_HEADER)) return trimmed
   if (trimmed.startsWith("הום בוט :)")) {
     return trimmed.replace(/^הום בוט :\)\s*/, `${CUSTOMER_HEADER}\n`)
+  }
+  if (isSelfContainedGreetingReply(trimmed)) {
+    return trimmed.replace(/^(?:\*הום בוט :\)\*\n?)+/, "").trim()
   }
   return `${CUSTOMER_HEADER}\n${trimmed}`
 }
@@ -1095,7 +1108,7 @@ async function resolveSpecialist(
       return faqPendingFlowResult(
         conversationId,
         body,
-        buildBranchReplyForText(body),
+        branchReplyForTurn(body, history),
         history,
         lastAgent,
         route,
@@ -1145,7 +1158,7 @@ async function resolveSpecialist(
   if (inventory) return inventory
 
   if (isBranchListQuestion(body)) {
-    const reply = normalizeReply("faq", "reply", buildBranchReplyForText(body))
+    const reply = normalizeReply("faq", "reply", branchReplyForTurn(body, history))
     await appendTurn({
       conversationId,
       agent: "faq",
