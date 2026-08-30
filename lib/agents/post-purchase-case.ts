@@ -1,4 +1,4 @@
-import type { HistoryMessage } from "@/lib/agents/types"
+import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
@@ -54,7 +54,7 @@ import {
 import {
   blocksOrderLookupForSalesConsultation,
 } from "@/lib/agents/sales-intake"
-import type { AgentId } from "@/lib/agents/types"
+import { buildReturnPolicyBody } from "@/lib/agents/policy-subjects"
 
 export { DEFECT_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 
@@ -174,6 +174,33 @@ function classifyPostPurchaseCaseFromHistory(history: HistoryMessage[]) {
   return null
 }
 
+function isBareNumericCandidate(body: string) {
+  return /^\d{5,10}$/.test(body.trim())
+}
+
+function isAmbiguousNumericOrderAttempt(body: string, history: HistoryMessage[]) {
+  if (!isBareNumericCandidate(body)) return false
+  if (extractOrderNumber(body)) return false
+  if (
+    isOrderConfirmationPending(history) ||
+    isOrderNumberRequestPending(history) ||
+    isPhoneLookupConfirmPending(history) ||
+    isAlternatePhoneRequestPending(history)
+  ) {
+    return false
+  }
+
+  return (
+    activePostPurchaseCaseKind(history) != null ||
+    isServiceOrderIdentificationPending(history)
+  )
+}
+
+function buildAmbiguousOrderNumberClarifyReply(body: string) {
+  return `${CUSTOMER_HEADER}
+רק לוודא — ${body.trim()} זה מספר ההזמנה?`
+}
+
 function withCasePrefix(reply: string, kind: PostPurchaseCaseKind) {
   const marker = caseMarkerForKind(kind)
   const header = `${CUSTOMER_HEADER}\n`
@@ -246,8 +273,11 @@ function buildOrderConfirmedReply(kind: PostPurchaseCaseKind, order: OrderShipme
     return `${CUSTOMER_HEADER}
 תודה, איתרנו את הזמנה ${order.orderNumber} (${order.branchLabel}).
 
-נמשיך עם בקשת ההחזר לפי מדיניות החברה.
-האם להעביר את הפנייה לנציג שירות שיטפל בזה?`
+${buildReturnPolicyBody()}
+
+אם תרצו/י שנציג שירות ילווה בבקשה — כתבו "נציג".
+
+אם צריך עוד משהו — אני כאן.`
   }
 
   if (kind === "dissatisfaction") {
@@ -370,6 +400,10 @@ export async function resolvePostPurchaseCaseReply(input: {
   const whatsappPhone = input.phone?.trim()
   const kind = resolveCaseKind(body, history)
 
+  if (isAmbiguousNumericOrderAttempt(body, history)) {
+    return buildAmbiguousOrderNumberClarifyReply(body)
+  }
+
   if (
     isOrderNumberRequestPending(history) ||
     isServiceOrderIdentificationPending(history)
@@ -452,4 +486,8 @@ export function buildProductDefectOpeningReply(whatsappPhone?: string) {
 
 export function buildProductDefectOptionsReply(order: OrderShipmentStatus) {
   return buildOrderConfirmedReply("defect", order)
+}
+
+export function buildReturnRequestConfirmedReply(order: OrderShipmentStatus) {
+  return buildOrderConfirmedReply("return_request", order)
 }

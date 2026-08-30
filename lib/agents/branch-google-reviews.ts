@@ -66,6 +66,13 @@ export function resolveWebsiteGoogleReview(): BranchGoogleReview {
   }
 }
 
+/** Only when the customer explicitly mentions Pozitive — no auto-detect from SKU/order. */
+export function isExplicitPozitiveContext(...texts: Array<string | null | undefined>) {
+  return texts.some((text) =>
+    /pozitive|pozitiveshop|פוזיט(?:יב|יט)/i.test(text?.trim() ?? "")
+  )
+}
+
 export function isWebsiteBranch(branchCode?: string | null, branchLabel?: string | null) {
   const code = branchCode?.trim()
   if (code === WEBSITE_BRANCH_CODE) return true

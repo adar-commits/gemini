@@ -93,12 +93,32 @@ Captured via structured Q&A. Implement in T0/routing + fixtures when code diverg
 | 4 | Price match / missing credit | **Service** (billing/post-purchase). |
 | 5 | Preorder delay | **Service** complaint intake (not shipping lookup first). |
 | 6 | "נציג" alone | **FAQ opener** — "במה אוכל לעזור?" then route next message. |
-| 7 | Pozitive-only | **Same branches, no review links** for Pozitive-only context. |
+| 7 | Pozitive-only | **Same branches, no review links** — only when customer **explicitly says Pozitive**. |
 | 8 | After איפוס reset | **Fresh start** — do not infer branch from pre-reset history. |
 | 9 | Multi-question in one message | **Combined reply** (answer both in one message). |
 | 10 | Failed chat fixtures | No screenshots available — use reported failures + new fixtures as they appear. |
 
-**Pending code alignment:** #5 preorder → Service, #6 נציג → FAQ menu, #7 Pozitive review suppression.
+**Pending code alignment:** #5 preorder → Service, #6 נציג → FAQ menu.
+
+**Phase 3 Q&A:** Pozitive review suppression = explicit mention only. Dirty/stained on arrival = always Service defect intake.
+
+---
+
+## Phase 3 — real chat analysis (+972547495083, session 530115308, Aug 30)
+
+Pulled ~100 Landbot messages. Failures vs fixes:
+
+| User message | Bad behavior (prod) | Fix / decision |
+|---|---|---|
+| "לינק לדירוג סניף סגולה" / "חוות דעת על סניף סגולה" | Branch address | T0 `isBranchReviewLinkRequest` → writereview URL |
+| "הגיע לי… רוצה להחזיר מה עלי/מה אפשר לעשות?" | Sometimes Service phone lookup | T0 `isReturnPolicyQuestion` → portal-first FAQ |
+| "לא ממש אוהב את השטיח" | Sometimes short LLM "החלפה או החזרה?" | T0 `buildDissatisfactionRescueReply()` always |
+| "הזמנתי לפני שבוע… לא קיבלתי משלוח" | Greeting only (no reply path) | `isShippingStatusQuestion` + empty-reply fallback |
+| Return after SO26020888 confirmed | Immediate "העביר לנציג?" | Portal policy + optional "כתבו נציג" |
+| Bare "664483" mid-flow | Assumed / wrong handoff | Clarify: "זה מספר ההזמנה?" |
+| Missing item → "שטיח בהיר לסלון" | Early human_service | Stay Service intake → phone lookup (deterministic) |
+
+Fixtures: `lib/agents/__tests__/inquiry-routing-decisions.test.ts`.
 
 ---
 

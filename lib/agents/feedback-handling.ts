@@ -5,6 +5,7 @@ import {
   extractBranchLabelFromHistory,
   extractBranchLabelFromReviewRequest,
   isBranchReviewLinkRequest,
+  isExplicitPozitiveContext,
   isWebsiteBranch,
   resolveBranchGoogleReview,
   resolveWebsiteGoogleReview,
@@ -52,7 +53,35 @@ export function shouldHandleServicePraiseFlow(body: string, history: HistoryMess
   return isServicePraise(body)
 }
 
-function buildServicePraiseReplyForOrder(order: OrderShipmentStatus) {
+function recentUserTexts(body: string, history: HistoryMessage[]) {
+  return [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .slice(-6)
+      .map((message) => message.content),
+  ]
+}
+
+function buildPozitiveReviewDeclineReply() {
+  return `${CUSTOMER_HEADER}
+תודה על הרצון לדרג!
+לרכישות Pozitive אין כרגע קישור ביקורת Google — אפשר לפנות לשירות בטלפון *3076.
+
+אם צריך עוד משהו — אני כאן.`
+}
+
+function buildServicePraiseReplyForOrder(
+  order: OrderShipmentStatus,
+  contextTexts: string[] = []
+) {
+  if (isExplicitPozitiveContext(...contextTexts)) {
+    return `${CUSTOMER_HEADER}
+תודה רבה על המילים החמות — שמחנו לעזור!
+
+אפשר לעזור במשהו נוסף?`
+  }
+
   const branch = isWebsiteBranch(order.branchCode, order.branchLabel)
     ? resolveWebsiteGoogleReview()
     : resolveBranchGoogleReview(order.branchLabel, order.branchCode)
@@ -76,7 +105,17 @@ ${branch.reviewUrl}
 אפשר לעזור במשהו נוסף?`
 }
 
-function buildServicePraiseReplyForBranchLabel(branchLabel: string) {
+function buildServicePraiseReplyForBranchLabel(
+  branchLabel: string,
+  contextTexts: string[] = []
+) {
+  if (isExplicitPozitiveContext(...contextTexts)) {
+    return `${CUSTOMER_HEADER}
+תודה רבה על המילים החמות — שמחנו לעזור!
+
+אפשר לעזור במשהו נוסף?`
+  }
+
   const branch = resolveBranchGoogleReview(branchLabel)
   if (!branch?.reviewUrl) {
     return `${CUSTOMER_HEADER}
@@ -93,7 +132,11 @@ ${branch.reviewUrl}
 אפשר לעזור במשהו נוסף?`
 }
 
-function buildBranchReviewLinkReplyBody(branchLabel: string) {
+function buildBranchReviewLinkReplyBody(branchLabel: string, contextTexts: string[] = []) {
+  if (isExplicitPozitiveContext(...contextTexts)) {
+    return buildPozitiveReviewDeclineReply()
+  }
+
   const branch =
     branchLabel && isWebsiteBranch(undefined, branchLabel)
       ? resolveWebsiteGoogleReview()
@@ -128,15 +171,16 @@ export function buildBranchReviewLinkReply(
   body: string,
   history: HistoryMessage[] = []
 ) {
+  const contextTexts = recentUserTexts(body, history)
   const branchLabel =
     extractBranchLabelFromReviewRequest(body) ??
     extractBranchLabelFromHistory(history)
 
   if (!branchLabel) {
-    return buildBranchReviewLinkReplyBody("")
+    return buildBranchReviewLinkReplyBody("", contextTexts)
   }
 
-  return buildBranchReviewLinkReplyBody(branchLabel)
+  return buildBranchReviewLinkReplyBody(branchLabel, contextTexts)
 }
 
 export { isBranchReviewLinkRequest }
@@ -178,7 +222,10 @@ export async function resolveServicePraiseReply(input: {
         return `${CUSTOMER_HEADER}
 לא מצאנו הזמנה לפי הטלפון. תודה רבה על המילים החמות!`
       }
-      return buildServicePraiseReplyForOrder(orders[0]!)
+      return buildServicePraiseReplyForOrder(
+        orders[0]!,
+        recentUserTexts(body, history)
+      )
     }
 
     if (isPhoneLookupConfirmNo(body)) {
@@ -196,7 +243,10 @@ export async function resolveServicePraiseReply(input: {
 
   const branchLabel = extractBranchLabelFromHistory(history)
   if (branchLabel && (isServicePraise(body) || isPraiseFlowActive(history))) {
-    return buildServicePraiseReplyForBranchLabel(branchLabel)
+    return buildServicePraiseReplyForBranchLabel(
+      branchLabel,
+      recentUserTexts(body, history)
+    )
   }
 
   if (isServicePraise(body)) {
