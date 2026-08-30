@@ -8,6 +8,7 @@ import {
   parseDocumentPurchaseChannel,
   resolveDigitalDocumentFlowReply,
 } from "@/lib/agents/digital-document-flow"
+import { buildPhoneLookupConfirmPrompt } from "@/lib/agents/order-lookup"
 
 describe("digital document flow — receipt copy", () => {
   it("detects uncertainty on channel question", () => {
@@ -72,5 +73,34 @@ describe("digital document flow — receipt copy", () => {
 
     assert.match(reply, /0547-495083|495083/)
     assert.match(reply, /האם/)
+  })
+
+  it("fetches store invoice after soft phone confirm on current turn", async () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "user",
+        content: "אשמח לקבל העתק של החשבונית שלי",
+        agent: null,
+      },
+      {
+        role: "assistant",
+        content: buildDocumentChannelQuestion(),
+        agent: "master",
+      },
+      { role: "user", content: "מהסניף", agent: null },
+      {
+        role: "assistant",
+        content: buildPhoneLookupConfirmPrompt("+972547495083"),
+        agent: "master",
+      },
+    ]
+
+    const reply = await resolveDigitalDocumentFlowReply({
+      body: "כן נראה לי",
+      phone: "+972547495083",
+      history,
+    })
+
+    assert.doesNotMatch(reply, /נציג שירות אנושי/)
   })
 })

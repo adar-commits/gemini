@@ -821,6 +821,17 @@ export function resolveLookupPhoneFromHistory(
 ) {
   const fromBody = body ? userProvidedPhone(body) : null
   if (fromBody) return fromBody
+
+  // Current-turn confirm — history does not yet include this user message.
+  if (
+    body?.trim() &&
+    isPurePhoneLookupConfirmYes(body) &&
+    isPhoneLookupConfirmPending(history)
+  ) {
+    const channel = channelPhone(whatsappPhone)
+    if (channel) return channel
+  }
+
   return authorizedLookupPhoneFromHistory(history, whatsappPhone)
 }
 

@@ -66,6 +66,24 @@ describe("authorizedLookupPhoneFromHistory", () => {
       "0523925554"
     )
   })
+
+  it("resolves channel phone from current-turn soft yes before history append", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildPhoneLookupConfirmPrompt("+972547495083"),
+        agent: "master",
+      },
+    ]
+    assert.equal(
+      resolveLookupPhoneFromHistory(history, "+972547495083", "כן נראה לי"),
+      "0547495083"
+    )
+    assert.equal(
+      authorizedLookupPhoneFromHistory(history, "+972547495083"),
+      null
+    )
+  })
 })
 
 describe("validatePriorityApiPayload", () => {
