@@ -1,3 +1,4 @@
+import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
@@ -551,9 +552,11 @@ export function buildOrderConfirmationClarifyPrompt(order: OrderShipmentStatus) 
 }
 
 export function buildOrderStatusReply(order: OrderShipmentStatus) {
+  const status = order.statusDescription?.trim()
+  if (!status) return buildApiFailureReply()
   return `${CUSTOMER_HEADER}
 לגבי הזמנה ${order.orderNumber} (${order.branchLabel}):
-${order.statusDescription}
+${status}
 
 אם צריך עוד משהו — כאן. אפשר גם לכתוב נציג.`
 }
@@ -611,9 +614,7 @@ ${link}
 }
 
 export function buildDigitalDocumentLookupFailureReply() {
-  return `${CUSTOMER_HEADER}
-לא הצלחנו להוציא את המסמך הדיגיטלי כרגע (ייתכן שהמערכת לא הגיבה בזמן).
-האם להעביר לנציג שירות שישלח עבורך?`
+  return buildApiFailureReply()
 }
 
 export function buildDigitalDocumentNotFoundReply() {
@@ -841,9 +842,7 @@ export function buildShippingNoPhoneReply() {
 }
 
 export function buildOrderLookupApiFailureReply() {
-  return `${CUSTOMER_HEADER}
-לא הצלחנו לבדוק את ההזמנה כרגע (ייתכן שהמערכת לא הגיבה תוך 15 שניות).
-האם להעביר לנציג שירות שיבדוק עבורך?`
+  return buildApiFailureReply()
 }
 
 export function buildOrderNumberNotFoundReply(orderNumber: string) {

@@ -1,3 +1,4 @@
+import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
@@ -213,9 +214,7 @@ export function buildSkuRequestPrompt(context?: {
 }
 
 export function buildInventoryLookupFailureReply() {
-  return `${CUSTOMER_HEADER}
-לא הצלחנו לבדוק את המלאי כרגע (ייתכן שהמערכת לא הגיבה תוך 15 שניות).
-האם להעביר ליועץ מכירות שיבדוק עבורך?`
+  return buildApiFailureReply("sales")
 }
 
 export function buildInventoryNotFoundReply(sku: string) {

@@ -5,7 +5,7 @@ import {
   bindPriorityApiPreMessageGuard,
   resetPriorityApiTurnState,
 } from "@/lib/agents/priority-webhook"
-import { buildThanksReply, buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import { buildThanksReply, buildNeverStuckReply, coerceOperationalReply } from "@/lib/agent-core/fallbacks"
 import {
   bindOrchestraTier,
   bindRuntimeConfig,
@@ -1002,6 +1002,24 @@ async function resolveSpecialist(
     }
 
     if (
+      result.reply &&
+      result.action === "reply" &&
+      isShippingStatusQuestion(body)
+    ) {
+      const coerced = coerceOperationalReply(result.reply, { expectShippingData: true })
+      if (coerced !== result.reply) {
+        result = {
+          ...result,
+          reply: normalizeReply(
+            specialist === "master" ? "faq" : specialist,
+            "reply",
+            coerced
+          ),
+        }
+      }
+    }
+
+    if (
       !result.reply &&
       (result.action === "reply" ||
         (isHumanHandoffPending(history) && !breaksPendingHandoff(body)))
@@ -1535,7 +1553,7 @@ function shippingResult(
   history?: HistoryMessage[]
 ): Promise<AgentResponse> {
   return resolveShippingStatusReply(body, phone, history).then(async (reply) => {
-    let outbound = reply.trim()
+    let outbound = coerceOperationalReply(reply.trim(), { expectShippingData: true })
     if (!outbound) {
       outbound = buildNeverStuckReply()
     } else if (wasReplyRecentlySent(history ?? [], outbound)) {
@@ -1574,7 +1592,9 @@ async function resolveShippingStatusReply(
 ) {
   try {
     const reply = await resolveOrderShippingReply({ body, phone, history })
-    return reply.trim() || buildOrderLookupApiFailureReply()
+    return coerceOperationalReply(reply.trim() || buildOrderLookupApiFailureReply(), {
+      expectShippingData: true,
+    })
   } catch {
     return buildOrderLookupApiFailureReply()
   }

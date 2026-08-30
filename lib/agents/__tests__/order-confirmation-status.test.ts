@@ -25,7 +25,7 @@ describe("order confirmation status reply", () => {
     assert.match(reply, /SO26019842/)
   })
 
-  it("cached confirmation summary has no status — must not be used for status reply", () => {
+  it("cached confirmation summary has no status — falls back to API failure handoff", () => {
     const prompt = buildOrderConfirmationPrompt(fullOrder)
     const cached = orderSummaryFromConfirmationHistory(
       [{ role: "assistant", content: prompt, agent: "master" }],
@@ -34,6 +34,8 @@ describe("order confirmation status reply", () => {
     assert.ok(cached)
     assert.equal(cached!.statusDescription, "")
     const reply = buildOrderStatusReply(cached!)
+    assert.match(reply, /תקלה זמנית/)
+    assert.match(reply, /האם להעביר לנציג שירות/)
     assert.doesNotMatch(reply, /בדרך/)
   })
 })

@@ -38,6 +38,7 @@ export function isHumanHandoffPending(history: HistoryMessage[]) {
     /נציג שירות אנושי,בסדר\?/.test(last) ||
     /האם להעביר (?:את השיחה )?(?:ל)?נציג שירות/.test(last) ||
     /האם להעביר לנציג שירות/.test(last) ||
+    /האם להעביר ליועץ מכירות/.test(last) ||
     /לא לגמרי הבנתי.*להעביר/.test(last)
   )
 }
