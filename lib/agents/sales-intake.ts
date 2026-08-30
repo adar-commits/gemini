@@ -175,9 +175,10 @@ export function isSizeExchangeIntakeContext(history: HistoryMessage[], body = ""
     /(?:קיבלתי|קיבלנו|הגיע(?:ה|ו)?|התקבל)/i.test(text) &&
     /(?:שטיח|פוף|מוצר|הזמנה)/i.test(text)
   const sizeIssue =
-    /(?:גדול\s+מ(?:די|ידי)|קטן\s+מ(?:די|ידי)|לא\s+מתאים(?:\s+ל(?:י|נו))?)/i.test(text) ||
-    /לא\s+יודע(?:ת|ים)?(?:\s+מה)?\s*(?:ה)?(?:מידה|גודל)/i.test(text) ||
-    /(?:מידה|גודל)\s+(?:ש(?:אני|צריך|מתאים)|נכון|מתאים|אחר)/i.test(text)
+    /(?:גדול|קטן)\s+(?:מ(?:די|ידי)|ל(?:י|נו|הם))|לא\s+מתאים(?:\s+ל(?:י|נו))?/i.test(text) ||
+    /לא\s+יודע(?:ת|ים)?(?:\s+(?:מה|איז(?:ו|ה))\s*)?(?:ה)?(?:מידה|גודל)/i.test(text) ||
+    /(?:מידה|גודל)\s+(?:ש(?:אני|צריך|מתאים)|נכון|מתאים|אחר|צריך)/i.test(text) ||
+    /איז(?:ו|ה)\s+מידה\s+(?:אני|צריך|מתאים)/i.test(text)
   const exchangeContext = /(?:החלפ(?:ה|ת)|להחליף|מידה\s+אחר(?:ת)?|גודל\s+אחר)/i.test(text)
   return Boolean(receivedProduct && (sizeIssue || exchangeContext))
 }
