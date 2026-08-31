@@ -26,6 +26,17 @@ function parseDate(value: string | null) {
   return Number.isNaN(parsed) ? null : new Date(parsed)
 }
 
+/** Date-only end dates (YYYY-MM-DD) count through end of that calendar day. */
+function parseEndDate(value: string | null) {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const parsed = Date.parse(`${trimmed}T23:59:59.999`)
+    return Number.isNaN(parsed) ? null : new Date(parsed)
+  }
+  return parseDate(trimmed)
+}
+
 function inferStatus(row: Record<string, unknown>, end: string | null): CampaignRecord["status"] {
   const explicit = pickString(row, ["status", "state", "campaignStatus"])
   if (explicit) {
@@ -37,7 +48,7 @@ function inferStatus(row: Record<string, unknown>, end: string | null): Campaign
   if (activeFlag === true || activeFlag === "true" || activeFlag === 1) return "active"
   if (activeFlag === false || activeFlag === "false" || activeFlag === 0) return "expired"
 
-  const endDate = parseDate(end)
+  const endDate = parseEndDate(end)
   if (endDate) return endDate.getTime() >= Date.now() ? "active" : "expired"
   return "unknown"
 }
@@ -46,6 +57,7 @@ function normalizeCampaignRow(row: unknown): CampaignRecord | null {
   if (typeof row !== "object" || row == null) return null
   const record = row as Record<string, unknown>
   const name = pickString(record, [
+    "campaign_name",
     "name",
     "title",
     "campaignName",
@@ -56,6 +68,7 @@ function normalizeCampaignRow(row: unknown): CampaignRecord | null {
   if (!name) return null
 
   const start = pickString(record, [
+    "start_date",
     "startDate",
     "start",
     "validFrom",
@@ -64,6 +77,7 @@ function normalizeCampaignRow(row: unknown): CampaignRecord | null {
     "CAMPAIGNSTART",
   ])
   const end = pickString(record, [
+    "end_date",
     "endDate",
     "end",
     "validTo",
@@ -81,18 +95,33 @@ function normalizeCampaignRow(row: unknown): CampaignRecord | null {
   }
 }
 
-export function parseCampaignPayload(data: unknown): CampaignRecord[] {
-  const rows = Array.isArray(data)
-    ? data
-    : data && typeof data === "object"
-      ? Array.isArray((data as { result?: unknown }).result)
-        ? (data as { result: unknown[] }).result
-        : Array.isArray((data as { campaigns?: unknown }).campaigns)
-          ? (data as { campaigns: unknown[] }).campaigns
-          : [data]
-      : []
+function extractCampaignRows(data: unknown): unknown[] {
+  if (Array.isArray(data)) {
+    const unwrapped = data.flatMap((item) => {
+      if (typeof item !== "object" || item == null) return [item]
+      const record = item as Record<string, unknown>
+      if (Array.isArray(record.campaigns)) return record.campaigns
+      if (Array.isArray(record.result)) return record.result
+      return [item]
+    })
+    if (unwrapped.some((item) => normalizeCampaignRow(item) != null)) {
+      return unwrapped
+    }
+    return unwrapped
+  }
 
-  return rows
+  if (typeof data === "object" && data != null) {
+    const record = data as Record<string, unknown>
+    if (Array.isArray(record.campaigns)) return record.campaigns
+    if (Array.isArray(record.result)) return record.result
+    return [data]
+  }
+
+  return []
+}
+
+export function parseCampaignPayload(data: unknown): CampaignRecord[] {
+  return extractCampaignRows(data)
     .map(normalizeCampaignRow)
     .filter((row): row is CampaignRecord => row != null)
 }
@@ -141,11 +170,19 @@ function statusLabel(status: CampaignRecord["status"]) {
 export function formatCampaignLookupReply(campaigns: CampaignRecord[], query: string) {
   if (campaigns.length === 0) {
     return `${CUSTOMER_HEADER}
-לא מצאתי מבצעים פעילים במערכת${query !== "all" ? ` עבור "${query}"` : ""}.
+לא מצאתי מבצעים במערכת${query !== "all" ? ` עבור "${query}"` : ""}.
 אפשר לנסות לנסח אחרת, או להעביר ליועץ מכירות לפרטים נוספים.`
   }
 
-  const lines = campaigns.slice(0, 8).map((campaign) => {
+  const active = campaigns.filter((campaign) => campaign.status === "active")
+  const listing =
+    query === "all" && active.length > 0
+      ? active
+      : query === "all" && active.length === 0
+        ? campaigns
+        : campaigns
+
+  const lines = listing.slice(0, 8).map((campaign) => {
     const dates = [
       campaign.start ? `מתאריך ${formatHebrewDate(campaign.start)}` : null,
       campaign.end ? `עד ${formatHebrewDate(campaign.end)}` : null,
@@ -155,9 +192,15 @@ export function formatCampaignLookupReply(campaigns: CampaignRecord[], query: st
     return `• ${campaign.name} — ${statusLabel(campaign.status)}${dates ? ` (${dates})` : ""}`
   })
 
+  const intro =
+    query !== "all"
+      ? `בדקתי את המבצע "${query}":\n`
+      : active.length > 0
+        ? "כן — אלה המבצעים הפעילים כרגע:\n"
+        : "כרגע אין מבצעים פעילים. אלה המבצעים האחרונים במערכת:\n"
+
   return `${CUSTOMER_HEADER}
-${query !== "all" ? `בדקתי את המבצע "${query}":\n` : "אלה המבצעים שמופיעים במערכת:\n"}
-${lines.join("\n")}
+${intro}${lines.join("\n")}
 
 אם צריך פרטים נוספים על מבצע מסוים — אפשר להעביר ליועץ מכירות.`
 }
