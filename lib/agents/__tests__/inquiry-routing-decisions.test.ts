@@ -26,6 +26,8 @@ const DISSATISFACTION = "היי קיבלתי את השטיח ואני לא ממ�
 const DELAYED_SHIPMENT = "הזמנתי לפני שבוע ועוד לא קיבלתי את המשלוח"
 const RETURN_PICKUP_WAIT =
   "היי אני מחכה שיאספו ממני שטיח שביצעתי החלפה כבר שבועיים שלוש\nאני אמורה ללדת בשבוע שבועיים הקרובים"
+const RETURN_PICKUP_COMPLAINT =
+  "אני לא מבין למה אני צריך לחכות כל כך הרבה זמן שיאספו את השטיח ממני, אני בסך הכל רוצה להחזיר אותו"
 
 describe("owner routing decisions from trainer chat", () => {
   it("routes active return pickup wait to service, not return policy FAQ", async () => {
@@ -42,10 +44,44 @@ describe("owner routing decisions from trainer chat", () => {
       history: [],
     })
     assert.match(reply, new RegExp(RETURN_PICKUP_PENDING_FLOW_MARKER))
-    assert.match(reply, /מחכה לאיסוף/)
-    assert.match(reply, /דחיפות/)
+    assert.match(reply, /אני צודק/)
+    assert.match(reply, /בקשת איסוף/)
     assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
     assert.doesNotMatch(reply, /14 ימים/)
+  })
+
+  it("understands return pickup wait even when customer also says they want to return", async () => {
+    assert.equal(isReturnPolicyQuestion(RETURN_PICKUP_COMPLAINT), false)
+    assert.equal(isActiveReturnExchangePickupCase(RETURN_PICKUP_COMPLAINT), true)
+    assert.equal(classifyPostPurchaseCase(RETURN_PICKUP_COMPLAINT), "return_pickup_pending")
+    assert.equal(guessMasterRoute(RETURN_PICKUP_COMPLAINT), "ROUTE_TO_SERVICE_AGENT")
+
+    const reply = await resolvePostPurchaseCaseReply({
+      body: RETURN_PICKUP_COMPLAINT,
+      phone: "+972547495083",
+      history: [],
+    })
+    assert.match(reply, /בקשת איסוף/)
+    assert.match(reply, /טרם הגיעו לאסוף/)
+    assert.match(reply, /אני צודק/)
+    assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
+  })
+
+  it("after intent confirm, proceeds to order lookup for return pickup wait", async () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: `*הום בוט :)*\n${RETURN_PICKUP_PENDING_FLOW_MARKER}.\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?`,
+        agent: "service",
+      },
+    ]
+    const reply = await resolvePostPurchaseCaseReply({
+      body: "כן",
+      phone: "+972547495083",
+      history,
+    })
+    assert.match(reply, /נאתר את ההזמנה/)
+    assert.match(reply, /0547-495083/)
   })
 
   it("treats received + return + what-to-do as FAQ return policy, not service lookup", () => {

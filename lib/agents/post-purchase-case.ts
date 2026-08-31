@@ -57,6 +57,13 @@ import {
   blocksOrderLookupForSalesConsultation,
 } from "@/lib/agents/sales-intake"
 import { buildReturnPolicyBody } from "@/lib/agents/policy-subjects"
+import {
+  buildIntentConfirmDeclinedReply,
+  buildPostPurchaseIntentConfirm,
+  isPostPurchaseIntentConfirmPending,
+  isPostPurchaseIntentConfirmed,
+  isPostPurchaseIntentDeclined,
+} from "@/lib/agents/intent-confirmation"
 
 export { DEFECT_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 
@@ -215,11 +222,40 @@ function withCasePrefix(reply: string, kind: PostPurchaseCaseKind) {
 function buildOpeningReply(
   kind: PostPurchaseCaseKind,
   whatsappPhone?: string,
-  body = ""
+  body = "",
+  afterIntentConfirm = false
 ) {
   const phoneQuestion = whatsappPhone?.trim()
     ? buildPhoneLookupConfirmPrompt(whatsappPhone).replace(`${CUSTOMER_HEADER}\n`, "")
     : "מה מספר הטלפון שבוצעה עליו ההזמנה?"
+
+  if (kind === "return_pickup_pending") {
+    if (afterIntentConfirm) {
+      return `${CUSTOMER_HEADER}
+${caseMarkerForKind(kind)}.
+כדי לזרז את הטיפול, נאתר את ההזמנה:
+${phoneQuestion}
+
+או כתוב/י "נציג" להעברה מיידית.`
+    }
+    return `${CUSTOMER_HEADER}
+${caseMarkerForKind(kind)} — אני מבין שכבר פתחת בקשה ומחכה לאיסוף, ושזה מתמשך זמן רב מדי.${
+      hasServiceUrgencySignal(body) ? "\n\nאני רואה שיש דחיפות — אנסה לטפל בזה בהקדם." : ""
+    }
+
+אבדוק מול חברת השליחויות ואעביר לנציג שירות שיחזור אליך.
+כדי לזרז, אפשר לאתר את ההזמנה:
+${phoneQuestion}
+
+או כתוב/י "נציג" להעברה מיידית.`
+  }
+
+  if (afterIntentConfirm) {
+    return `${CUSTOMER_HEADER}
+${caseMarkerForKind(kind)}.
+כדי להתקדם, נאתר קודם את ההזמנה.
+${phoneQuestion}`
+  }
 
   if (kind === "defect") {
     return `${CUSTOMER_HEADER}
@@ -235,19 +271,6 @@ ${phoneQuestion}`
 ${caseMarkerForKind(kind)}.
 כדי להתקדם, נאתר קודם את ההזמנה.
 ${phoneQuestion}`
-  }
-
-  if (kind === "return_pickup_pending") {
-    return `${CUSTOMER_HEADER}
-${caseMarkerForKind(kind)} — אני מבין שכבר פתחת בקשה ומחכה לאיסוף, ושזה מתמשך זמן רב מדי.${
-      hasServiceUrgencySignal(body) ? "\n\nאני רואה שיש דחיפות — אנסה לטפל בזה בהקדם." : ""
-    }
-
-אבדוק מול חברת השליחויות ואעביר לנציג שירות שיחזור אליך.
-כדי לזרז, אפשר לאתר את ההזמנה:
-${phoneQuestion}
-
-או כתוב/י "נציג" להעברה מיידית.`
   }
 
   if (kind === "dissatisfaction") {
@@ -493,6 +516,17 @@ export async function resolvePostPurchaseCaseReply(input: {
     return buildPhoneLookupDeclinedReply()
   }
 
+  if (isPostPurchaseIntentConfirmPending(history)) {
+    if (isPostPurchaseIntentConfirmed(body)) {
+      return buildOpeningReply(kind, whatsappPhone, body, true)
+    }
+    if (isPostPurchaseIntentDeclined(body)) {
+      return buildIntentConfirmDeclinedReply()
+    }
+    const revisedKind = classifyPostPurchaseCase(body) ?? kind
+    return buildPostPurchaseIntentConfirm(revisedKind, body)
+  }
+
   const orderReference = extractOrderReference(body, history)
   if (orderReference) {
     const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
@@ -503,6 +537,10 @@ export async function resolvePostPurchaseCaseReply(input: {
   const providedPhone = userProvidedPhone(body)
   if (providedPhone) {
     return lookupAndStartOrderConfirm(kind, providedPhone)
+  }
+
+  if (!activePostPurchaseCaseKind(history)) {
+    return buildPostPurchaseIntentConfirm(kind, body)
   }
 
   return buildOpeningReply(kind, whatsappPhone, body)
