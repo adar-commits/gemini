@@ -33,6 +33,18 @@ describe("digital document flow — receipt copy", () => {
     assert.doesNotMatch(reply, /איזה\s+סוג/)
   })
 
+  it("skips branch/courier when customer already said חשבונית מס", async () => {
+    const reply = await resolveDigitalDocumentFlowReply({
+      body: "אני צריך העתק של חשבונית מס",
+      phone: "+972547495083",
+      history: [],
+    })
+
+    assert.match(reply, /האם\s+העסקה\s+רשומה\s+על\s+המספר/)
+    assert.doesNotMatch(reply, /סופקו\s+מהסניף/)
+    assert.doesNotMatch(reply, /באמצעות\s+שליח/)
+  })
+
   it("infers invoice vs receipt intent", () => {
     assert.equal(inferDocumentIntent("אפשר לקבל חשבונית?"), "invoice")
     assert.equal(inferDocumentIntent("אפשר לקבל קבלה?"), "receipt")

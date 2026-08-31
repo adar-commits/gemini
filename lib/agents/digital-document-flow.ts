@@ -457,6 +457,12 @@ export function isActiveDigitalDocumentFlow(
   body = ""
 ) {
   if (isDigitalDocumentRequest(body)) return true
+  if (
+    parseDocumentTypeFromText(body) &&
+    (mentionsDocumentRequestIntent(body) || isDocumentTypeSelection(body))
+  ) {
+    return true
+  }
   if (activeDigitalDocumentRequest(history)) return true
   if (isDocumentTypeQuestionPending(history)) return true
   if (isDocumentChannelQuestionPending(history)) return true
@@ -755,6 +761,41 @@ function needsDocumentTypeQuestion(
   return intent !== "receipt"
 }
 
+/** Branch/courier only existed to infer doc type — never ask when type is already known. */
+function isLegacyChannelContinuation(
+  state: DocumentFlowState,
+  selectedType: DocumentType | null
+) {
+  return state.channelQuestionSent && !state.channel && !selectedType
+}
+
+async function replyWithPhoneConfirmOrLookup(input: {
+  body: string
+  whatsappPhone?: string
+  recoveryPrefix: string
+  selectedType: DocumentType
+  channel?: DocumentPurchaseChannel
+}) {
+  const phoneFromBody = extractPhoneFromText(input.body)
+  if (phoneFromBody) {
+    const typed = userProvidedPhone(input.body)
+    if (!typed) return buildPhoneLookupDeclinedReply()
+    return withRecoveryPrefix(
+      input.recoveryPrefix,
+      await deliverDocumentsForPhone(typed, {
+        channel: input.channel,
+        documentType: input.selectedType,
+      })
+    )
+  }
+
+  if (input.whatsappPhone) {
+    return buildDocumentPhoneConfirmPrompt(input.whatsappPhone)
+  }
+
+  return buildPhoneLookupDeclinedReply()
+}
+
 export async function resolveDigitalDocumentFlowReply(input: {
   body: string
   phone?: string
@@ -869,23 +910,16 @@ export async function resolveDigitalDocumentFlowReply(input: {
   }
 
   if (selectedType) {
-    if (phoneFromBody) {
-      const typed = userProvidedPhone(body)
-      if (!typed) return buildPhoneLookupDeclinedReply()
-      return withRecoveryPrefix(
-        recoveryPrefix,
-        await deliverDocumentsForPhone(typed, { documentType: selectedType })
-      )
-    }
-
-    if (whatsappPhone) {
-      return buildDocumentPhoneConfirmPrompt(whatsappPhone)
-    }
-
-    return buildPhoneLookupDeclinedReply()
+    return replyWithPhoneConfirmOrLookup({
+      body,
+      whatsappPhone,
+      recoveryPrefix,
+      selectedType,
+      channel: channel ?? undefined,
+    })
   }
 
-  if (!channel) {
+  if (isLegacyChannelContinuation(state, selectedType)) {
     if (isDocumentPurchaseLocationQuestionPending(history)) {
       if (body && !isBranchFulfillmentUncertainty(body)) {
         return withRecoveryPrefix(
@@ -910,9 +944,22 @@ export async function resolveDigitalDocumentFlowReply(input: {
 
   if (isDigitalDocumentRequest(body)) {
     const intent = inferDocumentIntent(body) ?? "generic"
+    const explicitType = parseDocumentTypeFromText(body)
+    if (explicitType) {
+      return replyWithPhoneConfirmOrLookup({
+        body,
+        whatsappPhone,
+        recoveryPrefix,
+        selectedType: explicitType,
+      })
+    }
     if (intent === "receipt") {
-      if (whatsappPhone) return buildDocumentPhoneConfirmPrompt(whatsappPhone)
-      return buildPhoneLookupDeclinedReply()
+      return replyWithPhoneConfirmOrLookup({
+        body,
+        whatsappPhone,
+        recoveryPrefix,
+        selectedType: DOCUMENT_TYPE_RECEIPT,
+      })
     }
     return buildDocumentTypeQuestion(intent)
   }
