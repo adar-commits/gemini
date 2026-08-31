@@ -41,6 +41,16 @@ describe("isInventoryQuestion", () => {
 })
 
 describe("inventory vs product URL routing", () => {
+  it("does not invent a branch from product names like Riviera", async () => {
+    const body =
+      "היי, אשמח לשמוע פרטים נוספים על פוף ריביירה פרנדלי זוגי חול FRIENDLY COUPLE. האם יש צפי לחזרה למלאי?"
+    assert.equal(isInventoryQuestion(body), true)
+    const reply = await resolveBranchInventoryReply({ body })
+    assert.match(reply, /מק״ט/)
+    assert.doesNotMatch(reply, /יירה/)
+    assert.doesNotMatch(reply, /בסניף/)
+  })
+
   it("asks for SKU on inventory questions", async () => {
     const reply = await resolveBranchInventoryReply({
       body: "האם השטיח יחזור למלאי?",

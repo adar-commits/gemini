@@ -35,7 +35,7 @@ export function normalizeBranchCityHint(hint: string) {
 }
 
 const CITY_IN_BRANCH_QUERY_RE =
-  /(?:ב|ב-)([א-ת'"\s]{2,20}?)(?:\?|[\s,.]|$)|(?:^|\s)([א-ת'"\s]{2,15})\s*—\s*סניף/i
+  /(?:^|[\s,.(])(?:ב|ב-)([א-ת'"\s]{2,20}?)(?:\?|[\s,.]|$)|(?:^|\s)([א-ת'"\s]{2,15})\s*—\s*סניף/i
 
 type BranchEntry = {
   name: string
@@ -162,6 +162,9 @@ function findBranchCityHint(text: string) {
 
 /** City named in a branch stock-check question (e.g. בסניף ראשל"צ). */
 export function extractBranchCityFromInventoryQuery(text: string) {
+  const normalized = text.trim()
+  if (!normalized) return null
+  if (!/סניפ|סניף|חנויות|stores?|branches/i.test(normalized)) return null
   return findBranchCityHint(text)
 }
 
