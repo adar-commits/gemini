@@ -33,8 +33,8 @@ export const MODEL_PROFILES: Record<Exclude<ProfileName, "custom">, ModelProfile
   },
   balanced: {
     name: "balanced",
-    label: "Balanced (Flash router, Sonnet specialists)",
-    router: { model: FLASH, temperature: 0.1, maxOutputTokens: 96 },
+    label: "Balanced (Sonnet router & specialists)",
+    router: { model: SONNET, temperature: 0.1, maxOutputTokens: 96 },
     faq: { model: SONNET, temperature: 0.18, maxOutputTokens: 700 },
     sales: { model: SONNET, temperature: 0.25, maxOutputTokens: 700 },
     service: { model: SONNET, temperature: 0.15, maxOutputTokens: 700 },
@@ -49,7 +49,7 @@ export const MODEL_PROFILES: Record<Exclude<ProfileName, "custom">, ModelProfile
   },
 }
 
-export const DEFAULT_PROFILE_NAME: Exclude<ProfileName, "custom"> = "balanced"
+export const DEFAULT_PROFILE_NAME: Exclude<ProfileName, "custom"> = "quality"
 
 export function profileByName(name: string): ModelProfile {
   if (name === "custom") {

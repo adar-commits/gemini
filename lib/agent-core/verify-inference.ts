@@ -112,7 +112,7 @@ export async function runInferenceProbes(options?: { includeSales?: boolean }) {
       model: faq.model(),
       source: `profile:${runtime.activeProfile}`,
       prompt:
-        'Customer received a rug and dislikes it. One Hebrew sentence: mention 14-day return policy. No header.',
+        'Customer received a rug and dislikes it. One Hebrew sentence in first person singular (אני מבין / מצטער — never אנו or מבינים): mention 14-day return policy. No header.',
       maxOutputTokens: 120,
       temperature: faq.temperature,
     }),
