@@ -6,7 +6,7 @@ import {
   isPostPurchaseDissatisfaction,
   mentionsReturnIntent,
 } from "@/lib/agents/inquiry-intent"
-import { buildReturnPolicyBody } from "@/lib/agents/policy-subjects"
+import { buildExchangePolicyBody, RETURNS_PORTAL_URL } from "@/lib/agents/policy-subjects"
 
 /** Customer unhappy after delivery without defect wording — FAQ return/exchange policy first. */
 export function isDissatisfactionWithoutDefect(body: string) {
@@ -95,17 +95,17 @@ function isReturnHumanEscalation(body: string) {
   )
 }
 
-/** Opening: full return policy + offer to transfer to sales for a better fit. */
+/** Opening: exchange-first options + offer sales — portal only after customer insists on return. */
 export function buildDissatisfactionRescueReply() {
   return `${CUSTOMER_HEADER}
-מצטער לשמוע שלא התחברת לשטיח החדש שלך, אך אל חשש — ${buildReturnPolicyBody()}
+מצטער לשמוע שלא התחברת לשטיח החדש שלך, אך אל חשש — ${buildExchangePolicyBody()}
 
 ${DISSATISFACTION_SALES_OFFER_MARKER} עבור בחירה של דגם מתאים יותר?`
 }
 
-/** After the customer insists on returning — portal only (no human yet). */
+/** After the customer insists on returning — portal only for cancellation/refund. */
 export function buildDissatisfactionRescuePortalReply() {
   return `${CUSTOMER_HEADER}
 אין בעיה — ${DISSATISFACTION_PORTAL_REFERRAL_MARKER}:
-https://returns.carpetshop.co.il/`
+${RETURNS_PORTAL_URL}`
 }

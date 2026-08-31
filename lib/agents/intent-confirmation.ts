@@ -41,6 +41,10 @@ function buildIntentSummary(kind: PostPurchaseCaseKind, body: string) {
     return `אוקיי, אני מבין שקיבלת ${product} ורוצה להחזיר ${product === "המוצר" ? "אותו" : "אותו"}`
   }
 
+  if (kind === "exchange_request") {
+    return `אוקיי, אני מבין שקיבלת ${product} ורוצה להחליף ${product === "המוצר" ? "אותו" : "אותו"}`
+  }
+
   if (kind === "defect") {
     return `אוקיי, אני מבין שקיבלת ${product} ויש בו פגם או בעיה`
   }

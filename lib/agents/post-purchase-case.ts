@@ -11,6 +11,7 @@ import {
   isProductDefectComplaint,
   isReturnFlowCorrection,
   isReturnPolicyQuestion,
+  mentionsExchangeIntent,
   mentionsReturnIntent,
   type PostPurchaseCaseKind,
 } from "@/lib/agents/inquiry-intent"
@@ -56,7 +57,7 @@ import {
 import {
   blocksOrderLookupForSalesConsultation,
 } from "@/lib/agents/sales-intake"
-import { buildReturnPolicyBody } from "@/lib/agents/policy-subjects"
+import { buildReturnPolicyBody, buildExchangePolicyBody } from "@/lib/agents/policy-subjects"
 import {
   buildIntentConfirmDeclinedReply,
   buildPostPurchaseIntentConfirm,
@@ -139,6 +140,15 @@ export function shouldHandlePostPurchaseCaseFlow(
 
   if (classifyPostPurchaseCase(body)) return true
   if (
+    mentionsExchangeIntent(body) &&
+    !isReturnPolicyQuestion(body) &&
+    requiresOrderIdentification(body, history) &&
+    /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|שטיח|פוף|מוצר|הזמנה)/i.test(body)
+  ) {
+    return true
+  }
+
+  if (
     mentionsReturnIntent(body) &&
     !isReturnPolicyQuestion(body) &&
     requiresOrderIdentification(body, history) &&
@@ -170,7 +180,7 @@ function resolveCaseKind(body: string, history: HistoryMessage[]): PostPurchaseC
     activePostPurchaseCaseKind(history) ??
     classifyPostPurchaseCase(body) ??
     classifyPostPurchaseCaseFromHistory(history) ??
-    (mentionsReturnIntent(body) ? "return_request" : "missing_item")
+    (mentionsReturnIntent(body) ? "return_request" : mentionsExchangeIntent(body) ? "exchange_request" : "missing_item")
   )
 }
 
@@ -273,6 +283,13 @@ ${caseMarkerForKind(kind)}.
 ${phoneQuestion}`
   }
 
+  if (kind === "exchange_request") {
+    return `${CUSTOMER_HEADER}
+${caseMarkerForKind(kind)}.
+כדי להתקדם, נאתר קודם את ההזמנה.
+${phoneQuestion}`
+  }
+
   if (kind === "dissatisfaction") {
     return `${CUSTOMER_HEADER}
 ${caseMarkerForKind(kind)}.
@@ -323,6 +340,17 @@ function buildOrderConfirmedReply(
 ${buildReturnPolicyBody()}
 
 אם תרצו/י שנציג שירות ילווה בבקשה — כתבו "נציג".
+
+אם צריך עוד משהו — אני כאן.`
+  }
+
+  if (kind === "exchange_request") {
+    return `${CUSTOMER_HEADER}
+תודה, איתרנו את הזמנה ${order.orderNumber} (${order.branchLabel}).
+
+${buildExchangePolicyBody()}
+
+אם תרצו/י שנציג שירות ילווה בהחלפה — כתבו "נציג".
 
 אם צריך עוד משהו — אני כאן.`
   }

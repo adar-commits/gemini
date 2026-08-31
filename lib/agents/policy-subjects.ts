@@ -3,7 +3,14 @@
  * Used before sales intake so mid-flow policy questions get KB-grounded answers.
  */
 
-import { isActiveReturnExchangePickupCase } from "@/lib/agents/inquiry-intent"
+import {
+  isActiveReturnExchangePickupCase,
+  isExchangeOnlyIntent,
+  isExchangePolicyQuestion,
+  isRefundTimelineQuestion,
+  mentionsExchangeIntent,
+  mentionsReturnIntent,
+} from "@/lib/agents/inquiry-intent"
 
 export type PolicySubjectId =
   | "contact_hours"
@@ -27,13 +34,16 @@ type PolicySubject = {
   patterns: RegExp[]
 }
 
+/** Returns portal is for cancellations/refunds only — never for product exchanges (החלפות). */
+export const RETURNS_PORTAL_URL = "https://returns.carpetshop.co.il/"
+
 /** Main subjects per KB policy — expand patterns when customers report misses. */
 export const POLICY_SUBJECTS: PolicySubject[] = [
   {
     id: "contact_hours",
     kbSection: "Contact, Store hours",
     patterns: [
-      /\*3076|service@hom-group|שעות\s+(?:פעילות|פתיחה)|מתי\s+פתוח|איך\s+ליצור\s+קשר|מייל\s+שירות|צ(?:'|׳|)אט\s+עיצוב/i,
+      /\*3076|service@hom-group|שעות\s+(?:פעילות|פתיחה)|מתי\s+פתוח|איך\s+ליצור\s+קשר|מייל\s+שירות|צ(?:'|׳|')אט\s+עיצוב/i,
     ],
   },
   {
@@ -52,7 +62,7 @@ export const POLICY_SUBJECTS: PolicySubject[] = [
     id: "payments",
     kbSection: "Payments",
     patterns: [
-      /אמצעי\s+תשלום|תשלומים|כמה\s+תשלומים|ל(?:שלם|פרוע)\s+ב(?:ביט|bit)|buyme|buy\s*me|חבר|פיס|אשראי|apple\s*pay|google\s*pay|צ(?:'|׳|)ק/i,
+      /אמצעי\s+תשלום|תשלומים|כמה\s+תשלומים|ל(?:שלם|פרוע)\s+ב(?:ביט|bit)|buyme|buy\s*me|חבר|פיס|אשראי|apple\s*pay|google\s*pay|צ(?:'|׳|')ק/i,
     ],
   },
   {
@@ -98,7 +108,8 @@ export const POLICY_SUBJECTS: PolicySubject[] = [
   {
     id: "privacy",
     kbSection: "Privacy",
-    patterns: [/פרטיות|privacy|מחיק(?:ה|ת)\s+נתונים|נתונים\s+אישיים/i],
+    patterns: [/פרטיות|privacy|מחיק(?:ה|ת)\s+נתונים|נתונים\s+אישיים/i,
+    ],
   },
   {
     id: "promotions",
@@ -144,27 +155,73 @@ export function isFaqPolicyQuestion(body: string) {
   return matchPolicySubjects(body).length > 0
 }
 
+export function buildExchangePolicyBody() {
+  return `ניתן להחליף מוצר שהתקבל באחת משתי האפשרויות:
+1. החלפה בסניפי הרשת
+2. איסוף/משלוח מהבית בתשלום (לפי מידות המוצר)
+
+ניתן לבצע החלפה בתוך 14 ימים מקבלת המוצר, כשהמוצר לא היה בשימוש, שלם וארוז באריזתו המקורית ובהתאם לתנאי ההחלפה.
+החלפה מתבצעת בסניף או דרך נציג שירות — לא דרך פורטל ההחזרות.`
+}
+
 export function buildReturnPolicyBody() {
-  return `ניתן להחזיר מוצר שהתקבל באחת משתי האפשרויות:
+  return `ניתן להחזיר מוצר שהתקבל (ביטול/זיכוי) באחת משתי האפשרויות:
 1. החזרה לסניפי הרשת
 2. איסוף מהבית בתשלום
 
 בכל החזרה, גם כאשר מחזירים את המוצר בסניף, יש לפתוח בקשת החזרה דרך פורטל ההחזרות:
-https://returns.carpetshop.co.il/
+${RETURNS_PORTAL_URL}
 ניתן לבצע החזרה בתוך 14 ימים מקבלת המוצר, כשהמוצר לא היה בשימוש, שלם וארוז באריזתו המקורית ובהתאם לתנאי ההחזרה.`
 }
 
-export function buildReturnExchangePolicyReply() {
+export function buildCombinedReturnExchangePolicyBody() {
+  return `${buildExchangePolicyBody()}
+
+לחלופין, אם מעדיפים החזרה וזיכוי (לא החלפה):
+${buildReturnPolicyBody()}`
+}
+
+export function buildExchangePolicyReply() {
+  return `${buildExchangePolicyBody()}
+
+אפשר לעזור במשהו נוסף?`
+}
+
+export function buildReturnCancellationPolicyReply() {
   return `${buildReturnPolicyBody()}
 
 אפשר לעזור במשהו נוסף?`
+}
+
+/** Pick the right deterministic policy text — portal only for returns/cancellations. */
+export function resolveReturnExchangePolicyReply(body: string) {
+  if (isRefundTimelineQuestion(body)) return buildRefundTimelinePolicyReply()
+  if (mentionsReturnIntent(body) && mentionsExchangeIntent(body)) {
+    return `${buildCombinedReturnExchangePolicyBody()}
+
+אפשר לעזור במשהו נוסף?`
+  }
+  if (isExchangePolicyQuestion(body) || isExchangeOnlyIntent(body)) {
+    return buildExchangePolicyReply()
+  }
+  if (mentionsReturnIntent(body)) {
+    return buildReturnCancellationPolicyReply()
+  }
+  return `${buildCombinedReturnExchangePolicyBody()}
+
+אפשר לעזור במשהו נוסף?`
+}
+
+/** @deprecated Use resolveReturnExchangePolicyReply(body) */
+export function buildReturnExchangePolicyReply(body = "") {
+  return resolveReturnExchangePolicyReply(body)
 }
 
 export function buildRefundTimelinePolicyReply() {
   return `הזיכוי מתבצע בהקדם האפשרי ולא יאוחר מ-7 ימי עסקים ממועד הביטול או פתיחת בקשת ההחזר, בכפוף לאישור שהמוצר לא היה בשימוש (בדיקת המעבדה).
 
 גם בהחזרה בסניף יש לפתוח בקשת החזרה בפורטל:
-https://returns.carpetshop.co.il/
+${RETURNS_PORTAL_URL}
 
 אם כבר מסרת את המוצר בסניף ופתחת בקשה — בדרך כלל הזיכוי מופיע תוך עד 7 ימי עסקים. לבדיקת סטטוס ספציפי אפשר לפנות לשירות בטלפון *3076.
 

@@ -96,11 +96,12 @@ describe("owner routing decisions from trainer chat", () => {
     assert.equal(guessMasterRoute(DELAYED_SHIPMENT), "ROUTE_TO_SHIPPING_STATUS")
   })
 
-  it("uses deterministic dissatisfaction rescue with portal policy", () => {
+  it("uses deterministic dissatisfaction rescue with exchange-first policy", () => {
     assert.equal(isPostPurchaseDissatisfaction(DISSATISFACTION), true)
     const reply = buildDissatisfactionRescueReply()
-    assert.match(reply, /returns\.carpetshop\.co\.il/)
+    assert.match(reply, /החלפה בסניפי/)
     assert.match(reply, /יועץ מכירות/)
+    assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
     assert.doesNotMatch(reply, /^מבין! אפשר להחליף/m)
   })
 

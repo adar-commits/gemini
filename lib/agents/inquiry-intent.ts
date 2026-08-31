@@ -14,12 +14,16 @@ export type PostPurchaseCaseKind =
   | "defect"
   | "dissatisfaction"
   | "preorder_delay"
+  | "exchange_request"
   | "return_request"
   | "return_pickup_pending"
   | "missing_item"
 
 const RETURN_INTENT_RE =
-  /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חזיר|החזר)|(?:ל)?החזיר(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החזר(?:ה|ות)?(?:\s|$)/i
+  /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חזיר|החזר)|(?:ל)?החזיר(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החזר(?:ה|ות)?(?:\s|$)|(?:^|\s)(?:ביטול|זיכוי)(?:\s|$|[?.!,])/i
+
+const EXCHANGE_INTENT_RE =
+  /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חליף|החלפ)|(?:ל)?(?:ה)?חליף(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החלפ(?:ה|ות)?(?:\s|$|[?.!,])|(?:^|[\s,])(?:ו)?החלפ(?:ה|ות)?(?:\s|$|[?.!,])/i
 
 const DEFECT_RE =
   /פגם|פגום|פגומ(?:ה|ים|ות)|קרוע|שבור|סדוק|מקולקל|נזק|ליקוי|פגם\s+ב(?:ה)?ובלה/i
@@ -57,6 +61,24 @@ export function mentionsReturnIntent(text: string) {
   return RETURN_INTENT_RE.test(text.trim())
 }
 
+/** Customer wants to exchange/replace a product — not a return/cancellation. */
+export function mentionsExchangeIntent(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (EXCHANGE_INTENT_RE.test(trimmed)) return true
+  if (
+    /(?:מידה|גודל|צבע|דגם)\s+אחר/i.test(trimmed) &&
+    /(?:החלפ|להחליף|(?:ל)?(?:ה)?חליף)/i.test(trimmed)
+  ) {
+    return true
+  }
+  return false
+}
+
+export function isExchangeOnlyIntent(text: string) {
+  return mentionsExchangeIntent(text) && !mentionsReturnIntent(text)
+}
+
 const FUTURE_PURCHASE_RE =
   /(?:אחר(?:י)?\s+ש(?:א)?|לפני\s+(?:ש(?:א)?)?|כש(?:א)?|בעתיד|אם\s+(?:א)?(?:קנ|רכ)|(?:א|)?(?:קנ(?:ה|ו|יתי)?|רכ(?:ש|יב)(?:ה|תי|ו)?)|(?:א|)?(?:רצ(?:ה|ו|ית)?|תרצ(?:ה|ו|ית)?)\s+(?:ל)?(?:קנ|רכ))/i
 
@@ -83,10 +105,40 @@ export function isRefundTimelineQuestion(text: string) {
   return false
 }
 
+/** Policy / hypothetical exchange question — portal is NOT used for exchanges. */
+export function isExchangePolicyQuestion(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || !mentionsExchangeIntent(trimmed)) return false
+  if (isActiveReturnExchangePickupCase(trimmed)) return false
+  if (mentionsReturnIntent(trimmed)) return false
+
+  if (
+    /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות|אפשר|עושים|לעשות)|מה\s+(?:ה)?(?:אפשרויות|אופציות))/i.test(
+      trimmed
+    )
+  ) {
+    return true
+  }
+
+  if (
+    RECEIVED_RE.test(trimmed) &&
+    mentionsExchangeIntent(trimmed) &&
+    /(?:מה\s+(?:ע(?:לי|ל|ל)?|אפשר|לעשות|צריך|עושים)|איך\s+(?:עושים|מ(?:בצעים|חליפים)|מחליפים))/i.test(
+      trimmed
+    )
+  ) {
+    return true
+  }
+
+  return false
+}
+
 /** Policy / hypothetical return question — not an active return request. */
 export function isReturnPolicyQuestion(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return false
+
+  if (isExchangePolicyQuestion(trimmed)) return false
 
   if (isRefundTimelineQuestion(trimmed)) return true
 
@@ -158,12 +210,24 @@ export function isReturnFlowCorrection(text: string) {
   )
 }
 
+function matchesExchangeRequest(text: string) {
+  if (!text || isExchangePolicyQuestion(text) || isReturnPolicyQuestion(text)) return false
+  if (!mentionsExchangeIntent(text)) return false
+  if (mentionsReturnIntent(text)) return false
+  if (FUTURE_PURCHASE_RE.test(text) && !RECEIVED_RE.test(text)) return false
+  if (/^(?:החלפה|ביצוע\s+החלפה)(?:[\s,.!?]|$)/i.test(text.trim())) return true
+  if (RECEIVED_RE.test(text) || PRODUCT_RE.test(text)) return true
+  return false
+}
+
 function matchesReturnRequest(text: string) {
   if (!text || isReturnPolicyQuestion(text) || isReturnFlowCorrection(text)) return false
+  if (mentionsExchangeIntent(text)) return false
   if (!mentionsReturnIntent(text)) return false
   if (FUTURE_PURCHASE_RE.test(text) && !RECEIVED_RE.test(text)) return false
   // Explicit execution after policy — not a general "what are my options?" ask.
   if (/^(?:החזרה|ביצוע\s+החזרה)(?:[\s,.!?]|$)/i.test(text.trim())) return true
+  if (RECEIVED_RE.test(text) || PRODUCT_RE.test(text)) return true
   return false
 }
 
@@ -233,11 +297,21 @@ const ALREADY_INITIATED_RETURN_EXCHANGE_RE =
 const MISSING_ITEM_RE =
   /(?:קיבלתי|הגיע(?:ה|ו)?)\s+רק|רק\s+(?:אח(?:ת|ד)|חלק|ח(?:מ)?יש(?:ה|ית)?)|(?:\d+|שת(?:י|יים|יים)?)\s+הזמנות.*(?:קיבלתי|הגיע).*רק|חסר(?:ים|ה)?\s+(?:לי\s+)?(?:פריט|מוצר|שטיח|חלק)|(?:לא\s+(?:קיבלתי|הגיע(?:ה|ו)?)\s+(?:את\s+)?(?:ה?(?:שני|2|שאר|מוצר|פריט|שטיח))|(?:קיבלתי|הגיע(?:ה|ו)?)\s+(?:את\s+)?(?:ה?(?:שני|2|שאר)))|רק\s+חלק\s+מ(?:ן|)?(?:ה)?הזמנה|משלוח\s+חסר/i
 
+function isPolicyInformationQuestion(text: string) {
+  if (isRefundTimelineQuestion(text)) return true
+  return /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות|אפשר|עושים|לעשות)|מה\s+(?:ה)?(?:אפשרויות|אופציות))/i.test(
+    text
+  )
+}
+
 /** Customer already opened return/exchange and is waiting for courier pickup — not policy FAQ. */
 export function isActiveReturnExchangePickupCase(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return false
-  if (isReturnPolicyQuestion(trimmed) || isReturnFlowCorrection(trimmed)) return false
+  if (isReturnFlowCorrection(trimmed)) return false
+  if (isPolicyInformationQuestion(trimmed) && !isReturnPickupWaitComplaint(trimmed)) {
+    return false
+  }
 
   if (isReturnPickupWaitComplaint(trimmed)) return true
 
@@ -281,6 +355,9 @@ export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | n
 
   for (const text of candidates) {
     if (matchesReturnPickupPending(text)) return "return_pickup_pending"
+  }
+  for (const text of candidates) {
+    if (matchesExchangeRequest(text)) return "exchange_request"
   }
   for (const text of candidates) {
     if (matchesReturnRequest(text)) return "return_request"

@@ -74,7 +74,7 @@ import {
   shouldHandlePostPurchaseCaseFlow,
   activePostPurchaseCaseKind,
 } from "@/lib/agents/post-purchase-case"
-import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isExchangePolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
 import {
   buildDocumentPurchaseLocationQuestion,
   isDocumentChannelQuestionPending,
@@ -211,6 +211,7 @@ import {
   buildCarpetRentalPolicyReply,
   buildRefundTimelinePolicyReply,
   buildReturnExchangePolicyReply,
+  resolveReturnExchangePolicyReply,
   matchPolicySubjects,
 } from "@/lib/agents/policy-subjects"
 import {
@@ -293,7 +294,7 @@ async function runT0DeterministicPaths(
     )
   }
 
-  if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) {
+  if (isReturnPolicyQuestion(body) || isExchangePolicyQuestion(body) || isReturnFlowCorrection(body)) {
     return markT0Routing(
       conversationId,
       await faqReturnPolicyResult(
@@ -848,9 +849,7 @@ async function faqReturnPolicyResult(
   history?: HistoryMessage[],
   lastAgent?: AgentId | null
 ): Promise<AgentResponse> {
-  const replyBody = isRefundTimelineQuestion(body)
-    ? buildRefundTimelinePolicyReply()
-    : buildReturnExchangePolicyReply()
+  const replyBody = resolveReturnExchangePolicyReply(body)
   return faqPendingFlowResult(
     conversationId,
     body,
@@ -2522,7 +2521,7 @@ export async function runMasterConversation(
     return branchReviewLinkResult(conversationId, body, route, preview, history)
   }
 
-  if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) {
+  if (isReturnPolicyQuestion(body) || isExchangePolicyQuestion(body) || isReturnFlowCorrection(body)) {
     return faqReturnPolicyResult(conversationId, body, route, preview, history, lastAgent)
   }
 

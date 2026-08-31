@@ -115,7 +115,7 @@ Home pickup/delivery fees:
 - Rug 240*340: 150 ILS per direction
 - Rug 300*400: 300 ILS per direction
 - Poufs: 100 ILS per direction
-Returns portal used in the FAQ agent prompt: https://returns.carpetshop.co.il/
+- Returns portal (returns/cancellations only — not for product exchanges): https://returns.carpetshop.co.il/
 
 ## FAQ page extra facts
 Source: https://www.carpetshop.co.il/pages/faq
