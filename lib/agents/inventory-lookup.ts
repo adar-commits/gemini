@@ -23,6 +23,9 @@ const HAVE_PRODUCT_RE =
 const SKU_REQUEST_RE =
   /מק(?:״|"|')?ט|מספר הדגם|כולל מקף/i
 
+const RESTOCK_RE =
+  /(?:חוזר(?:ים)?|יחז(?:ור|רו)|חזר(?:ה|ו))\s+(?:ל)?(?:מלאי|זמינות)|מתי\s+(?:יחזור|חוזר).*?(?:מלאי|זמינות)|תחז(?:ית|יות).*?(?:מלאי|זמינות)/i
+
 const DATE_SKU_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export type WarehouseInventory = {
@@ -110,6 +113,16 @@ export function isBranchInventoryQuestion(body: string) {
   return false
 }
 
+/** Any stock / availability / restock ask — ask for SKU first (not a product URL). */
+export function isInventoryQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (isServiceTopicSwitch(text) || isProductDefectComplaint(text)) return false
+  if (isBareSkuMessage(text)) return true
+  if (isBranchInventoryQuestion(text)) return true
+  return STOCK_RE.test(text) || RESTOCK_RE.test(text)
+}
+
 export function isSkuRequestPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
@@ -125,8 +138,7 @@ export function shouldHandleBranchInventory(
   history: HistoryMessage[] = []
 ) {
   if (isSkuRequestPending(history)) return true
-  if (isBranchInventoryQuestion(body)) return true
-  if (isBareSkuMessage(body)) return true
+  if (isInventoryQuestion(body)) return true
   return false
 }
 
@@ -210,7 +222,7 @@ export function buildSkuRequestPrompt(context?: {
   }
 
   return `${CUSTOMER_HEADER}
-כדי לבדוק זמינות בסניפים אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
+כדי לבדוק מלאי וזמינות, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
 }
 
 export function buildInventoryLookupFailureReply() {

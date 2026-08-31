@@ -1,6 +1,6 @@
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 import { isBranchListQuestion } from "@/lib/agents/branches"
-import { isBareSkuMessage, isBranchInventoryQuestion } from "@/lib/agents/inventory-lookup"
+import { isInventoryQuestion } from "@/lib/agents/inventory-lookup"
 import {
   isFaqTopicSwitch,
   isSalesTopicSwitch,
@@ -40,8 +40,7 @@ export function hasEmbeddedBusinessAsk(text: string) {
     isTopicPivotPhrase(body) ||
     isFaqTopicSwitch(body) ||
     isBranchListQuestion(body) ||
-    isBranchInventoryQuestion(body) ||
-    isBareSkuMessage(body) ||
+    isInventoryQuestion(body) ||
     isShippingPolicyQuestion(body) ||
     isShippingStatusQuestion(body) ||
     isServiceTopicSwitch(body) ||
@@ -117,7 +116,7 @@ export function isConfirmationAffirmationWithExtra(text: string) {
   if (!/^(?:כן|נכון|בדיוק|מדויק|yes)/iu.test(body)) return false
   const remainder = body.replace(/^(?:כן|נכון|בדיוק|מדויק|yes)(?:[\s,.!?]+)/iu, "").trim()
   if (!remainder) return false
-  if (isBranchInventoryQuestion(body) || isBranchInventoryQuestion(remainder)) return false
+  if (isInventoryQuestion(body) || isInventoryQuestion(remainder)) return false
   return hasEmbeddedBusinessAsk(remainder) || remainder.split(/\s+/).length >= 3
 }
 

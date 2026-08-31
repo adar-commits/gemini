@@ -5,7 +5,7 @@ import { buildModelMessages } from "@/lib/agents/multimodal"
 import { getSystemPrompt } from "@/lib/agents/prompts"
 import { buildBranchReplyForText, isBranchListQuestion } from "@/lib/agents/branches"
 import {
-  isBranchInventoryQuestion,
+  isInventoryQuestion,
   resolveBranchInventoryReply,
 } from "@/lib/agents/inventory-lookup"
 import { hasEmbeddedBusinessAsk } from "@/lib/agents/compound-reply"
@@ -264,7 +264,7 @@ export function answerFaqQuestionDeterministic(question: string) {
   if (isShippingPolicyQuestion(text) || subjects.includes("shipping_policy")) {
     return buildShippingPolicyReply()
   }
-  if (isBranchInventoryQuestion(text)) return null
+  if (isInventoryQuestion(text)) return null
   if (isBranchListQuestion(text) || subjects.includes("branches")) {
     return buildBranchReplyForText(text)
   }
@@ -354,7 +354,7 @@ export async function answerCombinedQuestions(
       parts.push(stripCustomerHeader(deterministic))
       continue
     }
-    if (isBranchInventoryQuestion(question)) {
+    if (isInventoryQuestion(question)) {
       parts.push(
         stripCustomerHeader(
           await resolveBranchInventoryReply({ body: question, history: input.history })

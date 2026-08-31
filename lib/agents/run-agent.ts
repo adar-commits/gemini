@@ -155,10 +155,12 @@ import {
   isReturnToBranchQuestion,
 } from "@/lib/agents/branches"
 import {
+  buildSkuRequestPrompt,
   extractSku,
   isBareSkuMessage,
   isBranchInventoryQuestion,
   isInventoryAvailabilityReply,
+  isInventoryQuestion,
   resolveBranchInventoryReply,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
@@ -452,7 +454,10 @@ const FAKE_STOCK_REPLY_RE =
 function sanitizeFaqProductReply(body: string, reply: string, history: HistoryMessage[] = []) {
   if (!reply.trim()) return reply
   if (isInventoryAvailabilityReply(reply)) return reply
-  if (isBranchInventoryQuestion(body) || isBareSkuMessage(body)) return reply
+  if (isInventoryQuestion(body)) {
+    if (/מק(?:״|"|')?ט|כדי לבדוק מלאי/i.test(reply)) return reply
+    return buildSkuRequestPrompt()
+  }
   if (
     !isProductInventoryQuestion(body) &&
     !isSpecificProductMention(body, history) &&

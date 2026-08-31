@@ -4,8 +4,7 @@ import { isConversationClosing } from "@/lib/agents/conversation-close"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import { isProductDefectComplaint, isPostPurchaseDissatisfaction, isMissingOrPartialDeliveryComplaint } from "@/lib/agents/inquiry-intent"
 import {
-  isBareSkuMessage,
-  isBranchInventoryQuestion,
+  isInventoryQuestion,
 } from "@/lib/agents/inventory-lookup"
 import { isServiceOrderIdentificationPending } from "@/lib/agents/order-lookup"
 import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
@@ -96,12 +95,6 @@ const KNOWN_MODEL_RE =
 const PRODUCT_URL_RE =
   /https?:\/\/(?:www\.)?(?:carpetshop|pozitiveshop)\.co\.il\/products\/[^\s]+/i
 
-const STOCK_RE =
-  /במלאי|מלאי|זמין(?:\s+ב)?(?:מלאי|חנות)?|in\s+stock|exist(?:s)?|קיים\s+ב?(?:מלאי|חנות)?/i
-
-const INVENTORY_COMMERCIAL_RE =
-  /כמה\s+עולה|מה\s+המחיר|מחיר\s+של|ב(?:גודל|מידה)\s+\d|גודל\s+\d|מידה\s+\d|יש\s+(?:לכם|במלאי)|זמין\s+(?:ב)?(?:מידה|גודל)|קיים\s+ב(?:מידה|גודל)|האם\s+יש/i
-
 const LANDBOT_PRODUCT_DETAILS_RE =
   /פרטים\s+נוספים\s+לגבי\s+(?:שטיח|פוף)/i
 
@@ -141,15 +134,16 @@ export function isProductInventoryQuestion(body: string) {
   const text = body.trim()
   if (!text || isFaqTopicSwitch(text)) return false
   if (isServiceTopicSwitch(text) || isProductDefectComplaint(text)) return false
-  if (isBranchInventoryQuestion(text) || isBareSkuMessage(text)) return false
+  if (isInventoryQuestion(text)) return false
   if (!hasSpecificProductContext(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
     return false
   }
 
   return (
-    STOCK_RE.test(text) ||
-    INVENTORY_COMMERCIAL_RE.test(text) ||
+    /כמה\s+עולה|מה\s+המחיר|מחיר\s+של|ב(?:גודל|מידה)\s+\d|גודל\s+\d|מידה\s+\d|זמין\s+(?:ב)?(?:מידה|גודל)|קיים\s+ב(?:מידה|גודל)/i.test(
+      text
+    ) ||
     (HAVE_PRODUCT_RE.test(text) && hasNamedModel(text))
   )
 }
@@ -161,7 +155,7 @@ export function isSpecificProductMention(body: string, history: HistoryMessage[]
   if (isServiceOrderIdentificationPending(history)) return false
   if (isPostPurchaseDissatisfaction(text) || isProductDefectComplaint(text)) return false
   if (isMissingOrPartialDeliveryComplaint(text)) return false
-  if (isBranchInventoryQuestion(text) || isBareSkuMessage(text)) return false
+  if (isInventoryQuestion(text)) return false
   if (isProductInventoryQuestion(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
     return false
@@ -172,8 +166,7 @@ export function isSpecificProductMention(body: string, history: HistoryMessage[]
 /** Either inventory/commercial or a specific product thread — breaks sales quiz sticky. */
 export function isProductAvailabilityQuestion(body: string) {
   return (
-    isBranchInventoryQuestion(body) ||
-    isBareSkuMessage(body) ||
+    isInventoryQuestion(body) ||
     isProductInventoryQuestion(body) ||
     isSpecificProductMention(body)
   )
