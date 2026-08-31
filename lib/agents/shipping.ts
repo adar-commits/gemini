@@ -73,6 +73,24 @@ function hasDeliveryTrackingIntent(text: string) {
   return false
 }
 
+/** Customer wants to schedule/coordinate delivery — bot cannot do this (courier calls customer). */
+export function isDeliverySchedulingRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (isShippingStatusQuestion(text)) return false
+  if (isShippingPolicyQuestion(text)) return false
+
+  return (
+    /(?:אשמח|רוצ(?:ה|ים|ות)|(?:אפשר|צריך|מ(?:בקש|עונ(?:י|ים|ות))))\s*(?:ל)?ת(?:אם|יאם)\s+(?:משלוח|א(?:ספקה|ספק)|מועד)/i.test(
+      text
+    ) ||
+    /(?:ל)?ת(?:אם|יאם)\s+(?:משלוח|א(?:ספקה|ספק))(?:\s+(?:ל|ש(?:ל|ל)?)(?:שטיח|פוף|הזמנה|מוצר))?/i.test(
+      text
+    ) ||
+    /(?:ל)?ת(?:אם|יאם)\s+.*?משלוח/i.test(text)
+  )
+}
+
 /** Existing-order delivery status, tracking, or delay complaint. */
 export function isShippingStatusQuestion(body: string) {
   const text = body.trim()

@@ -15,12 +15,6 @@ import {
   isSalesTopicSwitch,
   isServiceTopicSwitch,
 } from "@/lib/agents/topic-switch"
-import {
-  isShippingPolicyQuestion,
-  isShippingStatusQuestion,
-} from "@/lib/agents/shipping"
-import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
-import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import {
   isInventoryQuestionWithContext,
@@ -28,6 +22,13 @@ import {
   isActiveInventoryThread,
 } from "@/lib/agents/inventory-lookup"
 import { hasProductUrl } from "@/lib/agents/product-handoff"
+import {
+  isDeliverySchedulingRequest,
+  isShippingPolicyQuestion,
+  isShippingStatusQuestion,
+} from "@/lib/agents/shipping"
+import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
+import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
 
 export type MasterFallbackKind = "sales_intake" | "handoff_offer"
@@ -76,6 +77,7 @@ function hasClearRoute(body: string, history: HistoryMessage[]) {
   if (isCasualGreeting(body)) return true
   if (hasImmediateBusinessAsk(body)) return true
   if (isDigitalDocumentRequest(body)) return true
+  if (isDeliverySchedulingRequest(body)) return true
   if (isInventoryQuestionWithContext(body, history)) return true
   if (hasProductUrl(body) && (isSkuRequestPending(history) || isActiveInventoryThread(history))) {
     return true

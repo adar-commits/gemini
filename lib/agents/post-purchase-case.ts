@@ -66,6 +66,7 @@ import {
   isPostPurchaseIntentDeclined,
   activeIntentConfirmKind,
 } from "@/lib/agents/intent-confirmation"
+import { isDeliverySchedulingRequest } from "@/lib/agents/shipping"
 
 export { DEFECT_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 
@@ -119,6 +120,7 @@ export function shouldHandlePostPurchaseCaseFlow(
   lastAgent: AgentId | null = null
 ) {
   if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
+  if (isDeliverySchedulingRequest(body)) return false
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) return false
   if (isActiveReturnExchangePickupCase(body)) return true
 
@@ -130,6 +132,11 @@ export function shouldHandlePostPurchaseCaseFlow(
     isAlternatePhoneRequestPending(history) ||
     isOrderNumberRequestPending(history) ||
     isServiceOrderIdentificationPending(history)
+
+  const establishedCase =
+    activePostPurchaseCaseKind(history) != null ||
+    activeIntentConfirmKind(history) != null ||
+    classifyPostPurchaseCaseFromHistory(history) != null
 
   if (
     !continuingLookup &&
@@ -159,12 +166,19 @@ export function shouldHandlePostPurchaseCaseFlow(
   }
 
   if (continuingLookup) {
+    if (
+      isOrderNumberRequestPending(history) &&
+      extractOrderNumber(body) &&
+      !establishedCase
+    ) {
+      return false
+    }
+
     return (
-      activePostPurchaseCaseKind(history) != null ||
+      establishedCase ||
       classifyPostPurchaseCase(body) != null ||
       isMissingOrPartialDeliveryComplaint(body) ||
-      isServiceOrderIdentificationPending(history) ||
-      isOrderNumberRequestPending(history)
+      isServiceOrderIdentificationPending(history)
     )
   }
 
@@ -176,13 +190,17 @@ export function shouldHandleProductDefectFlow(body: string, history: HistoryMess
   return shouldHandlePostPurchaseCaseFlow(body, history)
 }
 
-function resolveCaseKind(body: string, history: HistoryMessage[]): PostPurchaseCaseKind {
+function resolveCaseKind(body: string, history: HistoryMessage[]): PostPurchaseCaseKind | null {
   return (
     activePostPurchaseCaseKind(history) ??
     activeIntentConfirmKind(history) ??
     classifyPostPurchaseCase(body) ??
     classifyPostPurchaseCaseFromHistory(history) ??
-    (mentionsReturnIntent(body) ? "return_request" : mentionsExchangeIntent(body) ? "exchange_request" : "missing_item")
+    (mentionsReturnIntent(body)
+      ? "return_request"
+      : mentionsExchangeIntent(body)
+        ? "exchange_request"
+        : null)
   )
 }
 
@@ -489,6 +507,10 @@ export async function resolvePostPurchaseCaseReply(input: {
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
   const kind = resolveCaseKind(body, history)
+  if (!kind) {
+    return `${CUSTOMER_HEADER}
+לא הצלחתי לזהות את סוג הפנייה — אפשר לפרט במילים אחרות, או לכתוב "נציג" להעברה לשירות.`
+  }
 
   if (isAmbiguousNumericOrderAttempt(body, history)) {
     return buildAmbiguousOrderNumberClarifyReply(body)

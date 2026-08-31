@@ -10,6 +10,7 @@ import {
   isOrderNumberUnknownAnswer,
   isServiceOrderIdentificationPending,
   isServiceProductIdentificationAnswer,
+  resolveLookupPhoneFromHistory,
 } from "@/lib/agents/order-lookup"
 import { shouldHandlePostPurchaseCaseFlow } from "@/lib/agents/post-purchase-case"
 
@@ -67,6 +68,21 @@ describe("missing item order identification", () => {
     )
     assert.ok(
       shouldHandlePostPurchaseCaseFlow("השטיח הבהיר לסלון", history, "service")
+    )
+  })
+
+  it("does not treat bare SO order number as missing-item post-purchase", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nאני מבין שרוצה לתאם משלוח לשטיח. מה מספר ההזמנה?",
+        agent: "service",
+      },
+    ]
+    assert.equal(shouldHandlePostPurchaseCaseFlow("SO026019181", history, "service"), false)
+    assert.equal(
+      resolveLookupPhoneFromHistory(history, "+972523925554", "SO026019181"),
+      "0523925554"
     )
   })
 })

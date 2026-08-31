@@ -833,7 +833,15 @@ export function resolveLookupPhoneFromHistory(
     if (channel) return channel
   }
 
-  return authorizedLookupPhoneFromHistory(history, whatsappPhone)
+  const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
+  if (authorized) return authorized
+
+  // Explicit SO/IN/OV order number — use WhatsApp channel phone without re-asking.
+  if (body?.trim() && extractOrderNumber(body)) {
+    return channelPhone(whatsappPhone)
+  }
+
+  return null
 }
 
 /** @deprecated Legacy step — new flows skip straight to phone confirm. */

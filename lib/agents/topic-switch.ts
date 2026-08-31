@@ -1,5 +1,6 @@
 import { isActiveReturnExchangePickupCase } from "@/lib/agents/inquiry-intent"
 import {
+  isDeliverySchedulingRequest,
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
@@ -9,7 +10,7 @@ import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 
 export { isFaqPolicyQuestion } from "@/lib/agents/policy-subjects"
 
-export { isShippingPolicyQuestion, isShippingStatusQuestion }
+export { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
 
 /** Customer explicitly pivots away from the current flow. */
 export function isTopicPivotPhrase(body: string) {
@@ -36,6 +37,7 @@ export function isServiceTopicSwitch(body: string) {
 
   if (isCustomerServiceOpener(text)) return false
   if (isDigitalDocumentRequest(text)) return false
+  if (isDeliverySchedulingRequest(text)) return false
   if (isShippingStatusQuestion(text)) return false
   if (isActiveReturnExchangePickupCase(text)) return true
 

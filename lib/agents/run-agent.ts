@@ -5,7 +5,7 @@ import {
   bindPriorityApiPreMessageGuard,
   resetPriorityApiTurnState,
 } from "@/lib/agents/priority-webhook"
-import { buildThanksReply, buildNeverStuckReply, buildProcessingStuckReply, coerceOperationalReply } from "@/lib/agent-core/fallbacks"
+import { buildThanksReply, buildNeverStuckReply, buildProcessingStuckReply, coerceOperationalReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
 import {
   bindOrchestraTier,
   bindRuntimeConfig,
@@ -206,6 +206,7 @@ import {
 } from "@/lib/agents/sales-intake"
 import {
   buildShippingPolicyReply,
+  isDeliverySchedulingRequest,
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
@@ -242,6 +243,29 @@ function branchReplyForTurn(body: string, history: HistoryMessage[]) {
     (getDissatisfactionRescueStage(history) === "portal_referred" &&
       /סניף|סניפ/i.test(body))
   return buildBranchReplyForText(body, { returnContext })
+}
+
+function deliverySchedulingHandoffResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean
+): Promise<AgentResponse> {
+  const reply = normalizeReply("faq", "reply", buildUncertainHandoffReply(body))
+  return appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview,
+  }).then(() => ({
+    ok: true as const,
+    agent: "faq" as const,
+    reply,
+    action: "reply" as const,
+    route: [...route, "faq"],
+  }))
 }
 
 async function runT0DeterministicPaths(
@@ -286,6 +310,13 @@ async function runT0DeterministicPaths(
     return markT0Routing(
       conversationId,
       await faqDissatisfactionResult(conversationId, body, route, preview)
+    )
+  }
+
+  if (isDeliverySchedulingRequest(body)) {
+    return markT0Routing(
+      conversationId,
+      await deliverySchedulingHandoffResult(conversationId, body, route, preview)
     )
   }
 
@@ -1601,6 +1632,7 @@ function shouldHandleOrderShippingFlow(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (isDeliverySchedulingRequest(body)) return false
   if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
   if (shouldHandleDigitalDocumentFlow(body, history)) return false
   if (shouldHandleServicePraiseFlow(body, history)) return false
@@ -2570,6 +2602,10 @@ export async function runMasterConversation(
 
   if (isReturnPolicyQuestion(body) || isExchangePolicyQuestion(body) || isReturnFlowCorrection(body)) {
     return faqReturnPolicyResult(conversationId, body, route, preview, history, lastAgent)
+  }
+
+  if (isDeliverySchedulingRequest(body)) {
+    return deliverySchedulingHandoffResult(conversationId, body, route, preview)
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {

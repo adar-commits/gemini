@@ -2,7 +2,31 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { confidentSkipMasterRoute } from "@/lib/agent-core/confident-route"
 import { guessMasterRoute } from "@/lib/agents/route-intent"
-import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
+import {
+  isDeliverySchedulingRequest,
+  isShippingPolicyQuestion,
+  isShippingStatusQuestion,
+} from "@/lib/agents/shipping"
+import { shouldHandlePostPurchaseCaseFlow } from "@/lib/agents/post-purchase-case"
+import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
+import { buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
+
+const DELIVERY_SCHEDULING = "אשמח לתאם משלוח לשטיח"
+
+describe("isDeliverySchedulingRequest", () => {
+  it("detects proactive delivery coordination", () => {
+    assert.equal(isDeliverySchedulingRequest(DELIVERY_SCHEDULING), true)
+    assert.equal(isShippingStatusQuestion(DELIVERY_SCHEDULING), false)
+    assert.equal(isServiceTopicSwitch(DELIVERY_SCHEDULING), false)
+    assert.equal(shouldHandlePostPurchaseCaseFlow(DELIVERY_SCHEDULING, [], null), false)
+    assert.match(buildUncertainHandoffReply(DELIVERY_SCHEDULING), /נציג שירות/)
+  })
+
+  it("does not treat tracking questions as scheduling", () => {
+    assert.equal(isDeliverySchedulingRequest("איפה המשלוח שלי"), false)
+    assert.equal(isShippingStatusQuestion("איפה המשלוח שלי"), true)
+  })
+})
 
 describe("isShippingStatusQuestion", () => {
   const missedDelivery =
