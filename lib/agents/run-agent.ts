@@ -660,11 +660,21 @@ async function resolveMultiQuestionTurn(
   route: AgentId[],
   sharedOptions: {
     lastAction: string | null
+    lastAgent?: AgentId | null
     sessionSummary?: string | null
     preview?: boolean
   },
   goal?: { reply: string; action?: AgentAction }
 ): Promise<AgentResponse | null> {
+  if (hasStructuredFlowPending(history, sharedOptions.lastAgent ?? null)) return null
+  if (
+    isSalesConsultationTrigger(body) ||
+    isSalesTopicSwitch(body) ||
+    shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent ?? null) ||
+    isShippingStatusQuestion(body)
+  ) {
+    return null
+  }
   if (!looksLikeMultipleQuestions(body)) return null
 
   const questions = await splitOrderedQuestions(body, conversationId)
@@ -2043,7 +2053,7 @@ export async function runMasterConversation(
       remainderAfterLeadingAffirmation(body) || body,
       history,
       route,
-      { lastAction, sessionSummary: conversationSummary, preview },
+      { lastAction, lastAgent, sessionSummary: conversationSummary, preview },
       {
         reply: buildHumanHandoffConfirmedReply(
           inferHumanHandoffAction(history, lastAgent)

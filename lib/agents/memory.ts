@@ -7,7 +7,7 @@ import {
 
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 
-const DEFAULT_HISTORY_LIMIT = 18
+const DEFAULT_HISTORY_LIMIT = 40
 
 async function historyLimit() {
   try {
