@@ -5,7 +5,7 @@ import {
   isSafeLearnedPattern,
   type LearnedRuleKind,
 } from "@/lib/agents/learned-rules"
-import { runMasterConversation } from "@/lib/agents/run-agent"
+import { runCustomerConversation } from "@/lib/agents/conversation"
 import type { HistoryMessage } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import {
@@ -216,7 +216,7 @@ export async function processTrainerCorrection(input: {
   let fixedReply = correctReplyHint
   if (userQuestion) {
     const turn: UserTurn = { text: userQuestion, media: [] }
-    const rerun = await runMasterConversation(input.conversationId, turn, {
+    const rerun = await runCustomerConversation(input.conversationId, turn, {
       customerName: input.customerName,
       preview: true,
     })

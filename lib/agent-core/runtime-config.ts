@@ -262,6 +262,7 @@ export function runtimeConfigSnapshot(config: RuntimeConfig) {
     activeProfile: config.activeProfile,
     profileLabel: config.profile.label,
     routingMode: config.routingMode,
+    agentEngine: process.env.AGENT_ENGINE?.trim() || "v3",
     debounceMs: config.debounceMs,
     historyLimit: config.historyLimit,
     orchestraMode: config.orchestraMode,

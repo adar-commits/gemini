@@ -1,4 +1,4 @@
-import { runMasterConversation } from "@/lib/agents/run-agent"
+import { runCustomerConversation } from "@/lib/agents/conversation"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getSessionInactivityState } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
@@ -210,7 +210,7 @@ export async function handleLandbotInbound(
   })
 
   try {
-    result = await runMasterConversation(conversationId, activeTurn, {
+    result = await runCustomerConversation(conversationId, activeTurn, {
       customerName: customerName || undefined,
       phone: options?.phone?.trim() || undefined,
       priorityApiEnabled: replyEnabled,
@@ -222,7 +222,7 @@ export async function handleLandbotInbound(
         : undefined,
     })
   } catch (error) {
-    console.error("[handle-inbound] runMasterConversation failed", error)
+    console.error("[handle-inbound] runCustomerConversation failed", error)
     result = {
       ok: true,
       agent: "faq",

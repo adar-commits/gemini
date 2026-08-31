@@ -1,15 +1,13 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { confidentSkipMasterRoute } from "@/lib/agent-core/confident-route"
-import { guessMasterRoute } from "@/lib/agents/route-intent"
 import {
   isDeliverySchedulingRequest,
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
-import { shouldHandlePostPurchaseCaseFlow } from "@/lib/agents/post-purchase-case"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import { buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
+import { isShippingLookupContext } from "@/lib/agents/order-lookup"
 
 const DELIVERY_SCHEDULING = "אשמח לתאם משלוח לשטיח"
 
@@ -18,13 +16,13 @@ describe("isDeliverySchedulingRequest", () => {
     assert.equal(isDeliverySchedulingRequest(DELIVERY_SCHEDULING), true)
     assert.equal(isShippingStatusQuestion(DELIVERY_SCHEDULING), false)
     assert.equal(isServiceTopicSwitch(DELIVERY_SCHEDULING), false)
-    assert.equal(shouldHandlePostPurchaseCaseFlow(DELIVERY_SCHEDULING, [], null), false)
     assert.match(buildUncertainHandoffReply(DELIVERY_SCHEDULING), /נציג שירות/)
   })
 
   it("does not treat tracking questions as scheduling", () => {
     assert.equal(isDeliverySchedulingRequest("איפה המשלוח שלי"), false)
     assert.equal(isShippingStatusQuestion("איפה המשלוח שלי"), true)
+    assert.equal(isShippingLookupContext("איפה המשלוח שלי", []), true)
   })
 })
 
@@ -34,8 +32,7 @@ describe("isShippingStatusQuestion", () => {
 
   it("detects missed delivery with product location question", () => {
     assert.equal(isShippingStatusQuestion(missedDelivery), true)
-    assert.equal(confidentSkipMasterRoute(missedDelivery, [])?.action, "ROUTE_TO_SHIPPING_STATUS")
-    assert.equal(guessMasterRoute(missedDelivery), "ROUTE_TO_SHIPPING_STATUS")
+    assert.equal(isShippingLookupContext(missedDelivery, []), true)
   })
 
   it("still matches classic shipping phrases", () => {
@@ -49,10 +46,9 @@ describe("isShippingStatusQuestion", () => {
   })
 
   it("detects delayed delivery when order was placed but shipment not received", () => {
-    const delayed =
-      "הזמנתי לפני שבוע ועוד לא קיבלתי את המשלוח"
+    const delayed = "הזמנתי לפני שבוע ועוד לא קיבלתי את המשלוח"
     assert.equal(isShippingStatusQuestion(delayed), true)
-    assert.equal(guessMasterRoute(delayed), "ROUTE_TO_SHIPPING_STATUS")
+    assert.equal(isShippingLookupContext(delayed, []), true)
   })
 
   it("does not treat a new purchase intent as status lookup", () => {

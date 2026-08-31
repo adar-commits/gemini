@@ -12,7 +12,6 @@ import {
   isServiceProductIdentificationAnswer,
   resolveLookupPhoneFromHistory,
 } from "@/lib/agents/order-lookup"
-import { shouldHandlePostPurchaseCaseFlow } from "@/lib/agents/post-purchase-case"
 
 describe("missing item order identification", () => {
   it("classifies partial delivery complaints", () => {
@@ -35,19 +34,7 @@ describe("missing item order identification", () => {
     assert.ok(isOrderNumberUnknownAnswer("לא יודעת"))
   })
 
-  it("routes unknown order number to phone identification flow", () => {
-    const history: HistoryMessage[] = [
-      { role: "user", content: "ביצעתי 2 הזמנות וקיבלתי רק אחת מהן", agent: null },
-      {
-        role: "assistant",
-        content: "*הום בוט :)*\nמה מספרי ההזמנות?",
-        agent: "service",
-      },
-    ]
-    assert.ok(shouldHandlePostPurchaseCaseFlow("לא יודעת", history, "service"))
-  })
-
-  it("continues after missing-product answer instead of stalling", () => {
+  it("continues service identification after unknown order number", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "ביצעתי 2 הזמנות וקיבלתי רק אחת מהן", agent: null },
       {
@@ -66,12 +53,9 @@ describe("missing item order identification", () => {
     assert.ok(
       isServiceProductIdentificationAnswer("השטיח הבהיר לסלון", history)
     )
-    assert.ok(
-      shouldHandlePostPurchaseCaseFlow("השטיח הבהיר לסלון", history, "service")
-    )
   })
 
-  it("does not treat bare SO order number as missing-item post-purchase", () => {
+  it("does not treat bare SO order number as missing-item post-purchase in delivery scheduling", () => {
     const history: HistoryMessage[] = [
       {
         role: "assistant",
@@ -79,7 +63,6 @@ describe("missing item order identification", () => {
         agent: "service",
       },
     ]
-    assert.equal(shouldHandlePostPurchaseCaseFlow("SO026019181", history, "service"), false)
     assert.equal(
       resolveLookupPhoneFromHistory(history, "+972523925554", "SO026019181"),
       "0523925554"

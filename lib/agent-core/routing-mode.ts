@@ -1,4 +1,4 @@
-/** How turns are routed before the specialist LLM runs. */
+/** @deprecated v3 single-agent — routing_mode column kept for Supabase compatibility only. */
 
 import { getBoundRuntime } from "@/lib/agent-core/config"
 
@@ -7,25 +7,25 @@ export type AgentRoutingMode = "llm" | "hybrid" | "regex"
 export function agentRoutingMode(): AgentRoutingMode {
   const bound = getBoundRuntime()
   if (bound) return bound.routingMode
-  const raw = process.env.AGENT_ROUTING_MODE?.trim().toLowerCase()
-  if (raw === "regex" || raw === "hybrid" || raw === "llm") return raw
   return "hybrid"
 }
 
+/** @deprecated v3 always uses single LLM agent */
 export function usesLlmFirstRouting() {
-  return agentRoutingMode() === "llm"
-}
-
-export function usesRegexRouting() {
-  return agentRoutingMode() === "regex"
-}
-
-export function usesHybridRouting() {
-  return agentRoutingMode() === "hybrid"
-}
-
-export function shouldRunDeterministicInterceptors(structuredFlowPending: boolean) {
-  if (usesRegexRouting()) return true
-  if (usesLlmFirstRouting()) return structuredFlowPending
   return true
+}
+
+/** @deprecated */
+export function usesRegexRouting() {
+  return false
+}
+
+/** @deprecated */
+export function usesHybridRouting() {
+  return false
+}
+
+/** @deprecated */
+export function shouldRunDeterministicInterceptors(_structuredFlowPending: boolean) {
+  return false
 }

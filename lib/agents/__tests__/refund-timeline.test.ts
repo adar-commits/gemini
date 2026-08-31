@@ -7,8 +7,8 @@ import {
   isReturnPolicyQuestion,
 } from "@/lib/agents/inquiry-intent"
 import { buildRefundTimelinePolicyReply, buildRefundStatusHandoffReply } from "@/lib/agents/policy-subjects"
-import { shouldHandlePostPurchaseCaseFlow } from "@/lib/agents/post-purchase-case"
-import { requiresOrderIdentification } from "@/lib/agents/order-lookup"
+import { requiresOrderIdentification, isServiceLookupContext } from "@/lib/agents/order-lookup"
+import type { HistoryMessage } from "@/lib/agents/types"
 
 const SCREENSHOT_MESSAGE =
   "שלום, אני מסרתי היום שטיח בחנות בסניף קריית אתא. מתי אני אקבל את ההחזר."
@@ -42,11 +42,20 @@ describe("refund timeline vs branch return", () => {
     assert.doesNotMatch(reply, /כתובות\s+הסניפים/)
   })
 
-  it("hands off post-pickup refund status to service without order lookup", () => {
+  it("post-pickup refund status is service lookup, not timeline FAQ", () => {
     assert.equal(isRefundStatusInquiry(REFUND_AFTER_PICKUP), true)
     assert.equal(isRefundTimelineQuestion(REFUND_AFTER_PICKUP), false)
-    assert.equal(shouldHandlePostPurchaseCaseFlow(REFUND_AFTER_PICKUP, [], null), false)
     assert.equal(requiresOrderIdentification(REFUND_AFTER_PICKUP), false)
+
+    const history: HistoryMessage[] = [
+      { role: "user", content: REFUND_AFTER_PICKUP },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nמה מספר ההזמנה?",
+      },
+    ]
+    assert.equal(isServiceLookupContext(history, "service"), true)
+
     const reply = buildRefundStatusHandoffReply()
     assert.match(reply, /נציג שירות/)
     assert.match(reply, /סטטוס ההחזר/)

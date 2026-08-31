@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
-import { runAgent, runMasterConversation } from "@/lib/agents/run-agent"
+import { runCustomerConversation } from "@/lib/agents/conversation"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { AGENT_IDS, type AgentId } from "@/lib/agents/types"
 
@@ -84,10 +84,7 @@ export async function POST(
 
   try {
     const turn: UserTurn = { text: body, media: [] }
-    const result =
-      agent === "master"
-        ? await runMasterConversation(conversationId, turn)
-        : await runAgent(agent, conversationId, turn)
+    const result = await runCustomerConversation(conversationId, turn)
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Agent failed"

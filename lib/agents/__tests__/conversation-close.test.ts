@@ -5,7 +5,6 @@ import {
   looksLikeThanksTypo,
 } from "@/lib/agents/conversation-close"
 import { buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
-import { isLikelyQuizAnswer } from "@/lib/agents/master-fallback"
 import { isSalesQuizContext } from "@/lib/agents/sales-intake"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -41,6 +40,5 @@ describe("isSalesQuizContext after inventory", () => {
       },
     ]
     assert.equal(isSalesQuizContext(history, "sales"), false)
-    assert.equal(isLikelyQuizAnswer("תוזה", history), false)
   })
 })

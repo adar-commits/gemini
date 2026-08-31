@@ -8,18 +8,13 @@ import {
   isReturnPolicyQuestion,
 } from "@/lib/agents/inquiry-intent"
 import { buildDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
-import { guessMasterRoute } from "@/lib/agents/route-intent"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { isFaqPolicyQuestion } from "@/lib/agents/policy-subjects"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import {
-  buildReturnRequestConfirmedReply,
-  resolvePostPurchaseCaseReply,
-  shouldHandlePostPurchaseCaseFlow,
-} from "@/lib/agents/post-purchase-case"
-import { RETURN_PICKUP_PENDING_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
-import { MISSING_ITEM_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
-import type { OrderShipmentStatus } from "@/lib/agents/order-lookup"
+  isOrderConfirmationYes,
+  isServiceLookupContext,
+} from "@/lib/agents/order-lookup"
 
 const RETURN_WHAT_TO_DO = "היי הגיע לי השטיח ואני רוצה להחזיר מה עלי לעשות?"
 const RETURN_OPTIONS = "היי הגיע לי השטיח ואני רוצה להחזיר מה אפשר לעשות?"
@@ -30,78 +25,31 @@ const RETURN_PICKUP_WAIT =
 const RETURN_PICKUP_COMPLAINT =
   "אני לא מבין למה אני צריך לחכות כל כך הרבה זמן שיאספו את השטיח ממני, אני בסך הכל רוצה להחזיר אותו"
 
-describe("owner routing decisions from trainer chat", () => {
-  it("routes active return pickup wait to service, not return policy FAQ", async () => {
+describe("owner routing decisions (v3 pattern layer)", () => {
+  it("routes active return pickup wait to service, not return policy FAQ", () => {
     assert.equal(isReturnPolicyQuestion(RETURN_PICKUP_WAIT), false)
     assert.equal(isActiveReturnExchangePickupCase(RETURN_PICKUP_WAIT), true)
     assert.equal(classifyPostPurchaseCase(RETURN_PICKUP_WAIT), "return_pickup_pending")
     assert.equal(isFaqPolicyQuestion(RETURN_PICKUP_WAIT), false)
     assert.equal(isServiceTopicSwitch(RETURN_PICKUP_WAIT), true)
-    assert.equal(guessMasterRoute(RETURN_PICKUP_WAIT), "ROUTE_TO_SERVICE_AGENT")
-
-    const reply = await resolvePostPurchaseCaseReply({
-      body: RETURN_PICKUP_WAIT,
-      phone: "+972547495083",
-      history: [],
-    })
-    assert.match(reply, /בקשת איסוף/)
-    assert.doesNotMatch(reply, /לגבי איסוף להחלפה\/החזרה/)
-    assert.match(reply, /אני צודק/)
-    assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
-    assert.doesNotMatch(reply, /14 ימים/)
   })
 
-  it("understands return pickup wait even when customer also says they want to return", async () => {
+  it("understands return pickup wait even when customer also says they want to return", () => {
     assert.equal(isReturnPolicyQuestion(RETURN_PICKUP_COMPLAINT), false)
     assert.equal(isActiveReturnExchangePickupCase(RETURN_PICKUP_COMPLAINT), true)
     assert.equal(classifyPostPurchaseCase(RETURN_PICKUP_COMPLAINT), "return_pickup_pending")
-    assert.equal(guessMasterRoute(RETURN_PICKUP_COMPLAINT), "ROUTE_TO_SERVICE_AGENT")
-
-    const reply = await resolvePostPurchaseCaseReply({
-      body: RETURN_PICKUP_COMPLAINT,
-      phone: "+972547495083",
-      history: [],
-    })
-    assert.match(reply, /בקשת איסוף/)
-    assert.match(reply, /טרם הגיעו לאסוף/)
-    assert.match(reply, /אני צודק/)
-    assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
   })
 
-  it("after intent confirm, proceeds to order lookup for return pickup wait", async () => {
+  it("after intent confirm, service lookup context binds נכון", () => {
     const history: HistoryMessage[] = [
       {
         role: "assistant",
-        content: `*הום בוט :)*\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?`,
+        content:
+          "*הום בוט :)*\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?",
       },
     ]
-    const reply = await resolvePostPurchaseCaseReply({
-      body: "כן",
-      phone: "+972547495083",
-      history,
-    })
-    assert.match(reply, /נאתר/)
-    assert.match(reply, /0547-495083/)
-    assert.match(reply, /לגבי איסוף להחלפה\/החזרה/)
-    assert.doesNotMatch(reply, /יועץ מכירות/)
-  })
-
-  it("after intent confirm with נכון, routes to service lookup not sales handoff", async () => {
-    const history: HistoryMessage[] = [
-      {
-        role: "assistant",
-        content: `*הום בוט :)*\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?`,
-      },
-    ]
-    assert.equal(shouldHandlePostPurchaseCaseFlow("נכון", history, "master"), true)
-    const reply = await resolvePostPurchaseCaseReply({
-      body: "נכון",
-      phone: "+972547495083",
-      history,
-    })
-    assert.match(reply, /נאתר|אמצא/)
-    assert.doesNotMatch(reply, /יועץ מכירות/)
-    assert.doesNotMatch(reply, /יועץ מכירות ועיצוב/)
+    assert.equal(isOrderConfirmationYes("נכון"), true)
+    assert.equal(isServiceLookupContext(history, "service"), true)
   })
 
   it("treats received + return + what-to-do as FAQ return policy, not service lookup", () => {
@@ -113,7 +61,7 @@ describe("owner routing decisions from trainer chat", () => {
 
   it("routes delayed shipment to shipping status, not service", () => {
     assert.equal(isShippingStatusQuestion(DELAYED_SHIPMENT), true)
-    assert.equal(guessMasterRoute(DELAYED_SHIPMENT), "ROUTE_TO_SHIPPING_STATUS")
+    assert.equal(isServiceTopicSwitch(DELAYED_SHIPMENT), false)
   })
 
   it("uses deterministic dissatisfaction rescue with exchange-first policy", () => {
@@ -123,45 +71,5 @@ describe("owner routing decisions from trainer chat", () => {
     assert.match(reply, /יועץ מכירות/)
     assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
     assert.doesNotMatch(reply, /^מבין! אפשר להחליף/m)
-  })
-
-  it("after return order confirmed, sends portal policy before optional נציג", () => {
-    const order: OrderShipmentStatus = {
-      orderNumber: "SO26020888",
-      statusCode: "delivered",
-      statusLabel: "נמסר",
-      branchLabel: "אתר אינטרנט",
-      branchCode: "3000",
-      totalPrice: 35.55,
-      statusDescription: "המשלוח נמסר",
-    }
-    const reply = buildReturnRequestConfirmedReply(order)
-    assert.match(reply, /SO26020888/)
-    assert.match(reply, /returns\.carpetshop\.co\.il/)
-    assert.match(reply, /נציג/)
-    assert.doesNotMatch(reply, /האם להעביר את הפנייה לנציג שירות שיטפל/)
-  })
-
-  it("clarifies bare numeric mid-flow instead of assuming order number", async () => {
-    const history: HistoryMessage[] = [
-      {
-        role: "user",
-        content: "ביצעתי שתי הזמנות וקיבלתי רק אחת מהן",
-        agent: null,
-      },
-      {
-        role: "assistant",
-        content: `*הום בוט :)*\n${MISSING_ITEM_FLOW_MARKER}.\nאיזה מוצר היה בהזמנה שלא הגיעה?`,
-        agent: "service",
-      },
-      { role: "user", content: "שטיח בהיר לסלון", agent: null },
-    ]
-    const reply = await resolvePostPurchaseCaseReply({
-      body: "664483",
-      phone: "+972547495083",
-      history,
-    })
-    assert.match(reply, /664483/)
-    assert.match(reply, /מספר ההזמנה/)
   })
 })

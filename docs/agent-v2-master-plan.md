@@ -1,5 +1,7 @@
 # HoM Agent v2 — Master Plan (Aug 2026)
 
+> **Superseded by [agent-v3-single-agent.md](./agent-v3-single-agent.md)** — v2 hybrid/T0/Master routing has been replaced by a single LLM agent + tools.
+
 ## Problem statement
 
 Trainer chats showed the bot felt "stupid" despite expensive models. Root cause was **architecture**, not model IQ:

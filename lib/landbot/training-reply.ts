@@ -1,4 +1,4 @@
-import { runMasterConversation } from "@/lib/agents/run-agent"
+import { runCustomerConversation } from "@/lib/agents/conversation"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import {
   getConversationTail,
@@ -133,7 +133,7 @@ export async function sendTrainingReply(
 
   const customer = await getCustomer(customerId).catch(() => null)
   const turn: UserTurn = { text: userText, media: [] }
-  const result = await runMasterConversation(conversationId, turn, {
+  const result = await runCustomerConversation(conversationId, turn, {
     customerName: customer?.name?.trim() || undefined,
     preview: true,
   })

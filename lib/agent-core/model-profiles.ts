@@ -49,7 +49,7 @@ export const MODEL_PROFILES: Record<Exclude<ProfileName, "custom">, ModelProfile
   },
 }
 
-export const DEFAULT_PROFILE_NAME: Exclude<ProfileName, "custom"> = "quality"
+export const DEFAULT_PROFILE_NAME: Exclude<ProfileName, "custom"> = "balanced"
 
 export function profileByName(name: string): ModelProfile {
   if (name === "custom") {
