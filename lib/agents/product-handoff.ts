@@ -112,7 +112,10 @@ const HAVE_PRODUCT_RE =
   /(?:יש\s+(?:ל(?:כם|נו)|במלאי)|יש\s+אצל(?:כם|נו)|אצל(?:כם|נו))\s*(?:את\s+)?/i
 
 const URL_REQUEST_MARKER_RE =
-  /קישור לדף המוצר|קישור למוצר מהאתר|שלח(?:\/|)?(?:ו|י)?\s*קישור/i
+  /קישור לדף המוצר|קישור למוצר|לצרף\s+קישור|שלח(?:\/|)?(?:ו|י)?\s*קישור|פרטים\s+טכניים/i
+
+const PRODUCT_SPECIFIC_QUESTION_RE =
+  /מתאים\s+ל(?:ילד|תינוק|בע(?:ל)?י\s+חיים)|(?:ל)?ילד(?:ים|ה)|צבע(?:ים)?|מיד(?:ה|ות)|גוד(?:ל|ים)|עובי|חומ(?:ר|ר)|פרטים\s+טכנ|ניתן\s+ל(?:נקות|כבס)|אל(?:רג|ג)י|רעש|בטיחות|מתאים\s+ל/i
 
 function hasNamedModel(text: string) {
   if (KNOWN_MODEL_RE.test(text)) return true
@@ -143,6 +146,52 @@ export function isProductDetailsPending(history: HistoryMessage[]) {
     return PRODUCT_DETAILS_PENDING_RE.test(message.content)
   }
   return false
+}
+
+/** Bot is collecting product link / context before sales handoff — never call catalog APIs. */
+export function isAwaitingProductReference(history: HistoryMessage[]) {
+  if (
+    isProductDetailsPending(history) ||
+    isProductUrlRequestPending(history) ||
+    isProductHandoffPending(history)
+  ) {
+    return true
+  }
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return URL_REQUEST_MARKER_RE.test(message.content)
+  }
+  return false
+}
+
+/** Product-details or URL-prep thread — includes recent user product ask even if LLM replied. */
+export function isActiveProductSalesPrepThread(history: HistoryMessage[]) {
+  if (isAwaitingProductReference(history)) return true
+  const recent = history.slice(-10)
+  if (
+    recent.some(
+      (message) =>
+        message.role === "assistant" &&
+        PRODUCT_DETAILS_PENDING_RE.test(message.content)
+    )
+  ) {
+    return true
+  }
+  const userText = recent
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .join("\n")
+  return isProductDetailsRequest(userText)
+}
+
+/** Suitability, materials, sizes, etc. — sales prepares handoff; not live inventory. */
+export function isProductSpecificQuestion(body: string) {
+  const text = body.trim()
+  if (!text || isFaqTopicSwitch(text)) return false
+  if (isInventoryQuestion(text) || looksLikeInventorySku(text)) return false
+  if (hasProductUrl(text)) return false
+  return PRODUCT_SPECIFIC_QUESTION_RE.test(text)
 }
 
 export function extractProductUrl(text: string): string | null {
@@ -227,6 +276,13 @@ export function buildProductDetailsReminder() {
 אשמח לדעת איזה פרטים חסרים, או לקבל קישור למוצר מהאתר.`
 }
 
+/** Product-specific ask without URL yet — collect link for sales advisor. */
+export function buildProductSalesHandoffPrepReply() {
+  return `${CUSTOMER_HEADER}
+אין לי גישה לפרטים הטכניים של הדגם כדי לענות בוודאות.
+אפשר לצרף קישור לדף המוצר באתר? כך אוכל להעביר את הפנייה ליועץ מכירות שיוכל לענות על זה במדויק.`
+}
+
 /** Ask for a product page link — never quote the customer's words back. */
 export function buildProductUrlRequest() {
   return `${CUSTOMER_HEADER}
@@ -249,11 +305,11 @@ export function acceptsAsProductReference(body: string) {
   return true
 }
 
-/** After receiving a product URL or any accepted product reference — offer human handoff. */
+/** After receiving a product URL — offer human handoff (no API lookup). */
 export function buildProductHandoffAfterReference(_body: string) {
   return `${CUSTOMER_HEADER}
 קיבלתי, תודה.
-אין לי גישה ישירה לקטלוג ולמלאי — יועץ המכירות יוכל לעזור עם פרטים, מחירים וזמינות.
+אעביר ליועץ מכירות את הקישור והשאלה — הוא יוכל לעזור עם הפרטים במדויק.
 האם להעביר את הפנייה כעת ליועץ מכירות ועיצוב אנושי?`
 }
 

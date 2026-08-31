@@ -48,12 +48,24 @@ function isPhoneLikeSkuToken(token: string) {
   return false
 }
 
+const PRODUCT_URL_STRIP_RE =
+  /https?:\/\/(?:www\.)?(?:carpetshop|pozitiveshop)\.co\.il\/products\/[^\s]+/gi
+
+function hasProductUrlInText(text: string) {
+  return PRODUCT_URL_STRIP_RE.test(text)
+}
+
+function textWithoutProductUrls(text: string) {
+  return text.replace(PRODUCT_URL_STRIP_RE, " ").trim()
+}
+
 /** SKU always contains a hyphen (e.g. 40400025-200290). Prefer Hom 8-6 digit format. */
 export function extractSku(text: string): string | null {
-  const homMatch = text.match(HOM_SKU_RE)
+  const scoped = textWithoutProductUrls(text)
+  const homMatch = scoped.match(HOM_SKU_RE)
   if (homMatch?.[1] && isValidInventorySku(homMatch[1])) return homMatch[1]
 
-  const tokens = text.match(/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+/g) ?? []
+  const tokens = scoped.match(/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+/g) ?? []
   for (const token of tokens) {
     if (DATE_SKU_RE.test(token)) continue
     if (isPhoneLikeSkuToken(token)) continue
@@ -147,6 +159,7 @@ export function shouldHandleBranchInventory(
   body: string,
   history: HistoryMessage[] = []
 ) {
+  if (hasProductUrlInText(body)) return isBareSkuMessage(textWithoutProductUrls(body))
   if (isSkuRequestPending(history)) return true
   if (isInventoryQuestion(body)) return true
   return false

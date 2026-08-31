@@ -6,6 +6,7 @@ import {
   extractSku,
   isBareSkuMessage,
   isInventoryQuestion,
+  looksLikeInventorySku,
   lookupInventoryBySku,
   resolveBranchInventoryReply,
 } from "@/lib/agents/inventory-lookup"
@@ -93,10 +94,37 @@ describe("buildInventoryAvailabilityReply", () => {
 })
 
 describe("lookupInventoryBySku", () => {
-  it("parses live webhook payload with empty warehouses", async () => {
-    const result = await lookupInventoryBySku("40400025-200290")
-    assert.ok(result)
-    assert.equal(result?.sku, "40400025-200290")
-    assert.ok(Array.isArray(result?.warehouses_inventory))
+  it("does not extract SKU slug from product URLs", () => {
+    const url =
+      "https://www.carpetshop.co.il/products/topaz-cream-green?variant=44355920298175"
+    assert.equal(extractSku(url), null)
+    assert.equal(looksLikeInventorySku(url), false)
+  })
+})
+
+describe("product URL sales handoff", () => {
+  it("routes product URL in prep thread to handoff without inventory SKU", async () => {
+    const { buildProductHandoffAfterReference, isActiveProductSalesPrepThread } =
+      await import("@/lib/agents/product-handoff")
+    const history = [
+      {
+        role: "user" as const,
+        content: "היי אשמח לפרטים נוספים לגבי שטיח טרנדי",
+      },
+      {
+        role: "assistant" as const,
+        content:
+          "בשמחה, אשמח לדעת איזה פרטים חסרים לך?\nניתן גם להוסיף קישור למוצר עצמו",
+      },
+      { role: "user" as const, content: "הוא מתאים לילדים?" },
+    ]
+    assert.equal(isActiveProductSalesPrepThread(history), true)
+    assert.match(
+      buildProductHandoffAfterReference(
+        "https://www.carpetshop.co.il/products/topaz-cream-green"
+      ),
+      /האם להעביר/
+    )
+    assert.doesNotMatch(buildProductHandoffAfterReference("url"), /תקלה/)
   })
 })

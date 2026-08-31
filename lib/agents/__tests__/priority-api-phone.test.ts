@@ -116,6 +116,13 @@ describe("validatePriorityApiPayload", () => {
     assert.equal(
       validatePriorityApiPayload({
         actionType: "getInventoryBranch",
+        value: "topaz-cream-green",
+      }).ok,
+      false
+    )
+    assert.equal(
+      validatePriorityApiPayload({
+        actionType: "getInventoryBranch",
         value: "0547495083",
       }).ok,
       false

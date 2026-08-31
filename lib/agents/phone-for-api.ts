@@ -30,6 +30,9 @@ export function isValidInventorySku(value: string) {
   if (!token.includes("-")) return false
   if (isPhoneLikeToken(token)) return false
   if (/^\d{8}-\d{6}$/.test(token)) return true
+  const parts = token.split("-")
+  if (parts.length < 2) return false
+  if (!parts.every((part) => /\d/.test(part))) return false
   return /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$/.test(token)
 }
 
