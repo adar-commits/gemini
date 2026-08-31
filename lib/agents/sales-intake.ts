@@ -1,6 +1,6 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { salesIntakeMode } from "@/lib/agent-core/config"
-import { isProductInventoryQuestion, isSpecificProductMention, extractRequestedModel } from "@/lib/agents/product-handoff"
+import { isProductDetailsRequest, isProductInventoryQuestion, isSpecificProductMention, extractRequestedModel } from "@/lib/agents/product-handoff"
 import { isInventoryQuestion } from "@/lib/agents/inventory-lookup"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import {
@@ -332,6 +332,7 @@ export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
     if (isFaqTopicSwitch(trimmed)) return true
     if (isServiceTopicSwitch(trimmed)) return true
     if (isShippingPolicyQuestion(trimmed) || isShippingStatusQuestion(trimmed)) return true
+    if (isProductDetailsRequest(trimmed)) return true
     if (isProductInventoryQuestion(trimmed) || isSpecificProductMention(trimmed)) return true
     if (isInventoryQuestion(trimmed)) return true
     return false
@@ -341,6 +342,7 @@ export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
   if (isFaqTopicSwitch(trimmed)) return true
   if (isServiceTopicSwitch(trimmed)) return true
   if (isShippingPolicyQuestion(trimmed) || isShippingStatusQuestion(trimmed)) return true
+  if (isProductDetailsRequest(trimmed)) return true
   if (isProductInventoryQuestion(trimmed) || isSpecificProductMention(trimmed)) return true
   if (isInventoryQuestion(trimmed)) return true
   if (

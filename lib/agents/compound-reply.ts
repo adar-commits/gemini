@@ -1,6 +1,7 @@
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 import { isBranchListQuestion } from "@/lib/agents/branches"
 import { isInventoryQuestion } from "@/lib/agents/inventory-lookup"
+import { isProductDetailsRequest } from "@/lib/agents/product-handoff"
 import {
   isFaqTopicSwitch,
   isSalesTopicSwitch,
@@ -41,6 +42,7 @@ export function hasEmbeddedBusinessAsk(text: string) {
     isFaqTopicSwitch(body) ||
     isBranchListQuestion(body) ||
     isInventoryQuestion(body) ||
+    isProductDetailsRequest(body) ||
     isShippingPolicyQuestion(body) ||
     isShippingStatusQuestion(body) ||
     isServiceTopicSwitch(body) ||
@@ -125,7 +127,7 @@ export function replyAwaitingCustomerInput(reply: string) {
   const text = reply.trim()
   if (!text) return false
   return (
-    /(?:מק(?:״|"|')?ט|קישור\s+ל(?:דף)?|שלח(?:\/|)?(?:ו|י)?\s*קישור|אשמח\s+לקבל|אצטרך|אוכל\s+לקבל|יש\s+ל(?:ך|כם)\s+א(?:ת|ת))/.test(
+    /(?:מק(?:״|"|')?ט|קישור\s+ל(?:דף)?|שלח(?:\/|)?(?:ו|י)?\s*קישור|אשמח\s+לקבל|אצטרך|אוכל\s+לקבל|יש\s+ל(?:ך|כם)\s+א(?:ת|ת)|איזה פרטים חסרים)/.test(
       text
     ) ||
     /כדי\s+לבדוק\s+מלאי/.test(text) ||

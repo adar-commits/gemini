@@ -26,6 +26,8 @@ const SKU_REQUEST_RE =
 const RESTOCK_RE =
   /(?:חוזר(?:ים)?|יחז(?:ור|רו)|חזר(?:ה|ו))\s+(?:ל)?(?:מלאי|זמינות)|מתי\s+(?:יחזור|חוזר).*?(?:מלאי|זמינות)|תחז(?:ית|יות).*?(?:מלאי|זמינות)/i
 
+const HOM_SKU_RE = /\b(\d{8}-\d{6})\b/
+
 const DATE_SKU_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export type WarehouseInventory = {
@@ -46,15 +48,23 @@ function isPhoneLikeSkuToken(token: string) {
   return false
 }
 
-/** SKU always contains a hyphen (e.g. 31501090-200290). Not a phone or date. */
+/** SKU always contains a hyphen (e.g. 40400025-200290). Prefer Hom 8-6 digit format. */
 export function extractSku(text: string): string | null {
+  const homMatch = text.match(HOM_SKU_RE)
+  if (homMatch?.[1] && isValidInventorySku(homMatch[1])) return homMatch[1]
+
   const tokens = text.match(/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+/g) ?? []
   for (const token of tokens) {
     if (DATE_SKU_RE.test(token)) continue
     if (isPhoneLikeSkuToken(token)) continue
+    if (!isValidInventorySku(token)) continue
     return token
   }
   return null
+}
+
+export function looksLikeInventorySku(text: string) {
+  return extractSku(text) != null
 }
 
 export function isBareSkuMessage(body: string) {
@@ -282,7 +292,9 @@ export function buildInventoryAvailabilityReply(
   }
 
   if (available.length === 0 && unavailable.length === 0) {
-    return buildInventoryNotFoundReply(row.sku)
+    return `${CUSTOMER_HEADER}
+בדקתי את הדגם ${row.sku} — כרגע אין במלאי בסניפים.
+אפשר להעביר ליועץ מכירות שיבדוק עבורך?`
   }
 
   const lines = [

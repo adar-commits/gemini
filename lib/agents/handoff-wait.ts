@@ -1,5 +1,6 @@
 import { isBranchListQuestion } from "@/lib/agents/branches"
-import { isBareSkuMessage, isBranchInventoryQuestion, isInventoryQuestion } from "@/lib/agents/inventory-lookup"
+import { isInventoryQuestion } from "@/lib/agents/inventory-lookup"
+import { isProductDetailsRequest } from "@/lib/agents/product-handoff"
 import {
   isFaqTopicSwitch,
   isSalesTopicSwitch,
@@ -33,7 +34,7 @@ export function breaksPendingHandoff(body: string) {
     isFaqTopicSwitch(text) ||
     isBranchListQuestion(text) ||
     isInventoryQuestion(text) ||
-    isBareSkuMessage(text) ||
+    isProductDetailsRequest(text) ||
     isShippingPolicyQuestion(text) ||
     isShippingStatusQuestion(text) ||
     isServiceTopicSwitch(text) ||

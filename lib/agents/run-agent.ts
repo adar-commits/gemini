@@ -29,6 +29,8 @@ import { appendTurn, appendMultiReplyTurn, getConversationContext } from "@/lib/
 import { guessMasterRoute, shouldContinueWithSpecialist, stickySpecialist } from "@/lib/agents/route-intent"
 import {
   buildProductInventoryHandoff,
+  buildProductDetailsOpener,
+  buildProductDetailsReminder,
   buildProductUrlReminder,
   isProductSearchFailure,
   buildProductUrlRequest,
@@ -36,6 +38,8 @@ import {
   buildProductHandoffAfterReference,
   hasProductUrl,
   isProductAvailabilityQuestion,
+  isProductDetailsPending,
+  isProductDetailsRequest,
   isProductInventoryQuestion,
   isProductUrlRequestPending,
   isProductHandoffPending,
@@ -316,6 +320,25 @@ async function runT0DeterministicPaths(
   )
   if (inventoryEarly) return markT0Routing(conversationId, inventoryEarly)
 
+  if (isProductDetailsRequest(body) && !hasProductUrl(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductDetailsOpener())
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return markT0Routing(conversationId, {
+      ok: true,
+      agent: "sales",
+      reply,
+      action: "reply",
+      route: [...route, "sales"],
+    })
+  }
+
   if (isBranchListQuestion(body)) {
     return markT0Routing(
       conversationId,
@@ -457,6 +480,10 @@ function sanitizeFaqProductReply(body: string, reply: string, history: HistoryMe
   if (isInventoryQuestion(body)) {
     if (/מק(?:״|"|')?ט|כדי לבדוק מלאי/i.test(reply)) return reply
     return buildSkuRequestPrompt()
+  }
+  if (isProductDetailsRequest(body)) {
+    if (/איזה פרטים חסרים/i.test(reply)) return reply
+    return buildProductDetailsOpener()
   }
   if (
     !isProductInventoryQuestion(body) &&
@@ -1262,6 +1289,20 @@ async function resolveSpecialist(
     return { ok: true, agent: "sales", reply, action: "reply", route }
   }
 
+  if (isProductDetailsRequest(body) && !hasProductUrl(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductDetailsOpener())
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      persistUser,
+      preview,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route }
+  }
+
   if (isSpecificProductMention(body, history) && !hasProductUrl(body)) {
     const reply = normalizeReply("sales", "reply", buildProductUrlRequest())
     await appendTurn({
@@ -1422,7 +1463,12 @@ async function resolveSpecialist(
 
 function shouldHandleBranchInventoryFlow(body: string, history: HistoryMessage[]) {
   if (shouldHandleBranchInventory(body, history)) return true
-  if (extractSku(body) && isProductUrlRequestPending(history)) return true
+  if (
+    extractSku(body) &&
+    (isProductUrlRequestPending(history) || isProductDetailsPending(history))
+  ) {
+    return true
+  }
   return false
 }
 
@@ -2498,6 +2544,38 @@ export async function runMasterConversation(
     )
   }
 
+  if (isProductDetailsPending(history) && !breaksPendingHandoff(body)) {
+    if (extractSku(body)) {
+      const inventoryAfterDetails = await tryBranchInventoryResult(
+        conversationId,
+        body,
+        history,
+        route,
+        true,
+        preview
+      )
+      if (inventoryAfterDetails) return inventoryAfterDetails
+    }
+    const agent =
+      lastAgent && isSpecialistId(lastAgent) ? lastAgent : ("sales" as const)
+    const reply = normalizeReply(
+      agent,
+      "reply",
+      hasProductUrl(body) || acceptsAsProductReference(body)
+        ? buildProductHandoffAfterReference(body)
+        : buildProductDetailsReminder()
+    )
+    await appendTurn({
+      conversationId,
+      agent,
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
+  }
+
   if (isProductUrlRequestPending(history) && !breaksPendingHandoff(body)) {
     if (extractSku(body)) {
       const inventoryAfterUrl = await tryBranchInventoryResult(
@@ -2534,6 +2612,19 @@ export async function runMasterConversation(
 
   if (isProductInventoryQuestion(body)) {
     const reply = normalizeReply("sales", "reply", buildProductInventoryHandoff())
+    await appendTurn({
+      conversationId,
+      agent: "sales",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return { ok: true, agent: "sales", reply, action: "reply", route: [...route, "sales"] }
+  }
+
+  if (isProductDetailsRequest(body) && !hasProductUrl(body)) {
+    const reply = normalizeReply("sales", "reply", buildProductDetailsOpener())
     await appendTurn({
       conversationId,
       agent: "sales",

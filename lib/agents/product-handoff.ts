@@ -5,6 +5,7 @@ import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import { isProductDefectComplaint, isPostPurchaseDissatisfaction, isMissingOrPartialDeliveryComplaint } from "@/lib/agents/inquiry-intent"
 import {
   isInventoryQuestion,
+  looksLikeInventorySku,
 } from "@/lib/agents/inventory-lookup"
 import { isServiceOrderIdentificationPending } from "@/lib/agents/order-lookup"
 import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
@@ -96,7 +97,13 @@ const PRODUCT_URL_RE =
   /https?:\/\/(?:www\.)?(?:carpetshop|pozitiveshop)\.co\.il\/products\/[^\s]+/i
 
 const LANDBOT_PRODUCT_DETAILS_RE =
-  /פרטים\s+נוספים\s+לגבי\s+(?:שטיח|פוף)/i
+  /פרטים\s+(?:נוספים\s+)?(?:ע(?:ל|בור)|לגבי)\s+(?:שטיח|פוף)/i
+
+const PRODUCT_DETAILS_REQUEST_RE =
+  /(?:אשמח\s+ל)?פרטים(?:\s+נוספים)?\s+(?:ע(?:ל|בור)|לגבי)\s+/i
+
+const PRODUCT_DETAILS_PENDING_RE =
+  /איזה פרטים חסרים לך|להוסיף קישור למוצר עצמו/i
 
 const CONSULTATION_IN_MESSAGE_RE =
   /ייעוץ|עוזר\s+לבחור|בחיר(?:ת|ה)\s+שטיח|מתלבט/i
@@ -119,6 +126,23 @@ function hasSpecificProductContext(text: string) {
     hasProductUrl(text) ||
     (LANDBOT_PRODUCT_DETAILS_RE.test(text) && !CONSULTATION_IN_MESSAGE_RE.test(text))
   )
+}
+
+/** Landbot / WhatsApp "פרטים על/לגבי <product>" — ask what's missing before URL push. */
+export function isProductDetailsRequest(body: string) {
+  const text = body.trim()
+  if (!text || isFaqTopicSwitch(text)) return false
+  if (isInventoryQuestion(text) || looksLikeInventorySku(text)) return false
+  return PRODUCT_DETAILS_REQUEST_RE.test(text) || LANDBOT_PRODUCT_DETAILS_RE.test(text)
+}
+
+export function isProductDetailsPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return PRODUCT_DETAILS_PENDING_RE.test(message.content)
+  }
+  return false
 }
 
 export function extractProductUrl(text: string): string | null {
@@ -156,6 +180,7 @@ export function isSpecificProductMention(body: string, history: HistoryMessage[]
   if (isPostPurchaseDissatisfaction(text) || isProductDefectComplaint(text)) return false
   if (isMissingOrPartialDeliveryComplaint(text)) return false
   if (isInventoryQuestion(text)) return false
+  if (isProductDetailsRequest(text)) return false
   if (isProductInventoryQuestion(text)) return false
   if (isSalesConsultationTrigger(text) && !hasNamedModel(text) && !hasProductUrl(text)) {
     return false
@@ -188,6 +213,18 @@ export function isProductHandoffPending(history: HistoryMessage[]) {
     return /האם להעביר את הפנייה כעת ליועץ מכירות/.test(message.content)
   }
   return false
+}
+
+/** Ask what's missing — optional product link for sales handoff. */
+export function buildProductDetailsOpener() {
+  return `${CUSTOMER_HEADER}
+בשמחה, אשמח לדעת איזה פרטים חסרים לך?
+ניתן גם להוסיף קישור למוצר עצמו כך שאעביר את הפנייה ישירות ליועץ מכירות שיוכל לעזור לך להתקדם הלאה.`
+}
+
+export function buildProductDetailsReminder() {
+  return `${CUSTOMER_HEADER}
+אשמח לדעת איזה פרטים חסרים, או לקבל קישור למוצר מהאתר.`
 }
 
 /** Ask for a product page link — never quote the customer's words back. */
