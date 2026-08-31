@@ -28,7 +28,6 @@ import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { appendTurn, appendMultiReplyTurn, getConversationContext } from "@/lib/agents/memory"
 import { guessMasterRoute, shouldContinueWithSpecialist, stickySpecialist } from "@/lib/agents/route-intent"
 import {
-  buildProductInventoryHandoff,
   buildProductDetailsOpener,
   buildProductDetailsReminder,
   buildProductSalesHandoffPrepReply,
@@ -169,7 +168,9 @@ import {
   isBranchInventoryQuestion,
   isInventoryAvailabilityReply,
   isInventoryQuestion,
+  isInventoryQuestionWithContext,
   isActiveInventoryThread,
+  isSkuRequestPending,
   resolveBranchInventoryReply,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
@@ -509,7 +510,10 @@ function sanitizeFaqProductReply(body: string, reply: string, history: HistoryMe
     return reply
   }
   if (/אין לי גישה|קישור לדף|יועץ מכירות|האם להעביר/i.test(reply)) return reply
-  if (isProductInventoryQuestion(body)) return buildProductInventoryHandoff()
+  if (isProductInventoryQuestion(body)) return buildSkuRequestPrompt()
+  if (hasProductUrl(body) && (isSkuRequestPending(history) || isActiveInventoryThread(history))) {
+    return buildSkuRequestPrompt()
+  }
   if (hasProductUrl(body)) return buildProductHandoffAfterReference(body)
   return buildProductUrlRequest()
 }
@@ -1103,7 +1107,7 @@ async function resolveSpecialist(
     ) {
       result = {
         ...result,
-        reply: normalizeReply("sales", "reply", buildProductInventoryHandoff()),
+        reply: normalizeReply("sales", "reply", buildSkuRequestPrompt()),
       }
     }
 
@@ -1290,8 +1294,8 @@ async function resolveSpecialist(
     return { ok: true, agent: "faq", reply, action: "reply", route }
   }
 
-  if (isProductInventoryQuestion(body)) {
-    const reply = normalizeReply("sales", "reply", buildProductInventoryHandoff())
+  if (isProductInventoryQuestion(body) && !isInventoryQuestionWithContext(body, history)) {
+    const reply = normalizeReply("sales", "reply", buildSkuRequestPrompt())
     await appendTurn({
       conversationId,
       agent: "sales",
@@ -1396,7 +1400,7 @@ async function resolveSpecialist(
         isInventoryAvailabilityReply(result.reply)
           ? result.reply
           : FAKE_STOCK_REPLY_RE.test(result.reply)
-        ? buildProductInventoryHandoff()
+        ? buildSkuRequestPrompt()
         : isStrictMisunderstandingReply(result.reply)
           ? shouldUseSalesIntakeFastPath(body, history, options?.lastAgent ?? null)
             ? buildSalesIntakeReply(history, body)
@@ -1407,10 +1411,24 @@ async function resolveSpecialist(
   }
 
   if (specialist === "faq" && result.reply && isStrictMisunderstandingReply(result.reply)) {
-    result = {
-      ...result,
-      reply: normalizeReply("faq", "reply", buildMasterConfusedReply(body)),
-      action: "reply",
+    if (shouldHandleBranchInventoryFlow(body, history)) {
+      const inventoryReply = normalizeReply(
+        "sales",
+        "reply",
+        await resolveBranchInventoryReply({ body, history })
+      )
+      result = {
+        ...result,
+        agent: "sales",
+        reply: inventoryReply,
+        action: "reply",
+      }
+    } else {
+      result = {
+        ...result,
+        reply: normalizeReply("faq", "reply", buildMasterConfusedReply(body)),
+        action: "reply",
+      }
     }
   }
 
@@ -1477,6 +1495,9 @@ async function resolveSpecialist(
 }
 
 function shouldHandleBranchInventoryFlow(body: string, history: HistoryMessage[]) {
+  if (isSkuRequestPending(history) || isActiveInventoryThread(history)) {
+    return shouldHandleBranchInventory(body, history)
+  }
   if (hasProductUrl(body) && !isBareSkuMessage(body.replace(/https?:\/\/\S+/gi, " ").trim())) {
     return false
   }
@@ -1491,6 +1512,7 @@ async function tryProductSalesHandoffResult(
   persistUser: boolean,
   preview?: boolean
 ): Promise<AgentResponse | null> {
+  if (isInventoryQuestionWithContext(body, history) && hasProductUrl(body)) return null
   if (isInventoryQuestion(body) && !hasProductUrl(body)) return null
 
   const prepThread = isActiveProductSalesPrepThread(history)
@@ -1996,6 +2018,17 @@ async function routeViaMasterLlm(
     )
   }
   if (masterFallback?.kind === "handoff_offer") {
+    if (shouldHandleBranchInventoryFlow(body, history)) {
+      const inventoryFallback = await tryBranchInventoryResult(
+        conversationId,
+        body,
+        history,
+        route,
+        true,
+        preview
+      )
+      if (inventoryFallback) return inventoryFallback
+    }
     const reply = normalizeReply("faq", "reply", buildMasterConfusedReply(body))
     await appendTurn({
       conversationId,
@@ -2687,7 +2720,7 @@ export async function runMasterConversation(
       agent,
       "reply",
       isProductInventoryQuestion(body) || isProductSearchFailure(body)
-        ? buildProductInventoryHandoff()
+        ? buildSkuRequestPrompt()
         : isProductSpecificQuestion(body)
           ? buildProductSalesHandoffPrepReply()
           : buildProductUrlReminder()
@@ -2703,8 +2736,8 @@ export async function runMasterConversation(
     return { ok: true, agent, reply, action: "reply", route: [...route, agent] }
   }
 
-  if (isProductInventoryQuestion(body)) {
-    const reply = normalizeReply("sales", "reply", buildProductInventoryHandoff())
+  if (isProductInventoryQuestion(body) && !isInventoryQuestionWithContext(body, history)) {
+    const reply = normalizeReply("sales", "reply", buildSkuRequestPrompt())
     await appendTurn({
       conversationId,
       agent: "sales",
@@ -2781,6 +2814,17 @@ export async function runMasterConversation(
     )
   }
   if (masterFallback?.kind === "handoff_offer") {
+    if (shouldHandleBranchInventoryFlow(body, history)) {
+      const inventoryFallback = await tryBranchInventoryResult(
+        conversationId,
+        body,
+        history,
+        route,
+        true,
+        preview
+      )
+      if (inventoryFallback) return inventoryFallback
+    }
     const reply = normalizeReply("faq", "reply", buildMasterConfusedReply(body))
     await appendTurn({
       conversationId,

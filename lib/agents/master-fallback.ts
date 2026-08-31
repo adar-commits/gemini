@@ -22,6 +22,12 @@ import {
 import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
+import {
+  isInventoryQuestionWithContext,
+  isSkuRequestPending,
+  isActiveInventoryThread,
+} from "@/lib/agents/inventory-lookup"
+import { hasProductUrl } from "@/lib/agents/product-handoff"
 import { buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
 
 export type MasterFallbackKind = "sales_intake" | "handoff_offer"
@@ -70,6 +76,10 @@ function hasClearRoute(body: string, history: HistoryMessage[]) {
   if (isCasualGreeting(body)) return true
   if (hasImmediateBusinessAsk(body)) return true
   if (isDigitalDocumentRequest(body)) return true
+  if (isInventoryQuestionWithContext(body, history)) return true
+  if (hasProductUrl(body) && (isSkuRequestPending(history) || isActiveInventoryThread(history))) {
+    return true
+  }
   if (guessMasterRoute(body)) return true
   if (isSalesConsultationTrigger(body)) return true
   if (mentionsPetInText(body)) return true

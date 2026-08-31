@@ -2,11 +2,13 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   buildInventoryAvailabilityReply,
+  buildProductUrlSkuPrompt,
   buildSkuRequestPrompt,
   extractSku,
   isActiveInventoryThread,
   isBareSkuMessage,
   isInventoryQuestion,
+  isInventoryQuestionWithContext,
   looksLikeInventorySku,
   lookupInventoryBySku,
   resolveBranchInventoryReply,
@@ -110,6 +112,64 @@ describe("inventory vs product URL routing", () => {
     assert.equal(isProductInventoryQuestion(body), false)
     assert.equal(isSpecificProductMention(body), false)
     assert.match(buildSkuRequestPrompt(), /מק״ט/)
+  })
+
+  it("detects branch display questions with region between סניף and יש", () => {
+    const body = "באיזה סניף בצפון יש אותו לתצוגה"
+    assert.equal(isInventoryQuestion(body), true)
+  })
+
+  it("uses recent turns for inventory follow-ups", () => {
+    const history = [
+      {
+        role: "user" as const,
+        content: "מתי השטיח nice במידה 240*340 יחזור למלאי",
+        agent: null,
+      },
+      {
+        role: "assistant" as const,
+        content: "כדי לבדוק מלאי וזמינות, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).",
+        agent: "sales",
+      },
+    ]
+    const body = "באיזה סניף בצפון יש אותו לתצוגה"
+    assert.equal(isInventoryQuestionWithContext(body, history), true)
+  })
+
+  it("accepts product URL during pending SKU request without confused handoff", async () => {
+    const history = [
+      {
+        role: "user" as const,
+        content: "מתי השטיח nice יחזור למלאi",
+        agent: null,
+      },
+      {
+        role: "assistant" as const,
+        content: "כדי לבדוק מלאi, אצטרך את המק״ט (מספר הדגם, כולל מקף).",
+        agent: "sales",
+      },
+    ]
+    const url = "https://www.carpetshop.co.il/products/nice-beige-rec"
+    assert.equal(shouldHandleBranchInventory(url, history), true)
+    const reply = await resolveBranchInventoryReply({ body: url, history })
+    assert.match(reply, /קיבלתי את הקישור/)
+    assert.match(reply, /מק״ט/)
+    assert.doesNotMatch(reply, /לא ברור/)
+    assert.doesNotMatch(reply, /אין לי גישה/)
+    assert.doesNotMatch(reply, /האם להעביר/)
+  })
+
+  it("asks for SKU without advisor offer on first inventory turn", async () => {
+    const reply = await resolveBranchInventoryReply({
+      body: "מתי השטיח nice במידה 240*340 יחזור למלאi",
+    })
+    assert.match(reply, /מק״ט/)
+    assert.doesNotMatch(reply, /אין לי גישה/)
+    assert.doesNotMatch(reply, /האם להעביר/)
+  })
+
+  it("buildProductUrlSkuPrompt names product from URL slug", () => {
+    assert.match(buildProductUrlSkuPrompt("nice beige rec"), /nice beige rec/)
   })
 })
 

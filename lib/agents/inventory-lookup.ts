@@ -104,6 +104,26 @@ function extractRecentSku(body: string, history: HistoryMessage[] = []) {
   return null
 }
 
+const BRANCH_HAS_RE =
+  /באיזה\s+סניף(?:\s+\S+){0,4}?\s+יש|יש\s+א(?:ת|ותו)(?:\s+זה|\s+הדגם)?\s+בסניפ|זמין\s+בסניפ|זמין\s+בסניף|יש\s+א(?:ותו|ת)\s+ל(?:תצוגה|ראות)/i
+
+const DISPLAY_AT_BRANCH_RE = /ל(?:תצוגה|ראות|מגע|הרגיש)|בתצוגה/i
+
+/** Last N user messages including the current turn — for routing, not debounce merge. */
+export function recentUserTexts(
+  body: string,
+  history: HistoryMessage[] = [],
+  limit = 5
+) {
+  return [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .slice(-limit)
+      .map((message) => message.content),
+  ]
+}
+
 /** Customer wants store/branch stock — not a general catalog/price handoff. */
 export function isBranchInventoryQuestion(body: string) {
   const text = body.trim()
@@ -114,16 +134,16 @@ export function isBranchInventoryQuestion(body: string) {
   const mentionsStore = STORE_RE.test(text)
   const mentionsStock = STOCK_RE.test(text)
   const asksIfHave = HAVE_PRODUCT_RE.test(text)
-  const whichStoreHas =
-    /באיזה\s+סניף\s+יש|יש\s+את(?:\s+זה)?\s+בסניפ|זמין\s+בסניפ|זמין\s+בסניף/i.test(text)
+  const whichStoreHas = BRANCH_HAS_RE.test(text)
+  const displayAtBranch = mentionsStore && DISPLAY_AT_BRANCH_RE.test(text)
 
-  if (sku && (mentionsStock || mentionsStore || asksIfHave || whichStoreHas)) {
+  if (sku && (mentionsStock || mentionsStore || asksIfHave || whichStoreHas || displayAtBranch)) {
     return true
   }
-  if (mentionsStore && (mentionsStock || whichStoreHas)) {
+  if (mentionsStore && (mentionsStock || whichStoreHas || displayAtBranch)) {
     return true
   }
-  if (mentionsStore && /יש\s+את(?:\s+זה|\s+הדגם)?/.test(text)) {
+  if (mentionsStore && /יש\s+א(?:ת|ותו)(?:\s+זה|\s+הדגם)?/.test(text)) {
     return true
   }
   if (
@@ -143,6 +163,23 @@ export function isInventoryQuestion(body: string) {
   if (isBareSkuMessage(text)) return true
   if (isBranchInventoryQuestion(text)) return true
   return STOCK_RE.test(text) || RESTOCK_RE.test(text)
+}
+
+/** Inventory intent using recent user turns — avoids treating follow-ups in isolation. */
+export function isInventoryQuestionWithContext(
+  body: string,
+  history: HistoryMessage[] = [],
+  extraContext: string[] = []
+) {
+  const texts = [...extraContext, ...recentUserTexts(body, history, 5)]
+  if (texts.some((text) => isInventoryQuestion(text))) return true
+  if (!isSkuRequestPending(history) && !isActiveInventoryThread(history)) return false
+
+  const text = body.trim()
+  if (!text) return false
+  if (hasProductUrlInText(text)) return true
+  if (/סניף|תצוגה|לתצוגה|אותו|בצפון|במרכז|בדרום|במרכז/i.test(text)) return true
+  return false
 }
 
 export function isSkuRequestPending(history: HistoryMessage[]) {
@@ -172,8 +209,11 @@ export function shouldHandleBranchInventory(
   body: string,
   history: HistoryMessage[] = []
 ) {
+  if (isSkuRequestPending(history) || isActiveInventoryThread(history)) return true
+  if (hasProductUrlInText(body) && isInventoryQuestionWithContext(body, history)) {
+    return true
+  }
   if (hasProductUrlInText(body)) return isBareSkuMessage(textWithoutProductUrls(body))
-  if (isSkuRequestPending(history)) return true
   if (isInventoryQuestion(body)) return true
   if (extractSku(body) && isActiveInventoryThread(history)) return true
   return false
@@ -285,14 +325,36 @@ function warehouseMatchesBranch(warehouseName: string, branchHint: string) {
   return name.includes(city) || city.includes(name)
 }
 
+function extractProductSlugFromUrl(text: string) {
+  const match = text.match(/\/products\/([a-z0-9-]+)/i)
+  if (!match?.[1]) return null
+  return match[1].replace(/-/g, " ")
+}
+
 function extractProductHintFromInventoryQuery(text: string) {
+  const fromUrl = extractProductSlugFromUrl(text)
+  if (fromUrl) return fromUrl
+
   const match =
     text.match(/(?:של|ע(?:ל|בור))\s+([א-תa-zA-Z0-9\s\-]{2,40}?)(?:\?|[\s,.]|$)/i) ||
-    text.match(/(?:ל)?דגם\s+([א-תa-zA-Z0-9\s\-]{2,40}?)(?:\?|[\s,.]|$)/i)
+    text.match(/(?:ל)?דגם\s+([א-תa-zA-Z0-9\s\-]{2,40}?)(?:\?|[\s,.]|$)/i) ||
+    text.match(/(?:שטיח|פוף|דגם)\s+([א-תa-zA-Z0-9\s\-]{2,40}?)(?:\?|[\s,.]|$)/i)
   const product = match?.[1]?.trim()
   if (!product) return null
   if (/^(?:סניף|מלאי|המוצר|השטיח)$/i.test(product)) return null
   return product
+}
+
+export function buildProductUrlSkuPrompt(productHint?: string | null) {
+  const product = productHint?.trim()
+  if (product) {
+    return `${CUSTOMER_HEADER}
+קיבלתי את הקישור, תודה.
+כדי לבדוק מלאי וזמינות של ${product}, אצטרך את המק״ט מדף המוצר (מספר הדגם, כולל מקף).`
+  }
+  return `${CUSTOMER_HEADER}
+קיבלתי את הקישור, תודה.
+כדי לבדוק מלאי וזמינות, אצטרך את המק״ט מדף המוצר (מספר הדגם, כולל מקף).`
 }
 
 export function buildInventoryAvailabilityReply(
@@ -358,6 +420,22 @@ async function replyForSku(sku: string, branchFilter?: string | null) {
   }
 }
 
+function inventoryContextFromRecentMessages(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const contextTexts = recentUserTexts(body, history, 5)
+  const combined = contextTexts.join("\n")
+  const branch =
+    extractBranchCityFromInventoryQuery(body) ??
+    extractBranchCityFromInventoryQuery(combined)
+  const product =
+    contextTexts
+      .map((text) => extractProductHintFromInventoryQuery(text))
+      .find(Boolean) ?? null
+  return { branch, product }
+}
+
 export async function resolveBranchInventoryReply(input: {
   body: string
   history?: HistoryMessage[]
@@ -365,9 +443,12 @@ export async function resolveBranchInventoryReply(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const sku = extractRecentSku(body, history)
-  const branch = extractBranchCityFromInventoryQuery(body)
-  const product = extractProductHintFromInventoryQuery(body)
+  const { branch, product } = inventoryContextFromRecentMessages(body, history)
   const skuContext = { branch, product }
+
+  if (hasProductUrlInText(body) && !sku) {
+    return buildProductUrlSkuPrompt(product)
+  }
 
   if (isSkuRequestPending(history)) {
     if (sku) return replyForSku(sku, branch)

@@ -6,6 +6,7 @@ import { getSystemPrompt } from "@/lib/agents/prompts"
 import { buildBranchReplyForText, isBranchListQuestion } from "@/lib/agents/branches"
 import {
   isInventoryQuestion,
+  isInventoryQuestionWithContext,
   resolveBranchInventoryReply,
 } from "@/lib/agents/inventory-lookup"
 import { hasEmbeddedBusinessAsk } from "@/lib/agents/compound-reply"
@@ -361,7 +362,7 @@ export async function answerCombinedQuestions(
       parts.push(stripCustomerHeader(deterministic))
       continue
     }
-    if (isInventoryQuestion(question)) {
+    if (isInventoryQuestionWithContext(question, input.history, ordered)) {
       parts.push(
         stripCustomerHeader(
           await resolveBranchInventoryReply({ body: question, history: input.history })
