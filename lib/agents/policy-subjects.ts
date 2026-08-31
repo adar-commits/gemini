@@ -37,6 +37,12 @@ type PolicySubject = {
 /** Returns portal is for cancellations/refunds only — never for product exchanges (החלפות). */
 export const RETURNS_PORTAL_URL = "https://returns.carpetshop.co.il/"
 
+export const EXCHANGE_COURIER_FEES = `דמי שליח לאיסוף ומשלוח (לכיוון) לפי מידת השטיח:
+• שטיח עד 160×230 — 85 ₪
+• שטיח 200×290 — 100 ₪
+• שטיח 240×340 — 150 ₪
+• שטיח 300×400 — 300 ₪`
+
 /** Main subjects per KB policy — expand patterns when customers report misses. */
 export const POLICY_SUBJECTS: PolicySubject[] = [
   {
@@ -158,10 +164,12 @@ export function isFaqPolicyQuestion(body: string) {
 export function buildExchangePolicyBody() {
   return `ניתן להחליף מוצר שהתקבל באחת משתי האפשרויות:
 1. החלפה בסניפי הרשת
-2. איסוף/משלוח מהבית בתשלום (לפי מידות המוצר)
+2. איסוף מהבית ומשלוח של המוצר החדש — בתשלום
 
-ניתן לבצע החלפה בתוך 14 ימים מקבלת המוצר, כשהמוצר לא היה בשימוש, שלם וארוז באריזתו המקורית ובהתאם לתנאי ההחלפה.
-החלפה מתבצעת בסניף או דרך נציג שירות — לא דרך פורטל ההחזרות.`
+${EXCHANGE_COURIER_FEES}
+
+ניתן לבצע החלפה בתוך 14 יום מקבלת המוצר, כשהמוצר לא היה בשימוש, שלם וארוז באריזתו המקורית.
+החלפה מתבצעת בסניף או דרך נציג שירות — לא דרך פורטל ההחזרות (הפורטל מיועד להחזרות וביטולים בלבד).`
 }
 
 export function buildReturnPolicyBody() {
@@ -184,7 +192,7 @@ ${buildReturnPolicyBody()}`
 export function buildExchangePolicyReply() {
   return `${buildExchangePolicyBody()}
 
-אפשר לעזור במשהו נוסף?`
+אם רוצים להמשיך עם החלפה דרך שליח — אעביר לנציג שירות. אם מעדיפים להגיע לסניף, אשמח לשלוח את רשימת הסניפים. במה להמשיך?`
 }
 
 export function buildReturnCancellationPolicyReply() {

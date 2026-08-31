@@ -12,6 +12,7 @@ import {
   resolveReturnExchangePolicyReply,
   RETURNS_PORTAL_URL,
 } from "@/lib/agents/policy-subjects"
+import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 describe("returns portal vs exchange routing", () => {
   it("does not send exchange-only customers to the returns portal", () => {
@@ -58,5 +59,38 @@ describe("returns portal vs exchange routing", () => {
     assert.match(reply, /לא דרך פורטל/)
     assert.match(reply, new RegExp(RETURNS_PORTAL_URL.replace(/\./g, "\\.")))
     assert.match(reply, /לחלופין/)
+  })
+
+  it("includes courier fee tiers in exchange policy", () => {
+    const reply = buildExchangePolicyReply()
+    assert.match(reply, /85 ₪/)
+    assert.match(reply, /100 ₪/)
+    assert.match(reply, /150 ₪/)
+    assert.match(reply, /300 ₪/)
+    assert.match(reply, /דמי שליח/)
+    assert.match(reply, /נציג שירות/)
+    assert.match(reply, /רשימת הסניפים/)
+  })
+
+  it("matches size-exchange policy question from trainer screenshot", () => {
+    const message =
+      "קיבלתי את השטיח, הוא קטן מידי ואני רוצה להחליף למידה 200*300. מה מדיניות החלפה?"
+    const reply = resolveReturnExchangePolicyReply(message)
+    assert.match(reply, /החלפה בסניפי/)
+    assert.match(reply, /85 ₪/)
+    assert.doesNotMatch(reply, /returns\.carpetshop/)
+    assert.doesNotMatch(reply, /my\.homgroup/)
+  })
+
+  it("strips hallucinated portal from exchange replies", () => {
+    const output = validateHomAgentReply(
+      {
+        reply:
+          "להחלפה אפשר דרך https://my.homgroup.co.il — איסוף מהבית בתשלום.",
+        action: "reply",
+      },
+      "רוצה להחליף מידה"
+    )
+    assert.doesNotMatch(output.reply, /my\.homgroup/)
   })
 })

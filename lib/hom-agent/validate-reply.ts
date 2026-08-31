@@ -1,4 +1,5 @@
 import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import { RETURNS_PORTAL_URL } from "@/lib/agents/policy-subjects"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import {
   dedupeGreetingBotName,
@@ -19,6 +20,7 @@ export function validateHomAgentReply(
   }
 
   reply = sanitizeBotGenderSlashes(reply)
+  reply = sanitizeHallucinatedPortalUrls(reply)
   reply = dedupeGreetingBotName(reply)
 
   if (reply && !shouldSkipHeader(userText, reply)) {
@@ -35,6 +37,19 @@ export function validateHomAgentReply(
   reply = ensureSingleCustomerHeader(reply)
 
   return { ...output, reply }
+}
+
+const HALLUCINATED_PORTAL_RE = /https?:\/\/(?:www\.)?my\.hom-?group\.co\.il\/?/gi
+
+function sanitizeHallucinatedPortalUrls(reply: string) {
+  if (!/my\.hom-?group\.co\.il/i.test(reply)) return reply
+  if (/החלפ/i.test(reply)) {
+    return reply
+      .replace(HALLUCINATED_PORTAL_RE, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  }
+  return reply.replace(HALLUCINATED_PORTAL_RE, RETURNS_PORTAL_URL)
 }
 
 function shouldSkipHeader(userText: string, reply: string) {
