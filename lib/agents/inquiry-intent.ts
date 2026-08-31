@@ -88,6 +88,12 @@ const REFUND_TIMING_QUESTION_RE =
 const ALREADY_RETURNED_AT_BRANCH_RE =
   /(?:מסר(?:תי|נו|ה)|החזר(?:תי|נו|ה)|הבא(?:תי|נו)|הגע(?:תי|נו)).{0,80}(?:סניף|חנות)/i
 
+const PICKUP_ALREADY_DONE_RE =
+  /(?:אספ(?:ו|u)|נאס(?:ף|פ(?:ה|ו)?)|(?:כבר\s+)?(?:בוצע|עש(?:ו|ית(?:י)?))\s+(?:איסוף|ל(?:ק|ק)ח(?:ו|ה)?)|(?:ל)?ק(?:ח(?:ו|ה)?|קח(?:ו|ה)?)\s+(?:א(?:ת|ת)?\s+)?(?:ה)?(?:שטיח|פוף|מוצר)|הגיע(?:ו|ה)?\s+(?:ל)?(?:איסוף|לקחת))/i
+
+const REFUND_STATUS_ASK_RE =
+  /(?:מה\s+(?:קורה|המצב|סטטוס)|(?:מ)?(?:חכ(?:ה|ים|ות)|ממתin(?:ה|ים|ות)?)|(?:עדיין|טרם)\s+(?:לא\s+)?(?:קיבל(?:תי|נו)?|רא(?:יתי|ינו)?)|עדכון|(?:אפשר|רוצ(?:ה|ים|ות))\s+(?:ל)?(?:דעת|לקבל\s+עדכון)).{0,40}(?:ה)?(?:החזר(?:ה|ים|ת)?|זיכוי)/i
+
 /** Customer already returned and asks when money/credit arrives — not where/how to return. */
 export function isRefundTimelineQuestion(text: string) {
   const trimmed = text.trim()
@@ -329,6 +335,23 @@ export function isActiveReturnExchangePickupCase(text: string) {
   }
 
   return false
+}
+
+/** Pickup already done — customer asks about refund status (service handoff, not order API). */
+export function isRefundStatusInquiry(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (isRefundTimelineQuestion(trimmed)) return false
+  if (isActiveReturnExchangePickupCase(trimmed)) return false
+
+  const pickupDone = PICKUP_ALREADY_DONE_RE.test(trimmed)
+  const asksRefundStatus =
+    REFUND_STATUS_ASK_RE.test(trimmed) ||
+    /(?:ה)?(?:החזר(?:ה|ים|ת)?|זיכוי).{0,30}(?:מה\s+(?:קורה|המצב)|(?:עדיין|טרם)|מתי\s+(?:א(?:קבל|ראה)))/i.test(
+      trimmed
+    )
+
+  return pickupDone && asksRefundStatus
 }
 
 export function hasServiceUrgencySignal(text: string) {

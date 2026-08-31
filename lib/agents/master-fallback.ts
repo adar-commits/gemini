@@ -22,6 +22,7 @@ import {
   isActiveInventoryThread,
 } from "@/lib/agents/inventory-lookup"
 import { hasProductUrl } from "@/lib/agents/product-handoff"
+import { isRefundStatusInquiry } from "@/lib/agents/inquiry-intent"
 import {
   isDeliverySchedulingRequest,
   isShippingPolicyQuestion,
@@ -78,6 +79,7 @@ function hasClearRoute(body: string, history: HistoryMessage[]) {
   if (hasImmediateBusinessAsk(body)) return true
   if (isDigitalDocumentRequest(body)) return true
   if (isDeliverySchedulingRequest(body)) return true
+  if (isRefundStatusInquiry(body)) return true
   if (isInventoryQuestionWithContext(body, history)) return true
   if (hasProductUrl(body) && (isSkuRequestPending(history) || isActiveInventoryThread(history))) {
     return true

@@ -67,6 +67,7 @@ import {
   activeIntentConfirmKind,
 } from "@/lib/agents/intent-confirmation"
 import { isDeliverySchedulingRequest } from "@/lib/agents/shipping"
+import { isRefundStatusInquiry } from "@/lib/agents/inquiry-intent"
 
 export { DEFECT_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 
@@ -121,6 +122,7 @@ export function shouldHandlePostPurchaseCaseFlow(
 ) {
   if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
   if (isDeliverySchedulingRequest(body)) return false
+  if (isRefundStatusInquiry(body)) return false
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) return false
   if (isActiveReturnExchangePickupCase(body)) return true
 

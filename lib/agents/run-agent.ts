@@ -73,7 +73,7 @@ import {
   shouldHandlePostPurchaseCaseFlow,
   activePostPurchaseCaseKind,
 } from "@/lib/agents/post-purchase-case"
-import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isExchangePolicyQuestion, isPreorderDelayComplaint } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isExchangePolicyQuestion, isPreorderDelayComplaint, isRefundStatusInquiry } from "@/lib/agents/inquiry-intent"
 import {
   buildDocumentPurchaseLocationQuestion,
   isDocumentChannelQuestionPending,
@@ -213,6 +213,7 @@ import {
 import {
   buildCarpetRentalPolicyReply,
   buildRefundTimelinePolicyReply,
+  buildRefundStatusHandoffReply,
   buildReturnExchangePolicyReply,
   resolveReturnExchangePolicyReply,
   matchPolicySubjects,
@@ -243,6 +244,29 @@ function branchReplyForTurn(body: string, history: HistoryMessage[]) {
     (getDissatisfactionRescueStage(history) === "portal_referred" &&
       /סניף|סניפ/i.test(body))
   return buildBranchReplyForText(body, { returnContext })
+}
+
+function refundStatusHandoffResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean
+): Promise<AgentResponse> {
+  const reply = normalizeReply("faq", "reply", buildRefundStatusHandoffReply())
+  return appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "human_service",
+    preview,
+  }).then(() => ({
+    ok: true as const,
+    agent: "faq" as const,
+    reply,
+    action: "human_service" as const,
+    route: [...route, "faq"],
+  }))
 }
 
 function deliverySchedulingHandoffResult(
@@ -317,6 +341,13 @@ async function runT0DeterministicPaths(
     return markT0Routing(
       conversationId,
       await deliverySchedulingHandoffResult(conversationId, body, route, preview)
+    )
+  }
+
+  if (isRefundStatusInquiry(body)) {
+    return markT0Routing(
+      conversationId,
+      await refundStatusHandoffResult(conversationId, body, route, preview)
     )
   }
 
@@ -1633,6 +1664,7 @@ function shouldHandleOrderShippingFlow(
   lastAgent: AgentId | null = null
 ) {
   if (isDeliverySchedulingRequest(body)) return false
+  if (isRefundStatusInquiry(body)) return false
   if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
   if (shouldHandleDigitalDocumentFlow(body, history)) return false
   if (shouldHandleServicePraiseFlow(body, history)) return false
@@ -2606,6 +2638,10 @@ export async function runMasterConversation(
 
   if (isDeliverySchedulingRequest(body)) {
     return deliverySchedulingHandoffResult(conversationId, body, route, preview)
+  }
+
+  if (isRefundStatusInquiry(body)) {
+    return refundStatusHandoffResult(conversationId, body, route, preview)
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {

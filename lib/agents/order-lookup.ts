@@ -2,7 +2,7 @@ import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
-import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent, isActiveReturnExchangePickupCase } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent, isActiveReturnExchangePickupCase, isRefundStatusInquiry } from "@/lib/agents/inquiry-intent"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
@@ -312,6 +312,7 @@ export function isOrderSpecificEligibilityQuestion(body: string) {
  * or a question tied to a specific order (reference, timeframe, eligibility).
  */
 export function requiresOrderIdentification(body: string, history: HistoryMessage[] = []) {
+  if (isRefundStatusInquiry(body)) return false
   if (isShippingStatusQuestion(body)) return true
   if (isDigitalDocumentRequest(body)) return true
   if (isPreorderDelayComplaint(body)) return true

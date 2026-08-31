@@ -1,11 +1,20 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { isBranchListQuestion, isReturnToBranchQuestion } from "@/lib/agents/branches"
-import { isRefundTimelineQuestion, isReturnPolicyQuestion } from "@/lib/agents/inquiry-intent"
-import { buildRefundTimelinePolicyReply } from "@/lib/agents/policy-subjects"
+import {
+  isRefundTimelineQuestion,
+  isRefundStatusInquiry,
+  isReturnPolicyQuestion,
+} from "@/lib/agents/inquiry-intent"
+import { buildRefundTimelinePolicyReply, buildRefundStatusHandoffReply } from "@/lib/agents/policy-subjects"
+import { shouldHandlePostPurchaseCaseFlow } from "@/lib/agents/post-purchase-case"
+import { requiresOrderIdentification } from "@/lib/agents/order-lookup"
 
 const SCREENSHOT_MESSAGE =
   "שלום, אני מסרתי היום שטיח בחנות בסניף קריית אתא. מתי אני אקבל את ההחזר."
+
+const REFUND_AFTER_PICKUP =
+  "אספו את השטיח בשבוע שעבר. אפשר לדעת מה קורה עם ההחזר?"
 
 describe("refund timeline vs branch return", () => {
   it("detects refund timing after branch drop-off", () => {
@@ -31,5 +40,17 @@ describe("refund timeline vs branch return", () => {
     assert.match(reply, /returns\.carpetshop\.co\.il/)
     assert.doesNotMatch(reply, /קריית אתא/)
     assert.doesNotMatch(reply, /כתובות\s+הסניפים/)
+  })
+
+  it("hands off post-pickup refund status to service without order lookup", () => {
+    assert.equal(isRefundStatusInquiry(REFUND_AFTER_PICKUP), true)
+    assert.equal(isRefundTimelineQuestion(REFUND_AFTER_PICKUP), false)
+    assert.equal(shouldHandlePostPurchaseCaseFlow(REFUND_AFTER_PICKUP, [], null), false)
+    assert.equal(requiresOrderIdentification(REFUND_AFTER_PICKUP), false)
+    const reply = buildRefundStatusHandoffReply()
+    assert.match(reply, /נציג שירות/)
+    assert.match(reply, /סטטוס ההחזר/)
+    assert.doesNotMatch(reply, /מספר ההזמנה/)
+    assert.doesNotMatch(reply, /האם היא רשומה/)
   })
 })
