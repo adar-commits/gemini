@@ -10,8 +10,8 @@ import { getCustomer } from "@/lib/landbot/client"
 import { handleLandbotInbound } from "@/lib/landbot/handle-inbound"
 import { claimInbound, releaseInbound } from "@/lib/landbot/inbound"
 import {
-  claimConversationProcessor,
   releaseConversationProcessor,
+  waitForConversationProcessor,
 } from "@/lib/landbot/conversation-processor"
 import {
   debounceWindowMs,
@@ -107,8 +107,8 @@ export async function POST(request: Request) {
   try {
     await enqueueCustomerTurn(inbound.conversationId, inbound.turn)
 
-    if (!(await claimConversationProcessor(inbound.conversationId))) {
-      return NextResponse.json({ ok: true, skipped: "processor_busy" })
+    if (!(await waitForConversationProcessor(inbound.conversationId))) {
+      return NextResponse.json({ ok: true, skipped: "processor_timeout" })
     }
 
     let lastResult: Awaited<ReturnType<typeof handleLandbotInbound>> | null = null

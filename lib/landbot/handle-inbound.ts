@@ -15,8 +15,8 @@ import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
   buildTrainerResetReply,
-  isTrainerResetCommand,
   resetTrainerConversation,
+  splitTrainerResetBody,
 } from "@/lib/landbot/trainer-reset"
 import {
   isTrainerCorrectionCommand,
@@ -97,7 +97,38 @@ export async function handleLandbotInbound(
     await clearInactivityWatchState(conversationId)
   }
 
-  const body = summarizeTurn(turn)
+  let body = summarizeTurn(turn)
+  let activeTurn = turn
+
+  if (isTrainerPhone(options?.phone)) {
+    const resetSplit = splitTrainerResetBody(body)
+    if (resetSplit.isReset) {
+      await resetTrainerConversation(conversationId)
+      const resetReply = buildTrainerResetReply()
+      await appendTurn({
+        conversationId,
+        agent: "master",
+        userText: resetSplit.isResetOnly ? body : "איפוס",
+        assistantText: resetReply,
+        action: "reset",
+      })
+      if (replyEnabled) {
+        await sendCustomerText(customerId, resetReply)
+      }
+      if (!resetSplit.remainder) {
+        return {
+          ok: true,
+          agent: "master",
+          reply: resetReply,
+          action: "reset",
+          mode,
+          draft_reply: resetReply,
+        }
+      }
+      body = resetSplit.remainder
+      activeTurn = { text: resetSplit.remainder, media: turn.media }
+    }
+  }
 
   if (isTrainerPhone(options?.phone) && isTrainerQuestionCommand(body)) {
     const question = stripTrainerQuestionPrefix(body)
@@ -147,32 +178,6 @@ export async function handleLandbotInbound(
     }
   }
 
-  if (
-    isTrainerPhone(options?.phone) &&
-    isTrainerResetCommand(body)
-  ) {
-    await resetTrainerConversation(conversationId)
-    const reply = buildTrainerResetReply()
-    await appendTurn({
-      conversationId,
-      agent: "master",
-      userText: body,
-      assistantText: reply,
-      action: "reset",
-    })
-    if (replyEnabled) {
-      await sendCustomerText(customerId, reply)
-    }
-    return {
-      ok: true,
-      agent: "master",
-      reply,
-      action: "reset",
-      mode,
-      draft_reply: reply,
-    }
-  }
-
   if (isTrainerPhone(options?.phone) && isTrainerProfileCommand(body)) {
     const reply = (await handleTrainerProfileCommand(body)) ?? buildNeverStuckReply()
     if (replyEnabled) {
@@ -205,7 +210,7 @@ export async function handleLandbotInbound(
   })
 
   try {
-    result = await runMasterConversation(conversationId, turn, {
+    result = await runMasterConversation(conversationId, activeTurn, {
       customerName: customerName || undefined,
       phone: options?.phone?.trim() || undefined,
       priorityApiEnabled: replyEnabled,

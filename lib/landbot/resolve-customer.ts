@@ -50,8 +50,12 @@ export async function resolveCustomerIdByPhone(phone: string) {
 export async function resetAgentSession(conversationId: string) {
   const supabase = getAgentSupabase()
   await supabase.from("hom_agent_messages").delete().eq("conversation_id", conversationId)
-  await supabase.from("hom_agent_inbound").delete().eq("conversation_id", conversationId)
-  await supabase.from("hom_agent_message_buffer").delete().eq("conversation_id", conversationId)
+  // Keep buffered customer turns and the active processor lease — reset must not drop pending messages.
+  await supabase
+    .from("hom_agent_inbound")
+    .delete()
+    .eq("conversation_id", conversationId)
+    .neq("message_key", `processor:${conversationId}`)
   await supabase.from("hom_agent_sessions").upsert({
     conversation_id: conversationId,
     reset_at: new Date().toISOString(),
