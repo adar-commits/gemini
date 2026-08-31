@@ -8,7 +8,6 @@ import {
   buildDigitalDocumentLookupFailureReply,
   buildDigitalDocumentNotFoundReply,
   buildDigitalDocumentReply,
-  buildPhoneLookupConfirmPrompt,
   buildPhoneLookupDeclinedReply,
   extractPhoneFromText,
   formatDisplayPhone,
@@ -25,22 +24,38 @@ export const DOCUMENT_TYPE_RECEIPT = "קבלה"
 export const DOCUMENT_TYPE_TAX_INVOICE = "חשבונית מס"
 export const DOCUMENT_TYPE_TAX_INVOICE_RECEIPT = "חשבונית מס קבלה"
 
+export type DocumentType =
+  | typeof DOCUMENT_TYPE_RECEIPT
+  | typeof DOCUMENT_TYPE_TAX_INVOICE
+  | typeof DOCUMENT_TYPE_TAX_INVOICE_RECEIPT
+
+export type DocumentIntent = "invoice" | "receipt" | "generic"
+
 const CHANNEL_QUESTION_MARKER =
   /(?:סופק(?:ו)?\s+מהסניף|באמצעות\s+שליח|מלאי(?:\s+ה)?סניף|אתר(?:\s+ה)?אינטרנט(?:\s+עם\s+שליח)?)/i
 const PURCHASE_LOCATION_QUESTION_MARKER =
   /האם\s+ה(?:ה)?זמנה\s+בוצעה\s+מ(?:ה)?(?:אינטרנט|הסניף)|מהאינטרנט\s+או\s+בסניף/i
+const TYPE_QUESTION_MARKER = /איזה\s+סוג\s+(?:חשבונית|מסמך)/i
 const LEGACY_TYPE_QUESTION_MARKER = /איזה\s+סוג\s+מסמך/i
 const PHONE_QUESTION_MARKER =
-  /האם היא רשומה על המספר|האם ההזמנה (?:היא )?על טלפון|האם ההזמנה על המספר/i
+  /(?:האם\s+(?:העסקה|היא)\s+רשומה\s+על\s+המספר|האם\s+היא\s+רשומה\s+על\s+המספר|האם\s+ההזמנה\s+(?:היא\s+)?על\s+טלפון|האם\s+ההזמנה\s+על\s+המספר)/i
 const ALTERNATE_PHONE_QUESTION_MARKER = /מה מספר הטלפון שבוצעה עליו ההזמנה/i
 const DOCUMENT_MISUNDERSTANDING_MARKER =
   /נראה\s+ש(?:ה)?הודעה\s+לא\s+עברה|לא\s+ה(?:בנ|צל)(?:תי)?\s+—\s+האם/i
 
-type DocumentQuestionKind = "channel" | "purchase_location" | "phone" | "alternate_phone"
+type DocumentQuestionKind =
+  | "type"
+  | "channel"
+  | "purchase_location"
+  | "phone"
+  | "alternate_phone"
 
 type DocumentFlowState = {
   active: boolean
+  intent: DocumentIntent | null
+  selectedType: DocumentType | null
   channel: DocumentPurchaseChannel | null
+  typeQuestionSent: boolean
   channelQuestionSent: boolean
   purchaseLocationQuestionSent: boolean
   phoneQuestionSent: boolean
@@ -53,6 +68,18 @@ type DocumentFlowState = {
 const LEADING_GREETING_RE =
   /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+)*/iu
 
+const DOCUMENT_TYPE_FALLBACKS: Record<DocumentType, DocumentType[]> = {
+  [DOCUMENT_TYPE_TAX_INVOICE]: [
+    DOCUMENT_TYPE_TAX_INVOICE,
+    DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
+  ],
+  [DOCUMENT_TYPE_TAX_INVOICE_RECEIPT]: [
+    DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
+    DOCUMENT_TYPE_TAX_INVOICE,
+  ],
+  [DOCUMENT_TYPE_RECEIPT]: [DOCUMENT_TYPE_RECEIPT],
+}
+
 function stripLeadingGreetings(text: string) {
   let body = text.trim()
   for (let i = 0; i < 3; i++) {
@@ -64,6 +91,9 @@ function stripLeadingGreetings(text: string) {
 }
 
 function documentQuestionKind(content: string): DocumentQuestionKind | null {
+  if (TYPE_QUESTION_MARKER.test(content) || LEGACY_TYPE_QUESTION_MARKER.test(content)) {
+    return "type"
+  }
   if (PURCHASE_LOCATION_QUESTION_MARKER.test(content)) return "purchase_location"
   if (CHANNEL_QUESTION_MARKER.test(content)) return "channel"
   if (ALTERNATE_PHONE_QUESTION_MARKER.test(content)) return "alternate_phone"
@@ -73,6 +103,54 @@ function documentQuestionKind(content: string): DocumentQuestionKind | null {
 
 function isDocumentFlowMisunderstandingReply(content: string) {
   return DOCUMENT_MISUNDERSTANDING_MARKER.test(content)
+}
+
+function typeOptionsForIntent(intent: DocumentIntent | null): DocumentType[] {
+  if (intent === "invoice") {
+    return [DOCUMENT_TYPE_TAX_INVOICE, DOCUMENT_TYPE_TAX_INVOICE_RECEIPT]
+  }
+  if (intent === "receipt") return [DOCUMENT_TYPE_RECEIPT]
+  return [
+    DOCUMENT_TYPE_TAX_INVOICE,
+    DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
+    DOCUMENT_TYPE_RECEIPT,
+  ]
+}
+
+function typeOptionsFromQuestion(content: string): DocumentType[] {
+  if (/איזה\s+סוג\s+חשבונית/i.test(content)) {
+    return [DOCUMENT_TYPE_TAX_INVOICE, DOCUMENT_TYPE_TAX_INVOICE_RECEIPT]
+  }
+  if (/^[\s\S]*\n\s*3\.\s*קבלה/m.test(content)) {
+    return [
+      DOCUMENT_TYPE_TAX_INVOICE,
+      DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
+      DOCUMENT_TYPE_RECEIPT,
+    ]
+  }
+  if (/^[\s\S]*\n\s*2\.\s*חשבונית\s+מס\s+קבלה/m.test(content)) {
+    return [DOCUMENT_TYPE_TAX_INVOICE, DOCUMENT_TYPE_TAX_INVOICE_RECEIPT]
+  }
+  return [
+    DOCUMENT_TYPE_TAX_INVOICE,
+    DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
+    DOCUMENT_TYPE_RECEIPT,
+  ]
+}
+
+function lastTypeQuestionOptions(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (
+      TYPE_QUESTION_MARKER.test(message.content) ||
+      LEGACY_TYPE_QUESTION_MARKER.test(message.content)
+    ) {
+      return typeOptionsFromQuestion(message.content)
+    }
+  }
+  return null
 }
 
 /** Consecutive document-flow questions at the end of the thread (accidental double-reply). */
@@ -118,14 +196,63 @@ function mentionsAlternatePhoneIntent(body: string) {
 
 function buildPhoneLookupClarify(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
-לא הבנתי — האם היא רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
+לא הבנתי — האם העסקה רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
 אם לא, אשמח לציון המספר הנכון.`
+}
+
+function mentionsReceipt(text: string) {
+  if (/^קבלה$/i.test(text.trim())) return true
+  return /(?:^|[\s,.!?])קבלה(?:[\s,.!?]|$)/i.test(text)
+}
+
+export function inferDocumentIntent(body: string): DocumentIntent | null {
+  const text = stripLeadingGreetings(body.trim())
+  if (!text) return null
+  if (/חשבונית/i.test(text)) return "invoice"
+  if (mentionsReceipt(text)) return "receipt"
+  if (isDigitalDocumentRequest(text)) return "generic"
+  return null
+}
+
+export function parseDocumentTypeFromText(body: string): DocumentType | null {
+  const text = body.trim()
+  if (!text) return null
+  if (/חשבונית\s+מס\s+קבלה/i.test(text)) return DOCUMENT_TYPE_TAX_INVOICE_RECEIPT
+  if (/חשבונית\s+מס/i.test(text)) return DOCUMENT_TYPE_TAX_INVOICE
+  if (/^חשבונית$/i.test(text)) return null
+  if (mentionsReceipt(text) && !/חשבונית/i.test(text)) return DOCUMENT_TYPE_RECEIPT
+  return null
+}
+
+export function parseDocumentTypeSelection(
+  body: string,
+  history: HistoryMessage[] = []
+): DocumentType | null {
+  const fromText = parseDocumentTypeFromText(body)
+  if (fromText) return fromText
+
+  const trimmed = body.trim()
+  if (!/^[123]$/.test(trimmed)) return null
+
+  const options = lastTypeQuestionOptions(history) ?? typeOptionsForIntent(null)
+  const index = Number.parseInt(trimmed, 10) - 1
+  return options[index] ?? null
+}
+
+function selectedTypeFromRequest(body: string, intent: DocumentIntent | null): DocumentType | null {
+  const parsed = parseDocumentTypeFromText(body)
+  if (parsed) return parsed
+  if (intent === "receipt") return DOCUMENT_TYPE_RECEIPT
+  return null
 }
 
 function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState {
   const state: DocumentFlowState = {
     active: false,
+    intent: null,
+    selectedType: null,
     channel: null,
+    typeQuestionSent: false,
     channelQuestionSent: false,
     purchaseLocationQuestionSent: false,
     phoneQuestionSent: false,
@@ -135,13 +262,24 @@ function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState 
     misunderstandingSinceLastQuestion: false,
   }
 
-  for (const message of history) {
+  for (let index = 0; index < history.length; index += 1) {
+    const message = history[index]!
+    const priorHistory = history.slice(0, index)
+
     if (message.role === "user") {
       if (isDigitalDocumentRequest(message.content)) {
         state.active = true
+        state.intent = inferDocumentIntent(message.content) ?? state.intent ?? "generic"
+        state.selectedType =
+          state.selectedType ?? selectedTypeFromRequest(message.content, state.intent)
         continue
       }
       if (!state.active) continue
+
+      const parsedType = parseDocumentTypeSelection(message.content, priorHistory)
+      if (parsedType && (state.typeQuestionSent || state.lastQuestionKind === "type")) {
+        state.selectedType = parsedType
+      }
 
       const parsedChannel = parseDocumentPurchaseChannel(message.content)
       if (parsedChannel && state.channelQuestionSent) {
@@ -165,6 +303,7 @@ function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState 
       state.active = true
       state.lastQuestionKind = kind
       state.misunderstandingSinceLastQuestion = false
+      if (kind === "type") state.typeQuestionSent = true
       if (kind === "channel") state.channelQuestionSent = true
       if (kind === "purchase_location") state.purchaseLocationQuestionSent = true
       if (kind === "phone") state.phoneQuestionSent = true
@@ -184,13 +323,13 @@ function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState 
 function buildDocumentRecoveryPrefix(input: {
   history: HistoryMessage[]
   body: string
-  channelFromBody: DocumentPurchaseChannel | null
+  selectedTypeFromBody: DocumentType | null
   phoneConfirmYes: boolean
   phoneFromBody: string | null
 }) {
   const burst = trailingDocumentAssistantBurst(input.history)
   const answeredPending =
-    Boolean(input.channelFromBody) ||
+    Boolean(input.selectedTypeFromBody) ||
     input.phoneConfirmYes ||
     Boolean(input.phoneFromBody)
   if (!answeredPending) return ""
@@ -208,7 +347,7 @@ export function isDigitalDocumentRequest(body: string) {
   if (!text) return false
   if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
   return (
-    /(?:של(?:ח|וף|לח)|ה(?:ביא|וציא))(?:\s+לי|\s+ל)?\s*(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
+    /(?:של(?:ח|וף|לח)|ה(?:ביא|וציא)|(?:ל)?קב(?:ל|ל(?:ה|ו|י)?))(?:\s+לי|\s+ל)?\s*(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
       text
     ) ||
     /(?:העתק|עותק)(?:\s+של)?\s*(?:ה)?(?:קבלה|חשבונית)/i.test(text) ||
@@ -225,9 +364,10 @@ export function isDocumentTypeSelection(body: string) {
   const text = body.trim()
   if (!text || text.length > 40) return false
   return (
-    /^(?:1|2|3)$/i.test(text) ||
+    /^[123]$/i.test(text) ||
     /^קבלה$/i.test(text) ||
-    /^חשבונית(?:\s+מס)?(?:\s+קבלה)?$/i.test(text)
+    /^חשבונית(?:\s+מס)?(?:\s+קבלה)?$/i.test(text) ||
+    Boolean(parseDocumentTypeFromText(text))
   )
 }
 
@@ -245,10 +385,17 @@ function hasDocumentFlowContext(history: HistoryMessage[]) {
   return (
     state.active ||
     activeDigitalDocumentRequest(history) ||
+    state.typeQuestionSent ||
     state.channelQuestionSent ||
     state.phoneQuestionSent ||
     state.alternatePhoneQuestionSent
   )
+}
+
+export function isDocumentTypeQuestionPending(history: HistoryMessage[]) {
+  if (!hasDocumentFlowContext(history)) return false
+  const state = computeDocumentFlowState(history)
+  return state.typeQuestionSent && !state.selectedType && !state.channel
 }
 
 export function isDocumentPurchaseLocationQuestionPending(history: HistoryMessage[]) {
@@ -264,13 +411,7 @@ export function isDocumentChannelQuestionPending(history: HistoryMessage[]) {
 }
 
 export function isLegacyDocumentTypeQuestionPending(history: HistoryMessage[]) {
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const message = history[index]
-    if (message.role !== "assistant") continue
-    if (isInactivityAssistantMessage(message.content)) continue
-    return LEGACY_TYPE_QUESTION_MARKER.test(message.content)
-  }
-  return false
+  return isDocumentTypeQuestionPending(history)
 }
 
 export function isDocumentPhoneLookupPending(history: HistoryMessage[]) {
@@ -280,7 +421,7 @@ export function isDocumentPhoneLookupPending(history: HistoryMessage[]) {
     state.phoneQuestionSent &&
     !state.phoneConfirmed &&
     !state.alternatePhoneQuestionSent &&
-    Boolean(state.channel)
+    Boolean(state.selectedType || state.channel)
   )
 }
 
@@ -302,9 +443,9 @@ export function isActiveDigitalDocumentFlow(
 ) {
   if (isDigitalDocumentRequest(body)) return true
   if (activeDigitalDocumentRequest(history)) return true
+  if (isDocumentTypeQuestionPending(history)) return true
   if (isDocumentChannelQuestionPending(history)) return true
   if (isDocumentPurchaseLocationQuestionPending(history)) return true
-  if (isLegacyDocumentTypeQuestionPending(history)) return true
   if (isDocumentPhoneLookupPending(history)) return true
   if (isAlternateDocumentPhonePending(history)) return true
   if (isDocumentFlowMisunderstandingPending(history)) return true
@@ -361,6 +502,33 @@ function uniqueLinks(links: Array<string | null | undefined>) {
   return [...new Set(links.map((link) => link?.trim()).filter(Boolean))] as string[]
 }
 
+export async function lookupDigitalDocumentsByType(phone: string, documentType: DocumentType) {
+  if (!isValidIsraeliMobilePhone(phone)) {
+    return { ok: false as const, reason: "invalid_phone" as const, links: [] as string[] }
+  }
+  const lookupPhone = phoneForOrderApi(phone)
+  if (!lookupPhone) {
+    return { ok: false as const, reason: "invalid_phone" as const, links: [] as string[] }
+  }
+
+  const links: string[] = []
+  let sawResponse = false
+  for (const type of DOCUMENT_TYPE_FALLBACKS[documentType]) {
+    const doc = await fetchGetDocumentLink({ value: lookupPhone, documentType: type })
+    sawResponse = sawResponse || doc.sawResponse
+    if (doc.link) links.push(doc.link)
+  }
+
+  const unique = uniqueLinks(links)
+  if (unique.length > 0) return { ok: true as const, links: unique }
+
+  return {
+    ok: false as const,
+    reason: sawResponse ? ("not_found" as const) : ("api_failed" as const),
+    links: [] as string[],
+  }
+}
+
 export async function lookupDigitalDocumentsForChannel(
   phone: string,
   channel: DocumentPurchaseChannel
@@ -401,6 +569,27 @@ export async function lookupDigitalDocumentsForChannel(
     reason: sawResponse ? ("not_found" as const) : ("api_failed" as const),
     links: [] as string[],
   }
+}
+
+export function buildDocumentTypeQuestion(intent: DocumentIntent | null) {
+  if (intent === "invoice") {
+    return `${CUSTOMER_HEADER}
+איזה סוג חשבונית נדרש?
+1. ${DOCUMENT_TYPE_TAX_INVOICE}
+2. ${DOCUMENT_TYPE_TAX_INVOICE_RECEIPT}`
+  }
+
+  return `${CUSTOMER_HEADER}
+איזה סוג מסמך נדרש?
+1. ${DOCUMENT_TYPE_TAX_INVOICE}
+2. ${DOCUMENT_TYPE_TAX_INVOICE_RECEIPT}
+3. ${DOCUMENT_TYPE_RECEIPT}`
+}
+
+export function buildDocumentPhoneConfirmPrompt(whatsappPhone: string) {
+  return `${CUSTOMER_HEADER}
+האם העסקה רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
+אם לא, אשמח לקבל את המספר הנכון.`
 }
 
 export function buildDocumentChannelQuestion() {
@@ -471,7 +660,6 @@ function parseCourierFulfillment(text: string) {
     return true
   }
 
-  // Online = always courier (there is no physical "internet" pickup point).
   if (
     /(?:^|[\s,.!?-])?(?:אינטרנט|online|website)(?:[\s,.!?]|$)/i.test(text) ||
     /(?:ב|מ|דרך)\s*(?:ה)?(?:אינטרנט|אתר(?:\s+ה(?:אינטרנט|חברה))?)\b/i.test(text) ||
@@ -501,8 +689,13 @@ ${lines.join("\n")}
 ${CUSTOMER_NATURAL_CLOSE}`
 }
 
-async function deliverDocumentsForPhone(phone: string, channel: DocumentPurchaseChannel) {
-  const result = await lookupDigitalDocumentsForChannel(phone, channel)
+async function deliverDocumentsForPhone(
+  phone: string,
+  input: { channel?: DocumentPurchaseChannel; documentType?: DocumentType }
+) {
+  const result = input.channel
+    ? await lookupDigitalDocumentsForChannel(phone, input.channel)
+    : await lookupDigitalDocumentsByType(phone, input.documentType ?? DOCUMENT_TYPE_RECEIPT)
   if (result.ok) return buildMultiDocumentReply(result.links)
   if (result.reason === "not_found") return buildDigitalDocumentNotFoundReply()
   return buildDigitalDocumentLookupFailureReply()
@@ -524,6 +717,29 @@ function withRecoveryPrefix(prefix: string, reply: string) {
   return `${prefix}${reply}`
 }
 
+function resolveSelectedDocumentType(
+  body: string,
+  history: HistoryMessage[],
+  state: DocumentFlowState
+): DocumentType | null {
+  return (
+    parseDocumentTypeSelection(body, history) ??
+    state.selectedType ??
+    selectedTypeFromRequest(body, state.intent ?? inferDocumentIntent(body))
+  )
+}
+
+function needsDocumentTypeQuestion(
+  state: DocumentFlowState,
+  selectedType: DocumentType | null
+) {
+  if (selectedType) return false
+  if (state.channel) return false
+  if (state.typeQuestionSent) return false
+  const intent = state.intent ?? "generic"
+  return intent !== "receipt"
+}
+
 export async function resolveDigitalDocumentFlowReply(input: {
   body: string
   phone?: string
@@ -533,6 +749,8 @@ export async function resolveDigitalDocumentFlowReply(input: {
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
   const state = computeDocumentFlowState(history)
+  const selectedTypeFromBody = parseDocumentTypeSelection(body, history)
+  const selectedType = resolveSelectedDocumentType(body, history, state)
   const channelFromBody = parseDocumentPurchaseChannel(body)
   const channel = channelFromBody ?? state.channel
   const phoneFromBody = extractPhoneFromText(body)
@@ -540,17 +758,20 @@ export async function resolveDigitalDocumentFlowReply(input: {
   const recoveryPrefix = buildDocumentRecoveryPrefix({
     history,
     body,
-    channelFromBody,
+    selectedTypeFromBody,
     phoneConfirmYes,
     phoneFromBody,
   })
 
   if (isAlternateDocumentPhonePending(history)) {
     const typed = userProvidedPhone(body)
-    if (typed && channel) {
+    if (typed) {
       return withRecoveryPrefix(
         recoveryPrefix,
-        await deliverDocumentsForPhone(typed, channel)
+        await deliverDocumentsForPhone(typed, {
+          channel: channel ?? undefined,
+          documentType: selectedType ?? undefined,
+        })
       )
     }
     return withRecoveryPrefix(
@@ -563,7 +784,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
   const phoneStepOpen =
     state.phoneQuestionSent &&
     !state.phoneConfirmed &&
-    Boolean(channel) &&
+    Boolean(selectedType || channel) &&
     (isDocumentPhoneLookupPending(history) ||
       state.misunderstandingSinceLastQuestion ||
       trailingDocumentAssistantBurst(history).some(
@@ -576,7 +797,10 @@ export async function resolveDigitalDocumentFlowReply(input: {
       if (!typed) return buildPhoneLookupDeclinedReply()
       return withRecoveryPrefix(
         recoveryPrefix,
-        await deliverDocumentsForPhone(typed, channel!)
+        await deliverDocumentsForPhone(typed, {
+          channel: channel ?? undefined,
+          documentType: selectedType ?? undefined,
+        })
       )
     }
 
@@ -585,7 +809,10 @@ export async function resolveDigitalDocumentFlowReply(input: {
       if (!confirmedPhone) return buildPhoneLookupDeclinedReply()
       return withRecoveryPrefix(
         recoveryPrefix,
-        await deliverDocumentsForPhone(confirmedPhone, channel!)
+        await deliverDocumentsForPhone(confirmedPhone, {
+          channel: channel ?? undefined,
+          documentType: selectedType ?? undefined,
+        })
       )
     }
 
@@ -604,6 +831,45 @@ export async function resolveDigitalDocumentFlowReply(input: {
     return buildPhoneLookupDeclinedReply()
   }
 
+  if (channel && !selectedType) {
+    if (phoneFromBody) {
+      const typed = userProvidedPhone(body)
+      if (!typed) return buildPhoneLookupDeclinedReply()
+      return withRecoveryPrefix(
+        recoveryPrefix,
+        await deliverDocumentsForPhone(typed, { channel })
+      )
+    }
+
+    if (whatsappPhone) {
+      return buildDocumentPhoneConfirmPrompt(whatsappPhone)
+    }
+
+    return buildPhoneLookupDeclinedReply()
+  }
+
+  if (needsDocumentTypeQuestion(state, selectedType)) {
+    const intent = state.intent ?? inferDocumentIntent(body) ?? "generic"
+    return buildDocumentTypeQuestion(intent)
+  }
+
+  if (selectedType) {
+    if (phoneFromBody) {
+      const typed = userProvidedPhone(body)
+      if (!typed) return buildPhoneLookupDeclinedReply()
+      return withRecoveryPrefix(
+        recoveryPrefix,
+        await deliverDocumentsForPhone(typed, { documentType: selectedType })
+      )
+    }
+
+    if (whatsappPhone) {
+      return buildDocumentPhoneConfirmPrompt(whatsappPhone)
+    }
+
+    return buildPhoneLookupDeclinedReply()
+  }
+
   if (!channel) {
     if (isDocumentPurchaseLocationQuestionPending(history)) {
       if (body && !isBranchFulfillmentUncertainty(body)) {
@@ -615,11 +881,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
       return withRecoveryPrefix(recoveryPrefix, buildDocumentPurchaseLocationQuestion())
     }
 
-    if (
-      isDocumentChannelQuestionPending(history) ||
-      isLegacyDocumentTypeQuestionPending(history) ||
-      state.channelQuestionSent
-    ) {
+    if (isDocumentChannelQuestionPending(history)) {
       if (body && isBranchFulfillmentUncertainty(body)) {
         return withRecoveryPrefix(recoveryPrefix, buildDocumentPurchaseLocationQuestion())
       }
@@ -629,25 +891,19 @@ export async function resolveDigitalDocumentFlowReply(input: {
       }
       return withRecoveryPrefix(recoveryPrefix, buildDocumentChannelQuestion())
     }
-
-    if (isDigitalDocumentRequest(body) || isDocumentTypeSelection(body)) {
-      return buildDocumentChannelQuestion()
-    }
-
-    return buildDocumentChannelQuestion()
   }
 
-  if (phoneFromBody) {
-    const typed = userProvidedPhone(body)
-    if (!typed) return buildPhoneLookupDeclinedReply()
-    return withRecoveryPrefix(
-      recoveryPrefix,
-      await deliverDocumentsForPhone(typed, channel)
-    )
+  if (isDigitalDocumentRequest(body)) {
+    const intent = inferDocumentIntent(body) ?? "generic"
+    if (intent === "receipt") {
+      if (whatsappPhone) return buildDocumentPhoneConfirmPrompt(whatsappPhone)
+      return buildPhoneLookupDeclinedReply()
+    }
+    return buildDocumentTypeQuestion(intent)
   }
 
   if (whatsappPhone) {
-    return buildPhoneLookupConfirmPrompt(whatsappPhone)
+    return buildDocumentPhoneConfirmPrompt(whatsappPhone)
   }
 
   return buildPhoneLookupDeclinedReply()

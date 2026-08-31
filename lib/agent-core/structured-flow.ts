@@ -12,6 +12,7 @@ import {
   isActiveDigitalDocumentFlow,
   isDocumentChannelQuestionPending,
   isDocumentPhoneLookupPending,
+  isDocumentTypeQuestionPending,
   isLegacyDocumentTypeQuestionPending,
   isDocumentFlowMisunderstandingPending,
 } from "@/lib/agents/digital-document-flow"
@@ -42,6 +43,7 @@ export function hasStructuredFlowPending(history: HistoryMessage[], lastAgent: A
     isActiveSalesConsultation(history, lastAgent) ||
     isActiveDigitalDocumentFlow(history) ||
     isDocumentChannelQuestionPending(history) ||
+    isDocumentTypeQuestionPending(history) ||
     isLegacyDocumentTypeQuestionPending(history) ||
     isDocumentPhoneLookupPending(history) ||
     isDocumentFlowMisunderstandingPending(history)

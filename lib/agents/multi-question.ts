@@ -12,6 +12,7 @@ import { hasEmbeddedBusinessAsk } from "@/lib/agents/compound-reply"
 import {
   isDigitalDocumentRequest,
   isDocumentChannelQuestionPending,
+  isDocumentTypeQuestionPending,
   isDocumentPhoneLookupPending,
 } from "@/lib/agents/digital-document-flow"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
@@ -124,6 +125,12 @@ function structuredFlowPrimaryHint(
     if (phone) return phone
     const short = questions.find((q) => /^(?:כן|לא)\b/i.test(q.trim()))
     if (short) return short
+  }
+  if (isDocumentTypeQuestionPending(history)) {
+    const typeAnswer = questions.find((q) =>
+      /^(?:[123]|קבלה|חשבונית)/i.test(q.trim())
+    )
+    if (typeAnswer) return typeAnswer
   }
   if (isDocumentChannelQuestionPending(history)) {
     const channel = questions.find((q) =>
