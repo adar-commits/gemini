@@ -39,16 +39,32 @@ describe("buildConfirmationSummary", () => {
     assert.doesNotMatch(summary, /עניין בדגם/)
   })
 
-  it("does not ask budget during intake flow", () => {
+  it("does not ask budget — asks special requirements after style in full intake", () => {
     const history: HistoryMessage[] = [
+      { role: "user", content: "אני רוצה לקנות שטיח לסלון", agent: null },
       {
         role: "assistant",
-        content: "*הום בוט :)*\nאיזה סגנון או תחושה מחפשים — יוקרתי, מודרני, כפרי, או משהו אחר?",
+        content: "*הום בוט :)*\nמה מידת הספה או הגודל הכללי של הסלון?",
+        agent: "sales",
+      },
+      { role: "user", content: "2 על 3 כנראה", agent: null },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nהאם אמור להתאים לבעלי חיים?",
+        agent: "sales",
+      },
+      { role: "user", content: "לא", agent: null },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nאיזה סגנון או תחושה מחפשים — יוקרתי, מודרני, כפרי, או משהו אחר?",
         agent: "sales",
       },
     ]
-    const reply = buildSalesIntakeReply(history, "יוקרתי")
+    const reply = buildSalesIntakeReply(history, "מעדיף ייעוץ")
     assert.doesNotMatch(reply, /תקציב/)
+    assert.match(reply, /דרישות מיוחדות|קל לניקוי|בעלי חיים/)
   })
 
   it("asks sofa size before pets when living room is known", () => {

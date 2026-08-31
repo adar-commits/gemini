@@ -107,7 +107,7 @@ const SIZE_EXCHANGE_PHOTO_Q =
   "אפשר לצרף תמונה של החלל? התמונה תעזור ליועץ לדייק את המידה המתאימה."
 const BUDGET_Q = "ומה התקציב המשוער?"
 const PRACTICAL_Q =
-  "יש משהו חשוב שכדאי לקחת בחשבון — ניקוי קל, עמידות, או משהו אחר?"
+  "יש דרישות מיוחדות שכדאי לקחת בחשבון? למשל קל לניקוי, מתאים לבעלי חיים, עמידות, או משהו אחר?"
 
 function allUserText(history: HistoryMessage[], body: string) {
   return [
@@ -1380,14 +1380,6 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   return intake
 }
 
-function needsPracticalNeeds(intake: SalesIntake) {
-  return (
-    intake.household?.includes("ילד") ||
-    intake.childrenAge != null ||
-    intake.pets === "yes"
-  )
-}
-
 function spaceQuestion(intake: SalesIntake) {
   if (intake.product === "שטיח" || !intake.product) return SPACE_Q_RUG
   return SPACE_Q_OTHER
@@ -1433,7 +1425,7 @@ function nextIntakeQuestion(
   if (needsSpaceSizeQuestion(intake)) return spaceSizeQuestion(intake)
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
   if (!styleStepComplete(intake)) return STYLE_Q
-  if (needsPracticalNeeds(intake) && !intake.practicalNeeds) return PRACTICAL_Q
+  if (!intake.practicalNeeds) return PRACTICAL_Q
   return null
 }
 
