@@ -4,7 +4,6 @@ import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import type { PostPurchaseCaseKind } from "@/lib/agents/inquiry-intent"
 import { hasServiceUrgencySignal } from "@/lib/agents/inquiry-intent"
 import {
-  caseMarkerForKind,
   flowMarkerFromText,
 } from "@/lib/agents/post-purchase-case.constants"
 import {
@@ -12,13 +11,38 @@ import {
   isPureOrderConfirmation,
 } from "@/lib/agents/order-lookup"
 
+export function postPurchaseKindFromIntentConfirm(text: string): PostPurchaseCaseKind | null {
+  if (/בקשת איסוף לצורך החזרת מוצר/.test(text)) return "return_pickup_pending"
+  if (/ורוצה להחליף/.test(text)) return "exchange_request"
+  if (/ורוצה להחזיר/.test(text)) return "return_request"
+  if (/יש בו פגם/.test(text)) return "defect"
+  if (/אינך מרוצה/.test(text)) return "dissatisfaction"
+  if (/חלק מההזמנה לא הגיע/.test(text)) return "missing_item"
+  if (/ההזמנה המוקדמת מתעכבת/.test(text)) return "preorder_delay"
+  return null
+}
+
+export function activeIntentConfirmKind(history: HistoryMessage[]): PostPurchaseCaseKind | null {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (/אני\s+צודק\s*\?/i.test(message.content) && /אוקיי,\s+אני\s+מבין/i.test(message.content)) {
+      return postPurchaseKindFromIntentConfirm(message.content)
+    }
+    return null
+  }
+  return null
+}
+
 export function isPostPurchaseIntentConfirmPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
     if (!/אני\s+צודק\s*\?/i.test(message.content)) return false
-    return flowMarkerFromText(message.content) != null
+    if (flowMarkerFromText(message.content)) return true
+    return /אוקיי,\s+אני\s+מבין/i.test(message.content)
   }
   return false
 }
@@ -65,7 +89,6 @@ function buildIntentSummary(kind: PostPurchaseCaseKind, body: string) {
 }
 
 export function buildPostPurchaseIntentConfirm(kind: PostPurchaseCaseKind, body: string) {
-  const marker = caseMarkerForKind(kind)
   const summary = buildIntentSummary(kind, body)
   const urgency =
     kind === "return_pickup_pending" && hasServiceUrgencySignal(body)
@@ -73,7 +96,6 @@ export function buildPostPurchaseIntentConfirm(kind: PostPurchaseCaseKind, body:
       : ""
 
   return `${CUSTOMER_HEADER}
-${marker}.
 ${summary}${urgency}, אני צודק?`
 }
 

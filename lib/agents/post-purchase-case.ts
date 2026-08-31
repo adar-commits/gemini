@@ -64,6 +64,7 @@ import {
   isPostPurchaseIntentConfirmPending,
   isPostPurchaseIntentConfirmed,
   isPostPurchaseIntentDeclined,
+  activeIntentConfirmKind,
 } from "@/lib/agents/intent-confirmation"
 
 export { DEFECT_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
@@ -178,6 +179,7 @@ export function shouldHandleProductDefectFlow(body: string, history: HistoryMess
 function resolveCaseKind(body: string, history: HistoryMessage[]): PostPurchaseCaseKind {
   return (
     activePostPurchaseCaseKind(history) ??
+    activeIntentConfirmKind(history) ??
     classifyPostPurchaseCase(body) ??
     classifyPostPurchaseCaseFromHistory(history) ??
     (mentionsReturnIntent(body) ? "return_request" : mentionsExchangeIntent(body) ? "exchange_request" : "missing_item")

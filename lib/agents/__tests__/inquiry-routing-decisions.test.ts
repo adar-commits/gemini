@@ -43,9 +43,9 @@ describe("owner routing decisions from trainer chat", () => {
       phone: "+972547495083",
       history: [],
     })
-    assert.match(reply, new RegExp(RETURN_PICKUP_PENDING_FLOW_MARKER))
-    assert.match(reply, /אני צודק/)
     assert.match(reply, /בקשת איסוף/)
+    assert.doesNotMatch(reply, /לגבי איסוף להחלפה\/החזרה/)
+    assert.match(reply, /אני צודק/)
     assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
     assert.doesNotMatch(reply, /14 ימים/)
   })
@@ -71,7 +71,7 @@ describe("owner routing decisions from trainer chat", () => {
     const history: HistoryMessage[] = [
       {
         role: "assistant",
-        content: `*הום בוט :)*\n${RETURN_PICKUP_PENDING_FLOW_MARKER}.\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?`,
+        content: `*הום בוט :)*\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?`,
         agent: "service",
       },
     ]
@@ -80,8 +80,9 @@ describe("owner routing decisions from trainer chat", () => {
       phone: "+972547495083",
       history,
     })
-    assert.match(reply, /נאתר את ההזמנה/)
+    assert.match(reply, /נאתר/)
     assert.match(reply, /0547-495083/)
+    assert.match(reply, /לגבי איסוף להחלפה\/החזרה/)
   })
 
   it("treats received + return + what-to-do as FAQ return policy, not service lookup", () => {
