@@ -73,6 +73,7 @@ import {
   shouldHandlePostPurchaseCaseFlow,
   activePostPurchaseCaseKind,
 } from "@/lib/agents/post-purchase-case"
+import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isExchangePolicyQuestion, isPreorderDelayComplaint, isRefundStatusInquiry, isWarehouseShipRequest, isCantVisitBranchReturnHelp } from "@/lib/agents/inquiry-intent"
 import {
   buildDocumentPurchaseLocationQuestion,
@@ -2462,13 +2463,17 @@ export async function runMasterConversation(
         isFinalizationQuestion(prior) ||
         isHumanHandoffPending(history) ||
         isConfirmationPending(history) ||
+        isPostPurchaseIntentConfirmPending(history) ||
         activePostPurchaseCaseKind(history) ||
         isPhoneLookupConfirmPending(history) ||
         isOrderConfirmationPending(history) ||
         isAlternatePhoneRequestPending(history)
 
       if (resumeStructuredFlow) {
-        if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {
+        if (
+          shouldHandlePostPurchaseCaseFlow(body, history, lastAgent) ||
+          isPostPurchaseIntentConfirmPending(history)
+        ) {
           return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
         }
         if (shouldHandleDigitalDocumentFlowGuarded(body, history, lastAgent)) {
@@ -2527,7 +2532,10 @@ export async function runMasterConversation(
     if (isRefundStatusInquiry(body)) {
       return finish(await refundStatusHandoffResult(conversationId, body, route, preview))
     }
-    if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {
+    if (
+      shouldHandlePostPurchaseCaseFlow(body, history, lastAgent) ||
+      isPostPurchaseIntentConfirmPending(history)
+    ) {
       return finish(
         await postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
       )

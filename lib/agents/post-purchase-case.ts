@@ -121,6 +121,7 @@ export function shouldHandlePostPurchaseCaseFlow(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (isPostPurchaseIntentConfirmPending(history)) return true
   if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
   if (isDeliverySchedulingRequest(body)) return false
   if (isRefundStatusInquiry(body)) return false

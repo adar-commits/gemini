@@ -23,6 +23,7 @@ import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
 import { isConfirmationAffirmationWithExtra } from "@/lib/agents/compound-reply"
+import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
@@ -241,6 +242,7 @@ export function isActiveSalesConsultation(
   history: HistoryMessage[],
   lastAgent: AgentId | null
 ) {
+  if (isPostPurchaseIntentConfirmPending(history)) return false
   return (
     hasOngoingSalesIntake(history) ||
     isAwaitingSalesIntakeAnswer(history) ||
@@ -255,6 +257,7 @@ export function blocksOrderLookupForSalesConsultation(
   history: HistoryMessage[],
   lastAgent: AgentId | null
 ) {
+  if (isPostPurchaseIntentConfirmPending(history)) return false
   if (isAwaitingSalesIntakeAnswer(history) && isSalesIntakeAnswer(body, history)) {
     return true
   }
@@ -266,6 +269,7 @@ export function blocksOrderLookupForSalesConsultation(
 }
 
 export function hasOngoingSalesIntake(history: HistoryMessage[]) {
+  if (isPostPurchaseIntentConfirmPending(history)) return false
   if (isSalesPhotoRequestPending(history)) return true
   if (isAwaitingSalesIntakeAnswer(history)) return true
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -318,6 +322,8 @@ export function isLikelyBudgetIntakeAnswer(body: string) {
 }
 
 function questionKindForText(question: string): string | null {
+  if (/אוקיי,\s+אני\s+מבין/i.test(question) && /אני\s+צודק/i.test(question)) return null
+  if (/לגבי איסוף להחלפה\/החזרה|מצטער על הפגם|לגבי פריט חסר/i.test(question)) return null
   if (/לאיזה חלל|לאן השטיח/.test(question)) return "space"
   if (/באיזה מוצר/.test(question)) return "product"
   if (/החדר משמש|איך חדר השינה/.test(question)) return "bedroom"
@@ -329,7 +335,7 @@ function questionKindForText(question: string): string | null {
   if (/תמונה\s+של\s+החלל|תמונה\s+תעזור\s+ליועץ\s+לדייק/.test(question)) return "photo"
   if (/תקציב/.test(question)) return "budget"
   if (/דרישות מיוחדות|משהו חשוב שכדאי/.test(question)) return "practical"
-  if (/האם זה נכון|אני צודק/.test(question)) return "confirm"
+  if (/האם זה נכון|אז לסיכום/i.test(question)) return "confirm"
   return null
 }
 
@@ -431,6 +437,7 @@ export function shouldUseSalesIntakeFastPath(
   }
 
   // llm (default) + hybrid mid-quiz: stay scripted while any intake question is open
+  if (isPostPurchaseIntentConfirmPending(history)) return false
   if (isConfirmationPending(history)) return true
   if (isAwaitingSalesIntakeAnswer(history)) {
     if (isIntakeTopicPivot(body, history)) return false
@@ -1597,7 +1604,9 @@ function formatColorForSummary(intake: SalesIntake) {
 }
 
 export function isConfirmationPending(history: HistoryMessage[]) {
-  return /האם זה נכון עד כה|אני צודק/.test(lastIntakeAssistantText(history))
+  if (isPostPurchaseIntentConfirmPending(history)) return false
+  const last = lastIntakeAssistantText(history)
+  return /האם זה נכון עד כה|אז לסיכום/i.test(last)
 }
 
 export function sanitizeSalesReply(reply: string, history: HistoryMessage[], body: string) {

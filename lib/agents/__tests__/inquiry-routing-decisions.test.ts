@@ -15,6 +15,7 @@ import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import {
   buildReturnRequestConfirmedReply,
   resolvePostPurchaseCaseReply,
+  shouldHandlePostPurchaseCaseFlow,
 } from "@/lib/agents/post-purchase-case"
 import { RETURN_PICKUP_PENDING_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 import { MISSING_ITEM_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
@@ -72,7 +73,6 @@ describe("owner routing decisions from trainer chat", () => {
       {
         role: "assistant",
         content: `*הום בוט :)*\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?`,
-        agent: "service",
       },
     ]
     const reply = await resolvePostPurchaseCaseReply({
@@ -83,6 +83,25 @@ describe("owner routing decisions from trainer chat", () => {
     assert.match(reply, /נאתר/)
     assert.match(reply, /0547-495083/)
     assert.match(reply, /לגבי איסוף להחלפה\/החזרה/)
+    assert.doesNotMatch(reply, /יועץ מכירות/)
+  })
+
+  it("after intent confirm with נכון, routes to service lookup not sales handoff", async () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: `*הום בוט :)*\nאוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף אותו ממך, אני צודק?`,
+      },
+    ]
+    assert.equal(shouldHandlePostPurchaseCaseFlow("נכון", history, "master"), true)
+    const reply = await resolvePostPurchaseCaseReply({
+      body: "נכון",
+      phone: "+972547495083",
+      history,
+    })
+    assert.match(reply, /נאתר|אמצא/)
+    assert.doesNotMatch(reply, /יועץ מכירות/)
+    assert.doesNotMatch(reply, /יועץ מכירות ועיצוב/)
   })
 
   it("treats received + return + what-to-do as FAQ return policy, not service lookup", () => {
