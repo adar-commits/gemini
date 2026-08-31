@@ -4,6 +4,8 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import {
   authorizedLookupPhoneFromHistory,
   buildPhoneLookupConfirmPrompt,
+  isChannelPhoneSelfReference,
+  isOrderNumberRequestPending,
   resolveLookupPhoneFromHistory,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
@@ -83,6 +85,24 @@ describe("authorizedLookupPhoneFromHistory", () => {
       authorizedLookupPhoneFromHistory(history, "+972547495083"),
       null
     )
+  })
+
+  it("binds המספר שלי to channel phone after order/phone ask — no re-confirm", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nמה מספר ההזמנה או מספר הטלפון שאיתו בוצעה ההזמנה?",
+        agent: "faq",
+      },
+    ]
+    assert.equal(isOrderNumberRequestPending(history), true)
+    assert.equal(isChannelPhoneSelfReference("המספר שלי"), true)
+    assert.equal(
+      resolveLookupPhoneFromHistory(history, "+972547495083", "המספר שלי"),
+      "0547495083"
+    )
+    assert.equal(isChannelPhoneSelfReference("050-6703444"), false)
   })
 })
 

@@ -396,7 +396,17 @@ export function isShippingLookupContext(
 }
 
 const ORDER_NUMBER_REQUEST_RE =
-  /(?:אוכל לקבל|מה)\s+(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)|מספר(?:י)?\s+(?:ה)?הזמנ(?:ה|ות)/i
+  /(?:אוכל לקבל|מה|איז(?:ה|ו))\s+(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)|מספר(?:י)?\s+(?:ה)?הזמנ(?:ה|ות)/i
+
+const ORDER_PHONE_ID_REQUEST_RE =
+  /מספר\s+(?:ה)?טלפון\s+ש(?:בו|איתו|שאיתו)|הטלפון\s+ש(?:בו|איתו|שאיתו)\s+בוצע|מספר\s+(?:ה)?הזמנה[^?\n]{0,48}מספר\s+(?:ה)?טלפון/i
+
+function isOrderLookupIdentificationAssistantMessage(content: string) {
+  return (
+    ORDER_NUMBER_REQUEST_RE.test(content) ||
+    ORDER_PHONE_ID_REQUEST_RE.test(content)
+  )
+}
 
 const SERVICE_MISSING_PRODUCT_REQUEST_RE =
   /(?:מה|איז(?:ה|ו))\s+(?:ה)?(?:מוצר|פריט|שטיח).*(?:לא\s+הגיע|חסר|עדיין\s+לא)|(?:מה|איז(?:ה|ו))\s+(?:עוד\s+)?(?:לא\s+)?(?:הגיע|קיבלת)/i
@@ -406,7 +416,7 @@ export function isOrderNumberRequestPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return ORDER_NUMBER_REQUEST_RE.test(message.content)
+    return isOrderLookupIdentificationAssistantMessage(message.content)
   }
   return false
 }
@@ -544,6 +554,21 @@ export function isPureOrderConfirmation(body: string) {
 
 export function isPurePhoneLookupConfirmYes(body: string) {
   return isPureOrderConfirmation(body)
+}
+
+/** Customer means the WhatsApp/Landbot channel phone — not a typed alternate number. */
+export function isChannelPhoneSelfReference(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  if (userProvidedPhone(text)) return false
+  if (extractOrderNumber(text)) return false
+  return (
+    /^(?:ה)?(?:מספר|טלפון)\s+(?:שלי|שלנו)(?:[\s,.!?]|$)/iu.test(text) ||
+    /^(?:על|ב)(?:ה)?(?:מספר|טלפון)\s+(?:ה)?(?:זה|נוכחי)(?:[\s,.!?]|$)/iu.test(text) ||
+    /^(?:זה|זהו)\s+(?:ה)?(?:מספר|טלפון)(?:[\s,.!?]|$)/iu.test(text) ||
+    /^מ(?:מנ)?ו\s+(?:אני\s+)?(?:מתכתב|מדבר)/iu.test(text) ||
+    isPurePhoneLookupConfirmYes(text)
+  )
 }
 export function isOrderConfirmationPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -895,6 +920,15 @@ export function resolveLookupPhoneFromHistory(
     if (channel) return channel
   }
 
+  if (
+    body?.trim() &&
+    isChannelPhoneSelfReference(body) &&
+    isOrderNumberRequestPending(history)
+  ) {
+    const channel = channelPhone(whatsappPhone)
+    if (channel) return channel
+  }
+
   const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
   if (authorized) return authorized
 
@@ -1174,6 +1208,11 @@ export async function resolveOrderShippingReply(input: {
     if (isOrderNumberUnknownAnswer(body)) {
       if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
       return buildAlternatePhoneRequestPrompt()
+    }
+
+    if (isChannelPhoneSelfReference(body)) {
+      const confirmed = channelPhone(whatsappPhone)
+      if (confirmed) return lookupAndStartOrderConfirm(confirmed, empathize)
     }
 
     const orderReference = extractOrderReference(body, history)

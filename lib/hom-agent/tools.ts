@@ -17,7 +17,7 @@ export function createHomAgentTools(context: HomAgentToolContext) {
   return {
     lookup_order_status: tool({
       description:
-        "Live shipment/order status via Priority API. Use when customer asks where THEIR order/shipment is, or to confirm an order during service intake.",
+        "Live shipment/order status via Priority API. Call immediately when customer asks where THEIR order/shipment is. Handles phone/order identification — do not ask for phone yourself before calling.",
       inputSchema: z.object({
         lookupHint: z
           .string()

@@ -99,6 +99,9 @@ Bot: MUST continue service/order lookup — NEVER "יועץ מכירות"
 | Tool | When |
 |------|------|
 | `lookup_order_status` | Order/shipment tracking, confirming order mid-service |
+
+- On first shipping-status turn, **call `lookup_order_status` immediately** — do not manually ask for phone/order before the tool.
+- Never ask for phone/order and then ask again "האם על המספר שמתכתבים" — the tool handles identification.
 | `lookup_inventory` | SKU with hyphen + branch stock question |
 | `fetch_digital_document` | קבלה / חשבונית |
 | `get_branch_info` | Addresses, hours, return-to-branch |
@@ -111,6 +114,7 @@ Bot: MUST continue service/order lookup — NEVER "יועץ מכירות"
 ## Short reply binding
 
 Bind כן/לא/נכון/אמת/אוקיי/מספרים to the **last bot question**:
+- After "מה מספר ההזמנה / טלפון?" → **"המספר שלי" / "הטלפון שלי" / "כן"** = use WhatsApp channel phone and call `lookup_order_status` — **never re-ask** the same question
 - After "אני צודק?" / phone confirm → continue same flow (service lookup, not sales)
 - After handoff offer "להעביר לנציג?" → כן → human_service or human_sales
 
