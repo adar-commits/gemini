@@ -155,6 +155,19 @@ export function isSkuRequestPending(history: HistoryMessage[]) {
   return false
 }
 
+/** Recent branch stock lookup — follow-up SKUs should reuse inventory flow, not FAQ/sales LLM. */
+export function isActiveInventoryThread(history: HistoryMessage[] = []) {
+  const recent = history.slice(-10)
+  return recent.some(
+    (message) =>
+      message.role === "assistant" &&
+      !isInactivityAssistantMessage(message.content) &&
+      (isInventoryAvailabilityReply(message.content) ||
+        SKU_REQUEST_RE.test(message.content) ||
+        /בדקתי(?:\s+את|\s+זמינות)|לא מצאתי את הדגם/i.test(message.content))
+  )
+}
+
 export function shouldHandleBranchInventory(
   body: string,
   history: HistoryMessage[] = []
@@ -162,6 +175,7 @@ export function shouldHandleBranchInventory(
   if (hasProductUrlInText(body)) return isBareSkuMessage(textWithoutProductUrls(body))
   if (isSkuRequestPending(history)) return true
   if (isInventoryQuestion(body)) return true
+  if (extractSku(body) && isActiveInventoryThread(history)) return true
   return false
 }
 

@@ -4,11 +4,13 @@ import {
   buildInventoryAvailabilityReply,
   buildSkuRequestPrompt,
   extractSku,
+  isActiveInventoryThread,
   isBareSkuMessage,
   isInventoryQuestion,
   looksLikeInventorySku,
   lookupInventoryBySku,
   resolveBranchInventoryReply,
+  shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
 import {
   buildProductDetailsOpener,
@@ -73,6 +75,26 @@ describe("inventory vs product URL routing", () => {
     assert.equal(isProductDetailsRequest(body), true)
     assert.equal(isSpecificProductMention(body), false)
     assert.match(buildProductDetailsOpener(), /איזה פרטים חסרים/)
+  })
+
+  it("routes follow-up SKU questions in an inventory thread", async () => {
+    const history = [
+      {
+        role: "user" as const,
+        content: "50016308-9810070",
+        agent: null,
+      },
+      {
+        role: "assistant" as const,
+        content:
+          "*הום בוט :)*\nבדקתי זמינות לדגם 50016308-9810070:\n\n*אין במלאי כרגע:*",
+        agent: "sales",
+      },
+    ]
+    const body = "ומהדגם 50016315-9810070?"
+    assert.equal(isActiveInventoryThread(history), true)
+    assert.equal(shouldHandleBranchInventory(body, history), true)
+    assert.equal(extractSku(body), "50016315-9810070")
   })
 
   it("asks for URL on named model without details phrasing", () => {

@@ -169,6 +169,7 @@ import {
   isBranchInventoryQuestion,
   isInventoryAvailabilityReply,
   isInventoryQuestion,
+  isActiveInventoryThread,
   resolveBranchInventoryReply,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
@@ -529,6 +530,7 @@ function finalizeFaqReplyForContext(
   lastAgent: AgentId | null
 ) {
   if (!wasSalesFlowActive(history, lastAgent)) return reply
+  if (isActiveInventoryThread(history)) return reply
   if (/רוצים\s+להמשיך|להמשיך\s+בבחיר/i.test(reply)) return reply
   const withoutCleanEnding = reply
     .replace(/\n*אפשר לעזור במשהו נוסף\?[^\n]*/i, "")
@@ -2356,6 +2358,18 @@ export async function runMasterConversation(
   }
 
   const structuredFlow = hasStructuredFlowPending(history, lastAgent)
+
+  if (extractSku(body) && isActiveInventoryThread(history)) {
+    const followUpInventory = await tryBranchInventoryResult(
+      conversationId,
+      body,
+      history,
+      route,
+      true,
+      preview
+    )
+    if (followUpInventory) return finish(followUpInventory)
+  }
 
   if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
     setRoutingPath(conversationId, "t0")
