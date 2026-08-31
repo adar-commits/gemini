@@ -2,7 +2,9 @@ import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
-import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent, isActiveReturnExchangePickupCase, isRefundStatusInquiry } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent, isActiveReturnExchangePickupCase, isRefundStatusInquiry, classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
+import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
+import type { AgentId } from "@/lib/agents/types"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
@@ -335,6 +337,64 @@ export function requiresOrderIdentification(body: string, history: HistoryMessag
   return false
 }
 
+const SERVICE_ASSISTANT_CONTEXT_RE =
+  /(?:לגבי\s+(?:איסוף\s+להחלפה\/החזרה|פגם|החזרה|החלפה|פריט\s+חסר|הזמנה\s+מוקדמת)|מבין\s+ש(?:השטיח|קיבלת)|נאסף\s+ומחכים|סטטוס\s+ההחזר|הוקמה\s+בקשת\s+איסוף|מצטער\s+על\s+הפגם|נאתר\s+(?:קודם\s+)?א(?:ת\s+)?(?:ה)?הזמנה|מה\s+מספר\s+ההזמנה)/i
+
+const SHIPPING_ASSISTANT_CONTEXT_RE =
+  /(?:בדקתי,|סטטוס\s+(?:ה)?משלוח|איפה\s+(?:ה)?(?:משלוח|הזמנה)|מצאתי\s+א(?:ת\s+)?(?:ה)?הזמנה.*(?:נכון|\?))/i
+
+/** Post-purchase / service owns order lookup — shipping must not hijack mid-flow. */
+export function isServiceLookupContext(
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+): boolean {
+  if (lastAgent === "service") return true
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (flowMarkerFromText(message.content)) return true
+    if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return true
+    if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return false
+    break
+  }
+
+  const recentUser = history.filter((message) => message.role === "user").slice(-4)
+  for (const message of recentUser) {
+    if (isRefundStatusInquiry(message.content)) return true
+    if (isActiveReturnExchangePickupCase(message.content)) return true
+    if (classifyPostPurchaseCase(message.content)) return true
+  }
+
+  return false
+}
+
+/** Shipping status lookup — only when not in an active service/post-purchase thread. */
+export function isShippingLookupContext(
+  body: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+): boolean {
+  if (isServiceLookupContext(history, lastAgent)) return false
+  if (isShippingStatusQuestion(body)) return true
+
+  for (const message of history.filter((entry) => entry.role === "user").slice(-4)) {
+    if (isShippingStatusQuestion(message.content)) return true
+  }
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return true
+    if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return false
+    break
+  }
+
+  return lastAgent === "master" || lastAgent === "faq"
+}
+
 const ORDER_NUMBER_REQUEST_RE =
   /(?:אוכל לקבל|מה)\s+(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)|מספר(?:י)?\s+(?:ה)?הזמנ(?:ה|ות)/i
 
@@ -516,7 +576,8 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
 export function isOrderConfirmationYes(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
-  if (/^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|אכן|בטח|yes|👍)/i.test(text)) return true
+  if (/^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|אכן|בטח|אמת|yes|👍)/i.test(text)) return true
+  if (/^(?:אוקיי|אוקי|ok|okay|סבבה)(?:[\s,.!?]|$)/i.test(text)) return true
   if (/^(?:זה|זו|זאת)\s+(?:נכון|ה(?:יא|וא)|מדובר)/i.test(text)) return true
   if (/זה\s+המספר\s+שלי|המספר\s+(?:ה)?(?:נכון|שלי)/i.test(text)) return true
   if (/(?:^|[\s,])(?:נראה|כנראה)\s+(?:לי\s+)?שכן(?:[\s,.!?]|$)/i.test(text)) return true
@@ -859,7 +920,9 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     return (
       /האם היא רשומה על המספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
-      /האם ההזמנה על המספר/i.test(message.content)
+      /האם ההזמנה על המספר/i.test(message.content) ||
+      /האם (?:ה)?טלפון.{0,60}שבוצעה עליו/i.test(message.content) ||
+      /מתכתב כרגע/i.test(message.content)
     )
   }
   return false

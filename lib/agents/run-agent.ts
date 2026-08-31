@@ -73,7 +73,7 @@ import {
   shouldHandlePostPurchaseCaseFlow,
   activePostPurchaseCaseKind,
 } from "@/lib/agents/post-purchase-case"
-import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isExchangePolicyQuestion, isPreorderDelayComplaint, isRefundStatusInquiry } from "@/lib/agents/inquiry-intent"
+import { isReturnFlowCorrection, isRefundTimelineQuestion, isReturnPolicyQuestion, isExchangePolicyQuestion, isPreorderDelayComplaint, isRefundStatusInquiry, isWarehouseShipRequest, isCantVisitBranchReturnHelp } from "@/lib/agents/inquiry-intent"
 import {
   buildDocumentPurchaseLocationQuestion,
   isDocumentChannelQuestionPending,
@@ -102,6 +102,7 @@ import {
   extractOrderReference,
   extractPhoneFromText,
   orderLookupEnabled,
+  isShippingLookupContext,
 } from "@/lib/agents/order-lookup"
 import { wasReplyRecentlySent } from "@/lib/agents/reply-dedupe"
 import {
@@ -214,6 +215,8 @@ import {
   buildCarpetRentalPolicyReply,
   buildRefundTimelinePolicyReply,
   buildRefundStatusHandoffReply,
+  buildCantVisitBranchReturnReply,
+  buildWarehouseShipHandoffReply,
   buildReturnExchangePolicyReply,
   resolveReturnExchangePolicyReply,
   matchPolicySubjects,
@@ -267,6 +270,53 @@ function refundStatusHandoffResult(
     action: "human_service" as const,
     route: [...route, "faq"],
   }))
+}
+
+function warehouseShipHandoffResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean
+): Promise<AgentResponse> {
+  const reply = normalizeReply("faq", "reply", buildWarehouseShipHandoffReply())
+  return appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "human_service",
+    preview,
+  }).then(() => ({
+    ok: true as const,
+    agent: "faq" as const,
+    reply,
+    action: "human_service" as const,
+    route: [...route, "faq"],
+  }))
+}
+
+async function cantVisitBranchReturnResult(
+  conversationId: string,
+  body: string,
+  route: AgentId[],
+  preview?: boolean
+): Promise<AgentResponse> {
+  const reply = normalizeReply("faq", "reply", buildCantVisitBranchReturnReply())
+  await appendTurn({
+    conversationId,
+    agent: "faq",
+    userText: body,
+    assistantText: reply,
+    action: "reply",
+    preview,
+  })
+  return {
+    ok: true as const,
+    agent: "faq" as const,
+    reply,
+    action: "reply" as const,
+    route: [...route, "faq"],
+  }
 }
 
 function deliverySchedulingHandoffResult(
@@ -348,6 +398,20 @@ async function runT0DeterministicPaths(
     return markT0Routing(
       conversationId,
       await refundStatusHandoffResult(conversationId, body, route, preview)
+    )
+  }
+
+  if (isWarehouseShipRequest(body)) {
+    return markT0Routing(
+      conversationId,
+      await warehouseShipHandoffResult(conversationId, body, route, preview)
+    )
+  }
+
+  if (isCantVisitBranchReturnHelp(body)) {
+    return markT0Routing(
+      conversationId,
+      await cantVisitBranchReturnResult(conversationId, body, route, preview)
     )
   }
 
@@ -1679,7 +1743,7 @@ function shouldHandleOrderShippingFlow(
     isOrderConfirmationPending(history) ||
     isServiceOrderIdentificationPending(history)
   ) {
-    return true
+    return isShippingLookupContext(body, history, lastAgent)
   }
 
   if (extractOrderReference(body, history)) return true
@@ -1826,19 +1890,19 @@ function shippingResult(
 
     const { assistantInserted } = await appendTurn({
       conversationId,
-      agent: "master",
+      agent: "faq",
       userText: body,
       assistantText: outbound,
-      action: "shipping",
+      action: "reply",
       preview,
     })
 
     return {
       ok: true,
-      agent: "master" as const,
+      agent: "faq" as const,
       reply: assistantInserted ? outbound : "",
-      action: "shipping" as const,
-      route,
+      action: "reply" as const,
+      route: [...route, "faq"],
     }
   })
 }
@@ -2407,7 +2471,10 @@ export async function runMasterConversation(
         if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {
           return postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
         }
-        if (shouldHandleOrderLookupFlow(body, history, lastAgent)) {
+        if (shouldHandleDigitalDocumentFlowGuarded(body, history, lastAgent)) {
+          return documentFlowResult(conversationId, body, route, preview, phone, history)
+        }
+        if (shouldHandleOrderShippingFlow(body, history, lastAgent)) {
           return shippingResult(conversationId, body, route, preview, phone, history)
         }
         // Fall through — complete handoff / confirmation without re-asking.
@@ -2455,6 +2522,22 @@ export async function runMasterConversation(
   }
 
   const structuredFlow = hasStructuredFlowPending(history, lastAgent)
+
+  if (structuredFlow) {
+    if (isRefundStatusInquiry(body)) {
+      return finish(await refundStatusHandoffResult(conversationId, body, route, preview))
+    }
+    if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {
+      return finish(
+        await postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+      )
+    }
+    if (shouldHandleDigitalDocumentFlowGuarded(body, history, sharedOptions.lastAgent)) {
+      return finish(
+        await documentFlowResult(conversationId, body, route, preview, phone, history)
+      )
+    }
+  }
 
   if (extractSku(body) && isActiveInventoryThread(history)) {
     const followUpInventory = await tryBranchInventoryResult(
@@ -2642,6 +2725,14 @@ export async function runMasterConversation(
 
   if (isRefundStatusInquiry(body)) {
     return refundStatusHandoffResult(conversationId, body, route, preview)
+  }
+
+  if (isWarehouseShipRequest(body)) {
+    return warehouseShipHandoffResult(conversationId, body, route, preview)
+  }
+
+  if (isCantVisitBranchReturnHelp(body)) {
+    return cantVisitBranchReturnResult(conversationId, body, route, preview)
   }
 
   if (shouldHandlePostPurchaseCaseFlow(body, history, lastAgent)) {

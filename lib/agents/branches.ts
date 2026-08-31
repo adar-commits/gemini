@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { isRefundTimelineQuestion } from "@/lib/agents/inquiry-intent"
+import { isRefundTimelineQuestion, isCantVisitBranchReturnHelp } from "@/lib/agents/inquiry-intent"
 import { isBranchReviewLinkRequest } from "@/lib/agents/branch-google-reviews"
 
 const kbPath = join(process.cwd(), "lib/agents/kb/faq.md")
@@ -67,6 +67,7 @@ export function isReturnToBranchQuestion(text: string) {
 export function isBranchListQuestion(text: string) {
   const normalized = text.trim()
   if (isRefundTimelineQuestion(normalized)) return false
+  if (isCantVisitBranchReturnHelp(normalized)) return false
   if (isBranchReviewLinkRequest(normalized)) return false
   if (
     /מלאi|זמינות|במלאi|inventory|in\s+stock|בדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi|תבדוק(?:\s+לי|\s+ל)?\s*(?:את\s+)?(?:ה)?מלאi/i.test(

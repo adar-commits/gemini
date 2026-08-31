@@ -354,6 +354,32 @@ export function isRefundStatusInquiry(text: string) {
   return pickupDone && asksRefundStatus
 }
 
+/** Ship a product from warehouse/storage — service execution, not shipping status lookup. */
+export function isWarehouseShipRequest(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  const hasStorage = /(?:אחסון|אחסנה|מחסן|warehouse)/i.test(trimmed)
+  const wantsShip =
+    /(?:ל)?של(?:ch|וח|ח(?:ו|י|ים|נ)?)|משל(?:ch|וח)|מבקש(?:ה|ים|ות).{0,25}(?:ל)?של/i.test(
+      trimmed
+    )
+  return hasStorage && wantsShip
+}
+
+/** Customer cannot visit a branch (heavy item, mobility) — home pickup, not branch list. */
+export function isCantVisitBranchReturnHelp(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (isRefundTimelineQuestion(trimmed)) return false
+  const cantVisit =
+    /(?:לא\s+(?:יכול(?:ה|ים|ות)?|מ(?:צליח(?:ה|ים|ות)?)?)\s+(?:ל)?(?:הגיע|לבוא|להגיע)|(?:כבד|מ(?:כ(?:בד|ובד)|ס(?:י)?יב)|לא\s+(?:נ(?:וח|יתן)|מעש(?:י|ית))\s+(?:ל)?(?:הגיע|לבוא)))/i.test(
+      trimmed
+    )
+  const returnContext =
+    /(?:החזר(?:ה|ות)?|להחזיר|החלפ(?:ה|ות)?|(?:ל)?(?:ה)?סניף|איסוף\s+מהבית)/i.test(trimmed)
+  return cantVisit && returnContext
+}
+
 export function hasServiceUrgencySignal(text: string) {
   return /(?:ללד(?:ת|ות)|הריון|לידה|דח(?:וף|ופ)|בהקדם\s+האפשרי)/i.test(text.trim())
 }

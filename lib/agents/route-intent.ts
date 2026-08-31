@@ -32,6 +32,8 @@ import {
   isProductDefectComplaint,
   isMissingOrPartialDeliveryComplaint,
   isActiveReturnExchangePickupCase,
+  isCantVisitBranchReturnHelp,
+  isWarehouseShipRequest,
 } from "@/lib/agents/inquiry-intent"
 
 const BREAK_STICKY = new Set([
@@ -82,6 +84,14 @@ export function guessMasterRoute(body: string): MasterAction | null {
 
   if (isActiveReturnExchangePickupCase(text)) {
     return "ROUTE_TO_SERVICE_AGENT"
+  }
+
+  if (isWarehouseShipRequest(text)) {
+    return "ROUTE_TO_SERVICE_AGENT"
+  }
+
+  if (isCantVisitBranchReturnHelp(text)) {
+    return "ROUTE_TO_INFO_AGENT"
   }
 
   if (isMissingOrPartialDeliveryComplaint(text)) {

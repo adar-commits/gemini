@@ -59,7 +59,6 @@ export const SILENT_ACTIONS = new Set<AgentAction>([
   "faq",
   "sales",
   "service",
-  "shipping",
   "human_sales",
   "human_service",
   "invoice_tax",

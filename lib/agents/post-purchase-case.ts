@@ -46,6 +46,7 @@ import {
   requiresOrderIdentification,
   resolveLookupPhoneFromHistory,
   userProvidedPhone,
+  isServiceLookupContext,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
 
@@ -138,7 +139,8 @@ export function shouldHandlePostPurchaseCaseFlow(
   const establishedCase =
     activePostPurchaseCaseKind(history) != null ||
     activeIntentConfirmKind(history) != null ||
-    classifyPostPurchaseCaseFromHistory(history) != null
+    classifyPostPurchaseCaseFromHistory(history) != null ||
+    isServiceLookupContext(history, lastAgent)
 
   if (
     !continuingLookup &&

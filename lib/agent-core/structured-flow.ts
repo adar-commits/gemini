@@ -8,6 +8,7 @@ import {
   isPhoneLookupConfirmPending,
   isServiceOrderIdentificationPending,
 } from "@/lib/agents/order-lookup"
+import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
   isActiveDigitalDocumentFlow,
   isDocumentChannelQuestionPending,
@@ -36,6 +37,7 @@ export function hasStructuredFlowPending(history: HistoryMessage[], lastAgent: A
     isAlternatePhoneRequestPending(history) ||
     isOrderNumberRequestPending(history) ||
     isServiceOrderIdentificationPending(history) ||
+    isPostPurchaseIntentConfirmPending(history) ||
     isProductUrlRequestPending(history) ||
     isProductHandoffPending(history) ||
     isConfirmationPending(history) ||
