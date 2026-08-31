@@ -78,6 +78,51 @@ export function dedupeGreetingBotName(reply: string) {
   )
 }
 
+const HEADER_MARKDOWN_RE = /^\*הום בוט :\)\*\n?/
+const HEADER_PLAIN_RE = /^הום בוט :\)\s*\n?/
+
+/** Remove the customer header from the start of a message. */
+export function stripCustomerHeader(text: string) {
+  return text.replace(HEADER_MARKDOWN_RE, "").replace(HEADER_PLAIN_RE, "").trimStart()
+}
+
+/** Keep at most one header — collapse duplicate titles inside one reply. */
+export function ensureSingleCustomerHeader(text: string) {
+  const normalized = text.trim()
+  if (!/(?:\*הום בוט :\)\*|^הום בוט :\))/m.test(normalized)) return normalized
+
+  const body = normalized
+    .replace(/(?:\*הום בוט :\)\*|הום בוט :\))\s*\n?/g, "\n")
+    .replace(/^\n+/, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+
+  if (!body) return CUSTOMER_HEADER
+  if (body.startsWith(CUSTOMER_HEADER)) return body
+  return `${CUSTOMER_HEADER}\n${body}`
+}
+
+/** First outbound keeps header; follow-ups in the same burst do not repeat it. */
+export function formatOutboundMessages(
+  messages: string[],
+  options?: { headerAlreadySent?: boolean }
+): { messages: string[]; headerSent: boolean } {
+  let headerSent = options?.headerAlreadySent ?? false
+  const formatted = messages
+    .map((raw) => raw.trim())
+    .filter(Boolean)
+    .map((raw) => {
+      const single = ensureSingleCustomerHeader(raw)
+      if (headerSent) return stripCustomerHeader(single)
+      if (HEADER_MARKDOWN_RE.test(single) || HEADER_PLAIN_RE.test(single)) {
+        headerSent = true
+        return single
+      }
+      return single
+    })
+  return { messages: formatted, headerSent }
+}
+
 /** Opening welcome — single header, no repeated bot name, masculine voice. */
 export function buildGreetingReply(_customerName?: string) {
   return `${CUSTOMER_HEADER}

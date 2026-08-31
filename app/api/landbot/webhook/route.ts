@@ -112,6 +112,7 @@ export async function POST(request: Request) {
     }
 
     let lastResult: Awaited<ReturnType<typeof handleLandbotInbound>> | null = null
+    let headerAlreadySent = false
     try {
       await drainConversationBuffer({
         conversationId: inbound.conversationId,
@@ -124,8 +125,12 @@ export async function POST(request: Request) {
               replyEnabled,
               phone,
               customerName: inbound.customerName,
+              headerAlreadySent,
             }
           )
+          if (lastResult.outbound_header_sent) {
+            headerAlreadySent = true
+          }
         },
       })
     } finally {

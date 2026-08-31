@@ -1,4 +1,5 @@
 import { runCustomerConversation } from "@/lib/agents/conversation"
+import { formatOutboundMessages } from "@/lib/agents/greeting"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getSessionInactivityState } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
@@ -51,6 +52,8 @@ export type InboundMode = "reply" | "shadow"
 export type LandbotInboundResult = AgentResponse & {
   mode: InboundMode
   draft_reply?: string
+  /** True when a customer-visible message already included *הום בוט :)* this drain. */
+  outbound_header_sent?: boolean
 }
 
 function outboundReply(result: AgentResponse) {
@@ -68,7 +71,13 @@ export async function handleLandbotInbound(
   customerId: number,
   conversationId: string,
   turn: UserTurn,
-  options?: { replyEnabled?: boolean; phone?: string; customerName?: string }
+  options?: {
+    replyEnabled?: boolean
+    phone?: string
+    customerName?: string
+    /** Prior outbound in the same debounce drain already showed the header. */
+    headerAlreadySent?: boolean
+  }
 ): Promise<LandbotInboundResult> {
   const replyEnabled = options?.replyEnabled !== false
   const mode: InboundMode = replyEnabled ? "reply" : "shadow"
@@ -194,6 +203,7 @@ export async function handleLandbotInbound(
   }
 
   let result: AgentResponse
+  let headerAlreadySent = options?.headerAlreadySent ?? false
   const watchdog = startProcessingWatchdog({
     replyEnabled,
     onStuck: async () => {
@@ -217,6 +227,7 @@ export async function handleLandbotInbound(
       onPriorityApiCall: replyEnabled
         ? async () => {
             await sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
+            headerAlreadySent = true
             watchdog.markReplySent()
           }
         : undefined,
@@ -252,9 +263,11 @@ export async function handleLandbotInbound(
     result = { ...result, reply: draftReply, duplicateSuppressed: false }
   }
 
-  const outboundMessages =
+  const rawOutbound =
     result.replies?.filter((text) => text.trim()) ??
     (draftReply ? [draftReply] : [])
+  const { messages: outboundMessages, headerSent: outboundHeaderSent } =
+    formatOutboundMessages(rawOutbound, { headerAlreadySent })
 
   if (replyEnabled && !watchdog.stuckAlreadySent()) {
     for (const text of outboundMessages) {
@@ -319,5 +332,6 @@ export async function handleLandbotInbound(
     ...result,
     mode,
     draft_reply: outboundMessages[0] || draftReply || undefined,
+    outbound_header_sent: outboundHeaderSent || headerAlreadySent,
   }
 }

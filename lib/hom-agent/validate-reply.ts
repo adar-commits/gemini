@@ -2,6 +2,7 @@ import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import {
   dedupeGreetingBotName,
+  ensureSingleCustomerHeader,
   isCasualGreeting,
   isSelfContainedGreetingReply,
   sanitizeBotGenderSlashes,
@@ -30,6 +31,8 @@ export function validateHomAgentReply(
       }
     }
   }
+
+  reply = ensureSingleCustomerHeader(reply)
 
   return { ...output, reply }
 }

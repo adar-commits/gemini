@@ -3,6 +3,8 @@ import { describe, it } from "node:test"
 import {
   buildGreetingReply,
   dedupeGreetingBotName,
+  ensureSingleCustomerHeader,
+  formatOutboundMessages,
   sanitizeBotGenderSlashes,
 } from "@/lib/agents/greeting"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -31,5 +33,42 @@ describe("greeting reply", () => {
     const cleaned = dedupeGreetingBotName(sanitizeBotGenderSlashes(noisy))
     assert.doesNotMatch(cleaned, /כאן הום בוט/)
     assert.match(cleaned, /שמח שפנית/)
+  })
+})
+
+describe("customer header formatting", () => {
+  it("merges duplicate headers inside one reply", () => {
+    const noisy = `${CUSTOMER_HEADER}
+היי! 👋
+
+${CUSTOMER_HEADER}
+אני מבין שמחכים לשטיח.`
+    const cleaned = ensureSingleCustomerHeader(noisy)
+    assert.equal((cleaned.match(/\*הום בוט :\)\*/g) ?? []).length, 1)
+    assert.match(cleaned, /היי/)
+    assert.match(cleaned, /מחכים לשטיח/)
+  })
+
+  it("strips header from follow-up bubbles in one burst", () => {
+    const { messages, headerSent } = formatOutboundMessages(
+      [
+        `${CUSTOMER_HEADER}\nהיי! 👋`,
+        `${CUSTOMER_HEADER}\nאני מבין שמחכים לשטיח.`,
+      ],
+      { headerAlreadySent: false }
+    )
+    assert.equal(messages.length, 2)
+    assert.match(messages[0], /^\*הום בוט :\)\*/)
+    assert.doesNotMatch(messages[1], /^\*הום בוט :\)\*/)
+    assert.match(messages[1], /מחכים לשטיח/)
+    assert.equal(headerSent, true)
+  })
+
+  it("strips header when prior bubble already sent one", () => {
+    const { messages } = formatOutboundMessages([`${CUSTOMER_HEADER}\nשאלה נוספת?`], {
+      headerAlreadySent: true,
+    })
+    assert.doesNotMatch(messages[0], /^\*הום בוט :\)\*/)
+    assert.match(messages[0], /שאלה נוספת/)
   })
 })
