@@ -1,5 +1,7 @@
 # HoM Agent Prompt Architecture
 
+> **Superseded for production routing by [agent-v3-single-agent.md](./agent-v3-single-agent.md)** — silent Master + specialist prompts removed; use `lib/hom-agent/prompts/hom-bot.md`.
+
 > Master plan for how each Landbot agent should think, route, speak, and hand off.
 > Implemented in `lib/agents/prompts/` and assembled by `lib/agents/prompts.ts`.
 
