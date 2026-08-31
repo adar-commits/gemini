@@ -15,6 +15,7 @@ export type PostPurchaseCaseKind =
   | "dissatisfaction"
   | "preorder_delay"
   | "return_request"
+  | "return_pickup_pending"
   | "missing_item"
 
 const RETURN_INTENT_RE =
@@ -206,8 +207,40 @@ function matchesPreorderDelay(text: string) {
   return false
 }
 
+const PICKUP_WAIT_RE =
+  /(?:מחכ(?:ה|ים|ות)|מ(?:מתינ(?:ה|ים|ות)?|צ(?:פ(?:ה|ים|ות)?)?))\s*(?:ל)?(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|איסוף\s+(?:ה)?(?:שטיח|מוצר|החזר(?:ה|ות)?))|(?:ש)?(?:ליח|משלוח)\s+(?:י(?:בוא|גיע)|(?:ל)?(?:איסוף|החזרה)))|(?:עדיין|כבר).{0,35}(?:לא\s+(?:בא(?:ו|ה)|הגיע(?:ו|ה)?|אספ(?:ו|u)|יצא(?:ו|ה)?)|מחכ(?:ה|ים|ות))|(?:לא\s+(?:בא(?:ו|ה)|הגיע(?:ו|ה)?)\s+(?:ל)?(?:לאסוף|לקחת))/i
+
+const ALREADY_INITIATED_RETURN_EXCHANGE_RE =
+  /(?:ביצע(?:תי|נו|ה)|עש(?:יתי|ינו)|פתח(?:תי|נו)|הגש(?:תי|נו)|התחל(?:תי|נו)|(?:כבר\s+)?(?:ב(?:ק|ק)ש(?:תי|נו))).{0,50}(?:החלפ(?:ה|ות)?|החזר(?:ה|ות)?|בקש(?:ת|ה)\s+(?:ה)?(?:החלפ|החזר))|(?:החלפ(?:ה|ות)?|החזר(?:ה|ות)?).{0,40}(?:ב(?:וצע(?:ה|ו)?|תהליך)|(?:כבר\s+)?(?:פתח(?:תי|נו)|הגש(?:תי|נו)|ב(?:ק|ק)ש(?:תי|נו)))/i
+
 const MISSING_ITEM_RE =
   /(?:קיבלתי|הגיע(?:ה|ו)?)\s+רק|רק\s+(?:אח(?:ת|ד)|חלק|ח(?:מ)?יש(?:ה|ית)?)|(?:\d+|שת(?:י|יים|יים)?)\s+הזמנות.*(?:קיבלתי|הגיע).*רק|חסר(?:ים|ה)?\s+(?:לי\s+)?(?:פריט|מוצר|שטיח|חלק)|(?:לא\s+(?:קיבלתי|הגיע(?:ה|ו)?)\s+(?:את\s+)?(?:ה?(?:שני|2|שאר|מוצר|פריט|שטיח))|(?:קיבלתי|הגיע(?:ה|ו)?)\s+(?:את\s+)?(?:ה?(?:שני|2|שאר)))|רק\s+חלק\s+מ(?:ן|)?(?:ה)?הזמנה|משלוח\s+חסר/i
+
+/** Customer already opened return/exchange and is waiting for courier pickup — not policy FAQ. */
+export function isActiveReturnExchangePickupCase(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (isReturnPolicyQuestion(trimmed) || isReturnFlowCorrection(trimmed)) return false
+
+  const hasPickupWait = PICKUP_WAIT_RE.test(trimmed)
+  const hasInitiated =
+    ALREADY_INITIATED_RETURN_EXCHANGE_RE.test(trimmed) ||
+    /(?:ביצע(?:תי|נו|ה)|פתח(?:תי|נו)|הגש(?:תי|נו)).{0,30}(?:החלפ|החזר)/i.test(trimmed)
+
+  if (hasPickupWait && (hasInitiated || /(?:שטיח|פוף|מוצר|הזמנה)/i.test(trimmed))) {
+    return true
+  }
+
+  if (hasPickupWait && /(?:החלפ|החזר|איסוף|להחזיר)/i.test(trimmed)) {
+    return true
+  }
+
+  return false
+}
+
+export function hasServiceUrgencySignal(text: string) {
+  return /(?:ללד(?:ת|ות)|הריון|לידה|דח(?:וף|ופ)|בהקדם\s+האפשרי)/i.test(text.trim())
+}
 
 export function isMissingOrPartialDeliveryComplaint(body: string) {
   return matchesMissingItem(body.trim())
@@ -218,11 +251,18 @@ function matchesMissingItem(text: string) {
   return MISSING_ITEM_RE.test(text)
 }
 
+function matchesReturnPickupPending(text: string) {
+  return isActiveReturnExchangePickupCase(text)
+}
+
 /** Classify post-purchase case from primary clause, then full message. */
 export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | null {
   const primary = primaryIntentText(body)
   const candidates = [primary, body.trim()].filter(Boolean)
 
+  for (const text of candidates) {
+    if (matchesReturnPickupPending(text)) return "return_pickup_pending"
+  }
   for (const text of candidates) {
     if (matchesReturnRequest(text)) return "return_request"
   }

@@ -1,3 +1,4 @@
+import { isActiveReturnExchangePickupCase } from "@/lib/agents/inquiry-intent"
 import {
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
@@ -36,6 +37,7 @@ export function isServiceTopicSwitch(body: string) {
   if (isCustomerServiceOpener(text)) return false
   if (isDigitalDocumentRequest(text)) return false
   if (isShippingStatusQuestion(text)) return false
+  if (isActiveReturnExchangePickupCase(text)) return true
 
   if (
     /(?:הזמנה\s+)?מוקדמת|pre\s*-?\s*order|עיכוב.*מכולה|משלוח\s+חסר|תלונה\s+על\s+(?:שליח|זמנים)|פגם\s+ב(?:ה)?ובלה|טעות\s+בליקוט|זליג(?:ה|ת)\s+צבע/i.test(

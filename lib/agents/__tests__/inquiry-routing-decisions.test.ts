@@ -3,16 +3,20 @@ import { describe, it } from "node:test"
 import type { HistoryMessage } from "@/lib/agents/types"
 import {
   classifyPostPurchaseCase,
+  isActiveReturnExchangePickupCase,
   isPostPurchaseDissatisfaction,
   isReturnPolicyQuestion,
 } from "@/lib/agents/inquiry-intent"
 import { buildDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
 import { guessMasterRoute } from "@/lib/agents/route-intent"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
+import { isFaqPolicyQuestion } from "@/lib/agents/policy-subjects"
+import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import {
   buildReturnRequestConfirmedReply,
   resolvePostPurchaseCaseReply,
 } from "@/lib/agents/post-purchase-case"
+import { RETURN_PICKUP_PENDING_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 import { MISSING_ITEM_FLOW_MARKER } from "@/lib/agents/post-purchase-case.constants"
 import type { OrderShipmentStatus } from "@/lib/agents/order-lookup"
 
@@ -20,8 +24,30 @@ const RETURN_WHAT_TO_DO = "היי הגיע לי השטיח ואני רוצה ל�
 const RETURN_OPTIONS = "היי הגיע לי השטיח ואני רוצה להחזיר מה אפשר לעשות?"
 const DISSATISFACTION = "היי קיבלתי את השטיח ואני לא ממש אוהב אותו"
 const DELAYED_SHIPMENT = "הזמנתי לפני שבוע ועוד לא קיבלתי את המשלוח"
+const RETURN_PICKUP_WAIT =
+  "היי אני מחכה שיאספו ממני שטיח שביצעתי החלפה כבר שבועיים שלוש\nאני אמורה ללדת בשבוע שבועיים הקרובים"
 
 describe("owner routing decisions from trainer chat", () => {
+  it("routes active return pickup wait to service, not return policy FAQ", async () => {
+    assert.equal(isReturnPolicyQuestion(RETURN_PICKUP_WAIT), false)
+    assert.equal(isActiveReturnExchangePickupCase(RETURN_PICKUP_WAIT), true)
+    assert.equal(classifyPostPurchaseCase(RETURN_PICKUP_WAIT), "return_pickup_pending")
+    assert.equal(isFaqPolicyQuestion(RETURN_PICKUP_WAIT), false)
+    assert.equal(isServiceTopicSwitch(RETURN_PICKUP_WAIT), true)
+    assert.equal(guessMasterRoute(RETURN_PICKUP_WAIT), "ROUTE_TO_SERVICE_AGENT")
+
+    const reply = await resolvePostPurchaseCaseReply({
+      body: RETURN_PICKUP_WAIT,
+      phone: "+972547495083",
+      history: [],
+    })
+    assert.match(reply, new RegExp(RETURN_PICKUP_PENDING_FLOW_MARKER))
+    assert.match(reply, /מחכה לאיסוף/)
+    assert.match(reply, /דחיפות/)
+    assert.doesNotMatch(reply, /returns\.carpetshop\.co\.il/)
+    assert.doesNotMatch(reply, /14 ימים/)
+  })
+
   it("treats received + return + what-to-do as FAQ return policy, not service lookup", () => {
     for (const message of [RETURN_WHAT_TO_DO, RETURN_OPTIONS]) {
       assert.equal(isReturnPolicyQuestion(message), true, message)

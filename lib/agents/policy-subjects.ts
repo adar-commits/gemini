@@ -3,6 +3,8 @@
  * Used before sales intake so mid-flow policy questions get KB-grounded answers.
  */
 
+import { isActiveReturnExchangePickupCase } from "@/lib/agents/inquiry-intent"
+
 export type PolicySubjectId =
   | "contact_hours"
   | "branches"
@@ -128,7 +130,9 @@ export function matchPolicySubjects(text: string): PolicySubjectId[] {
   const trimmed = text.trim()
   if (!trimmed) return []
   const matched: PolicySubjectId[] = []
+  const activePickupCase = isActiveReturnExchangePickupCase(trimmed)
   for (const subject of POLICY_SUBJECTS) {
+    if (activePickupCase && subject.id === "returns_exchanges") continue
     if (subject.patterns.some((pattern) => pattern.test(trimmed))) {
       matched.push(subject.id)
     }

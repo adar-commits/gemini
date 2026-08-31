@@ -276,6 +276,13 @@ async function runT0DeterministicPaths(
     )
   }
 
+  if (shouldHandlePostPurchaseCaseFlow(body, history, sharedOptions.lastAgent)) {
+    return markT0Routing(
+      conversationId,
+      await postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
+    )
+  }
+
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) {
     return markT0Routing(
       conversationId,
@@ -352,13 +359,6 @@ async function runT0DeterministicPaths(
     return markT0Routing(
       conversationId,
       await documentFlowResult(conversationId, body, route, preview, phone, history)
-    )
-  }
-
-  if (shouldHandlePostPurchaseCaseFlow(body, history, sharedOptions.lastAgent)) {
-    return markT0Routing(
-      conversationId,
-      await postPurchaseCaseResult(conversationId, body, route, preview, phone, history)
     )
   }
 
@@ -2069,7 +2069,7 @@ export async function runMasterConversation(
     body,
     history,
     route,
-    { lastAction, sessionSummary: conversationSummary, preview }
+    { lastAction, lastAgent, sessionSummary: conversationSummary, preview }
   )
   if (multiQuestion) return finish(multiQuestion)
 

@@ -3,6 +3,8 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   classifyPostPurchaseCase,
+  hasServiceUrgencySignal,
+  isActiveReturnExchangePickupCase,
   isMissingOrPartialDeliveryComplaint,
   isPostPurchaseDissatisfaction,
   isPreorderDelayComplaint,
@@ -109,6 +111,7 @@ export function shouldHandlePostPurchaseCaseFlow(
 ) {
   if (blocksOrderLookupForSalesConsultation(body, history, lastAgent)) return false
   if (isReturnPolicyQuestion(body) || isReturnFlowCorrection(body)) return false
+  if (isActiveReturnExchangePickupCase(body)) return true
 
   if (activePostPurchaseCaseKind(history)) return true
 
@@ -209,7 +212,11 @@ function withCasePrefix(reply: string, kind: PostPurchaseCaseKind) {
   return `${header}${marker}. ${reply.slice(header.length)}`
 }
 
-function buildOpeningReply(kind: PostPurchaseCaseKind, whatsappPhone?: string) {
+function buildOpeningReply(
+  kind: PostPurchaseCaseKind,
+  whatsappPhone?: string,
+  body = ""
+) {
   const phoneQuestion = whatsappPhone?.trim()
     ? buildPhoneLookupConfirmPrompt(whatsappPhone).replace(`${CUSTOMER_HEADER}\n`, "")
     : "מה מספר הטלפון שבוצעה עליו ההזמנה?"
@@ -228,6 +235,19 @@ ${phoneQuestion}`
 ${caseMarkerForKind(kind)}.
 כדי להתקדם, נאתר קודם את ההזמנה.
 ${phoneQuestion}`
+  }
+
+  if (kind === "return_pickup_pending") {
+    return `${CUSTOMER_HEADER}
+${caseMarkerForKind(kind)} — מבינים שכבר פתחת בקשה ומחכה לאיסוף, ושזה מתמשך זמן רב מדי.${
+      hasServiceUrgencySignal(body) ? "\n\nרואים שיש דחיפות — ננסה לטפל בזה בהקדם." : ""
+    }
+
+נבדוק מול חברת השליחויות ונעביר לנציג שירות שיחזור אליך.
+כדי לזרז, אפשר לאתר את ההזמנה:
+${phoneQuestion}
+
+או כתוב/י "נציג" להעברה מיידית.`
   }
 
   if (kind === "dissatisfaction") {
@@ -256,7 +276,11 @@ ${caseMarkerForKind(kind)}.
 ${phoneQuestion}`
 }
 
-function buildOrderConfirmedReply(kind: PostPurchaseCaseKind, order: OrderShipmentStatus) {
+function buildOrderConfirmedReply(
+  kind: PostPurchaseCaseKind,
+  order: OrderShipmentStatus,
+  body = ""
+) {
   if (kind === "defect") {
     return `${CUSTOMER_HEADER}
 תודה, איתרנו את הזמנה ${order.orderNumber} (${order.branchLabel}).
@@ -278,6 +302,19 @@ ${buildReturnPolicyBody()}
 אם תרצו/י שנציג שירות ילווה בבקשה — כתבו "נציג".
 
 אם צריך עוד משהו — אני כאן.`
+  }
+
+  if (kind === "return_pickup_pending") {
+    const urgency = hasServiceUrgencySignal(body)
+      ? " רואים שיש דחיפות — נטפל בזה בהקדם."
+      : ""
+    return `${CUSTOMER_HEADER}
+תודה, איתרנו את הזמנה ${order.orderNumber} (${order.branchLabel}).
+
+מבינים שכבר פתחת בקשה ומחכה לאיסוף — זה לוקח יותר מדי זמן.${urgency}
+נעביר את הפנייה לנציג שירות שיבדוק מול חברת השליחויות ויחזור אליך.
+
+האם להעביר עכשיו לנציג?`
   }
 
   if (kind === "dissatisfaction") {
@@ -334,12 +371,12 @@ async function resolveOrderConfirmationFlow(input: {
 
   if (explicitOrder) {
     const matched = findOrderByNumber(sorted, explicitOrder)
-    if (matched) return buildOrderConfirmedReply(input.kind, matched)
+    if (matched) return buildOrderConfirmedReply(input.kind, matched, input.body)
   }
 
   if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
-    if (matched) return buildOrderConfirmedReply(input.kind, matched)
+    if (matched) return buildOrderConfirmedReply(input.kind, matched, input.body)
     return buildOrderNumberNotFoundReply(pendingOrder)
   }
 
@@ -385,7 +422,7 @@ async function lookupOrderByReference(input: {
         order.orderNumber.replace(/\D/g, "").includes(input.orderReference.replace(/\D/g, ""))
       ) ?? null
 
-  if (matched) return buildOrderConfirmedReply(input.kind, matched)
+  if (matched) return buildOrderConfirmedReply(input.kind, matched, input.body)
   if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
@@ -459,7 +496,7 @@ export async function resolvePostPurchaseCaseReply(input: {
   const orderReference = extractOrderReference(body, history)
   if (orderReference) {
     const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
-    if (!lookupPhone) return buildOpeningReply(kind, whatsappPhone)
+    if (!lookupPhone) return buildOpeningReply(kind, whatsappPhone, body)
     return lookupOrderByReference({ orderReference, lookupPhone, body, kind })
   }
 
@@ -468,7 +505,7 @@ export async function resolvePostPurchaseCaseReply(input: {
     return lookupAndStartOrderConfirm(kind, providedPhone)
   }
 
-  return buildOpeningReply(kind, whatsappPhone)
+  return buildOpeningReply(kind, whatsappPhone, body)
 }
 
 /** @deprecated Use resolvePostPurchaseCaseReply */
