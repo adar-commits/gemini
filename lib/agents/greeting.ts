@@ -81,12 +81,12 @@ export function dedupeGreetingBotName(reply: string) {
 /** Opening welcome — single header, no repeated bot name, masculine voice. */
 export function buildGreetingReply(_customerName?: string) {
   return `${CUSTOMER_HEADER}
-היי! שמח שפניתם אלינו — במה אוכל לעזור היום? 😀`
+היי! שמח שפנית — במה אוכל לעזור היום? 😀`
 }
 
 export function isSelfContainedGreetingReply(reply: string) {
   const text = reply.trim().replace(/^\*הום בוט :\)\*\n?/, "")
-  return /^היי!\s+(?:כאן\s+הום\s+בוט|שמח\s+שפניתם)/i.test(text)
+  return /^היי!\s+(?:כאן\s+הום\s+בוט|שמח\s+שפנית)/i.test(text)
 }
 
 /** Natural reply to wellbeing / ping messages — not only on the opening turn. */

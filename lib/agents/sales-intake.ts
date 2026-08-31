@@ -1417,7 +1417,7 @@ export function isVisualConsultationRequest(text: string) {
 
 function visualConsultAck(body: string) {
   if (!isVisualConsultationRequest(body)) return ""
-  return "בשמחה — אפשר לשלוח תמונה של החלל ונעביר ליועץ שיעזור להשוות בין האפשרויות.\n"
+  return "בשמחה — אפשר לשלוח תמונה של החלל ואעביר ליועץ שיעזור להשוות בין האפשרויות.\n"
 }
 
 function introForFlow(text: string, history: HistoryMessage[], intake: SalesIntake) {
@@ -1477,7 +1477,7 @@ export function buildConfirmationSummary(intake: SalesIntake) {
       ? `עם עניין בדגם "${intake.requestedModel}" (לבדיקה ע"י יועץ)`
       : ""
 
-  let summary = `אנחנו מחפשים לך ${product}${space}`
+  let summary = `אני מחפש עבורך ${product}${space}`
   if (sizeLabel) summary += ` בגודל ${sizeLabel}`
 
   const tail: string[] = []

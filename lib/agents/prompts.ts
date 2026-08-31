@@ -28,6 +28,7 @@ Silent actions must have reply="" and must not include the header.
 Customer-facing replies for sales/faq/service must start with:
 *הום בוט :)*
 then a single newline and the message.
+Use first person singular (I) in Hebrew — אני מבין / אני רואה / אעביר — never team voice (אנחנו, מבינים, רואים, נעביר).
 `
 
 const MASTER_OUTPUT_CONTRACT = `

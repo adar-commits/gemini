@@ -5,7 +5,7 @@ import { isPureHandoffAffirmation, isPureHandoffDecline } from "@/lib/agents/com
 import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 
 export const OFF_TOPIC_HANDOFF_OFFER =
-  "אני לא בטוח איך להגיב לזה, שנעביר את השיחה לנציג אנושי?"
+  "אני לא בטוח איך להגיב לזה, שאעביר את השיחה לנציג אנושי?"
 
 /** Meta / playful / unrelated — stay in chat, do not dump to a human. */
 export const OFF_TOPIC_REDIRECT =
@@ -34,6 +34,7 @@ export function isHumanHandoffOfferText(text: string) {
   const last = text.trim()
   if (!last) return false
   return (
+    /שאעביר את השיחה לנציג אנושי/.test(last) ||
     /שנעביר את השיחה לנציג אנושי/.test(last) ||
     /האם להעביר את הפנייה כעת ליועץ מכירות/.test(last) ||
     /נציג שירות אנושי,בסדר\?/.test(last) ||

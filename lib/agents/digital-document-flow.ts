@@ -118,7 +118,7 @@ function mentionsAlternatePhoneIntent(body: string) {
 
 function buildPhoneLookupClarify(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
-לא הבנתי — האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? ${formatDisplayPhone(whatsappPhone)}
+לא הבנתי — האם היא רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
 אם לא, אשמח לציון המספר הנכון.`
 }
 

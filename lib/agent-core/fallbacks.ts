@@ -10,7 +10,7 @@ const API_FAILURE_HANDOFF_LINE: Record<ApiFailureHandoff, string> = {
 const HOLLOW_TRANSFER_RE =
   /(?:מיד\s+)?(?:נ)?עביר(?:ים|ו)?(?:\s+(?:אות(?:ך|כם)|ל(?:נציג|בדיק|טיפול|יועץ)))|(?:נ)?בדוק(?:ים|ו)?\s+(?:א(?:ת)?\s+)?(?:סטטוס|הזמנה)/i
 
-const PROPER_HANDOFF_OFFER_RE = /(?:האם|רוצ(?:ה|ים))\s+(?:להעביר|שנעביר)/i
+const PROPER_HANDOFF_OFFER_RE = /(?:האם|רוצ(?:ה|ים))\s+(?:להעביר|ש(?:א|נ)עביר)/i
 
 export function buildConfusedFallbackReply() {
   return `${CUSTOMER_HEADER}

@@ -21,7 +21,8 @@ import {
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
 
-export const PRAISE_FLOW_MARKER = "שמחנו לשמוע על החוויה החיובית"
+export const PRAISE_FLOW_MARKER = "שמחתי לשמוע על החוויה החיובית"
+export const LEGACY_PRAISE_FLOW_MARKER = "שמחנו לשמוע על החוויה החיובית"
 
 export function isServicePraise(body: string) {
   const text = body.trim()
@@ -41,7 +42,10 @@ function isPraiseFlowActive(history: HistoryMessage[]) {
     if (message.role !== "assistant") continue
     if (/השיחה אופסה/i.test(message.content)) return false
     if (isInactivityAssistantMessage(message.content)) continue
-    return message.content.includes(PRAISE_FLOW_MARKER)
+    return (
+      message.content.includes(PRAISE_FLOW_MARKER) ||
+      message.content.includes(LEGACY_PRAISE_FLOW_MARKER)
+    )
   }
   return false
 }
@@ -77,7 +81,7 @@ function buildServicePraiseReplyForOrder(
 ) {
   if (isExplicitPozitiveContext(...contextTexts)) {
     return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
+תודה רבה על המילים החמות — שמחתי לעזור!
 
 אפשר לעזור במשהו נוסף?`
   }
@@ -88,7 +92,7 @@ function buildServicePraiseReplyForOrder(
 
   if (!branch?.reviewUrl) {
     return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
+תודה רבה על המילים החמות — שמחתי לעזור!
 
 אפשר לעזור במשהו נוסף?`
   }
@@ -98,8 +102,8 @@ function buildServicePraiseReplyForOrder(
     : ""
 
   return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
-${websiteNote}אם תרצו/י, נשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
+תודה רבה על המילים החמות — שמחתי לעזור!
+${websiteNote}אם תרצו/י, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
 אפשר לעזור במשהו נוסף?`
@@ -111,7 +115,7 @@ function buildServicePraiseReplyForBranchLabel(
 ) {
   if (isExplicitPozitiveContext(...contextTexts)) {
     return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
+תודה רבה על המילים החמות — שמחתי לעזור!
 
 אפשר לעזור במשהו נוסף?`
   }
@@ -119,14 +123,14 @@ function buildServicePraiseReplyForBranchLabel(
   const branch = resolveBranchGoogleReview(branchLabel)
   if (!branch?.reviewUrl) {
     return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
+תודה רבה על המילים החמות — שמחתי לעזור!
 
 אפשר לעזור במשהו נוסף?`
   }
 
   return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
-אם תרצו/י, נשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
+תודה רבה על המילים החמות — שמחתי לעזור!
+אם תרצו/י, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
 אפשר לעזור במשהו נוסף?`
@@ -220,7 +224,7 @@ export async function resolveServicePraiseReply(input: {
       }
       if (orders.length === 0) {
         return `${CUSTOMER_HEADER}
-לא מצאנו הזמנה לפי הטלפון. תודה רבה על המילים החמות!`
+לא מצאתי הזמנה לפי הטלפון. תודה רבה על המילים החמות!`
       }
       return buildServicePraiseReplyForOrder(
         orders[0]!,
@@ -230,7 +234,7 @@ export async function resolveServicePraiseReply(input: {
 
     if (isPhoneLookupConfirmNo(body)) {
       return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
+תודה רבה על המילים החמות — שמחתי לעזור!
 
 אפשר לעזור במשהו נוסף?`
     }
@@ -259,7 +263,7 @@ export async function resolveServicePraiseReply(input: {
 /** @deprecated Use resolveServicePraiseReply */
 export function buildServicePraiseReply() {
   return `${CUSTOMER_HEADER}
-תודה רבה על המילים החמות — שמחנו לעזור!
+תודה רבה על המילים החמות — שמחתי לעזור!
 
 אפשר לעזור במשהו נוסף?`
 }
@@ -280,6 +284,6 @@ export function isWebsiteIssueComplaint(body: string) {
 
 export function buildWebsiteIssueHandoffOffer() {
   return `${CUSTOMER_HEADER}
-מבינים — תקלה באתר דורשת טיפול של צוות טכני.
+אני מבין — תקלה באתר דורשת טיפול של צוות טכני.
 האם להעביר את הפנייה כעת לנציג שירות שיטפל בזה?`
 }

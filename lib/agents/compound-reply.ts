@@ -135,7 +135,7 @@ export function replyAwaitingCustomerInput(reply: string) {
 }
 
 export function buildConfirmationResumeOffer() {
-  return "כשתרצו/י — נחזור לסיכום ונמשיך."
+  return "כשתרצו/י — אחזור לסיכום ואמשיך."
 }
 
 export function buildHandoffResumeOffer() {

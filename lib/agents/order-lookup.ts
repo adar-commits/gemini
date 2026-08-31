@@ -22,7 +22,7 @@ export { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-termino
 export { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
 
 const CANCELLATION_EMPATHY_PREFIX =
-  "אני מצטער לשמוע, בוא ננסה קודם לאתר את ההזמנה שלך.."
+  "אני מצטער לשמוע, אנסה קודם לאתר את ההזמנה שלך.."
 
 /** Raw row from Priority via n8n getOrders. */
 export type PriorityOrderRow = {
@@ -688,7 +688,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
 
 export function buildOrderPickExhaustedReply() {
   return `${CUSTOMER_HEADER}
-לא מצאנו התאמה בין ההזמנות שבמערכת לפנייה שלך.
+לא מצאתי התאמה בין ההזמנות שבמערכת לפנייה שלך.
 האם להעביר את השיחה לנציג שירות שיבדוק את ההזמנה באופן פרטני?`
 }
 
@@ -706,7 +706,7 @@ export function buildDigitalDocumentLookupFailureReply() {
 
 export function buildDigitalDocumentNotFoundReply() {
   return `${CUSTOMER_HEADER}
-לא מצאנו מסמך דיגיטלי לפי הטלפון הזה.
+לא מצאתי מסמך דיגיטלי לפי הטלפון הזה.
 האם להעביר לנציג שירות שיבדוק וישלח עבורך?`
 }
 
@@ -715,7 +715,7 @@ export function buildNoOrdersFoundReply(lookupPhone?: string | null) {
     ? ` (${formatDisplayPhone(lookupPhone)})`
     : ""
   return `${CUSTOMER_HEADER}
-לא מצאנו הזמנות פעילות לפי הטלפון${phoneHint}.
+לא מצאתי הזמנות פעילות לפי הטלפון${phoneHint}.
 האם להעביר את השיחה לנציג שירות שיבדוק עבורך?`
 }
 
@@ -913,7 +913,7 @@ function maybeApplyCancellationEmpathy(
 
 export function buildPhoneLookupConfirmPrompt(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
-קודם אמצא את ההזמנה שלך בזריזות, האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? ${formatDisplayPhone(whatsappPhone)}
+קודם אמצא את ההזמנה שלך בזריזות, האם היא רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
 אם לא, אשמח לקבל אותו.`
 }
 
@@ -924,7 +924,7 @@ export function buildPhoneLookupDeclinedReply() {
 
 export function buildShippingNoPhoneReply() {
   return `${CUSTOMER_HEADER}
-כדי לבדוק את סטטוס ההזמנה נצטרך מספר טלפון שבו בוצעה הרכישה.
+כדי לבדוק את סטטוס ההזמנה אצטרך מספר טלפון שבו בוצעה הרכישה.
 אם אין לך — האם להעביר לנציג שירות שיבדוק עבורך?`
 }
 
@@ -934,7 +934,7 @@ export function buildOrderLookupApiFailureReply() {
 
 export function buildOrderNumberNotFoundReply(orderNumber: string) {
   return `${CUSTOMER_HEADER}
-לא מצאנו הזמנה ${orderNumber} על המספר שבדקנו.
+לא מצאתי הזמנה ${orderNumber} על המספר שבדקתי.
 האם להעביר לנציג שירות שיבדוק עבורך?`
 }
 
@@ -1091,7 +1091,7 @@ export async function resolveOrderShippingReply(input: {
 
     if (whatsappPhone) {
       return `${CUSTOMER_HEADER}
-לא הבנתי — האם היא רשומה על המספר ממנו אנחנו מתכתבים כרגע? ${formatDisplayPhone(whatsappPhone)}
+לא הבנתי — האם היא רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
 אם לא, אשמח לציון המספר הנכון.`
     }
 

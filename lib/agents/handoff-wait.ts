@@ -42,5 +42,5 @@ export function breaksPendingHandoff(body: string) {
 }
 
 export function buildStuckHandoffReply() {
-  return "לא לגמרי הבנתי — רוצה שנעביר לנציג שימשיך מכאן?"
+  return "לא לגמרי הבנתי — רוצה שאעביר לנציג שימשיך מכאן?"
 }

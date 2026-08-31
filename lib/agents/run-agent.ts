@@ -1580,7 +1580,7 @@ function documentFlowResult(
         isDocumentChannelUncertaintyAnswer(body)
       ) {
         outbound = buildDocumentPurchaseLocationQuestion()
-      } else if (!outbound.includes("תקלה") && !outbound.includes("לא מצאנו")) {
+      } else if (!outbound.includes("תקלה") && !outbound.includes("לא מצאנו") && !outbound.includes("לא מצאתי")) {
         outbound = buildDigitalDocumentLookupFailureReply()
       }
     }
