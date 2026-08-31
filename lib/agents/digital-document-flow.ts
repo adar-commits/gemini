@@ -341,18 +341,33 @@ function buildDocumentRecoveryPrefix(input: {
   return ""
 }
 
+function mentionsDocumentNoun(text: string) {
+  return /(?:קבלה|חשבונית(?:\s+מס)?(?:\s+קבלה)?)/i.test(text)
+}
+
+function mentionsDocumentRequestIntent(text: string) {
+  return (
+    /(?:של(?:ח|וח|חו|לח|וף)|(?:ל)?של(?:ח|וח|חו)|ה(?:ביא|וציא)|(?:ל)?קב(?:ל|ל(?:ה|ו|י)?)|(?:ה)?עתק|עותק)/i.test(
+      text
+    ) ||
+    /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))/i.test(text) ||
+    /בבקשה/i.test(text)
+  )
+}
+
 /** Customer wants a digital receipt / invoice copy (קבלה = receipt, not admission). */
 export function isDigitalDocumentRequest(body: string) {
   const text = stripLeadingGreetings(body.trim())
   if (!text) return false
   if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
+  if (mentionsDocumentNoun(text) && mentionsDocumentRequestIntent(text)) return true
   return (
-    /(?:של(?:ח|וף|לח)|ה(?:ביא|וציא)|(?:ל)?קב(?:ל|ל(?:ה|ו|י)?))(?:\s+לי|\s+ל)?\s*(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
+    /(?:של(?:ח|וח|חו|לח|וף)|(?:ל)?של(?:ח|וח|חו)|ה(?:ביא|וציא)|(?:ל)?קב(?:ל|ל(?:ה|ו|י)?))(?:\s+לי|\s+ל|\s+בבקשה)?\s*(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
       text
     ) ||
     /(?:העתק|עותק)(?:\s+של)?\s*(?:ה)?(?:קבלה|חשבונית)/i.test(text) ||
     /(?:קבלה|חשבונית(?:\s+מס)?(?:\s+קבלה)?)\s+(?:של|ע(?:ל|בור)|ל)/i.test(text) ||
-    /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))\s+(?:לי\s+)?(?:בבקשה\s+)?(?:א(?:ת|ת)?\s+)?(?:ה)?(?:העתק|עותק|קבלה|חשבונית)/i.test(
+    /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))(?:\s+\S+){0,5}\s*(?:בבקשה\s+)?(?:א(?:ת|ת)?\s+)?(?:ה)?(?:העתק|עותק|קבלה|חשבונית)/i.test(
       text
     ) ||
     /(?:ה)?קבלה(?:\s+שלי|\s+של)?/i.test(text) ||

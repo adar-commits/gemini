@@ -13,9 +13,24 @@ import {
 } from "@/lib/agents/digital-document-flow"
 
 describe("digital document flow — receipt copy", () => {
-  it("detects common invoice phrasing including אפשר לקבל", () => {
+  it("detects common invoice phrasing including אפשר לקבל and לשלוח", () => {
     assert.equal(isDigitalDocumentRequest("אפשר לקבל חשבונית?"), true)
+    assert.equal(
+      isDigitalDocumentRequest("אפשר לשלוח בבקשה חשבונית מס?"),
+      true
+    )
     assert.equal(isDigitalDocumentRequest("אני צריך העתק של הקבלה שלי"), true)
+  })
+
+  it("skips type question when customer already specified חשבונית מס", async () => {
+    const reply = await resolveDigitalDocumentFlowReply({
+      body: "אפשר לשלוח בבקשה חשבונית מס?",
+      phone: "+972547495083",
+      history: [],
+    })
+
+    assert.match(reply, /האם\s+העסקה\s+רשומה\s+על\s+המספר/)
+    assert.doesNotMatch(reply, /איזה\s+סוג/)
   })
 
   it("infers invoice vs receipt intent", () => {
