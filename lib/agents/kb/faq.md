@@ -177,7 +177,9 @@ Updated 09.11.25
 - Roomvo: https://www.roomvo.com/my/carpetshop/rooms/
 - Returns portal: https://returns.carpetshop.co.il/
 
-## Dated promotions — only if the customer asks about a current campaign and the date is still valid
+## Dated promotions — prefer live API via `getCampaigns`
+- Call `get_campaigns` when customer asks about מבצעים, validity, or whether a campaign is still active.
+- Static KB examples below are **fallback only** if the API is unavailable:
 - השטיח האדום 50% terms: https://www.carpetshop.co.il/pages/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%94%D7%9B%D7%9C-%D7%91-50 — 50% on products at site and stores, not shipping. Valid 14.8.26 14:30 to 26.8.26 09:00 or while stock lasts.
 - Pozitive 1+1 terms: https://www.pozitiveshop.co.il/pages/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%9E%D7%91%D7%A6%D7%A2-1-2 — buy two participating poufs/cushions, pay the higher price. Valid 11.8.26 09:30 to 18.8.26 09:00 or while stock lasts.
-If today's date is after the stated end date, treat the promotion as unknown / ended and do not present it as current.
+If today's date is after the stated end date, treat the promotion as ended.

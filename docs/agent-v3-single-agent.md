@@ -51,6 +51,7 @@ No silent `faq` / `sales` / `service` / `ROUTE_TO_*` hops.
 | `fetch_digital_document` | `lib/agents/digital-document-flow.ts` |
 | `get_branch_info` | `lib/agents/branches.ts` |
 | `get_branch_review_link` | `lib/agents/feedback-handling.ts` |
+| `get_campaigns` | `lib/agents/campaign-lookup.ts` + Priority `getCampaigns` |
 
 ## Prompt
 

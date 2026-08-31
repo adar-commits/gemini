@@ -6,6 +6,7 @@ import { executeLookupInventory } from "@/lib/hom-agent/tools/inventory"
 import { executeFetchDigitalDocument } from "@/lib/hom-agent/tools/document"
 import { executeGetBranchInfo } from "@/lib/hom-agent/tools/branches"
 import { executeGetBranchReviewLink } from "@/lib/hom-agent/tools/review-link"
+import { executeGetCampaigns } from "@/lib/hom-agent/tools/campaigns"
 
 export type HomAgentToolContext = {
   body: string
@@ -93,6 +94,21 @@ export function createHomAgentTools(context: HomAgentToolContext) {
         executeGetBranchReviewLink({
           body: `${context.body}\n${branchHint}`.trim(),
           history: context.history,
+        }),
+    }),
+    get_campaigns: tool({
+      description:
+        "Live active/expired promotions from Priority. Use when customer asks about מבצעים, הנחות, קופונים, or whether a specific campaign is still valid.",
+      inputSchema: z.object({
+        campaignHint: z
+          .string()
+          .optional()
+          .describe('Specific campaign name to check, or omit / "all" for full list'),
+      }),
+      execute: async ({ campaignHint }) =>
+        executeGetCampaigns({
+          body: context.body,
+          campaignHint,
         }),
     }),
   }

@@ -148,4 +148,19 @@ describe("validatePriorityApiPayload", () => {
       false
     )
   })
+
+  it("accepts getCampaigns with all or campaign hint", () => {
+    assert.equal(
+      validatePriorityApiPayload({ actionType: "getCampaigns", value: "all" }).ok,
+      true
+    )
+    assert.equal(
+      validatePriorityApiPayload({ actionType: "getCampaigns", value: "השטיח האדום" }).ok,
+      true
+    )
+    assert.equal(
+      validatePriorityApiPayload({ actionType: "getCampaigns", value: "" }).ok,
+      true
+    )
+  })
 })

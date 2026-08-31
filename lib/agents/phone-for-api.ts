@@ -41,6 +41,11 @@ export function validatePriorityApiPayload(input: {
   value: string
 }) {
   const raw = input.value.trim()
+
+  if (input.actionType === "getCampaigns") {
+    return { ok: true as const, value: raw || "all" }
+  }
+
   if (!raw) return { ok: false as const, reason: "empty" as const }
 
   if (input.actionType === "getOrders" || input.actionType === "getDocument") {
