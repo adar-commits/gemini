@@ -14,11 +14,16 @@ import {
 } from "@/lib/agent-core/turn-metrics"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
+import {
+  buildCarpetRentalPolicyReply,
+  isCarpetRentalQuestion,
+} from "@/lib/agents/policy-subjects"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent } from "@/lib/hom-agent/invoke"
 import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
+import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
   if (action === "human_sales" || action === "human_service") return action
@@ -99,6 +104,33 @@ export async function runHomAgentTurn(
       reply: preTurn.reply,
       action,
       route: ["faq"],
+    })
+  }
+
+  if (isCarpetRentalQuestion(body)) {
+    const reply = validateHomAgentReply(
+      { reply: buildCarpetRentalPolicyReply(), action: "reply" },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply,
+      action: "reply",
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_rental",
+      },
     })
   }
 
