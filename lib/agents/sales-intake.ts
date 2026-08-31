@@ -1,7 +1,15 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { salesIntakeMode } from "@/lib/agent-core/config"
-import { isProductDetailsRequest, isProductInventoryQuestion, isSpecificProductMention, extractRequestedModel } from "@/lib/agents/product-handoff"
-import { isInventoryQuestion } from "@/lib/agents/inventory-lookup"
+import {
+  isProductDetailsRequest,
+  isProductInventoryQuestion,
+  isSpecificProductMention,
+  extractRequestedModel,
+} from "@/lib/agents/product-handoff"
+import {
+  isInventoryAvailabilityReply,
+  isInventoryQuestion,
+} from "@/lib/agents/inventory-lookup"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import {
   isFaqTopicSwitch,
@@ -154,6 +162,21 @@ export function isColloquialQuizAffirmation(body: string) {
   )
 }
 
+function lastAssistantWasOperationalSales(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return (
+      isInventoryAvailabilityReply(message.content) ||
+      /בדקתי את הדגם|כדי לבדוק מלאי|איזה פרטים חסרים|לא מצאתי את הדגם|מספר הדגם, כולל מקף/.test(
+        message.content
+      )
+    )
+  }
+  return false
+}
+
 /** Active sales consultation — deterministic quiz or recent sales thread. */
 export function isSalesQuizContext(
   history: HistoryMessage[],
@@ -161,6 +184,7 @@ export function isSalesQuizContext(
 ) {
   if (hasOngoingSalesIntake(history)) return true
   if (isConfirmationPending(history)) return true
+  if (lastAssistantWasOperationalSales(history)) return false
   if (lastAgent !== "sales") return false
 
   const recent = history.slice(-10).map((message) => message.content).join("\n")

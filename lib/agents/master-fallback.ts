@@ -22,6 +22,7 @@ import {
 import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
+import { buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
 
 export type MasterFallbackKind = "sales_intake" | "handoff_offer"
 
@@ -35,7 +36,16 @@ const HOM_BUSINESS_RE =
 export function isLikelyQuizAnswer(body: string, history: HistoryMessage[]) {
   const text = body.trim()
   if (!text || text.length > 120) return false
+  if (isConversationClosing(text)) return false
   if (isIntakeTopicPivot(text, history)) return false
+  if (
+    text.length <= 6 &&
+    !INTAKE_SHORT_ANSWER_LIKE.test(text) &&
+    !isColloquialQuizAffirmation(text) &&
+    !mentionsPetInText(text)
+  ) {
+    return false
+  }
   if (isColloquialQuizAffirmation(text)) return true
   if (mentionsPetInText(text)) return true
   if (INTAKE_SHORT_ANSWER_LIKE.test(text)) return true
@@ -116,8 +126,8 @@ export function resolveMasterFallback(
   return null
 }
 
-export function buildMasterConfusedReply() {
-  return "לא לגמרי הבנתי את ההודעה. אם תרצה/י — ננסח שוב בקצרה, ואם לא — אפשר להעביר לנציג שירות שיעזור. להעביר?"
+export function buildMasterConfusedReply(userText?: string) {
+  return buildUncertainHandoffReply(userText)
 }
 
 export function isStrictMisunderstandingReply(reply: string) {

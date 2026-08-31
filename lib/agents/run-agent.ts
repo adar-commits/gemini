@@ -1385,7 +1385,7 @@ async function resolveSpecialist(
         : isStrictMisunderstandingReply(result.reply)
           ? shouldUseSalesIntakeFastPath(body, history, options?.lastAgent ?? null)
             ? buildSalesIntakeReply(history, body)
-            : buildMasterConfusedReply()
+            : buildMasterConfusedReply(body)
           : sanitizeSalesReply(result.reply, history, body)
       result = { ...result, reply: normalizeReply("sales", "reply", sanitized) }
     }
@@ -1394,7 +1394,7 @@ async function resolveSpecialist(
   if (specialist === "faq" && result.reply && isStrictMisunderstandingReply(result.reply)) {
     result = {
       ...result,
-      reply: normalizeReply("faq", "reply", buildMasterConfusedReply()),
+      reply: normalizeReply("faq", "reply", buildMasterConfusedReply(body)),
       action: "reply",
     }
   }
@@ -1939,7 +1939,7 @@ async function routeViaMasterLlm(
     )
   }
   if (masterFallback?.kind === "handoff_offer") {
-    const reply = normalizeReply("faq", "reply", buildMasterConfusedReply())
+    const reply = normalizeReply("faq", "reply", buildMasterConfusedReply(body))
     await appendTurn({
       conversationId,
       agent: "faq",
@@ -2688,7 +2688,7 @@ export async function runMasterConversation(
     )
   }
   if (masterFallback?.kind === "handoff_offer") {
-    const reply = normalizeReply("faq", "reply", buildMasterConfusedReply())
+    const reply = normalizeReply("faq", "reply", buildMasterConfusedReply(body))
     await appendTurn({
       conversationId,
       agent: "faq",

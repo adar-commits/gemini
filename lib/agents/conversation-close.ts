@@ -8,6 +8,14 @@ export function isNonSubstantiveFollowUp(body: string) {
   return /^[?!.,\s🙏👍]+$/u.test(text)
 }
 
+/** Common misspellings of תודה — not a quiz answer or new request. */
+export function looksLikeThanksTypo(body: string) {
+  const core = body.trim().replace(/[\s,.!?🙏👍]+/g, "")
+  if (!core || core.length < 3 || core.length > 12) return false
+  if (/^תודה/i.test(core)) return true
+  return /^תו?[דז][הא]?$|^ת[דז]וה$|^טודה$/u.test(core)
+}
+
 /** Customer closing the thread — not a quiz answer and not "thanks, also I wanted to ask…". */
 export function isConversationClosing(body: string) {
   const text = body.trim()
@@ -19,7 +27,8 @@ export function isConversationClosing(body: string) {
   const directClosing =
     /^(?:תודה(?:\s+רבה)?|לא,?\s*תודה(?:\s+רבה)?|זה\s+הכל|אין\s+צורך|יום\s+טוב|ביי|להתראות|סבבה\s+תודה|בסדר\s+תודה|מעולה\s+תודה|יופי\s+תודה)(?:[\s,.!?🙏👍]*|$)/iu.test(
       text
-    )
+    ) ||
+    looksLikeThanksTypo(text)
 
   const resolvedClosing =
     /^(?:ה)?סתדר(?:תי|נו)(?:\s+תודה(?:\s+רבה)?)?(?:[\s,.!?🙏👍]*|$)/iu.test(

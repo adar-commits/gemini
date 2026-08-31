@@ -12,10 +12,20 @@ const HOLLOW_TRANSFER_RE =
 
 const PROPER_HANDOFF_OFFER_RE = /(?:האם|רוצ(?:ה|ים))\s+(?:להעביר|ש(?:א|נ)עביר)/i
 
-export function buildConfusedFallbackReply() {
+export function buildConfusedFallbackReply(userText?: string) {
+  return buildUncertainHandoffReply(userText)
+}
+
+/** When routing is unclear — mirror the customer briefly, then offer human handoff. */
+export function buildUncertainHandoffReply(userText?: string) {
+  const trimmed = userText?.trim().replace(/\s+/g, " ") ?? ""
+  const echo =
+    trimmed.length > 0 && trimmed.length <= 100
+      ? `רק לוודא שהבנתי — "${trimmed}".`
+      : "לא בטוח/ה שהבנתי בדיוק את מה שרצית."
   return `${CUSTOMER_HEADER}
-לא לגמרי הבנתי — אפשר לפרט במילים אחרות?
-או שאעביר לנציג שימשיך מכאן?`
+${echo}
+לא ברור לי איך לעזור הכי טוב מהצד שלי — רוצה/י שאעביר לנציג שירות שימשיך?`
 }
 
 /** Priority/n8n returned nothing usable — apologize and offer human handoff. */
