@@ -14,7 +14,7 @@ export function isDissatisfactionWithoutDefect(body: string) {
 }
 
 export const DISSATISFACTION_SALES_OFFER_MARKER =
-  "אפשר להציע לך להעביר את השיחה הזו ליועץ מכירות"
+  "אפשר להציע לכם להעביר את השיחה הזו ליועץ מכירות"
 
 export const DISSATISFACTION_PORTAL_REFERRAL_MARKER =
   "ניתן לפתוח בקשת החזרה בפורטל"
@@ -98,7 +98,7 @@ function isReturnHumanEscalation(body: string) {
 /** Opening: exchange-first options + offer sales — portal only after customer insists on return. */
 export function buildDissatisfactionRescueReply() {
   return `${CUSTOMER_HEADER}
-מצטער לשמוע שלא התחברת לשטיח החדש שלך, אך אל חשש — ${buildExchangePolicyBody()}
+מצטער לשמוע שלא התחברתם לשטיח החדש שלכם, אך אל חשש — ${buildExchangePolicyBody()}
 
 ${DISSATISFACTION_SALES_OFFER_MARKER} עבור בחירה של דגם מתאים יותר?`
 }

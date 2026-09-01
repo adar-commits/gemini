@@ -103,7 +103,7 @@ function buildServicePraiseReplyForOrder(
 
   return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
-${websiteNote}אם תרצו/י, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
+${websiteNote}אם תרצו, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
 אפשר לעזור במשהו נוסף?`
@@ -130,7 +130,7 @@ function buildServicePraiseReplyForBranchLabel(
 
   return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
-אם תרצו/י, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
+אם תרצו, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
 אפשר לעזור במשהו נוסף?`
@@ -148,7 +148,7 @@ function buildBranchReviewLinkReplyBody(branchLabel: string, contextTexts: strin
 
   if (!branch) {
     return `${CUSTOMER_HEADER}
-בשמחה! על איזה סניף תרצו/י לדרג? (למשל: סגולה, נתניה, בני ברק, קריית אתא)`
+בשמחה! על איזה סניף תרצו לדרג? (למשל: סגולה, נתניה, בני ברק, קריית אתא)`
   }
 
   if (!branch.reviewUrl) {

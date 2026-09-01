@@ -1502,7 +1502,7 @@ export function buildConfirmationSummary(intake: SalesIntake) {
       ? `עם עניין בדגם "${intake.requestedModel}" (לבדיקה ע"י יועץ)`
       : ""
 
-  let summary = `אני מחפש עבורך ${product}${space}`
+  let summary = `אני מחפש עבורכם ${product}${space}`
   if (sizeLabel) summary += ` בגודל ${sizeLabel}`
 
   const tail: string[] = []

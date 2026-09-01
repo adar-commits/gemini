@@ -19,7 +19,7 @@ describe("shouldSkipInactivityForHumanWait", () => {
       shouldSkipInactivityForHumanWait({
         lastAction: "reply",
         lastAssistantText:
-          "אוקיי במקרה כזה אצטרך להעביר אותך לנציג שירות אנושי,בסדר?",
+          "אוקיי במקרה כזה אצטרך להעביר אתכם לנציג שירות אנושי,בסדר?",
       }),
       false
     )

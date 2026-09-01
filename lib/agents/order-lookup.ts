@@ -28,7 +28,7 @@ export { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-termino
 export { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
 
 const CANCELLATION_EMPATHY_PREFIX =
-  "אני מצטער לשמוע, אנסה קודם לאתר את ההזמנה שלך.."
+  "אני מצטער לשמוע, אנסה קודם לאתר את ההזמנה שלכם.."
 
 /** Raw row from Priority via n8n getOrders. */
 export type PriorityOrderRow = {
@@ -652,7 +652,7 @@ export function buildOrderConfirmationPrompt(order: OrderShipmentStatus) {
 export function buildOrderConfirmationClarifyPrompt(order: OrderShipmentStatus) {
   return `${buildOrderConfirmationPrompt(order)}
 
-לא הבנתי — כתבו/י כן אם זו ההזמנה, או לא כדי לבדוק אחרת.`
+לא הבנתי — כתבו כן אם זו ההזמנה, או לא כדי לבדוק אחרת.`
 }
 
 export function buildOrderStatusReply(order: OrderShipmentStatus) {
@@ -738,7 +738,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
   if (/נארז במחסן|ממתין לאיסוף/i.test(statusText)) {
     return `${CUSTOMER_HEADER}
 בקצרה — השטיח כבר נארז במחסן שלנו, וחברת השליחויות עדיין לא אספה אותו.
-לאחר האיסוף השליח יתאם איתך טלפונית את מועד ההגעה.
+לאחר האיסוף השליח יתאם איתכם טלפונית את מועד ההגעה.
 
 אם תרצו עדכון מדויק יותר — האם להעביר לנציג שירות?`
   }
@@ -746,7 +746,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
   if (/נאסף על ידי חברת השליחויות|ממתין ליציאתו|הועמס לשליח|מתואם לאספקה/i.test(statusText)) {
     return `${CUSTOMER_HEADER}
 בקצרה — המשלוח כבר יצא מהמחסן ונמצא בדרך.
-השליח יתאם איתך טלפונית ביום האספקה.
+השליח יתאם איתכם טלפונית ביום האספקה.
 
 האם להעביר לנציג שירות לעדכון נוסף?`
   }
@@ -781,7 +781,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
 
 export function buildOrderPickExhaustedReply() {
   return `${CUSTOMER_HEADER}
-לא מצאתי התאמה בין ההזמנות שבמערכת לפנייה שלך.
+לא מצאתי התאמה בין ההזמנות שבמערכת לפנייה שלכם.
 האם להעביר את השיחה לנציג שירות שיבדוק את ההזמנה באופן פרטני?`
 }
 
@@ -800,7 +800,7 @@ export function buildDigitalDocumentLookupFailureReply() {
 export function buildDigitalDocumentNotFoundReply() {
   return `${CUSTOMER_HEADER}
 לא מצאתי מסמך דיגיטלי לפי הטלפון הזה.
-האם להעביר לנציג שירות שיבדוק וישלח עבורך?`
+האם להעביר לנציג שירות שיבדוק וישלח עבורכם?`
 }
 
 export function buildNoOrdersFoundReply(lookupPhone?: string | null) {
@@ -809,7 +809,7 @@ export function buildNoOrdersFoundReply(lookupPhone?: string | null) {
     : ""
   return `${CUSTOMER_HEADER}
 לא מצאתי הזמנות פעילות לפי הטלפון${phoneHint}.
-האם להעביר את השיחה לנציג שירות שיבדוק עבורך?`
+האם להעביר את השיחה לנציג שירות שיבדוק עבורכם?`
 }
 
 export function orderLookupEnabled() {
@@ -949,7 +949,7 @@ export function resolveLookupPhoneFromHistory(
 /** @deprecated Legacy step — new flows skip straight to phone confirm. */
 export function buildOrderNumberRequestPrompt() {
   return `${CUSTOMER_HEADER}
-אוכל לקבל את מספר ההזמנה שלך?`
+אוכל לקבל את מספר ההזמנה שלכם?`
 }
 
 export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
@@ -1025,19 +1025,19 @@ function maybeApplyCancellationEmpathy(
 
 export function buildPhoneLookupConfirmPrompt(whatsappPhone: string) {
   return `${CUSTOMER_HEADER}
-קודם אמצא את ההזמנה שלך בזריזות, האם היא רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
+קודם אמצא את ההזמנה שלכם בזריזות, האם היא רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone)}
 אם לא, אשמח לקבל אותו.`
 }
 
 export function buildPhoneLookupDeclinedReply() {
   return `${CUSTOMER_HEADER}
-אוקיי במקרה כזה אצטרך להעביר אותך לנציג שירות אנושי,בסדר?`
+אוקיי במקרה כזה אצטרך להעביר אתכם לנציג שירות אנושי,בסדר?`
 }
 
 export function buildShippingNoPhoneReply() {
   return `${CUSTOMER_HEADER}
 כדי לבדוק את סטטוס ההזמנה אצטרך מספר טלפון שבו בוצעה הרכישה.
-אם אין לך — האם להעביר לנציג שירות שיבדוק עבורך?`
+אם אין לכם — האם להעביר לנציג שירות שיבדוק עבורכם?`
 }
 
 export function buildOrderLookupApiFailureReply() {
@@ -1047,7 +1047,7 @@ export function buildOrderLookupApiFailureReply() {
 export function buildOrderNumberNotFoundReply(orderNumber: string) {
   return `${CUSTOMER_HEADER}
 לא מצאתי הזמנה ${orderNumber} על המספר שבדקתי.
-האם להעביר לנציג שירות שיבדוק עבורך?`
+האם להעביר לנציג שירות שיבדוק עבורכם?`
 }
 
 export function isPhoneLookupConfirmYes(body: string) {
@@ -1189,7 +1189,7 @@ export async function resolveOrderShippingReply(input: {
     const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
     return `${CUSTOMER_HEADER}
-לא זיהיתי מספר טלפון — שלח/י את המספר (למשל 050-1234567).`
+לא זיהיתי מספר טלפון — שלחו את המספר (למשל 050-1234567).`
   }
 
   if (isPhoneLookupConfirmPending(history)) {

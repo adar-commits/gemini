@@ -103,7 +103,7 @@ const PRODUCT_DETAILS_REQUEST_RE =
   /(?:אשמח\s+ל)?פרטים(?:\s+נוספים)?\s+(?:ע(?:ל|בור)|לגבי)\s+/i
 
 const PRODUCT_DETAILS_PENDING_RE =
-  /איזה פרטים חסרים לך|להוסיף קישור למוצר עצמו/i
+  /איזה פרטים חסרים|להוסיף קישור למוצר עצמו/i
 
 const CONSULTATION_IN_MESSAGE_RE =
   /ייעוץ|עוזר\s+לבחור|בחיר(?:ת|ה)\s+שטיח|מתלבט/i
@@ -267,8 +267,8 @@ export function isProductHandoffPending(history: HistoryMessage[]) {
 /** Ask what's missing — optional product link for sales handoff. */
 export function buildProductDetailsOpener() {
   return `${CUSTOMER_HEADER}
-בשמחה, אשמח לדעת איזה פרטים חסרים לך?
-ניתן גם להוסיף קישור למוצר עצמו כך שאעביר את הפנייה ישירות ליועץ מכירות שיוכל לעזור לך להתקדם הלאה.`
+בשמחה, אשמח לדעת איזה פרטים חסרים?
+ניתן גם להוסיף קישור למוצר עצמו כך שאעביר את הפנייה ישירות ליועץ מכירות שיוכל לעזור לכם להתקדם הלאה.`
 }
 
 export function buildProductDetailsReminder() {
@@ -291,7 +291,7 @@ export function buildProductUrlRequest() {
 
 export function buildProductUrlReminder() {
   return `${CUSTOMER_HEADER}
-כשיהיה לך קישור לדף המוצר מהאתר — שלח ואמשיך משם.`
+כשיהיה לכם קישור לדף המוצר מהאתר — שלחו ואמשיך משם.`
 }
 
 /** Customer replied after we asked for a product URL — accept URL, model name, or any substantive text. */

@@ -43,7 +43,7 @@ describe("api failure fallbacks", () => {
   it("detects hollow LLM transfer promise without handoff offer", () => {
     assert.equal(isHollowTransferPromise("מיד נעביר אותך לבדיקת סטטוס"), true)
     assert.equal(
-      isHollowTransferPromise("האם להעביר לנציג שירות שיבדוק עבורך?"),
+      isHollowTransferPromise("האם להעביר לנציג שירות שיבדוק עבורכם?"),
       false
     )
   })

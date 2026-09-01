@@ -70,7 +70,7 @@ describe("inventory vs product URL routing", () => {
       "היי אשמח לפרטים נוספים לגבי שטיח טרנדי 03 צבעוני TRENDY"
     assert.equal(isProductDetailsRequest(body), true)
     assert.equal(isSpecificProductMention(body), false)
-    assert.match(buildProductDetailsOpener(), /איזה פרטים חסרים לך/)
+    assert.match(buildProductDetailsOpener(), /איזה פרטים חסרים/)
     assert.match(buildProductDetailsOpener(), /קישור למוצר/)
   })
 
@@ -299,7 +299,7 @@ describe("product URL sales handoff", () => {
       {
         role: "assistant" as const,
         content:
-          "בשמחה, אשמח לדעת איזה פרטים חסרים לך?\nניתן גם להוסיף קישור למוצר עצמו",
+          "בשמחה, אשמח לדעת איזה פרטים חסרים?\nניתן גם להוסיף קישור למוצר עצמו",
       },
       { role: "user" as const, content: "הוא מתאים לילדים?" },
     ]

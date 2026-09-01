@@ -243,7 +243,7 @@ export function buildRefundStatusHandoffReply() {
 
 export function buildCantVisitBranchReturnReply() {
   return `אני מבין שקשה להגיע לסניף.
-ניתן להחזיר או להחליף גם באיסוף מהבית בתשלום — נציג שירות יתאם איתך את האיסוף.
+ניתן להחזיר או להחליף גם באיסוף מהבית בתשלום — נציג שירות יתאם איתכם את האיסוף.
 
 בכל החזרה יש לפתוח בקשה בפורטל:
 ${RETURNS_PORTAL_URL}

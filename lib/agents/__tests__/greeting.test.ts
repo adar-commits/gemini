@@ -6,6 +6,7 @@ import {
   ensureSingleCustomerHeader,
   formatOutboundMessages,
   sanitizeBotGenderSlashes,
+  sanitizeCustomerAddress,
 } from "@/lib/agents/greeting"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
@@ -26,11 +27,24 @@ describe("greeting reply", () => {
     )
   })
 
+  it("sanitizes masculine singular customer address to plural", () => {
+    const raw =
+      "איך תעדיף להמשיך? אפשר לחבר אותך ליועץ — שלח/י את הפרטים אם יש לך."
+    const cleaned = sanitizeCustomerAddress(raw)
+    assert.match(cleaned, /איך תרצו/)
+    assert.doesNotMatch(cleaned, /תעדיף/)
+    assert.match(cleaned, /לחבר אתכם/)
+    assert.doesNotMatch(cleaned, /אותך/)
+    assert.match(cleaned, /שלחו/)
+    assert.match(cleaned, /יש לכם/)
+    assert.doesNotMatch(cleaned, /\/י/)
+  })
+
   it("removes duplicate bot name after the header", () => {
     const noisy = `${CUSTOMER_HEADER}
 היי! כאן הום בוט :)
 שמח/ה שפנית — במה אוכל לעזור היום?`
-    const cleaned = dedupeGreetingBotName(sanitizeBotGenderSlashes(noisy))
+    const cleaned = dedupeGreetingBotName(sanitizeCustomerAddress(noisy))
     assert.doesNotMatch(cleaned, /כאן הום בוט/)
     assert.match(cleaned, /שמח שפנית/)
   })

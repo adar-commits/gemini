@@ -390,13 +390,13 @@ export function buildInventoryLookupFailureReply() {
 export function buildInventoryNotFoundReply(sku: string) {
   return `${CUSTOMER_HEADER}
 לא מצאתי את הדגם ${sku} במערכת.
-אפשר לשלוח שוב את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורך?`
+אפשר לשלוח שוב את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורכם?`
 }
 
 export function buildSkuMissingHandoffReply() {
   return `${CUSTOMER_HEADER}
 בלי מק״ט לא אוכל לבדוק מלאי בסניפים.
-אפשר לשלוח את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורך?`
+אפשר לשלוח את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורכם?`
 }
 
 function locationMatchesBranch(locationName: string, branchHint: string) {
@@ -485,13 +485,13 @@ export function buildInventoryAvailabilityReply(
   if (branchFilter && available.length === 0 && unavailable.length === 0) {
     return `${CUSTOMER_HEADER}
 בדקתי את הדגם ${label} — לא מצאתי סניף ${branchLabel} ברשימת המלאי.
-אפשר לשלוח שוב את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורך?`
+אפשר לשלוח שוב את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורכם?`
   }
 
   if (available.length === 0 && unavailable.length === 0) {
     return `${CUSTOMER_HEADER}
 בדקתי את הדגם ${label} — כרגע אין במלאי בסניפים.
-אפשר להעביר ליועץ מכירות שיבדוק עבורך?`
+אפשר להעביר ליועץ מכירות שיבדוק עבורכם?`
   }
 
   const lines = [

@@ -65,6 +65,62 @@ export function sanitizeBotGenderSlashes(text: string) {
     .replace(/שמח\/ה/g, "שמח")
     .replace(/מצטער\/ת/g, "מצטער")
     .replace(/שמח\/ת/g, "שמח")
+    .replace(/בטוח\/ה/g, "בטוח")
+}
+
+/**
+ * Normalize customer address to plural or impersonal — never masculine singular (תעדיף, אותך, שלך).
+ * Bot voice stays first-person masculine (אני מבין); this only fixes how we address the customer.
+ */
+export function sanitizeCustomerAddress(text: string) {
+  let out = sanitizeBotGenderSlashes(text)
+
+  const replacements: Array<[RegExp, string]> = [
+    [/תרצו\/י/g, "תרצו"],
+    [/כתבו\/י/g, "כתבו"],
+    [/שלח\/י/g, "שלחו"],
+    [/כתבי\/i/g, "כתבו"],
+    [/פני\/i/g, "פנו"],
+    [/רוצה\/י/g, "רוצים"],
+    [/תרצ(?:ה|י)\//g, "תרצו"],
+    [/איך\s+תעדיף/g, "איך תרצו"],
+    [/תעדיף\s+להמשיך/g, "תרצו להמשיך"],
+    [/תעדיף/g, "תרצו"],
+    [/(?<![\u0590-\u05FF])תרצ(?:ה|י)(?![\u0590-\u05FF])/g, "תרצו"],
+    [/(?<![\u0590-\u05FF])תוכל(?![\u0590-\u05FF])/g, "תוכלו"],
+    [/(?<![\u0590-\u05FF])תגיד(?![\u0590-\u05FF])/g, "תגידו"],
+    [/(?<![\u0590-\u05FF])תשלח(?![\u0590-\u05FF])/g, "תשלחו"],
+    [/(?<![\u0590-\u05FF])תבחר(?![\u0590-\u05FF])/g, "תבחרו"],
+    [/(?<![\u0590-\u05FF])תמלא(?![\u0590-\u05FF])/g, "תמלאו"],
+    [/(?<![\u0590-\u05FF])תצטרך(?![\u0590-\u05FF])/g, "תצטרכו"],
+    [/(?<![\u0590-\u05FF])תבדוק(?![\u0590-\u05FF])/g, "תבדקו"],
+    [/לחבר\s+אותך/g, "לחבר אתכם"],
+    [/להעביר\s+אותך/g, "להעביר אתכם"],
+    [/נעביר\s+אותך/g, "נעביר אתכם"],
+    [/אכוון\s+אותך/g, "לאכוון אתכם"],
+    [/(?<![\u0590-\u05FF])עבורך(?![\u0590-\u05FF])/g, "עבורכם"],
+    [/(?<![\u0590-\u05FF])איתך(?![\u0590-\u05FF])/g, "איתכם"],
+    [/(?<![\u0590-\u05FF])יש\s+לך(?![\u0590-\u05FF])/g, "יש לכם"],
+    [/(?<![\u0590-\u05FF])אין\s+לך(?![\u0590-\u05FF])/g, "אין לכם"],
+    [/כשיהיה\s+לך(?![\u0590-\u05FF])/g, "כשיהיה לכם"],
+    [/לעזור\s+לך(?![\u0590-\u05FF])/g, "לעזור לכם"],
+    [/להציע\s+לך(?![\u0590-\u05FF])/g, "להציע לכם"],
+    [/חסרים\s+לך/g, "חסרים"],
+    [/(?<![\u0590-\u05FF])אותך(?![\u0590-\u05FF])/g, "אתכם"],
+    [/לפנייה\s+שלך/g, "לפנייה שלכם"],
+    [/ההזמנה\s+שלך/g, "ההזמנה שלכם"],
+    [/המשלוח\/ההזמנה\s+שלך/g, "המשלוח/ההזמנה שלכם"],
+    [/השטיח\s+החדש\s+שלך/g, "השטיח החדש שלכם"],
+    [/מספר\s+ההזמנה\s+שלך/g, "מספר ההזמנה שלכם"],
+    [/(?<![\u0590-\u05FF])שלך(?![\u0590-\u05FF])/g, "שלכם"],
+    [/לא\s+התחברת(?![\u0590-\u05FF])/g, "לא התחברתם"],
+  ]
+
+  for (const [pattern, replacement] of replacements) {
+    out = out.replace(pattern, replacement)
+  }
+
+  return out
 }
 
 /** One *הום בוט :)* header — drop repeated name lines in the greeting body. */
@@ -112,7 +168,7 @@ export function formatOutboundMessages(
     .map((raw) => raw.trim())
     .filter(Boolean)
     .map((raw) => {
-      const single = ensureSingleCustomerHeader(raw)
+      const single = sanitizeCustomerAddress(ensureSingleCustomerHeader(raw))
       if (headerSent) return stripCustomerHeader(single)
       if (HEADER_MARKDOWN_RE.test(single) || HEADER_PLAIN_RE.test(single)) {
         headerSent = true

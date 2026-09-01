@@ -6,7 +6,7 @@ import {
   ensureSingleCustomerHeader,
   isCasualGreeting,
   isSelfContainedGreetingReply,
-  sanitizeBotGenderSlashes,
+  sanitizeCustomerAddress,
 } from "@/lib/agents/greeting"
 import type { HomAgentOutput } from "@/lib/hom-agent/output-schema"
 
@@ -19,7 +19,7 @@ export function validateHomAgentReply(
     reply = buildNeverStuckReply()
   }
 
-  reply = sanitizeBotGenderSlashes(reply)
+  reply = sanitizeCustomerAddress(reply)
   reply = sanitizeHallucinatedPortalUrls(reply)
   reply = dedupeGreetingBotName(reply)
 

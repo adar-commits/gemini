@@ -3,8 +3,8 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 export type ApiFailureHandoff = "service" | "sales"
 
 const API_FAILURE_HANDOFF_LINE: Record<ApiFailureHandoff, string> = {
-  service: "האם להעביר לנציג שירות שיבדוק עבורך?",
-  sales: "האם להעביר ליועץ מכירות שיבדוק עבורך?",
+  service: "האם להעביר לנציג שירות שיבדוק עבורכם?",
+  sales: "האם להעביר ליועץ מכירות שיבדוק עבורכם?",
 }
 
 const HOLLOW_TRANSFER_RE =
@@ -22,10 +22,10 @@ export function buildUncertainHandoffReply(userText?: string) {
   const echo =
     trimmed.length > 0 && trimmed.length <= 100
       ? `רק לוודא שהבנתי — "${trimmed}".`
-      : "לא בטוח/ה שהבנתי בדיוק את מה שרצית."
+      : "לא בטוח שהבנתי בדיוק את מה שרצית."
   return `${CUSTOMER_HEADER}
 ${echo}
-לא ברור לי איך לעזור הכי טוב מהצד שלי — רוצה/י שאעביר לנציג שירות שימשיך?`
+לא ברור לי איך לעזור הכי טוב מהצד שלי — רוצים שאעביר לנציג שירות שימשיך?`
 }
 
 /** Priority/n8n returned nothing usable — apologize and offer human handoff. */

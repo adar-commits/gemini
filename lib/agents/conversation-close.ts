@@ -44,7 +44,7 @@ export function isConversationClosing(body: string) {
 export function buildClosingAckReply(customerName?: string) {
   const name = customerName?.trim()
   const greeting = name
-    ? `שמחתי לעזור לך ${name}, אני כאן לכל עניין נוסף.`
-    : "שמחתי לעזור לך, אני כאן לכל עניין נוסף."
+    ? `שמחתי לעזור לכם ${name}, אני כאן לכל עניין נוסף.`
+    : "שמחתי לעזור לכם, אני כאן לכל עניין נוסף."
   return `${CUSTOMER_HEADER}\n${greeting}`
 }
