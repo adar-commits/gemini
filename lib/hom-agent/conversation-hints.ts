@@ -12,6 +12,11 @@ import {
 } from "@/lib/agents/inquiry-intent"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
+  isCasualGreeting,
+  isCasualSmallTalk,
+  substantiveUserMessages,
+} from "@/lib/agents/greeting"
+import {
   isCarpetRentalQuestion,
   isReturnExchangePolicyFaqQuestion,
 } from "@/lib/agents/policy-subjects"
@@ -37,6 +42,15 @@ export function buildConversationHints(input: {
 }): string | null {
   const { history, body } = input
   const lines: string[] = []
+
+  if (
+    substantiveUserMessages(history).length === 0 &&
+    (isCasualGreeting(body) || isCasualSmallTalk(body))
+  ) {
+    lines.push(
+      'OPENING GREETING: mirror their hello warmly (e.g. "היי שלום" → "היי שלום! 😊"). Use 1–2 emojis (😊 ☺️ 👋). Never a dry "איך אפשר לעזור?" without warmth first.'
+    )
+  }
 
   if (isServiceHandoffSummaryPending(history)) {
     if (isServiceHandoffSummaryConfirmed(body)) {

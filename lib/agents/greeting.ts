@@ -126,32 +126,57 @@ export function sanitizeCustomerAddress(text: string) {
   return sanitizeBotEmojis(normalizeSkuExamplesInReply(out))
 }
 
-/** No emoji on operational flows; dissatisfaction rescue keeps 👋 + one ☺️. */
+const FORBIDDEN_EMOJIS_RE = /🔍|🔎|😀|✨|📷|🙂/g
+
+function isAllowedBotEmoji(emoji: string) {
+  return (
+    emoji === "😊" ||
+    emoji === "🙏" ||
+    emoji === "👍" ||
+    emoji === "👋" ||
+    emoji === "☺" ||
+    emoji === "☺️"
+  )
+}
+
+/** Greeting / small-talk replies — allow warmer emoji use. */
+export function isGreetingLikeReply(text: string) {
+  const body = text.replace(/^\*הום בוט :\)\*\n?/m, "").trim()
+  if (
+    /הזמנה|על המספר|מתכתב|מק(?:״|"|')?ט|מלאi|נציג|יועץ|סטטוס|משלוח|פורטל|החזר/i.test(
+      body
+    )
+  ) {
+    return false
+  }
+  return /^(?:היי|שלום|הי|אהלן|בוקר\s+טוב|ערב\s+טוב)/i.test(body)
+}
+
+/** No emoji on operational flows; greetings keep up to 2 WhatsApp-friendly ones. */
 export function sanitizeBotEmojis(text: string) {
   const dissatisfactionRescue = /יש שתי אפשרויות/i.test(text)
   const operational =
     !dissatisfactionRescue &&
+    !isGreetingLikeReply(text) &&
     /הזמנה|על המספר|מתכתב|מק(?:״|"|')?ט|מלאi|להעביר|נציג|יועץ|סטטוס|משלוח|קבלה|חשבונית|בדיק|מספר הטלפון/i.test(
       text
     )
 
-  let out = text.replace(/🔍|🔎|😀|✨|📷|😊|🙏|👍|🙂/g, "")
-  if (!dissatisfactionRescue) {
-    out = out.replace(/👋/g, "")
-  }
+  let out = text.replace(FORBIDDEN_EMOJIS_RE, "")
 
   if (operational) {
     out = out.replace(/\p{Extended_Pictographic}/gu, "").replace(/☺️?/g, "")
-  } else {
-    let keptSmile = false
-    out = out.replace(/\p{Extended_Pictographic}/gu, (emoji) => {
-      if ((emoji === "☺" || emoji === "☺️") && !keptSmile) {
-        keptSmile = true
-        return emoji
-      }
-      return ""
-    })
+    return out.replace(/  +/g, " ").replace(/ +\n/g, "\n").trimEnd()
   }
+
+  const maxEmojis = isGreetingLikeReply(text) || dissatisfactionRescue ? 2 : 2
+  let kept = 0
+  out = out.replace(/\p{Extended_Pictographic}/gu, (emoji) => {
+    if (!isAllowedBotEmoji(emoji)) return ""
+    if (kept >= maxEmojis) return ""
+    kept += 1
+    return emoji
+  })
 
   return out.replace(/  +/g, " ").replace(/ +\n/g, "\n").trimEnd()
 }
@@ -215,7 +240,7 @@ export function formatOutboundMessages(
 /** Opening welcome — single header, no repeated bot name, masculine voice. */
 export function buildGreetingReply(_customerName?: string) {
   return `${CUSTOMER_HEADER}
-היי! שמח שפנית — במה אוכל לעזור היום?`
+היי! 😊 שמח שפנית — במה אוכל לעזור היום?`
 }
 
 export function isSelfContainedGreetingReply(reply: string) {
@@ -229,11 +254,11 @@ export function buildCasualSmallTalkReply(text: string, handoffPending = false) 
   let line: string
 
   if (PING_RE.test(body)) {
-    line = "כן, אני כאן! סליחה אם התשובה התעכבה."
+    line = "כן, אני כאן! 😊 סליחה אם התשובה התעכבה."
   } else if (/מה\s+שלומ/i.test(body)) {
-    line = "בסדר גמור, תודה!"
+    line = "בסדר גמור, תודה! ☺️"
   } else if (SMALL_TALK_RE.test(body)) {
-    line = "הכל טוב, תודה!"
+    line = "הכל טוב, תודה! 😊"
   } else {
     return buildGreetingReply()
   }

@@ -33,11 +33,13 @@ describe("buildConversationHints", () => {
     assert.match(hints, /054-7495083/)
   })
 
-  it("returns null for generic greetings", () => {
+  it("guides opening greetings warmly", () => {
     const hints = buildConversationHints({
       history: [],
       body: "היי",
     })
-    assert.equal(hints, null)
+    assert.ok(hints)
+    assert.match(hints, /OPENING GREETING/i)
+    assert.match(hints, /😊/)
   })
 })

@@ -36,7 +36,13 @@ describe("greeting reply", () => {
     assert.match(cleaned, /הזמנה/)
   })
 
-  it("allows at most one smiley on non-operational replies", () => {
+  it("keeps WhatsApp-friendly emojis on greeting replies", () => {
+    const cleaned = sanitizeBotEmojis("היי שלום! 😊 במה אוכל לעזור?")
+    assert.match(cleaned, /😊/)
+    assert.match(cleaned, /היי שלום/)
+  })
+
+  it("strips decorative emoji but keeps allowed ones on friendly replies", () => {
     const cleaned = sanitizeBotEmojis("בשמחה ☺️ וגם 😀")
     assert.match(cleaned, /☺/)
     assert.doesNotMatch(cleaned, /😀/)
