@@ -249,6 +249,60 @@ export function isOpeningTurn(historyUserMessages: number) {
   return historyUserMessages <= 1
 }
 
+const SESSION_RESET_COMMAND_RE = /^(?:איפוס|reset)$/i
+
+export function isSessionResetCommand(text: string) {
+  return SESSION_RESET_COMMAND_RE.test(text.trim())
+}
+
+export function substantiveUserMessages(history: HistoryMessage[]) {
+  return history.filter(
+    (message) =>
+      message.role === "user" && !isSessionResetCommand(message.content)
+  )
+}
+
+const RESET_ACK_RE = /השיחה אופסה|אפשר להתחיל מחדש/i
+
+/**
+ * Longer debounce until the bot has answered the customer's first real ask —
+ * includes post-reset bursts and a trailing message after a lone "היי".
+ */
+export function isExtendedOpeningDebounce(input: {
+  history: HistoryMessage[]
+  lastAction: string | null
+}) {
+  const substantive = substantiveUserMessages(input.history)
+  if (substantive.length === 0) return true
+
+  if (input.lastAction === "reset") return true
+
+  const lastAssistantIndex = input.history.findLastIndex(
+    (message) => message.role === "assistant"
+  )
+  if (lastAssistantIndex === -1) return true
+
+  const lastAssistant = input.history[lastAssistantIndex]
+  if (lastAssistant && RESET_ACK_RE.test(lastAssistant.content)) {
+    const afterAck = input.history.slice(lastAssistantIndex + 1)
+    const usersAfter = afterAck.filter((message) => message.role === "user")
+    const botAfter = afterAck.some((message) => message.role === "assistant")
+    if (usersAfter.length > 0 && !botAfter) return true
+  }
+
+  const lastSubstantiveUserIndex = input.history.findLastIndex(
+    (message) =>
+      message.role === "user" && !isSessionResetCommand(message.content)
+  )
+  if (lastSubstantiveUserIndex === -1) return false
+
+  const botAnsweredLastSubstantiveUser = input.history
+    .slice(lastSubstantiveUserIndex + 1)
+    .some((message) => message.role === "assistant")
+
+  return !botAnsweredLastSubstantiveUser
+}
+
 /** First hello after a session reset — landbot legacy history must not block the welcome. */
 export function shouldWelcomeAfterReset(
   resetAt: string | null,

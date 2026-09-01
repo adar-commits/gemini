@@ -37,7 +37,7 @@ function isHookAuthorized(request: Request) {
 export async function GET() {
   const { activeModelSummary } = await import("@/lib/agent-core/config")
   const models = await activeModelSummary()
-  const debounceMs = await debounceWindowMs(inbound.conversationId)
+  const debounceMs = await debounceWindowMs()
   return NextResponse.json({
     ok: true,
     method: "POST",

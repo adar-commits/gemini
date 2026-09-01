@@ -1,5 +1,6 @@
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 import { getConversationContext } from "@/lib/agents/memory"
+import { isExtendedOpeningDebounce } from "@/lib/agents/greeting"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { mergeTurns, type UserTurn } from "@/lib/agents/user-turn"
 
@@ -38,9 +39,8 @@ async function baseDebounceMs() {
 export async function debounceWindowMs(conversationId?: string) {
   if (conversationId) {
     try {
-      const { history } = await getConversationContext(conversationId)
-      const priorUserTurns = history.filter((message) => message.role === "user").length
-      if (priorUserTurns === 0) {
+      const context = await getConversationContext(conversationId)
+      if (isExtendedOpeningDebounce(context)) {
         return configuredFirstTurnDebounceMs()
       }
     } catch {

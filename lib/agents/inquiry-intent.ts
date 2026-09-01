@@ -503,10 +503,15 @@ function matchesReturnPickupPending(text: string) {
   return isActiveReturnExchangePickupCase(text)
 }
 
-/** Classify post-purchase case from primary clause, then full message. */
+/** Classify post-purchase case from primary clause, then each line, then full message. */
 export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | null {
   const primary = primaryIntentText(body)
-  const candidates = [primary, body.trim()].filter(Boolean)
+  const lines = body
+    .trim()
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const candidates = [...new Set([primary, ...lines, body.trim()].filter(Boolean))]
 
   for (const text of candidates) {
     if (matchesReturnPickupPending(text)) return "return_pickup_pending"
