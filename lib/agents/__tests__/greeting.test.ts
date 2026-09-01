@@ -27,6 +27,15 @@ describe("greeting reply", () => {
     )
   })
 
+  it("sanitizes SKU label to מק״ט example for customers", () => {
+    const raw =
+      'כדי לבדוק מלאi, אצטרך את מספר המק"ט (SKU) של המוצר. מה מעדיף?'
+    const cleaned = sanitizeCustomerAddress(raw)
+    assert.match(cleaned, /31503138-200290/)
+    assert.doesNotMatch(cleaned, /SKU/i)
+    assert.match(cleaned, /מה תעדיפו/)
+  })
+
   it("sanitizes masculine singular customer address to plural", () => {
     const raw =
       "איך תעדיף להמשיך? אפשר לחבר אותך ליועץ — שלח/י את הפרטים אם יש לך."

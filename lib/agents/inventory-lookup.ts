@@ -4,7 +4,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
-import { isValidInventorySku } from "@/lib/agents/phone-for-api"
+import { isValidInventorySku, INVENTORY_SKU_EXAMPLE_HINT } from "@/lib/agents/phone-for-api"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 import {
   extractBranchCityFromInventoryQuery,
@@ -368,19 +368,19 @@ export function buildSkuRequestPrompt(context?: {
 
   if (branch && product) {
     return `${CUSTOMER_HEADER}
-כדי לבדוק מלאי של ${product} בסניף ${branch}, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
+כדי לבדוק מלאי של ${product} בסניף ${branch}, אצטרך את המק״ט של המוצר ${INVENTORY_SKU_EXAMPLE_HINT}.`
   }
   if (branch) {
     return `${CUSTOMER_HEADER}
-כדי לבדוק מלאי בסניף ${branch}, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
+כדי לבדוק מלאי בסניף ${branch}, אצטרך את המק״ט של המוצר ${INVENTORY_SKU_EXAMPLE_HINT}.`
   }
   if (product) {
     return `${CUSTOMER_HEADER}
-כדי לבדוק מלאי של ${product} בסניפים, אצטרך את המק״ט (מספר הדגם, כולל מקף).`
+כדי לבדוק מלאי של ${product} בסניפים, אצטרך את המק״ט ${INVENTORY_SKU_EXAMPLE_HINT}.`
   }
 
   return `${CUSTOMER_HEADER}
-כדי לבדוק מלאי וזמינות, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).`
+כדי לבדוק מלאי וזמינות, אצטרך את מספר המק״ט של המוצר ${INVENTORY_SKU_EXAMPLE_HINT} – הוא מופיע בדרך כלל בעמוד המוצר באתר.`
 }
 
 export function buildInventoryLookupFailureReply() {
@@ -440,11 +440,11 @@ export function buildProductUrlSkuPrompt(productHint?: string | null) {
   if (product) {
     return `${CUSTOMER_HEADER}
 קיבלתי את הקישור, תודה.
-כדי לבדוק מלאי וזמינות של ${product}, אצטרך את המק״ט מדף המוצר (מספר הדגם, כולל מקף).`
+כדי לבדוק מלאי וזמינות של ${product}, אצטרך את המק״ט מדף המוצר ${INVENTORY_SKU_EXAMPLE_HINT}.`
   }
   return `${CUSTOMER_HEADER}
 קיבלתי את הקישור, תודה.
-כדי לבדוק מלאי וזמינות, אצטרך את המק״ט מדף המוצר (מספר הדגם, כולל מקף).`
+כדי לבדוק מלאי וזמינות, אצטרך את המק״ט מדף המוצר ${INVENTORY_SKU_EXAMPLE_HINT}.`
 }
 
 export function buildInventoryAvailabilityReply(

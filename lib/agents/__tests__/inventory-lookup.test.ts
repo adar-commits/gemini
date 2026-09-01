@@ -113,7 +113,8 @@ describe("inventory vs product URL routing", () => {
     assert.equal(isInventoryQuestion(body), true)
     assert.equal(isProductInventoryQuestion(body), false)
     assert.equal(isSpecificProductMention(body), false)
-    assert.match(buildSkuRequestPrompt(), /מק״ט/)
+    assert.match(buildSkuRequestPrompt(), /31503138-200290/)
+    assert.doesNotMatch(buildSkuRequestPrompt(), /SKU/i)
   })
 
   it("detects branch display questions with region between סניף and יש", () => {
@@ -130,7 +131,7 @@ describe("inventory vs product URL routing", () => {
       },
       {
         role: "assistant" as const,
-        content: "כדי לבדוק מלאי וזמינות, אצטרך את המק״ט של המוצר (מספר הדגם, כולל מקף).",
+        content: "כדי לבדוק מלאי וזמינות, אצטרך את המק״ט של המוצר (לדוגמה: 31503138-200290).",
         agent: "sales",
       },
     ]
@@ -147,7 +148,7 @@ describe("inventory vs product URL routing", () => {
       },
       {
         role: "assistant" as const,
-        content: "כדי לבדוק מלאi, אצטרך את המק״ט (מספר הדגם, כולל מקף).",
+        content: "כדי לבדוק מלאi, אצטרך את המק״ט (לדוגמה: 31503138-200290).",
         agent: "sales",
       },
     ]

@@ -1,5 +1,9 @@
 /** Shared phone/SKU normalization for Priority/n8n API payloads. */
 
+/** Example מק״ט shown to customers (matches site format: 8 digits, hyphen, 6 digits). */
+export const INVENTORY_SKU_EXAMPLE = "31503138-200290"
+export const INVENTORY_SKU_EXAMPLE_HINT = `(לדוגמה: ${INVENTORY_SKU_EXAMPLE})`
+
 export function normalizePhoneForOrderApi(phone: string) {
   let digits = phone.replace(/\D/g, "")
   if (digits.startsWith("00")) digits = digits.slice(2)

@@ -170,7 +170,7 @@ function lastAssistantWasOperationalSales(history: HistoryMessage[]) {
     if (isInactivityAssistantMessage(message.content)) continue
     return (
       isInventoryAvailabilityReply(message.content) ||
-      /בדקתי את הדגם|כדי לבדוק מלאי|איזה פרטים חסרים|לא מצאתי את הדגם|מספר הדגם, כולל מקף/.test(
+      /בדקתי את הדגם|כדי לבדוק מלאי|איזה פרטים חסרים|לא מצאתי את הדגם|לדוגמה:\s*31503138-200290/.test(
         message.content
       )
     )

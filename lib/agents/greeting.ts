@@ -1,5 +1,5 @@
-import type { HistoryMessage } from "@/lib/agents/types"
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { CUSTOMER_HEADER, type HistoryMessage } from "@/lib/agents/types"
+import { INVENTORY_SKU_EXAMPLE_HINT } from "@/lib/agents/phone-for-api"
 
 const LEADING_GREETING_RE =
   /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+)*/iu
@@ -76,6 +76,9 @@ export function sanitizeCustomerAddress(text: string) {
   let out = sanitizeBotGenderSlashes(text)
 
   const replacements: Array<[RegExp, string]> = [
+    [/\(SKU\)/gi, INVENTORY_SKU_EXAMPLE_HINT],
+    [/מק(?:״|"|')?ט\s*\(SKU\)/gi, `מק״ט ${INVENTORY_SKU_EXAMPLE_HINT}`],
+    [/(?<![\u0590-\u05FF])מה\s+מעדיף(?![\u0590-\u05FF])/g, "מה תעדיפו"],
     [/תרצו\/י/g, "תרצו"],
     [/כתבו\/י/g, "כתבו"],
     [/שלח\/י/g, "שלחו"],
