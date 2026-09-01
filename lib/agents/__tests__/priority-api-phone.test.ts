@@ -38,6 +38,32 @@ describe("authorizedLookupPhoneFromHistory", () => {
     )
   })
 
+  it("authorizes alternate phone typed after declining channel confirm", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildPhoneLookupConfirmPrompt("+972547380553"),
+        agent: "master",
+      },
+      { role: "user", content: "לא", agent: null },
+      { role: "user", content: "0547380553", agent: null },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nאוקיי נדמה לי שמצאתי את ההזמנה, בוצעה לפני 3 ימים באתר אינטרנט על סך 174.9 ש׳׳ח, נכון? (מס׳ הזמנה SO26020975)",
+        agent: "master",
+      },
+    ]
+    assert.equal(
+      authorizedLookupPhoneFromHistory(history, "+972523925554"),
+      "0547380553"
+    )
+    assert.equal(
+      resolveLookupPhoneFromHistory(history, "+972523925554", "כן בדיוק"),
+      "0547380553"
+    )
+  })
+
   it("returns typed phone after alternate-phone prompt", () => {
     const history: HistoryMessage[] = [
       {

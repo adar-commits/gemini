@@ -14,6 +14,10 @@ import {
   pendingSalesIntakeQuestionKind,
 } from "@/lib/agents/sales-intake"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
+import {
+  recallOrdersLookup,
+  rememberOrdersLookup,
+} from "@/lib/agents/order-lookup-cache"
 import { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-terminology"
 import {
   isValidIsraeliMobilePhone,
@@ -170,11 +174,13 @@ export function describeShipmentStatus(order: OrderShipmentStatus) {
   const deliveryDate =
     formatHebrewDate(order.raw.ZPIT_DELDATE) ??
     formatHebrewDate(order.raw.ZPIT_UDATE)
+  const coordinateDate = formatHebrewDate(order.raw.ZPIT_COORDATE)
 
   return buildDeliveryStatusMessage({
     deliveryStatusId: order.statusCode,
     deliveryStatusDesc: order.statusLabel || "לא ידוע",
     deliveryDate,
+    coordinateDate,
   })
 }
 
@@ -737,7 +743,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
 אם תרצו עדכון מדויק יותר — האם להעביר לנציג שירות?`
   }
 
-  if (/נארז ונאסף|צפוי להגיע/i.test(statusText)) {
+  if (/נאסף על ידי חברת השליחויות|ממתין ליציאתו|הועמס לשליח|מתואם לאספקה/i.test(statusText)) {
     return `${CUSTOMER_HEADER}
 בקצרה — המשלוח כבר יצא מהמחסן ונמצא בדרך.
 השליח יתאם איתך טלפונית ביום האספקה.
@@ -745,9 +751,9 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
 האם להעביר לנציג שירות לעדכון נוסף?`
   }
 
-  if (/טרם הועברה לחברת השליחויות|עדיין בטיפול/i.test(statusText)) {
+  if (/נארזה ומוכנה לאיסוף|טרם הועבר|עדיין בטיפול/i.test(statusText)) {
     return `${CUSTOMER_HEADER}
-בקצרה — ההזמנה עדיין בהכנה/טיפול במחסן, וטרם הועברה לחברת השליחויות.
+בקצרה — ההזמנה נארזה במחסן וממתינה לאיסוף על ידי חברת השליחויות.
 ברגע שתצא לשליח — תקבלו עדכון.
 
 האם להעביר לנציג שירות שיבדוק ויתעדכן?`
@@ -877,13 +883,13 @@ export function authorizedLookupPhoneFromHistory(
     if (isPhoneLookupConfirmAssistantMessage(message.content)) {
       for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
         const reply = history[replyIndex]
-        if (reply.role === "assistant") continue
-        if (reply.role === "user") {
-          if (isPurePhoneLookupConfirmYes(reply.content) && channel) {
-            authorized = channel
-          }
-          break
+        if (reply.role === "assistant") break
+        if (reply.role !== "user") continue
+        if (isPurePhoneLookupConfirmYes(reply.content) && channel) {
+          authorized = channel
         }
+        const typed = userProvidedPhone(reply.content)
+        if (typed) authorized = typed
       }
     }
 
@@ -1073,12 +1079,21 @@ export function buildAlternatePhoneRequestPrompt() {
 מה מספר הטלפון שבוצעה עליו ההזמנה?`
 }
 
+async function lookupOrdersForPhone(phone: string) {
+  const cached = recallOrdersLookup(phone)
+  if (cached) return cached
+
+  const orders = await lookupOrdersByPhone(phone)
+  if (orders) rememberOrdersLookup(phone, orders)
+  return orders
+}
+
 async function lookupOrderByReference(input: {
   orderReference: string
   lookupPhone: string
   body: string
 }) {
-  const orders = await lookupOrdersByPhone(input.lookupPhone)
+  const orders = await lookupOrdersForPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
 
   const prefixed = extractOrderNumber(input.orderReference)
@@ -1097,7 +1112,7 @@ async function lookupAndStartOrderConfirm(
   phone: string,
   empathize?: (reply: string) => string
 ) {
-  const orders = await lookupOrdersByPhone(phone)
+  const orders = await lookupOrdersForPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply(phone)
   const reply = buildOrderConfirmationPrompt(orders[0]!)
@@ -1111,7 +1126,7 @@ async function resolveOrderConfirmationFlow(input: {
 }) {
   const pendingOrder = pendingOrderNumberFromHistory(input.history)
 
-  const orders = await lookupOrdersByPhone(input.lookupPhone)
+  const orders = await lookupOrdersForPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
 

@@ -9,13 +9,26 @@ import {
 } from "@/lib/agents/order-lookup"
 
 describe("delivery status terminology", () => {
-  it("maps in-transit codes 3/4/5/80 to the shared message", () => {
-    for (const code of ["3", "4", "5", "80"]) {
-      const message = buildDeliveryStatusMessage({ deliveryStatusId: code })
-      assert.match(message, /נארז ונאסף מהמחסנים/)
-      assert.match(message, /צפוי להגיע/)
-      assert.doesNotMatch(message, /צפוי\/ה/)
-    }
+  it("maps in-transit codes 3/4/5/80 to distinct customer messages", () => {
+    assert.match(
+      buildDeliveryStatusMessage({ deliveryStatusId: "3" }),
+      /נאסף על ידי חברת השליחויות/
+    )
+    assert.match(
+      buildDeliveryStatusMessage({ deliveryStatusId: "4" }),
+      /שוייך לשליח/
+    )
+    assert.match(
+      buildDeliveryStatusMessage({ deliveryStatusId: "5" }),
+      /הועמס לשליח/
+    )
+    assert.match(
+      buildDeliveryStatusMessage({
+        deliveryStatusId: "80",
+        coordinateDate: "5.9.2026",
+      }),
+      /מתואם לאספקה בתאריך 5\.9\.2026/
+    )
   })
 
   it("maps pickup-ready code 22 with branch details", () => {
@@ -37,7 +50,7 @@ describe("delivery status terminology", () => {
   it("maps processing and unknown codes", () => {
     assert.match(
       buildDeliveryStatusMessage({ deliveryStatusId: "1" }),
-      /טרם הועברה לחברת השליחויות/
+      /נארזה ומוכנה לאיסוף על ידי חברת השליחויות/
     )
     assert.match(
       buildDeliveryStatusMessage({ deliveryStatusId: "21" }),
@@ -56,14 +69,14 @@ describe("delivery status terminology", () => {
   it("maps packed-awaiting-courier code 2 and shipment-created label", () => {
     assert.match(
       buildDeliveryStatusMessage({ deliveryStatusId: "2" }),
-      /נארז במחסני החברה/
+      /נארזה ומוכנה לאיסוף/
     )
     assert.match(
       buildDeliveryStatusMessage({
         deliveryStatusId: "99",
         deliveryStatusDesc: "משלוח נוצר",
       }),
-      /ממתין לאיסוף/
+      /נארזה ומוכנה לאיסוף/
     )
   })
 
@@ -75,7 +88,7 @@ describe("delivery status terminology", () => {
       ZPIT_UDATE: "2026-08-30T14:00:00+03:00",
       CURDATE: "2026-08-20T00:00:00Z",
     })
-    assert.match(order.statusDescription, /נארז ונאסף מהמחסנים/)
+    assert.match(order.statusDescription, /הועמס לשליח/)
     assert.doesNotMatch(order.statusDescription, /עדכון סטטוס אחרון/)
   })
 
@@ -89,7 +102,7 @@ describe("delivery status terminology", () => {
     })
     const reply = buildOrderStatusReply(order)
     assert.match(reply, /בדקתי,/)
-    assert.match(reply, /נארז במחסני החברה/)
+    assert.match(reply, /נארזה ומוכנה לאיסוף/)
     assert.match(reply, /נכון לתאריך/)
     assert.doesNotMatch(reply, /לגבי הזמנה/)
     assert.doesNotMatch(reply, /סטטוס:/)

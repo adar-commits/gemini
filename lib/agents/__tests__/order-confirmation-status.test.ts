@@ -13,7 +13,7 @@ describe("order confirmation status reply", () => {
     branchLabel: "אתר אינטרנט",
     statusCode: "3",
     statusLabel: "בדרך ללקוח",
-    statusDescription: "המשלוח נארז ונאסף מהמחסנים, צפוי להגיע בימים הקרובים. התיאום יתבצע על ידי השליח ביום האספקה.",
+    statusDescription: "איזה כיף! המשלוח הועמס לשליח ובדרכו אליך ברגעים אלה.",
     branchCode: null,
     totalPrice: 0,
     raw: {
@@ -26,7 +26,7 @@ describe("order confirmation status reply", () => {
   it("includes delivery status text with checked phrasing", () => {
     const reply = buildOrderStatusReply(fullOrder)
     assert.match(reply, /בדקתי,/)
-    assert.match(reply, /נארז ונאסף מהמחסנים/)
+    assert.match(reply, /הועמס לשליח/)
     assert.match(reply, /נכון לתאריך/)
     assert.doesNotMatch(reply, /לגבי הזמנה/)
   })

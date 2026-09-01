@@ -73,6 +73,15 @@ export async function invokeHomAgent(input: {
 
   setRoutingPath(input.conversationId, (toolResult.steps?.length ?? 0) > 1 ? "v3_tools" : "v3_llm")
 
+  const deterministicReply = extractDeterministicToolReply(toolResult.steps)
+  if (deterministicReply) {
+    return {
+      output: validateHomAgentReply(deterministicReply, input.body),
+      llmCalls,
+      model,
+    }
+  }
+
   const toolSummaries = (toolResult.steps ?? [])
     .flatMap((step) => step.toolResults ?? [])
     .map((result) => JSON.stringify(result.output))
@@ -129,4 +138,18 @@ function parseFallbackOutput(text: string): HomAgentOutput {
     // fall through
   }
   return { reply: text.trim(), action: "reply" }
+}
+
+type ToolStep = NonNullable<Awaited<ReturnType<typeof generateText>>["steps"]>[number]
+
+/** Operational tools return final customer copy — skip a second LLM pass that may contradict live data. */
+function extractDeterministicToolReply(steps: ToolStep[] | undefined): HomAgentOutput | null {
+  for (const step of steps ?? []) {
+    for (const result of step.toolResults ?? []) {
+      const output = result.output as { ok?: boolean; reply?: string } | undefined
+      if (!output?.ok || !output.reply?.trim()) continue
+      return { reply: output.reply.trim(), action: "reply" }
+    }
+  }
+  return null
 }
