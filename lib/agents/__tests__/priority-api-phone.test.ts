@@ -7,6 +7,7 @@ import {
   formatDisplayPhone,
   isChannelPhoneSelfReference,
   isOrderNumberRequestPending,
+  isPhoneLookupConfirmPending,
   resolveLookupPhoneFromHistory,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
@@ -136,6 +137,39 @@ describe("authorizedLookupPhoneFromHistory", () => {
       "0547495083"
     )
     assert.equal(isChannelPhoneSelfReference("050-6703444"), false)
+  })
+
+  it("binds זה המספר טלפון שלי after phone confirm ask — no second confirm", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nמה מספר ההזמנה או הטלפון שמשויך להזמנה?",
+        agent: "faq",
+      },
+    ]
+    const phrase = "זה המספר טלפון שלי"
+    assert.equal(isChannelPhoneSelfReference(phrase), true)
+    assert.equal(
+      resolveLookupPhoneFromHistory(history, "+972547495083", phrase),
+      "0547495083"
+    )
+
+    const confirmHistory: HistoryMessage[] = [
+      ...history,
+      { role: "user", content: phrase, agent: null },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nהאם היא רשומה על המספר ממנו אני מתכתב כרגע? (054-7495083)",
+        agent: "faq",
+      },
+    ]
+    assert.equal(isPhoneLookupConfirmPending(confirmHistory), true)
+    assert.equal(
+      resolveLookupPhoneFromHistory(confirmHistory, "+972547495083", "זה הטלפון שלי"),
+      "0547495083"
+    )
   })
 })
 

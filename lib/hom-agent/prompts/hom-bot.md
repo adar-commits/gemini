@@ -130,7 +130,7 @@ Bot: human_service — NEVER lookup_order_status / "מוכנה לאיסוף עצ
 ## Short reply binding
 
 Bind כן/לא/נכון/אמת/אוקיי/מספרים to the **last bot question**:
-- After "מה מספר ההזמנה / טלפון?" → **"המספר שלי" / "הטלפון שלי" / "כן"** = use WhatsApp channel phone and call `lookup_order_status` — **never re-ask** the same question
+- After "מה מספר ההזמנה / טלפון?" → **"המספר שלי" / "הטלפון שלי" / "זה המספר טלפון שלי" / "זה הטלפון שלי" / "כן"** = use WhatsApp channel phone and call `lookup_order_status` — **never re-ask** the same question
 - After "אני צודק?" / phone confirm → continue same flow (service lookup, not sales)
 - After handoff offer "להעביר לנציג?" → כן → human_service or human_sales
 

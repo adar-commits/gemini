@@ -52,7 +52,13 @@ import {
   isServiceHandoffSummaryPending,
   needsServiceSummaryConfirm,
 } from "@/lib/agents/service-intake"
-import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
+import {
+  isChannelPhoneSelfReference,
+  isOrderConfirmationPending,
+  isOrderNumberRequestPending,
+  isPhoneLookupConfirmPending,
+  resolveOrderShippingReply,
+} from "@/lib/agents/order-lookup"
 import { invokeHomAgent } from "@/lib/hom-agent/invoke"
 import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
@@ -437,6 +443,44 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_t0_return_exchange_policy",
+      },
+    })
+  }
+
+  if (
+    phone &&
+    isChannelPhoneSelfReference(body) &&
+    (isOrderNumberRequestPending(history) || isPhoneLookupConfirmPending(history))
+  ) {
+    const reply = validateHomAgentReply(
+      {
+        reply: await resolveOrderShippingReply({
+          body,
+          phone,
+          history,
+        }),
+        action: "reply",
+      },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "service",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "service",
+      reply,
+      action: "reply",
+      route: ["service"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_channel_phone",
       },
     })
   }

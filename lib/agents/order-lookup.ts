@@ -646,7 +646,12 @@ export function isChannelPhoneSelfReference(body: string) {
   return (
     /^(?:ה)?(?:מספר|טלפון)\s+(?:שלי|שלנו)(?:[\s,.!?]|$)/iu.test(text) ||
     /^(?:על|ב)(?:ה)?(?:מספר|טלפון)\s+(?:ה)?(?:זה|נוכחי)(?:[\s,.!?]|$)/iu.test(text) ||
-    /^(?:זה|זהו)\s+(?:ה)?(?:מספר|טלפון)(?:[\s,.!?]|$)/iu.test(text) ||
+    /^(?:זה|זהו)(?:\s+(?:ה)?(?:מספר(?:\s+(?:ה)?טלפון)?|טלפון))?\s*(?:שלי|שלנו)?(?:[\s,.!?]|$)/iu.test(
+      text
+    ) ||
+    /^(?:כן\s+)?(?:זה|זהו)\s+(?:ה)?(?:מספר(?:\s+(?:ה)?טלפון)?|טלפון)\s+שלי(?:[\s,.!?]|$)/iu.test(
+      text
+    ) ||
     /^מ(?:מנ)?ו\s+(?:אני\s+)?(?:מתכתב|מדבר)/iu.test(text) ||
     isPurePhoneLookupConfirmYes(text)
   )
@@ -1002,7 +1007,7 @@ export function resolveLookupPhoneFromHistory(
   // Current-turn confirm — history does not yet include this user message.
   if (
     body?.trim() &&
-    isPurePhoneLookupConfirmYes(body) &&
+    (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body)) &&
     isPhoneLookupConfirmPending(history)
   ) {
     const channel = channelPhone(whatsappPhone)
@@ -1331,7 +1336,7 @@ export async function resolveOrderShippingReply(input: {
     const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
 
-    if (isPurePhoneLookupConfirmYes(body)) {
+    if (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body)) {
       const confirmed = channelPhone(whatsappPhone)
       if (!confirmed) return buildPhoneLookupDeclinedReply()
       return lookupAndStartOrderConfirm(confirmed, empathize)
