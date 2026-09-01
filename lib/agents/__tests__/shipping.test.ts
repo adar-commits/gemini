@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  stripAppendedDeliveryPolicyFromOrderStatus,
   isDeliverySchedulingRequest,
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
@@ -53,5 +54,24 @@ describe("isShippingStatusQuestion", () => {
 
   it("does not treat a new purchase intent as status lookup", () => {
     assert.equal(isShippingStatusQuestion("רוצה לקנות שטיח לסלון"), false)
+  })
+})
+
+describe("stripAppendedDeliveryPolicyFromOrderStatus", () => {
+  it("removes delivery SLA lines from order status replies", () => {
+    const raw = `*הום בוט :)*
+בדקתי את ההזמנה – היא עדיין בטיפול (נכון לתאריך 30.8.2026).
+זמן האספקה לשטיחים ופופים לפירוק הרכבה הוא עד 4 ימי עסקים מיום אישור התשלום.
+אם צריך עוד משהו – אני כאן.`
+    const cleaned = stripAppendedDeliveryPolicyFromOrderStatus(raw)
+    assert.match(cleaned, /עדיין בטיפול/)
+    assert.doesNotMatch(cleaned, /4 ימי עסקים/)
+    assert.doesNotMatch(cleaned, /זמן האספקה/)
+    assert.match(cleaned, /אם צריך עוד משהו/)
+  })
+
+  it("leaves general shipping policy FAQ untouched", () => {
+    const policy = "לשטיחים ולפופים ל-self assembly: עד 4 ימי עסקים"
+    assert.equal(stripAppendedDeliveryPolicyFromOrderStatus(policy), policy)
   })
 })

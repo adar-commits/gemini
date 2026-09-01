@@ -134,3 +134,32 @@ export function buildShippingStatusReply() {
 כדי לבדוק מתי המשלוח/ההזמנה שלכם יגיע, אני צריך פרטי הזמנה — מספר הזמנה או טלפון שבו בוצעה הרכישה.
 אם יש לכם את הפרטים, שלחו אותם ואמשיך. אם לא — אפשר להעביר לנציג שירות שיבדוק עבורכם.`
 }
+
+/** Order/shipment status from live lookup — not a general shipping-policy FAQ. */
+export function isOrderStatusLookupReply(text: string) {
+  return (
+    /בדקתי(?:\s+את\s+ההזמנה)?[,–—-]/i.test(text) ||
+    (/בדקתי/i.test(text) && /נכון לתאריך/i.test(text)) ||
+    /לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(text)
+  )
+}
+
+const APPENDED_DELIVERY_POLICY_LINE_RE =
+  /^(?:זמן האספקה|לשטיחים ולפופים|לפופים מוכנים|משלוח בית חינם|השירות בין קרית גת)/i
+
+/** Remove general SLA policy lines LLMs sometimes append after order status — often misleading. */
+export function stripAppendedDeliveryPolicyFromOrderStatus(text: string) {
+  if (!isOrderStatusLookupReply(text)) return text
+
+  const lines = text.split("\n").filter((line) => {
+    const trimmed = line.trim()
+    if (!trimmed) return true
+    if (APPENDED_DELIVERY_POLICY_LINE_RE.test(trimmed)) return false
+    if (/עד \d+ ימי עסקים.*(?:אישור התשלום|ממועד אישור)/i.test(trimmed)) return false
+    if (/פירוק.{0,16}הרכבה.*ימי עסקים/i.test(trimmed)) return false
+    if (/self assembly/i.test(trimmed) && /ימי עסקים/i.test(trimmed)) return false
+    return true
+  })
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+}

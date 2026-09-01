@@ -1,4 +1,4 @@
-import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import { stripAppendedDeliveryPolicyFromOrderStatus } from "@/lib/agents/shipping"
 import { RETURNS_PORTAL_URL } from "@/lib/agents/policy-subjects"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import {
@@ -20,6 +20,7 @@ export function validateHomAgentReply(
   }
 
   reply = sanitizeCustomerAddress(reply)
+  reply = stripAppendedDeliveryPolicyFromOrderStatus(reply)
   reply = sanitizeHallucinatedPortalUrls(reply)
   reply = dedupeGreetingBotName(reply)
 
