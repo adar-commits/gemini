@@ -9,8 +9,10 @@ import {
   isBareSkuMessage,
   isInventoryQuestion,
   isInventoryQuestionWithContext,
+  isPreorderSku,
   looksLikeInventorySku,
   lookupInventoryBySku,
+  parseInventoryBranchPayload,
   resolveBranchInventoryReply,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
@@ -174,14 +176,105 @@ describe("inventory vs product URL routing", () => {
 })
 
 describe("buildInventoryAvailabilityReply", () => {
-  it("reports no branch stock when API returns empty warehouses", () => {
+  it("reports no branch stock when API returns empty inventory", () => {
     const reply = buildInventoryAvailabilityReply({
       sku: "40400025-200290",
-      warehouses_inventory: [],
+      preorder: null,
+      inventory: [],
     })
     assert.match(reply, /בדקתי את הדגם 40400025-200290/)
     assert.match(reply, /אין במלאי בסניפים/)
     assert.doesNotMatch(reply, /לא מצאתי את הדגם/)
+  })
+
+  it("reports preorder availability before branch stock", () => {
+    const reply = buildInventoryAvailabilityReply({
+      sku: "08800007-300400",
+      product_title: "סאן קרם  SUN 300*400",
+      preorder: {
+        po_qty: 15,
+        open_order_qty: 3,
+        current_qty: 12,
+        safe_qty: 3,
+        req_date: "",
+      },
+      inventory: [{ branch_id: "WMS", quantity: 0 }],
+    })
+    assert.match(reply, /08800007-300400/)
+    assert.match(reply, /סאן קרם/)
+    assert.match(reply, /הזמנה מוקדמת/)
+    assert.doesNotMatch(reply, /יש במלאי/)
+    assert.doesNotMatch(reply, /WMS/)
+  })
+
+  it("includes req_date on preorder SKUs when provided", () => {
+    const reply = buildInventoryAvailabilityReply({
+      sku: "08800007-300400",
+      preorder: {
+        po_qty: 15,
+        open_order_qty: 3,
+        current_qty: 12,
+        safe_qty: 3,
+        req_date: "15/10/2026",
+      },
+      inventory: [],
+    })
+    assert.match(reply, /צפי הגעה: 15\/10\/2026/)
+  })
+
+  it("checks retail branch inventory when SKU is not on preorder", () => {
+    const reply = buildInventoryAvailabilityReply({
+      sku: "40400025-200290",
+      preorder: null,
+      inventory: [
+        { branch_id: "WMS", quantity: 5 },
+        { branch_id: "1001", displayName: "ראשון לציון", quantity: 2 },
+        { branch_id: "1002", displayName: "נתניה", quantity: 0 },
+      ],
+    })
+    assert.match(reply, /\*יש במלאי:\*/)
+    assert.match(reply, /ראשון לציון/)
+    assert.match(reply, /\*אין במלאי כרגע:\*/)
+    assert.match(reply, /נתניה/)
+    assert.doesNotMatch(reply, /WMS/)
+    assert.doesNotMatch(reply, /1001/)
+  })
+})
+
+describe("parseInventoryBranchPayload", () => {
+  it("maps the new getInventoryBranch response layout", () => {
+    const row = parseInventoryBranchPayload([
+      {
+        ok: true,
+        sku: "08800007-300400",
+        branch_id: "*",
+        product: {
+          sku: "08800007-300400",
+          product_title: "סאן קרם  SUN 300*400",
+        },
+        inventory: [
+          {
+            sku: "08800007-300400",
+            branch_id: "WMS",
+            quantity: 0,
+          },
+        ],
+        hasInventoryRow: true,
+        preorder: {
+          po_qty: 15,
+          open_order_qty: 3,
+          current_qty: 12,
+          safe_qty: 3,
+          req_date: "",
+        },
+      },
+    ])
+    assert.ok(row)
+    assert.equal(row?.sku, "08800007-300400")
+    assert.equal(row?.product_title, "סאן קרם  SUN 300*400")
+    assert.equal(isPreorderSku(row!), true)
+    assert.equal(row?.inventory.length, 1)
+    assert.equal(row?.inventory[0]?.branch_id, "WMS")
   })
 })
 

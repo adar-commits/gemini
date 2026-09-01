@@ -30,15 +30,78 @@ const HOM_SKU_RE = /\b(\d{8}-\d{6})\b/
 
 const DATE_SKU_RE = /^\d{4}-\d{2}-\d{2}$/
 
-export type WarehouseInventory = {
-  warehouse: string
-  warehouse_id: string
+export type InventoryLocation = {
+  branch_id: string
   quantity: number
+  /** Legacy API rows only — prefer branch_id mapping when absent. */
+  displayName?: string
+}
+
+export type PreorderInfo = {
+  po_qty: number
+  open_order_qty: number
+  current_qty: number
+  safe_qty: number
+  req_date: string
 }
 
 export type InventoryBranchRow = {
   sku: string
-  warehouses_inventory: WarehouseInventory[]
+  product_title?: string
+  preorder: PreorderInfo | null
+  inventory: InventoryLocation[]
+}
+
+/** Priority branch_id → customer-facing store name. Extend as new codes appear. */
+const INVENTORY_BRANCH_LABELS: Record<string, string> = {
+  WMS: "מחסן",
+  "3000": "אתר",
+}
+
+const WAREHOUSE_BRANCH_IDS = new Set(["WMS"])
+
+function resolveInventoryBranchLabel(branchId: string) {
+  const key = branchId.trim()
+  const mapped = INVENTORY_BRANCH_LABELS[key] ?? INVENTORY_BRANCH_LABELS[key.toUpperCase()]
+  return mapped ?? key
+}
+
+function isRetailBranch(branchId: string) {
+  return !WAREHOUSE_BRANCH_IDS.has(branchId.trim().toUpperCase())
+}
+
+function parsePreorder(value: unknown): PreorderInfo | null {
+  if (typeof value !== "object" || value == null) return null
+  const row = value as Record<string, unknown>
+  return {
+    po_qty: Number(row.po_qty ?? 0),
+    open_order_qty: Number(row.open_order_qty ?? 0),
+    current_qty: Number(row.current_qty ?? 0),
+    safe_qty: Number(row.safe_qty ?? 0),
+    req_date: String(row.req_date ?? "").trim(),
+  }
+}
+
+function parseInventoryLocations(value: unknown): InventoryLocation[] {
+  if (!Array.isArray(value)) return []
+  const locations: InventoryLocation[] = []
+  for (const item of value) {
+    if (typeof item !== "object" || item == null) continue
+    const row = item as Record<string, unknown>
+    const branchId = String(row.branch_id ?? row.warehouse_id ?? "").trim()
+    if (!branchId) continue
+    locations.push({
+      branch_id: branchId,
+      quantity: Number(row.quantity ?? 0),
+      displayName:
+        typeof row.warehouse === "string" ? row.warehouse.trim() : undefined,
+    })
+  }
+  return locations
+}
+
+export function isPreorderSku(row: InventoryBranchRow) {
+  return row.preorder != null
 }
 
 function isPhoneLikeSkuToken(token: string) {
@@ -224,11 +287,12 @@ export function isInventoryAvailabilityReply(reply: string) {
     /בדקתי זמינות/.test(reply) &&
     (/\*יש במלאי\*/.test(reply) ||
       /\*אין במלאי כרגע\*/.test(reply) ||
-      /אין במלאי באף/.test(reply))
+      /אין במלאי באף/.test(reply) ||
+      /זמין(?:\s+כרגע)?\s+להזמנה מוקדמת/.test(reply))
   )
 }
 
-function parseInventoryPayload(data: unknown): InventoryBranchRow | null {
+export function parseInventoryBranchPayload(data: unknown): InventoryBranchRow | null {
   const rows = Array.isArray(data)
     ? data
     : data &&
@@ -239,17 +303,34 @@ function parseInventoryPayload(data: unknown): InventoryBranchRow | null {
 
   for (const row of rows) {
     if (typeof row !== "object" || row == null) continue
-    const sku = String((row as InventoryBranchRow).sku ?? "").trim()
-    const warehouses = (row as InventoryBranchRow).warehouses_inventory
-    if (!sku || !Array.isArray(warehouses)) continue
-    return {
-      sku,
-      warehouses_inventory: warehouses.filter(
-        (item): item is WarehouseInventory =>
-          typeof item === "object" &&
-          item != null &&
-          typeof item.warehouse === "string"
-      ),
+    const payload = row as Record<string, unknown>
+    if (payload.ok === false) continue
+
+    const sku = String(payload.sku ?? "").trim()
+    if (!sku) continue
+
+    const product =
+      typeof payload.product === "object" && payload.product != null
+        ? (payload.product as Record<string, unknown>)
+        : null
+    const productTitle = String(product?.product_title ?? "").trim() || undefined
+
+    if (Array.isArray(payload.inventory)) {
+      return {
+        sku,
+        product_title: productTitle,
+        preorder: parsePreorder(payload.preorder),
+        inventory: parseInventoryLocations(payload.inventory),
+      }
+    }
+
+    if (Array.isArray(payload.warehouses_inventory)) {
+      return {
+        sku,
+        product_title: productTitle,
+        preorder: parsePreorder(payload.preorder),
+        inventory: parseInventoryLocations(payload.warehouses_inventory),
+      }
     }
   }
 
@@ -271,7 +352,7 @@ export async function lookupInventoryBySku(
   })
   if (data == null) return undefined
 
-  return parseInventoryPayload(data)
+  return parseInventoryBranchPayload(data)
 }
 
 function formatLocationName(name: string) {
@@ -318,11 +399,20 @@ export function buildSkuMissingHandoffReply() {
 אפשר לשלוח את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורך?`
 }
 
-function warehouseMatchesBranch(warehouseName: string, branchHint: string) {
-  const name = formatLocationName(warehouseName)
+function locationMatchesBranch(locationName: string, branchHint: string) {
+  const name = formatLocationName(locationName)
   const city = normalizeBranchCityHint(branchHint)
   if (!name || !city) return false
   return name.includes(city) || city.includes(name)
+}
+
+function locationDisplayName(location: InventoryLocation) {
+  if (location.displayName) return formatLocationName(location.displayName)
+  return resolveInventoryBranchLabel(location.branch_id)
+}
+
+function skuLabel(row: InventoryBranchRow) {
+  return row.product_title ? `${row.sku} (${row.product_title})` : row.sku
 }
 
 function extractProductSlugFromUrl(text: string) {
@@ -361,35 +451,53 @@ export function buildInventoryAvailabilityReply(
   row: InventoryBranchRow,
   branchFilter?: string | null
 ) {
+  const branchLabel = branchFilter ? normalizeBranchCityHint(branchFilter) : null
+  const label = skuLabel(row)
+
+  if (isPreorderSku(row)) {
+    const lines = [
+      branchLabel
+        ? `בדקתי זמינות לדגם ${label} בסניף ${branchLabel}:`
+        : `בדקתי זמינות לדגם ${label}:`,
+      "",
+      "הדגם זמין כרגע להזמנה מוקדמת.",
+    ]
+    const reqDate = row.preorder?.req_date?.trim()
+    if (reqDate) {
+      lines.push(`צפי הגעה: ${reqDate}`)
+    }
+    lines.push("", CUSTOMER_NATURAL_CLOSE)
+    return `${CUSTOMER_HEADER}\n${lines.join("\n")}`
+  }
+
   const available: string[] = []
   const unavailable: string[] = []
 
-  for (const location of row.warehouses_inventory) {
-    const name = formatLocationName(location.warehouse)
+  for (const location of row.inventory) {
+    if (!isRetailBranch(location.branch_id)) continue
+    const name = locationDisplayName(location)
     if (!name) continue
-    if (branchFilter && !warehouseMatchesBranch(name, branchFilter)) continue
+    if (branchFilter && !locationMatchesBranch(name, branchFilter)) continue
     if (Number(location.quantity) > 0) available.push(name)
     else unavailable.push(name)
   }
 
-  const branchLabel = branchFilter ? normalizeBranchCityHint(branchFilter) : null
-
   if (branchFilter && available.length === 0 && unavailable.length === 0) {
     return `${CUSTOMER_HEADER}
-בדקתי את הדגם ${row.sku} — לא מצאתי סניף ${branchLabel} ברשימת המלאי.
+בדקתי את הדגם ${label} — לא מצאתי סניף ${branchLabel} ברשימת המלאי.
 אפשר לשלוח שוב את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורך?`
   }
 
   if (available.length === 0 && unavailable.length === 0) {
     return `${CUSTOMER_HEADER}
-בדקתי את הדגם ${row.sku} — כרגע אין במלאי בסניפים.
+בדקתי את הדגם ${label} — כרגע אין במלאי בסניפים.
 אפשר להעביר ליועץ מכירות שיבדוק עבורך?`
   }
 
   const lines = [
     branchLabel
-      ? `בדקתי זמינות לדגם ${row.sku} בסניף ${branchLabel}:`
-      : `בדקתי זמינות לדגם ${row.sku}:`,
+      ? `בדקתי זמינות לדגם ${label} בסניף ${branchLabel}:`
+      : `בדקתי זמינות לדגם ${label}:`,
   ]
 
   if (available.length === 0) {
