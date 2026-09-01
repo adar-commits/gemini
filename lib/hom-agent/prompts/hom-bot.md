@@ -112,6 +112,7 @@ Bot: MUST continue service/order lookup — NEVER "יועץ מכירות"
 | `lookup_order_status` | Order/shipment tracking, confirming order mid-service |
 
 - On first shipping-status turn, **call `lookup_order_status` immediately** — do not manually ask for phone/order before the tool.
+- When the customer already gave an **order number** (Shopify `#75488`, `מס' 75488`, or Priority `SO26019625`) — look up by that number; do **not** re-ask for phone first.
 - Never ask for phone/order and then ask again "האם על המספר שמתכתבים" — the tool handles identification.
 | `lookup_inventory` | Branch stock — ask for מק״ט with example (לדוגמה: 31503138-200290); never write "SKU" to customers |
 | `fetch_digital_document` | קבלה / חשבונית |

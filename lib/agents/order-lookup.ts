@@ -512,7 +512,7 @@ export function orderSummaryFromConfirmationHistory(
   return null
 }
 
-/** Order reference from customer reply — prefixed (SO/IN/OV) or bare digits (not a phone). */
+/** Order reference from customer reply — prefixed (SO/IN/OV), Shopify #, or bare digits (not a phone). */
 export function extractOrderReference(text: string, history: HistoryMessage[] = []) {
   if (isAwaitingSalesIntakeAnswer(history)) {
     const kind = pendingSalesIntakeQuestionKind(history)
@@ -522,6 +522,11 @@ export function extractOrderReference(text: string, history: HistoryMessage[] = 
 
   const prefixed = extractOrderNumber(text)
   if (prefixed) return prefixed
+
+  const labeled =
+    text.match(/(?:ה)?זמנ(?:ה|ות)\s*(?:#|מס(?:'|׳|"|')?\s*)?(\d{4,8})\b/i) ??
+    text.match(/(?:מס(?:'|׳|"|')?\s*(?:ה)?הזמנה|order\s*(?:#|no\.?|number)?)\s*(\d{4,8})\b/i)
+  if (labeled?.[1]) return labeled[1]
 
   const phone = extractPhoneFromText(text)
   for (const match of text.matchAll(/\b(\d{4,})\b/g)) {
@@ -543,11 +548,31 @@ export function findOrderByNumber(
   orderNumber: string
 ) {
   const key = orderNumber.trim().toUpperCase()
-  return (
-    orders.find((order) => order.orderNumber.toUpperCase() === key) ??
-    orders.find((order) => order.orderNumber.toUpperCase().includes(key)) ??
-    null
-  )
+  const digits = key.replace(/\D/g, "")
+
+  const exact =
+    orders.find((order) => order.orderNumber.toUpperCase() === key) ?? null
+  if (exact) return exact
+
+  if (/^(?:SO|IN|OV)\d+$/i.test(key)) {
+    return (
+      orders.find((order) => order.orderNumber.toUpperCase().includes(key)) ?? null
+    )
+  }
+
+  if (digits) {
+    const shopifyMatch = orders.find((order) => {
+      const ordDigits = order.orderNumber.replace(/\D/g, "")
+      if (ordDigits === digits || ordDigits.endsWith(digits)) return true
+      const reference = String(
+        (order.raw as PriorityOrderRow & { REFERENCE?: string }).REFERENCE ?? ""
+      ).replace(/\D/g, "")
+      return reference === digits || reference.endsWith(digits)
+    })
+    if (shopifyMatch) return shopifyMatch
+  }
+
+  return orders.find((order) => order.orderNumber.toUpperCase().includes(key)) ?? null
 }
 
 function formatOrderBranchPhrase(branch: string) {
@@ -953,8 +978,8 @@ export function resolveLookupPhoneFromHistory(
   const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
   if (authorized) return authorized
 
-  // Explicit SO/IN/OV order number — use WhatsApp channel phone without re-asking.
-  if (body?.trim() && extractOrderNumber(body)) {
+  // Customer gave an order reference (SO/IN/OV, Shopify #, or bare number) — use channel phone.
+  if (body?.trim() && extractOrderReference(body, history)) {
     return channelPhone(whatsappPhone)
   }
 
@@ -1276,10 +1301,11 @@ export async function resolveOrderShippingReply(input: {
 
     const orderReference = extractOrderReference(body, history)
     if (orderReference) {
-      const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+      const lookupPhone =
+        resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+        channelPhone(whatsappPhone)
       if (!lookupPhone) {
-        if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
-        return buildPhoneLookupDeclinedReply()
+        return buildShippingNoPhoneReply()
       }
       return lookupOrderByReference({ orderReference, lookupPhone, body, history })
     }
@@ -1290,12 +1316,13 @@ export async function resolveOrderShippingReply(input: {
     return buildPhoneLookupDeclinedReply()
   }
 
-  const orderReference = extractOrderReference(body)
+  const orderReference = extractOrderReference(body, history)
   if (orderReference) {
-    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+    const lookupPhone =
+      resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+      channelPhone(whatsappPhone)
     if (!lookupPhone) {
-      if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
-      return buildPhoneLookupDeclinedReply()
+      return buildShippingNoPhoneReply()
     }
     return lookupOrderByReference({ orderReference, lookupPhone, body, history })
   }
