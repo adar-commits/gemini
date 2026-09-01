@@ -47,11 +47,15 @@ describe("returns portal vs exchange routing", () => {
     assert.match(reply, new RegExp(RETURNS_PORTAL_URL.replace(/\./g, "\\.")))
   })
 
-  it("opens dissatisfaction rescue with exchange path, not returns portal", () => {
+  it("opens dissatisfaction rescue with exchange, return paths, and portal", () => {
     const reply = buildDissatisfactionRescueReply()
-    assert.match(reply, /החלפה בסניפי/)
-    assert.doesNotMatch(reply, /returns\.carpetshop/)
-    assert.match(reply, /יועץ מכירות/)
+    assert.match(reply, /\*החלפה\*/)
+    assert.match(reply, /נציג מכירות/)
+    assert.match(reply, /סניף הקרוב/)
+    assert.match(reply, /באמצעות שליח/)
+    assert.match(reply, new RegExp(RETURNS_PORTAL_URL.replace(/\./g, "\\.")))
+    assert.doesNotMatch(reply, /מצב לא נעים/)
+    assert.doesNotMatch(reply, /1️⃣/)
   })
 
   it("mentions portal only in the return half of combined policy", () => {

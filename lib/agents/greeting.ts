@@ -126,14 +126,19 @@ export function sanitizeCustomerAddress(text: string) {
   return sanitizeBotEmojis(normalizeSkuExamplesInReply(out))
 }
 
-/** No emoji on operational flows; elsewhere at most one ☺️ — never decorative (🔍 👋 😀 ✨). */
+/** No emoji on operational flows; dissatisfaction rescue keeps 👋 + one ☺️. */
 export function sanitizeBotEmojis(text: string) {
+  const dissatisfactionRescue = /יש שתי אפשרויות/i.test(text)
   const operational =
+    !dissatisfactionRescue &&
     /הזמנה|על המספר|מתכתב|מק(?:״|"|')?ט|מלאi|להעביר|נציג|יועץ|סטטוס|משלוח|קבלה|חשבונית|בדיק|מספר הטלפון/i.test(
       text
     )
 
-  let out = text.replace(/🔍|🔎|👋|😀|✨|📷|😊|🙏|👍|🙂/g, "")
+  let out = text.replace(/🔍|🔎|😀|✨|📷|😊|🙏|👍|🙂/g, "")
+  if (!dissatisfactionRescue) {
+    out = out.replace(/👋/g, "")
+  }
 
   if (operational) {
     out = out.replace(/\p{Extended_Pictographic}/gu, "").replace(/☺️?/g, "")

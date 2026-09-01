@@ -1,4 +1,5 @@
 import { stripAppendedDeliveryPolicyFromOrderStatus } from "@/lib/agents/shipping"
+import { sanitizeDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
 import { RETURNS_PORTAL_URL, sanitizeRefundPolicyWording } from "@/lib/agents/policy-subjects"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import {
@@ -20,6 +21,7 @@ export function validateHomAgentReply(
   }
 
   reply = sanitizeCustomerAddress(reply)
+  reply = sanitizeDissatisfactionRescueReply(reply)
   reply = sanitizeRefundPolicyWording(reply)
   reply = stripAppendedDeliveryPolicyFromOrderStatus(reply)
   reply = sanitizeHallucinatedPortalUrls(reply)

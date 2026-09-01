@@ -18,6 +18,10 @@ import {
   buildCarpetRentalPolicyReply,
   isCarpetRentalQuestion,
 } from "@/lib/agents/policy-subjects"
+import {
+  buildDissatisfactionRescueReply,
+  isDissatisfactionWithoutDefect,
+} from "@/lib/agents/dissatisfaction"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent } from "@/lib/hom-agent/invoke"
@@ -130,6 +134,33 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_t0_rental",
+      },
+    })
+  }
+
+  if (isDissatisfactionWithoutDefect(body)) {
+    const reply = validateHomAgentReply(
+      { reply: buildDissatisfactionRescueReply(), action: "reply" },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply,
+      action: "reply",
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_dissatisfaction",
       },
     })
   }

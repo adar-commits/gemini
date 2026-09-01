@@ -6,7 +6,7 @@ import {
   isPostPurchaseDissatisfaction,
   mentionsReturnIntent,
 } from "@/lib/agents/inquiry-intent"
-import { buildExchangePolicyBody, RETURNS_PORTAL_URL } from "@/lib/agents/policy-subjects"
+import { RETURNS_PORTAL_URL } from "@/lib/agents/policy-subjects"
 
 /** Customer unhappy after delivery without defect wording — FAQ return/exchange policy first. */
 export function isDissatisfactionWithoutDefect(body: string) {
@@ -14,10 +14,12 @@ export function isDissatisfactionWithoutDefect(body: string) {
 }
 
 export const DISSATISFACTION_SALES_OFFER_MARKER =
-  "אפשר להציע לכם להעביר את השיחה הזו ליועץ מכירות"
+  "אשמח להעביר את השיחה לנציג מכירות"
 
 export const DISSATISFACTION_PORTAL_REFERRAL_MARKER =
-  "ניתן לפתוח בקשת החזרה בפורטל"
+  "יש לפתוח בקשת החזרה דרך הפורטל שלנו"
+
+export const DISSATISFACTION_RESCUE_MARKER = "יש שתי אפשרויות"
 
 export type DissatisfactionRescueStage = "sales_offer" | "portal_referred"
 
@@ -31,7 +33,10 @@ export function getDissatisfactionRescueStage(
     if (message.content.includes(DISSATISFACTION_PORTAL_REFERRAL_MARKER)) {
       return "portal_referred"
     }
-    if (message.content.includes(DISSATISFACTION_SALES_OFFER_MARKER)) {
+    if (
+      message.content.includes(DISSATISFACTION_SALES_OFFER_MARKER) ||
+      message.content.includes(DISSATISFACTION_RESCUE_MARKER)
+    ) {
       return "sales_offer"
     }
     return null
@@ -95,12 +100,27 @@ function isReturnHumanEscalation(body: string) {
   )
 }
 
-/** Opening: exchange-first options + offer sales — portal only after customer insists on return. */
+/** Opening: exchange + return options, sales advisor offer, portal for returns. */
 export function buildDissatisfactionRescueReply() {
   return `${CUSTOMER_HEADER}
-מצטער לשמוע שלא התחברתם לשטיח החדש שלכם, אך אל חשש — ${buildExchangePolicyBody()}
+היי! 👋
 
-${DISSATISFACTION_SALES_OFFER_MARKER} עבור בחירה של דגם מתאים יותר?`
+קיבלנו, ${DISSATISFACTION_RESCUE_MARKER}:
+
+1. *החלפה* — ניתן להחליף לשטיח אחר שיתאים יותר, אם צריכים יעוץ להתאמה ${DISSATISFACTION_SALES_OFFER_MARKER}.
+2. *החזרה וביטול* — אם מעוניינים להחזיר, אפשר לעשות את זה בסניף הקרוב, או באמצעות שליח (בתשלום לפי גודל השטיח).
+בכל מקרה ${DISSATISFACTION_PORTAL_REFERRAL_MARKER}:
+${RETURNS_PORTAL_URL}
+
+איך תרצו להמשיך?☺️`
+}
+
+/** Strip LLM drift on dissatisfaction rescue replies. */
+export function sanitizeDissatisfactionRescueReply(reply: string) {
+  let text = reply
+  text = text.replace(/מצב לא נעים[^\n]*\n?/gi, "")
+  text = text.replace(/[0-9]️⃣/g, "")
+  return text
 }
 
 /** After the customer insists on returning — portal only for cancellation/refund. */
