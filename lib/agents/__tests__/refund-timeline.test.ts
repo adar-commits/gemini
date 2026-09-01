@@ -6,7 +6,7 @@ import {
   isRefundStatusInquiry,
   isReturnPolicyQuestion,
 } from "@/lib/agents/inquiry-intent"
-import { buildRefundTimelinePolicyReply, buildRefundStatusHandoffReply } from "@/lib/agents/policy-subjects"
+import { buildRefundTimelinePolicyReply, buildRefundStatusHandoffReply, sanitizeRefundPolicyWording } from "@/lib/agents/policy-subjects"
 import { requiresOrderIdentification, isServiceLookupContext } from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -37,7 +37,9 @@ describe("refund timeline vs branch return", () => {
   it("answers with refund timeline policy, not branch addresses", () => {
     const reply = buildRefundTimelinePolicyReply()
     assert.match(reply, /7\s*ימי\s*עסקים/)
+    assert.match(reply, /ממועד ביטול העסקה/)
     assert.match(reply, /returns\.carpetshop\.co\.il/)
+    assert.doesNotMatch(reply, /תוך\s+עד/)
     assert.doesNotMatch(reply, /קריית אתא/)
     assert.doesNotMatch(reply, /כתובות\s+הסניפים/)
   })
@@ -57,9 +59,22 @@ describe("refund timeline vs branch return", () => {
     assert.equal(isServiceLookupContext(history, "service"), true)
 
     const reply = buildRefundStatusHandoffReply()
+    assert.match(reply, /עד 7 ימי עסקים ממועד ביטול העסקה/)
     assert.match(reply, /נציג שירות/)
-    assert.match(reply, /סטטוס ההחזר/)
+    assert.match(reply, /סטטוס/)
+    assert.doesNotMatch(reply, /תוך\s+עד/)
+    assert.doesNotMatch(reply, /מחסן/)
     assert.doesNotMatch(reply, /מספר ההזמנה/)
     assert.doesNotMatch(reply, /האם היא רשומה/)
+  })
+
+  it("sanitizes LLM refund wording drift", () => {
+    const fixed = sanitizeRefundPolicyWording(
+      "ההחזר מתבצע תוך עד 7 ימי עסקים מרגע שהמוצר מגיע חזרה למחסן."
+    )
+    assert.match(fixed, /עד 7 ימי עסקים/)
+    assert.match(fixed, /ממועד ביטול העסקה/)
+    assert.doesNotMatch(fixed, /תוך\s+עד/)
+    assert.doesNotMatch(fixed, /מחסן/)
   })
 })

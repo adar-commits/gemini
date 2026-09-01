@@ -226,19 +226,33 @@ export function buildReturnExchangePolicyReply(body = "") {
 }
 
 export function buildRefundTimelinePolicyReply() {
-  return `הזיכוי מתבצע בהקדם האפשרי ולא יאוחר מ-7 ימי עסקים ממועד הביטול או פתיחת בקשת ההחזר, בכפוף לאישור שהמוצר לא היה בשימוש (בדיקת המעבדה).
+  return `הזיכוי מתבצע בהקדם האפשרי ולא יאוחר מ-7 ימי עסקים ממועד ביטול העסקה, בכפוף לאישור שהמוצר לא היה בשימוש (בדיקת המעבדה).
 
 גם בהחזרה בסניף יש לפתוח בקשת החזרה בפורטל:
 ${RETURNS_PORTAL_URL}
 
-אם כבר מסרת את המוצר בסניף ופתחת בקשה — בדרך כלל הזיכוי מופיע תוך עד 7 ימי עסקים. לבדיקת סטטוס ספציפי אפשר לפנות לשירות בטלפון *3076.
+אם כבר מסרתם את המוצר ופתחתם בקשה — בדרך כלל הזיכוי מופיע עד 7 ימי עסקים ממועד ביטול העסקה. לבדיקת סטטוס ספציפי אפשר לפנות לשירות בטלפון *3076.
 
 אם צריך עוד משהו — אני כאן.`
 }
 
 export function buildRefundStatusHandoffReply() {
-  return `אני מבין שהשטיח כבר נאסף ומחכים לעדכון על ההחזר.
-העברתי את הפנייה לנציג שירות שיבדוק את סטטוס ההחזר ויחזור אליך.`
+  return `קיבלנו. אם השטיח כבר נאסף — ההחזר הכספי מתבצע עד 7 ימי עסקים ממועד ביטול העסקה.
+כדי לבדוק את הסטטוס המדויק של ההחזר, אפשר להעביר לצוות השירות שיוכלו לתת מענה מדויק. להעביר לנציג שירות?`
+}
+
+/** Fix LLM drift on refund timeline — KB counts from cancellation, not warehouse arrival. */
+export function sanitizeRefundPolicyWording(reply: string) {
+  let text = reply
+  text = text.replace(/תוך\s+עד\s+7\s*ימי\s*עסקים/gi, "עד 7 ימי עסקים")
+  text = text.replace(/(?:מתבצע|מופיע)\s+תוך\s+(?:עד\s+)?7/gi, (match) =>
+    match.replace(/תוך\s+/, "")
+  )
+  text = text.replace(
+    /מרגע\s+ש(?:ה)?(?:מוצר\s+)?(?:מגיע|הגיע)(?:\s+חזרה)?\s+ל(?:מ)?חסן/gi,
+    "ממועד ביטול העסקה"
+  )
+  return text
 }
 
 export function buildCantVisitBranchReturnReply() {
