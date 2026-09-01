@@ -133,6 +133,9 @@ export function isCampaignQuestion(text: string) {
 export function resolveCampaignLookupValue(body: string, hint?: string | null) {
   const trimmedHint = hint?.trim()
   if (trimmedHint && trimmedHint.toLowerCase() !== "all") return trimmedHint
+
+  if (/1\s*\+\s*1/i.test(body)) return "1+1"
+
   const match = body.match(
     /(?:ה)?(?:מבצע|הנח(?:ה|ות)|קופון|campaign)\s+(?:ש(?:ל|ה)?\s*)?([א-תa-zA-Z0-9+\-%]+(?:\s+[א-תa-zA-Z0-9+\-%]+){0,4})/i
   )
@@ -156,53 +159,144 @@ function formatHebrewDate(value: string | null) {
     day: "numeric",
     month: "numeric",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   })
 }
 
-function statusLabel(status: CampaignRecord["status"]) {
-  if (status === "active") return "פעיל / בתוקף"
-  if (status === "expired") return "הסתיים / לא בתוקף"
-  return "לא ידוע"
+function normalizeQuery(query: string) {
+  return query.trim().toLowerCase().replace(/\s+/g, " ")
 }
 
-export function formatCampaignLookupReply(campaigns: CampaignRecord[], query: string) {
+function campaignMatchesQuery(campaign: CampaignRecord, query: string, body = "") {
+  if (query === "all") return true
+
+  const q = normalizeQuery(query)
+  const name = campaign.name.toLowerCase()
+  const corpus = `${q} ${body}`.toLowerCase()
+
+  if (name.includes(q)) return true
+
+  if (/1\s*\+\s*1|1\+1/i.test(q) && /1\s*\+\s*1|1\+1/i.test(name)) return true
+  if (/פופ|bean/i.test(corpus) && /פופ/i.test(name)) return true
+  if (/\d+\s*%/.test(q)) {
+    const pct = q.match(/\d+\s*%/)?.[0]?.replace(/\s+/g, "")
+    if (pct && name.includes(pct.replace("%", ""))) return true
+  }
+
+  const tokens = q.split(/[\s\-+]+/).filter((token) => token.length >= 2 || /^\d/.test(token))
+  if (tokens.length > 0 && tokens.every((token) => name.includes(token))) return true
+
+  return false
+}
+
+function pickBestCampaignMatch(
+  campaigns: CampaignRecord[],
+  query: string,
+  body = ""
+) {
+  const matches = campaigns.filter((campaign) => campaignMatchesQuery(campaign, query, body))
+  if (matches.length === 0) return null
+  if (matches.length === 1) return matches[0]!
+
+  const ranked = [...matches].sort((left, right) => {
+    const leftName = left.name.toLowerCase()
+    const rightName = right.name.toLowerCase()
+    const q = normalizeQuery(query)
+    const leftExact = leftName.includes(q) ? 1 : 0
+    const rightExact = rightName.includes(q) ? 1 : 0
+    if (leftExact !== rightExact) return rightExact - leftExact
+    if (left.status === "active" && right.status !== "active") return -1
+    if (right.status === "active" && left.status !== "active") return 1
+    return 0
+  })
+
+  return ranked[0] ?? null
+}
+
+function describeCampaignName(name: string) {
+  const trimmed = name.trim()
+  if (/1\s*\+\s*1/i.test(trimmed) && /פופ/i.test(trimmed)) {
+    return "מבצע 1+1 על הפופים"
+  }
+  if (/1\s*\+\s*1/i.test(trimmed)) {
+    return "מבצע 1+1"
+  }
+  return `מבצע ${trimmed}`
+}
+
+function formatEndedAgo(end: string | null, now = Date.now()) {
+  const endDate = parseEndDate(end)
+  if (!endDate || endDate.getTime() >= now) return null
+  const days = Math.max(1, Math.ceil((now - endDate.getTime()) / 86_400_000))
+  if (days === 1) return "אתמול"
+  return `לפני ${days} ימים`
+}
+
+function formatSingleCampaignReply(campaign: CampaignRecord, query: string) {
+  const label = describeCampaignName(campaign.name)
+
+  if (campaign.status === "active") {
+    const until = campaign.end ? ` (עד ${formatHebrewDate(campaign.end)})` : ""
+    return `כן 😊 ${label} עדיין בתוקף${until}!`
+  }
+
+  const ago = formatEndedAgo(campaign.end)
+  if (ago) {
+    return `אכן היה ${label}, אך לצערי הוא כבר אינו בתוקף — נגמר ${ago}.`
+  }
+
+  return `אכן היה ${label}, אך לצערי הוא כבר אינו בתוקף.`
+}
+
+function formatActiveCampaignsOverview(active: CampaignRecord[]) {
+  if (active.length === 0) {
+    return "כרגע לא מצאתי מבצעים פעילים במערכת 😊 אפשר לחבר ליועץ מכירות לבדוק אם יש משהו מיוחד."
+  }
+
+  if (active.length === 1) {
+    return formatSingleCampaignReply(active[0]!, "all")
+  }
+
+  const names = active.slice(0, 3).map((campaign) => describeCampaignName(campaign.name))
+  return `כן 😊 כרגע יש ${names.length} מבצעים פעילים: ${names.join(", ")}. רוצים פרטים על אחד מהם?`
+}
+
+export function formatCampaignLookupReply(
+  campaigns: CampaignRecord[],
+  query: string,
+  body = ""
+) {
   if (campaigns.length === 0) {
     return `${CUSTOMER_HEADER}
-לא מצאתי מבצעים במערכת${query !== "all" ? ` עבור "${query}"` : ""}.
-אפשר לנסות לנסח אחרת, או להעביר ליועץ מכירות לפרטים נוספים.`
+בדקתי בשבילכם 😊
+לא מצאתי מבצע${query !== "all" ? ` שמתאים ל"${query}"` : "ים"} במערכת.
+אם תרצו — אפשר להעביר ליועץ מכירות לפרטים נוספים 🙏`
+  }
+
+  if (query !== "all") {
+    const match = pickBestCampaignMatch(campaigns, query, body)
+    if (!match) {
+      return `${CUSTOMER_HEADER}
+בדקתי בשבילכם 😊
+לא מצאתי במערכת מבצע שמתאים ל"${query}".
+אם תרצו — אפשר להעביר ליועץ מכירות 🙏`
+    }
+
+    return `${CUSTOMER_HEADER}
+בדקתי בשבילכם 😊
+
+${formatSingleCampaignReply(match, query)}
+
+אם צריך — אפשר להעביר ליועץ מכירות לפרטים נוספים 🙏`
   }
 
   const active = campaigns.filter((campaign) => campaign.status === "active")
-  const listing =
-    query === "all" && active.length > 0
-      ? active
-      : query === "all" && active.length === 0
-        ? campaigns
-        : campaigns
-
-  const lines = listing.slice(0, 8).map((campaign) => {
-    const dates = [
-      campaign.start ? `מתאריך ${formatHebrewDate(campaign.start)}` : null,
-      campaign.end ? `עד ${formatHebrewDate(campaign.end)}` : null,
-    ]
-      .filter(Boolean)
-      .join(" ")
-    return `• ${campaign.name} — ${statusLabel(campaign.status)}${dates ? ` (${dates})` : ""}`
-  })
-
-  const intro =
-    query !== "all"
-      ? `בדקתי את המבצע "${query}":\n`
-      : active.length > 0
-        ? "כן — אלה המבצעים הפעילים כרגע:\n"
-        : "כרגע אין מבצעים פעילים. אלה המבצעים האחרונים במערכת:\n"
 
   return `${CUSTOMER_HEADER}
-${intro}${lines.join("\n")}
+בדקתי בשבילכם 😊
 
-אם צריך פרטים נוספים על מבצע מסוים — אפשר להעביר ליועץ מכירות.`
+${formatActiveCampaignsOverview(active)}
+
+אם צריך — אפשר להעביר ליועץ מכירות 🙏`
 }
 
 export async function resolveCampaignLookupReply(input: {
@@ -213,8 +307,8 @@ export async function resolveCampaignLookupReply(input: {
   const campaigns = await fetchCampaigns(value)
   if (campaigns === undefined) {
     return `${CUSTOMER_HEADER}
-לא הצלחתי לבדוק את המבצעים כרגע.
-אפשר לנסות שוב בעוד רגע, או להעביר ליועץ מכירות.`
+לא הצלחתי לבדוק את המבצעים כרגע 😊
+אפשר לנסות שוב בעוד רגע, או להעביר ליועץ מכירות 🙏`
   }
-  return formatCampaignLookupReply(campaigns, value)
+  return formatCampaignLookupReply(campaigns, value, input.body)
 }

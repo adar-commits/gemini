@@ -77,7 +77,7 @@ describe("campaign lookup", () => {
     assert.equal(rows[2]?.status, "expired")
   })
 
-  it("lists active campaigns for general promotion ask", () => {
+  it("summarizes active campaigns for general promotion ask without dumping expired ones", () => {
     const reply = formatCampaignLookupReply(
       [
         {
@@ -95,9 +95,11 @@ describe("campaign lookup", () => {
       ],
       "all"
     )
-    assert.match(reply, /כן — אלה המבצעים הפעילים/)
+    assert.match(reply, /בדקתי בשבילכם/)
     assert.match(reply, /65%/)
+    assert.match(reply, /בתוקף/)
     assert.doesNotMatch(reply, /50% הנחה/)
+    assert.doesNotMatch(reply, /•/)
   })
 
   it("extracts campaign hint from customer message", () => {
@@ -105,10 +107,14 @@ describe("campaign lookup", () => {
       resolveCampaignLookupValue("המבצע השטיח האדום עדיין בתוקף?", null),
       "השטיח האדום"
     )
+    assert.equal(
+      resolveCampaignLookupValue("המבצע של 1+1 עדיין בתוקף?", null),
+      "1+1"
+    )
     assert.equal(resolveCampaignLookupValue("יש מבצעים?", "all"), "all")
   })
 
-  it("formats Hebrew campaign reply", () => {
+  it("formats a friendly reply for a specific active campaign", () => {
     const reply = formatCampaignLookupReply(
       [
         {
@@ -120,7 +126,40 @@ describe("campaign lookup", () => {
       ],
       "השטיח האדום"
     )
-    assert.match(reply, /השטיח האדום 50%/)
-    assert.match(reply, /פעיל/)
+    assert.match(reply, /השטיח האדום/)
+    assert.match(reply, /עדיין בתוקף/)
+    assert.doesNotMatch(reply, /•/)
+  })
+
+  it("answers a specific 1+1 ask with one sentence, not all campaigns", () => {
+    const reply = formatCampaignLookupReply(
+      [
+        {
+          name: "1+1 על כל הפופים",
+          start: "2026-08-11",
+          end: "2026-08-31",
+          status: "expired",
+        },
+        {
+          name: "הכל ב-50% הנחה",
+          start: "2026-08-14",
+          end: "2026-08-31",
+          status: "expired",
+        },
+        {
+          name: "מאות שטיחים ב-65% הנחה",
+          start: "2026-08-16",
+          end: "2026-09-30",
+          status: "active",
+        },
+      ],
+      "1+1",
+      "המבצע של 1+1 עדיין בתוקף?"
+    )
+    assert.match(reply, /1\+1/)
+    assert.match(reply, /פופים/)
+    assert.match(reply, /אינו בתוקף/)
+    assert.doesNotMatch(reply, /65%/)
+    assert.doesNotMatch(reply, /•/)
   })
 })

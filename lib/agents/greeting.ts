@@ -152,12 +152,21 @@ export function isGreetingLikeReply(text: string) {
   return /^(?:היי|שלום|הי|אהלן|בוקר\s+טוב|ערב\s+טוב)/i.test(body)
 }
 
+/** Informational replies (campaigns, general FAQ) — keep 1–2 friendly emojis. */
+function isFriendlyInformationalReply(text: string) {
+  return (
+    /בדקתי בשבילכם/i.test(text) ||
+    (/מבצע/i.test(text) && /בתוקף|אינו בתוקף|פעילים|לא מצאתי מבצע/i.test(text))
+  )
+}
+
 /** No emoji on operational flows; greetings keep up to 2 WhatsApp-friendly ones. */
 export function sanitizeBotEmojis(text: string) {
   const dissatisfactionRescue = /יש שתי אפשרויות/i.test(text)
   const operational =
     !dissatisfactionRescue &&
     !isGreetingLikeReply(text) &&
+    !isFriendlyInformationalReply(text) &&
     /הזמנה|על המספר|מתכתב|מק(?:״|"|')?ט|מלאi|להעביר|נציג|יועץ|סטטוס|משלוח|קבלה|חשבונית|בדיק|מספר הטלפון/i.test(
       text
     )

@@ -48,6 +48,18 @@ describe("greeting reply", () => {
     assert.doesNotMatch(cleaned, /😀/)
   })
 
+  it("keeps emojis on campaign informational replies", () => {
+    const raw = `${CUSTOMER_HEADER}
+בדקתי בשבילכם 😊
+
+אכן היה מבצע 1+1 על הפופים, אך לצערי הוא כבר אינו בתוקף — נגמר לפני 3 ימים.
+
+אם צריך — אפשר להעביר ליועץ מכירות לפרטים נוספים 🙏`
+    const cleaned = sanitizeBotEmojis(raw)
+    assert.match(cleaned, /😊/)
+    assert.match(cleaned, /🙏/)
+  })
+
   it("sanitizes SKU label to מק״ט example for customers", () => {
     const raw =
       'כדי לבדוק מלאi, אצטרך את מספר המק"ט (SKU) של המוצר. מה מעדיף?'
