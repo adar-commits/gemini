@@ -34,6 +34,20 @@ export function normalizeBranchCityHint(hint: string) {
   return hint.trim()
 }
 
+/** Follow-up asking for stock outside the branch already checked. */
+export function isOtherBranchesInventoryRequest(text: string) {
+  return /סניפ(?:ים|ה)?\s+אחר(?:ים)?|ב(?:שאר|כל)\s+(?:ה)?סניפ|סניפים\s+נוספ|ביתר\s+(?:ה)?סניפ|other\s+branches?/i.test(
+    text.trim()
+  )
+}
+
+/** Regex captures that are not real branch/city names (e.g. "יש" from "בסניף יש?"). */
+export function isNoiseBranchCityHint(hint: string) {
+  const n = hint.trim()
+  if (!n) return true
+  return /^(?:יש|אחר(?:ים)?|עוד|שאר|נוספ(?:ים|ות)?)$/i.test(n)
+}
+
 const CITY_IN_BRANCH_QUERY_RE =
   /(?:^|[\s,.(])(?:ב|ב-)([א-ת'"\s]{2,20}?)(?:\?|[\s,.]|$)|(?:^|\s)([א-ת'"\s]{2,15})\s*—\s*סניף/i
 
@@ -158,7 +172,8 @@ function findBranchCityHint(text: string) {
     normalized.match(CITY_IN_BRANCH_QUERY_RE)
 
   const city = match?.[1]?.trim() || match?.[2]?.trim()
-  return city ? normalizeBranchCityHint(city) : null
+  if (!city || isNoiseBranchCityHint(city)) return null
+  return normalizeBranchCityHint(city)
 }
 
 /** City named in a branch stock-check question (e.g. בסניף ראשל"צ). */

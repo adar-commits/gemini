@@ -260,6 +260,40 @@ describe("buildInventoryAvailabilityReply", () => {
     assert.doesNotMatch(reply, /WMS/)
     assert.doesNotMatch(reply, /1001/)
   })
+
+  it("falls back to all branches when branch filter matches no store", () => {
+    const reply = buildInventoryAvailabilityReply(
+      {
+        sku: "31503138-140190",
+        preorder: null,
+        inventory: [
+          { branch_id: "60", displayName: "סניף נתניה", quantity: 0 },
+          { branch_id: "20", displayName: "סניף ראשון לציון", quantity: 2 },
+        ],
+      },
+      "יש"
+    )
+    assert.match(reply, /\*יש במלאי:\*/)
+    assert.match(reply, /ראשון לציון/)
+    assert.doesNotMatch(reply, /לא מצאתי סניף/)
+    assert.doesNotMatch(reply, /לא נותר מלאי בסניפי הרשת/)
+  })
+
+  it("uses network no-stock wording when branch retry is disabled", () => {
+    const reply = buildInventoryAvailabilityReply(
+      {
+        sku: "31503138-140190",
+        preorder: null,
+        inventory: [
+          { branch_id: "60", displayName: "סניף נתניה", quantity: 0 },
+        ],
+      },
+      "יש",
+      { allowBranchRetry: false }
+    )
+    assert.match(reply, /לא נותר מלאי בסניפי הרשת/)
+    assert.doesNotMatch(reply, /לא מצאתי סניף/)
+  })
 })
 
 describe("parseInventoryBranchPayload", () => {

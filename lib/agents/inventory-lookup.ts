@@ -8,6 +8,8 @@ import { isValidInventorySku, INVENTORY_SKU_EXAMPLE_HINT } from "@/lib/agents/ph
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 import {
   extractBranchCityFromInventoryQuery,
+  isNoiseBranchCityHint,
+  isOtherBranchesInventoryRequest,
   normalizeBranchCityHint,
 } from "@/lib/agents/branches"
 
@@ -308,6 +310,13 @@ export function isInventoryAvailabilityReply(reply: string) {
   )
 }
 
+function buildInventoryNoNetworkStockReply(label: string) {
+  return `${CUSTOMER_HEADER}
+בדקתי את הדגם ${label}.
+לא נותר מלאי בסניפי הרשת.
+אפשר להעביר ליועץ מכירות שיבדוק עבורכם?`
+}
+
 function buildInventoryUnconfirmedReply(label: string, branchLabel?: string | null) {
   const where = branchLabel ? `בסניף ${branchLabel}` : "בסניפים"
   return `${CUSTOMER_HEADER}
@@ -473,8 +482,10 @@ export function buildProductUrlSkuPrompt(productHint?: string | null) {
 
 export function buildInventoryAvailabilityReply(
   row: InventoryBranchRow,
-  branchFilter?: string | null
+  branchFilter?: string | null,
+  options?: { allowBranchRetry?: boolean }
 ) {
+  const allowBranchRetry = options?.allowBranchRetry ?? true
   const branchLabel = branchFilter ? normalizeBranchCityHint(branchFilter) : null
   const label = skuLabel(row)
 
@@ -507,9 +518,10 @@ export function buildInventoryAvailabilityReply(
   }
 
   if (branchFilter && available.length === 0 && unavailable.length === 0) {
-    return `${CUSTOMER_HEADER}
-בדקתי את הדגם ${label} — לא מצאתי סניף ${branchLabel} ברשימת המלאי.
-אפשר לשלוח שוב את המק״ט, או להעביר ליועץ מכירות שיבדוק עבורכם?`
+    if (allowBranchRetry) {
+      return buildInventoryAvailabilityReply(row, null, { allowBranchRetry: false })
+    }
+    return buildInventoryNoNetworkStockReply(label)
   }
 
   if (available.length === 0 && unavailable.length === 0) {
@@ -556,9 +568,16 @@ function inventoryContextFromRecentMessages(
 ) {
   const contextTexts = recentUserTexts(body, history, 5)
   const combined = contextTexts.join("\n")
-  const branch =
-    extractBranchCityFromInventoryQuery(body) ??
-    extractBranchCityFromInventoryQuery(combined)
+  let branch: string | null = null
+  if (
+    !isOtherBranchesInventoryRequest(body) &&
+    !isOtherBranchesInventoryRequest(combined)
+  ) {
+    branch =
+      extractBranchCityFromInventoryQuery(body) ??
+      extractBranchCityFromInventoryQuery(combined)
+    if (branch && isNoiseBranchCityHint(branch)) branch = null
+  }
   const product =
     contextTexts
       .map((text) => extractProductHintFromInventoryQuery(text))
