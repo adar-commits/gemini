@@ -203,6 +203,17 @@ export function buildReturnCancellationPolicyReply() {
 אפשר לעזור במשהו נוסף?`
 }
 
+/** Policy FAQ about returns/exchanges — not active pickup or execution requests. */
+export function isReturnExchangePolicyFaqQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (isActiveReturnExchangePickupCase(text)) return false
+  if (isRefundTimelineQuestion(text)) return true
+  if (isExchangePolicyQuestion(text)) return true
+  if (isReturnPolicyQuestion(text)) return true
+  return matchPolicySubjects(text).includes("returns_exchanges")
+}
+
 /** Pick the right deterministic policy text — portal only for returns/cancellations. */
 export function resolveReturnExchangePolicyReply(body: string) {
   if (isRefundTimelineQuestion(body)) return buildRefundTimelinePolicyReply()

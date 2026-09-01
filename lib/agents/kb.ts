@@ -60,7 +60,7 @@ function sectionsForText(text: string, sections: Section[]) {
 
   if (matched.size === 0) {
     return sections.filter((s) =>
-      /branch|return|shipping|contact|payment/i.test(s.title)
+      /branch|refund|exchange|return|shipping|contact|payment/i.test(s.title)
     )
   }
 

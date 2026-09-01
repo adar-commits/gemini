@@ -41,6 +41,7 @@ export async function invokeHomAgent(input: {
   const system = buildHomAgentSystemPrompt({
     sessionSummary: input.sessionSummary,
     whatsappPhone: input.phone,
+    userText: input.body,
   })
 
   const tools = createHomAgentTools({

@@ -9,6 +9,7 @@ import { buildDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
 import {
   buildExchangePolicyReply,
   buildReturnCancellationPolicyReply,
+  isReturnExchangePolicyFaqQuestion,
   resolveReturnExchangePolicyReply,
   RETURNS_PORTAL_URL,
 } from "@/lib/agents/policy-subjects"
@@ -79,11 +80,19 @@ describe("returns portal vs exchange routing", () => {
   it("matches size-exchange policy question from trainer screenshot", () => {
     const message =
       "קיבלתי את השטיח, הוא קטן מידי ואני רוצה להחליף למידה 200*300. מה מדיניות החלפה?"
+    assert.equal(isReturnExchangePolicyFaqQuestion(message), true)
     const reply = resolveReturnExchangePolicyReply(message)
     assert.match(reply, /החלפה בסניפי/)
     assert.match(reply, /85 ₪/)
+    assert.match(reply, /300 ₪/)
     assert.doesNotMatch(reply, /returns\.carpetshop/)
     assert.doesNotMatch(reply, /my\.homgroup/)
+  })
+
+  it("does not treat active pickup wait as return/exchange policy FAQ", () => {
+    const message =
+      "אני מחכה שיאספו ממני שטיח שביצעתי החלפה כבר שבועיים"
+    assert.equal(isReturnExchangePolicyFaqQuestion(message), false)
   })
 
   it("strips hallucinated portal from exchange replies", () => {

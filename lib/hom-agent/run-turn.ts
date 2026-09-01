@@ -19,6 +19,8 @@ import {
   buildCreditCodeOnlineHandoffReply,
   buildCreditRedemptionPolicyReply,
   isCarpetRentalQuestion,
+  isReturnExchangePolicyFaqQuestion,
+  resolveReturnExchangePolicyReply,
 } from "@/lib/agents/policy-subjects"
 import {
   isCreditCodeOnlineRedemptionRequest,
@@ -222,6 +224,33 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_t0_dissatisfaction",
+      },
+    })
+  }
+
+  if (isReturnExchangePolicyFaqQuestion(body)) {
+    const reply = validateHomAgentReply(
+      { reply: resolveReturnExchangePolicyReply(body), action: "reply" },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply,
+      action: "reply",
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_return_exchange_policy",
       },
     })
   }

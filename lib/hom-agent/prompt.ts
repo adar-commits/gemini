@@ -15,11 +15,12 @@ function readHomBotPrompt() {
 export function buildHomAgentSystemPrompt(input?: {
   sessionSummary?: string | null
   whatsappPhone?: string | null
+  userText?: string | null
 }) {
   const parts = [readHomBotPrompt()]
 
   parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
-  parts.push(selectFaqKb())
+  parts.push(selectFaqKb(input?.userText?.trim() ?? ""))
 
   if (input?.whatsappPhone?.trim()) {
     parts.push(
