@@ -7,6 +7,7 @@ import {
   inferDocumentIntent,
   isDigitalDocumentRequest,
   isDocumentChannelUncertaintyAnswer,
+  isOrderLineItemVerificationRequest,
   parseDocumentPurchaseChannel,
   parseDocumentTypeFromText,
   resolveDigitalDocumentFlowReply,
@@ -104,6 +105,18 @@ describe("digital document flow — receipt copy", () => {
   it("detects uncertainty on channel question", () => {
     assert.equal(isDocumentChannelUncertaintyAnswer("לא זוכר"), true)
     assert.equal(isDocumentChannelUncertaintyAnswer("לא יודעת"), true)
+  })
+
+  it("detects order line-item verification (color ordered)", () => {
+    assert.equal(
+      isOrderLineItemVerificationRequest("אני רק רוצה לוודא את הצבע שהזמנתי"),
+      true
+    )
+    assert.equal(isOrderLineItemVerificationRequest("איפה המשלוח שלי"), false)
+    assert.equal(
+      isOrderLineItemVerificationRequest("הצבע לא תואם לאתר"),
+      false
+    )
   })
 
   it("maps internet purchase to courier docs path", () => {

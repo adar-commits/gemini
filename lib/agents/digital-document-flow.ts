@@ -355,6 +355,51 @@ function mentionsDocumentRequestIntent(text: string) {
   )
 }
 
+/** Verify what was ordered (color, size, model) — send order document, not shipping status. */
+export function isOrderLineItemVerificationRequest(body: string) {
+  const text = stripLeadingGreetings(body.trim())
+  if (!text) return false
+  if (isShippingStatusQuestion(text)) return false
+  if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
+  if (
+    /(?:צבע|מידה|דגם|מק(?:״|"|')?ט|פרטי\s+(?:ה)?הזמנה).*(?:לא\s+תואם|שונה|דהוי|נראה\s+שונה|שונה\s+בפועל)/i.test(
+      text
+    )
+  ) {
+    return false
+  }
+  return (
+    /(?:רק\s+)?(?:רוצ(?:ה|ים|ות)|צריך(?:ים)?)\s+(?:ל)?(?:וודא|לבדוק|לראות|לאמת).*(?:צבע|מידה|דגם|מק(?:״|"|')?ט|(?:ה)?הזמנ(?:ה|תי))/i.test(
+      text
+    ) ||
+    /(?:ל)?(?:וודא|בדוק|א(?:מת|שר)|לראות).*(?:צבע|מידה|דגם|מק(?:״|"|')?ט|מה\s+הזמנ(?:תי|ת)|פרטי\s+(?:ה)?הזמנה)/i.test(
+      text
+    ) ||
+    /(?:צבע|מידה|דגם|מה\s+הזמנ(?:תי|ת)|פרטי\s+(?:ה)?הזמנה).*(?:ל)?(?:וודא|בדוק|נכון|מ(?:ה)?(?:הזמנ(?:תי|ת)))/i.test(
+      text
+    )
+  )
+}
+
+function isShippingStatusQuestion(text: string) {
+  return (
+    /איפה\s+(?:ה)?(?:משלוח|הזמנה|חבילה)/i.test(text) ||
+    /סטטוס\s+(?:ה)?(?:משלוח|הזמנה)/i.test(text) ||
+    /מעקב\s+(?:אחרי\s+)?(?:ה)?(?:משלוח|חבילה|הזמנה)/i.test(text) ||
+    /(?:ה)?(?:משלוח|הזמנה|חבילה)\s+שלי/i.test(text) ||
+    /מתי\s+(?:זה\s+)?(?:יגיע|מגיע|אמור\s+ל(?:הגיע|הגיע))/i.test(text)
+  )
+}
+
+export function activeOrderLineItemVerificationRequest(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    if (isOrderLineItemVerificationRequest(message.content)) return true
+  }
+  return false
+}
+
 /** Customer wants a digital receipt / invoice copy (קבלה = receipt, not admission). */
 export function isDigitalDocumentRequest(body: string) {
   const text = stripLeadingGreetings(body.trim())

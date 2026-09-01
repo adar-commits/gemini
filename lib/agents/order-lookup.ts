@@ -5,7 +5,11 @@ import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent, isActiveReturnExchangePickupCase, isRefundStatusInquiry, classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
 import type { AgentId } from "@/lib/agents/types"
-import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
+import {
+  activeOrderLineItemVerificationRequest,
+  isDigitalDocumentRequest,
+  isOrderLineItemVerificationRequest,
+} from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
   isAwaitingSalesIntakeAnswer,
@@ -321,6 +325,7 @@ export function isOrderSpecificEligibilityQuestion(body: string) {
  */
 export function requiresOrderIdentification(body: string, history: HistoryMessage[] = []) {
   if (isRefundStatusInquiry(body)) return false
+  if (isOrderLineItemVerificationRequest(body)) return true
   if (isShippingStatusQuestion(body)) return true
   if (isDigitalDocumentRequest(body)) return true
   if (isPreorderDelayComplaint(body)) return true
@@ -383,9 +388,11 @@ export function isShippingLookupContext(
   lastAgent: AgentId | null = null
 ): boolean {
   if (isServiceLookupContext(history, lastAgent)) return false
+  if (isOrderLineItemVerificationRequest(body)) return false
   if (isShippingStatusQuestion(body)) return true
 
   for (const message of history.filter((entry) => entry.role === "user").slice(-4)) {
+    if (isOrderLineItemVerificationRequest(message.content)) return false
     if (isShippingStatusQuestion(message.content)) return true
   }
 
@@ -793,6 +800,14 @@ ${link}
 ${CUSTOMER_NATURAL_CLOSE}`
 }
 
+export function buildOrderVerificationDocumentReply(link: string) {
+  return `${CUSTOMER_HEADER}
+הנה מסמך ההזמנה (Weezmo) עם פרטי הפריטים — כולל צבע:
+${link}
+
+${CUSTOMER_NATURAL_CLOSE}`
+}
+
 export function buildDigitalDocumentLookupFailureReply() {
   return buildApiFailureReply()
 }
@@ -1079,6 +1094,28 @@ export function buildAlternatePhoneRequestPrompt() {
 מה מספר הטלפון שבוצעה עליו ההזמנה?`
 }
 
+async function deliverOrderVerificationDocumentReply(phone: string) {
+  const tried: string[] = []
+  for (const documentType of ["קבלה", "חשבונית מס", "חשבונית מס קבלה"]) {
+    const result = await lookupDigitalDocument(phone, documentType)
+    if (result.ok && !tried.includes(result.link)) {
+      return buildOrderVerificationDocumentReply(result.link)
+    }
+  }
+  return buildDigitalDocumentNotFoundReply()
+}
+
+async function replyAfterOrderIdentified(
+  order: OrderShipmentStatus,
+  lookupPhone: string,
+  history: HistoryMessage[]
+) {
+  if (activeOrderLineItemVerificationRequest(history)) {
+    return deliverOrderVerificationDocumentReply(lookupPhone)
+  }
+  return buildOrderStatusReply(order)
+}
+
 async function lookupOrdersForPhone(phone: string) {
   const cached = recallOrdersLookup(phone)
   if (cached) return cached
@@ -1092,6 +1129,7 @@ async function lookupOrderByReference(input: {
   orderReference: string
   lookupPhone: string
   body: string
+  history: HistoryMessage[]
 }) {
   const orders = await lookupOrdersForPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
@@ -1103,7 +1141,9 @@ async function lookupOrderByReference(input: {
         order.orderNumber.replace(/\D/g, "").includes(input.orderReference.replace(/\D/g, ""))
       ) ?? null
 
-  if (matched) return buildOrderStatusReply(matched)
+  if (matched) {
+    return replyAfterOrderIdentified(matched, input.lookupPhone, input.history)
+  }
   if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
   return buildOrderNumberNotFoundReply(input.orderReference)
 }
@@ -1135,12 +1175,16 @@ async function resolveOrderConfirmationFlow(input: {
 
   if (explicitOrder) {
     const matched = findOrderByNumber(sorted, explicitOrder)
-    if (matched) return buildOrderStatusReply(matched)
+    if (matched) {
+      return replyAfterOrderIdentified(matched, input.lookupPhone, input.history)
+    }
   }
 
   if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
-    if (matched) return buildOrderStatusReply(matched)
+    if (matched) {
+      return replyAfterOrderIdentified(matched, input.lookupPhone, input.history)
+    }
     return buildOrderNumberNotFoundReply(pendingOrder)
   }
 
@@ -1237,7 +1281,7 @@ export async function resolveOrderShippingReply(input: {
         if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
         return buildPhoneLookupDeclinedReply()
       }
-      return lookupOrderByReference({ orderReference, lookupPhone, body })
+      return lookupOrderByReference({ orderReference, lookupPhone, body, history })
     }
 
     if (whatsappPhone) {
@@ -1253,7 +1297,7 @@ export async function resolveOrderShippingReply(input: {
       if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
       return buildPhoneLookupDeclinedReply()
     }
-    return lookupOrderByReference({ orderReference, lookupPhone, body })
+    return lookupOrderByReference({ orderReference, lookupPhone, body, history })
   }
 
   const providedPhone = userProvidedPhone(body)
