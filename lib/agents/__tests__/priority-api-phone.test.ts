@@ -4,6 +4,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import {
   authorizedLookupPhoneFromHistory,
   buildPhoneLookupConfirmPrompt,
+  formatDisplayPhone,
   isChannelPhoneSelfReference,
   isOrderNumberRequestPending,
   resolveLookupPhoneFromHistory,
@@ -93,6 +94,12 @@ describe("authorizedLookupPhoneFromHistory", () => {
       resolveLookupPhoneFromHistory([], "+972547495083", "052-3925554"),
       "0523925554"
     )
+  })
+
+  it("formats display phone as 05X-XXXXXXX", () => {
+    assert.equal(formatDisplayPhone("+972523925554"), "(052-3925554)")
+    assert.equal(formatDisplayPhone("0523925554"), "(052-3925554)")
+    assert.equal(formatDisplayPhone("+972547495083"), "(054-7495083)")
   })
 
   it("resolves channel phone from current-turn soft yes before history append", () => {

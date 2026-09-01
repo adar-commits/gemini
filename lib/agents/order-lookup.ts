@@ -819,7 +819,7 @@ export function orderLookupEnabled() {
 export function formatDisplayPhone(phone: string) {
   const digits = phoneForOrderApi(phone)
   if (digits.length === 10 && digits.startsWith("0")) {
-    return `(${digits.slice(0, 4)}-${digits.slice(4)})`
+    return `(${digits.slice(0, 3)}-${digits.slice(3)})`
   }
   return digits || phone.trim()
 }
