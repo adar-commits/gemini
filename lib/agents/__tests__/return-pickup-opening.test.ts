@@ -30,7 +30,8 @@ describe("return pickup opening message", () => {
     const reply = salvageReturnPickupAwaitingReply(EXACT_PRODUCTION_OPENING)
     assert.ok(reply)
     assert.match(reply!, /כבר פתחתם בקשת החזרה/)
-    assert.match(reply!, /לסיכום לנציג/)
+    assert.match(reply!, /מסכם את הפנייה/)
+    assert.match(reply!, /נוצרה בקשת איסוף/)
   })
 
   it("detects pickup wait even with filler between verb and action", () => {
@@ -43,7 +44,8 @@ describe("return pickup opening message", () => {
     intake.issueKind = "return_pickup_pending"
     const reply = buildReturnPickupAwaitingServiceReply(intake, OPENING)
     assert.match(reply, /כבר פתחתם בקשת החזרה/)
-    assert.match(reply, /לסיכום לנציג/)
+    assert.match(reply, /מסכם את הפנייה/)
+    assert.match(reply, /נוצרה בקשת איסוף/)
     assert.doesNotMatch(reply, /מוכנה לאיסוף/)
     assert.doesNotMatch(reply, /מה מספר ההזמנה/)
   })
@@ -54,9 +56,10 @@ describe("return pickup opening message", () => {
     assert.match(intake.waitDuration ?? "", /שבוע/)
     assert.equal(needsServiceSummaryConfirm(intake), true)
 
-    const summary = buildServiceHandoffConfirmReply(intake)
-    assert.match(summary, /לסיכום/)
-    assert.match(summary, /בקשת החזרה/)
+    const summary = buildServiceHandoffConfirmReply(intake, OPENING)
+    assert.match(summary, /מסכם את הפנייה/)
+    assert.match(summary, /נוצרה בקשת איסוף/)
+    assert.match(summary, /סטטוס איסוף/)
   })
 
   it("detects return pickup thread from phone reply after wrong LLM derail", () => {

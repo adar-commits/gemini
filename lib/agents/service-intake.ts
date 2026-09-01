@@ -19,7 +19,7 @@ export type ServiceIntake = {
 }
 
 const SERVICE_SUMMARY_PENDING_RE =
-  /(?:אז\s+)?לסיכום|האם\s+ז(?:ה|ו)\s+נכון\s+עד\s+כה|אני\s+צודק\s*\?/i
+  /(?:אז\s+)?(?:לסיכום|מסכם\s+את\s+הפנייה)|האם\s+ז(?:ה|ו)\s+נכון\s+עד\s+כה|אני\s+צודק\s*\?/i
 
 const WAIT_DURATION_RE =
   /(?:כבר|מ(?:זה|על)?|במשך|כ(?:\"|״|')?ל)\s*(?:כ)?(?:\"|״|')?(?:שבוע(?:יים|יים|)?|יום(?:יים|)?|חודש(?:יים|)?|\d+\s+(?:ימים|שבועות|חודשים))|(?:שבוע(?:יים|יים|)|יום(?:יים|)?)\s+(?:ש(?:אני|אנחנו)|(?:ש)?(?:מ)?(?:חכ(?:ה|ים|ות)|ממתינ(?:ה|ים|ות)?))/i
@@ -144,21 +144,78 @@ function pickupProductPhrase(body: string) {
   return "המוצר"
 }
 
-/** Awaiting courier pickup after return was already filed — summary + rep handoff, never shipping lookup. */
+function pickupProductLabel(body: string) {
+  if (/שטיח/i.test(body)) return "שטיח"
+  if (/פוף/i.test(body)) return "פוף"
+  return "מוצר"
+}
+
+function returnPickupWaitAck(intake: ServiceIntake) {
+  if (!intake.waitDuration) return "כבר זמן רב"
+  const duration = intake.waitDuration.replace(/^כבר\s*/i, "").trim()
+  return duration ? `כבר ${duration}` : "כבר זמן רב"
+}
+
+function returnPickupGoalReportLine(intake: ServiceIntake, body: string) {
+  const corpus = `${body}\n${intake.customerGoal ?? ""}`
+  if (/(?:ל)?(?:זרז|לזרז)/i.test(corpus)) {
+    return "הלקוח פנה לברר סטטוס איסוף / לזרז את האיסוף כדי להתקדם עם ההחזרה"
+  }
+  if (/(?:סטטוס|עדכון|מה\s+(?:קורה|המצב))/i.test(corpus)) {
+    return "הלקוח פנה לברר סטטוס איסוף של המוצר כדי להתקדם עם ההחזרה"
+  }
+  return "הלקוח ממתין לאיסוף מהבית ומבקש סיוע מהשירות להתקדם עם ההחזרה"
+}
+
+/** Customer-visible rep report — bullet lines for service handoff. */
+export function buildServiceHandoffReportBlock(intake: ServiceIntake, body = "") {
+  const lines: string[] = []
+  const product = pickupProductLabel(body)
+
+  if (intake.orderNumber) {
+    lines.push(`מס׳ הזמנה: ${intake.orderNumber}`)
+  }
+
+  if (intake.issueKind === "return_pickup_pending") {
+    lines.push(`הלקוח ביקש להחזיר ${product} בהזמנה ונפתחה בקשת החזרה`)
+    lines.push("נוצרה בקשת איסוף לחברת השליחויות")
+    lines.push(returnPickupGoalReportLine(intake, body))
+    return lines.map((line) => `• ${line}`).join("\n")
+  }
+
+  if (intake.issueKind) {
+    lines.push(ISSUE_LABELS[intake.issueKind])
+  } else {
+    lines.push("פנייה לשירות לקוחות")
+  }
+
+  if (intake.waitDuration) {
+    lines.push(`משך ההמתנה: ${intake.waitDuration.replace(/^כבר\s*/i, "").trim()}`)
+  }
+
+  if (intake.customerGoal) {
+    lines.push(`מטרת הפנייה: ${intake.customerGoal}`)
+  }
+
+  return lines.map((line) => `• ${line}`).join("\n")
+}
+
+/** Awaiting courier pickup after return was already filed — rep report + confirm, not shipping status. */
 export function buildReturnPickupAwaitingServiceReply(
   intake: ServiceIntake,
   body: string
 ) {
   const product = pickupProductPhrase(body)
-  const waitPhrase = intake.waitDuration
-    ? ` — ${intake.waitDuration} שממתינים`
-    : ""
-  const summary = buildServiceHandoffSummary(intake)
+  const waitAck = returnPickupWaitAck(intake)
+  const report = buildServiceHandoffReportBlock(intake, body)
 
   return `${CUSTOMER_HEADER}
-קיבלתי 🙏 מבין שכבר פתחתם בקשת החזרה, קיבלתם את ${product}, וממתינים ששליח יאסוף אותו מהבית${waitPhrase}.
+הבנתי שכבר פתחתם בקשת החזרה וממתינים שהשליח יגיע לאסוף את ${product} מהבית ${waitAck}.
 
-אז לסיכום לנציג השירות: ${summary}. אני צודק?`
+אז מסכם את הפנייה שלכם עבור נציג שירות הלקוחות שלנו:
+${report}
+
+אני צודק?`
 }
 
 /** Service cases that may still need order ID before handoff (not return-pickup-wait). */
@@ -171,14 +228,14 @@ export function buildServiceOrderIdPrompt() {
 export function buildServiceHandoffSummary(intake: ServiceIntake) {
   const parts: string[] = []
 
+  if (intake.orderNumber) {
+    parts.push(`הזמנה ${intake.orderNumber}`)
+  }
+
   if (intake.issueKind) {
     parts.push(ISSUE_LABELS[intake.issueKind])
   } else {
     parts.push("פנייה לשירות")
-  }
-
-  if (intake.orderNumber) {
-    parts.push(`הזמנה ${intake.orderNumber}`)
   }
 
   if (intake.waitDuration) {
@@ -192,10 +249,13 @@ export function buildServiceHandoffSummary(intake: ServiceIntake) {
   return parts.join(" · ")
 }
 
-export function buildServiceHandoffConfirmReply(intake: ServiceIntake) {
-  const summary = buildServiceHandoffSummary(intake)
+export function buildServiceHandoffConfirmReply(intake: ServiceIntake, body = "") {
+  const report = buildServiceHandoffReportBlock(intake, body)
   return `${CUSTOMER_HEADER}
-אז לסיכום לנציג השירות: ${summary}. אני צודק?`
+אז מסכם את הפנייה שלכם עבור נציג שירות הלקוחות שלנו:
+${report}
+
+אני צודק?`
 }
 
 export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {

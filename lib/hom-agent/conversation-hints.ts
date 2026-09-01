@@ -71,7 +71,7 @@ export function buildConversationHints(input: {
     !isPostPurchaseIntentConfirmPending(history)
   ) {
     lines.push(
-      "RETURN PICKUP WAIT: customer already filed return and awaits home courier pickup (before credit). Do NOT call lookup_order_status or mention shipping/self-pickup. Acknowledge wait → service summary ('אז לסיכום לנציג…') → after confirm, human_service. Do not ask order number unless customer volunteered it."
+      "RETURN PICKUP WAIT (advanced service, not FAQ): identify order via lookup_order_status if needed, then rep-report bullets ('אז מסכם את הפנייה…') → human_service after confirm. Never tell customer outbound shipping/self-pickup status — rep handles pickup logistics."
     )
   }
 

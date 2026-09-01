@@ -1,12 +1,17 @@
-import { resolveOrderShippingReply } from "@/lib/agents/order-lookup"
 import {
-  isActiveReturnExchangePickupCase,
-  classifyPostPurchaseCase,
-} from "@/lib/agents/inquiry-intent"
-import {
+  buildReturnPickupAwaitingServiceReply,
+  extractServiceIntake,
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
 } from "@/lib/agents/service-intake"
+import {
+  classifyPostPurchaseCase,
+  isActiveReturnExchangePickupCase,
+} from "@/lib/agents/inquiry-intent"
+import {
+  enrichReturnPickupIntake,
+  resolveOrderShippingReply,
+} from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 function returnPickupContextInThread(
@@ -28,14 +33,26 @@ export async function executeLookupOrderStatus(input: {
   const history = input.history ?? []
   const body = input.body.trim()
 
-  if (
-    returnPickupContextInThread(history, body) ||
-    isPostPurchaseServiceFlow(history)
-  ) {
+  if (returnPickupContextInThread(history, body)) {
+    let intake = extractServiceIntake(history, body)
+    intake.issueKind = "return_pickup_pending"
+    intake = await enrichReturnPickupIntake(intake, {
+      body: input.body,
+      phone: input.phone,
+      history,
+    })
+    return {
+      ok: true as const,
+      reply: buildReturnPickupAwaitingServiceReply(intake, body),
+      action: "reply" as const,
+    }
+  }
+
+  if (isPostPurchaseServiceFlow(history)) {
     return {
       ok: false as const,
       error:
-        "Return pickup wait — customer already filed return and awaits courier. Use service summary + human_service; never shipping/self-pickup status.",
+        "Service handoff in progress — continue summary confirm, not shipping lookup.",
     }
   }
 

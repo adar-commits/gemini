@@ -17,6 +17,7 @@ import {
   buildServiceHandoffConfirmReply,
   extractServiceIntake,
   isReturnPickupAwaitingThread,
+  type ServiceIntake,
 } from "@/lib/agents/service-intake"
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
 import type { AgentId } from "@/lib/agents/types"
@@ -1301,6 +1302,50 @@ async function resolveOrderConfirmationFlow(input: {
   return buildNoOrdersFoundReply(input.lookupPhone)
 }
 
+/** Identify order number for return-pickup service report — no shipping status to customer. */
+export async function enrichReturnPickupIntake(
+  intake: ServiceIntake,
+  input: { body: string; phone?: string; history: HistoryMessage[] }
+): Promise<ServiceIntake> {
+  if (intake.orderNumber) return intake
+
+  const corpus = [
+    input.body,
+    ...input.history
+      .filter((message) => message.role === "user")
+      .slice(-6)
+      .map((message) => message.content),
+  ].join("\n")
+
+  const fromText = extractOrderNumber(input.body) ?? extractOrderNumber(corpus)
+  if (fromText) return { ...intake, orderNumber: fromText }
+
+  const lookupPhone = resolveLookupPhoneFromHistory(
+    input.history,
+    input.phone,
+    input.body
+  )
+  if (!lookupPhone) return intake
+
+  const logContext = getPriorityApiLogContext()
+  const conversationId = logContext?.conversationId
+  const cached =
+    (conversationId
+      ? recallConversationOrdersLookup(conversationId, lookupPhone)
+      : null) ?? recallOrdersLookup(lookupPhone)
+
+  const orders = cached ?? (await lookupOrdersByPhone(lookupPhone))
+  if (!orders?.length) return intake
+
+  if (conversationId) {
+    rememberConversationOrdersLookup(conversationId, lookupPhone, orders)
+  } else {
+    rememberOrdersLookup(lookupPhone, orders)
+  }
+
+  return { ...intake, orderNumber: orders[0]!.orderNumber }
+}
+
 export async function resolveOrderShippingReply(input: {
   body: string
   phone?: string
@@ -1311,8 +1356,13 @@ export async function resolveOrderShippingReply(input: {
   const whatsappPhone = input.phone?.trim()
 
   if (isReturnPickupAwaitingThread(history, body)) {
-    const intake = extractServiceIntake(history, body)
+    let intake = extractServiceIntake(history, body)
     intake.issueKind = "return_pickup_pending"
+    intake = await enrichReturnPickupIntake(intake, {
+      body,
+      phone: whatsappPhone,
+      history,
+    })
     return buildReturnPickupAwaitingServiceReply(intake, body)
   }
 
