@@ -123,7 +123,32 @@ export function sanitizeCustomerAddress(text: string) {
     out = out.replace(pattern, replacement)
   }
 
-  return out
+  return sanitizeBotEmojis(out)
+}
+
+/** No emoji on operational flows; elsewhere at most one ☺️ — never decorative (🔍 👋 😀 ✨). */
+export function sanitizeBotEmojis(text: string) {
+  const operational =
+    /הזמנה|על המספר|מתכתב|מק(?:״|"|')?ט|מלאi|להעביר|נציג|יועץ|סטטוס|משלוח|קבלה|חשבונית|בדיק|מספר הטלפון/i.test(
+      text
+    )
+
+  let out = text.replace(/🔍|🔎|👋|😀|✨|📷|😊|🙏|👍|🙂/g, "")
+
+  if (operational) {
+    out = out.replace(/\p{Extended_Pictographic}/gu, "").replace(/☺️?/g, "")
+  } else {
+    let keptSmile = false
+    out = out.replace(/\p{Extended_Pictographic}/gu, (emoji) => {
+      if ((emoji === "☺" || emoji === "☺️") && !keptSmile) {
+        keptSmile = true
+        return emoji
+      }
+      return ""
+    })
+  }
+
+  return out.replace(/  +/g, " ").replace(/ +\n/g, "\n").trimEnd()
 }
 
 /** One *הום בוט :)* header — drop repeated name lines in the greeting body. */
@@ -185,7 +210,7 @@ export function formatOutboundMessages(
 /** Opening welcome — single header, no repeated bot name, masculine voice. */
 export function buildGreetingReply(_customerName?: string) {
   return `${CUSTOMER_HEADER}
-היי! שמח שפנית — במה אוכל לעזור היום? 😀`
+היי! שמח שפנית — במה אוכל לעזור היום?`
 }
 
 export function isSelfContainedGreetingReply(reply: string) {
@@ -201,7 +226,7 @@ export function buildCasualSmallTalkReply(text: string, handoffPending = false) 
   if (PING_RE.test(body)) {
     line = "כן, אני כאן! סליחה אם התשובה התעכבה."
   } else if (/מה\s+שלומ/i.test(body)) {
-    line = "בסדר גמור, תודה! 🙂"
+    line = "בסדר גמור, תודה!"
   } else if (SMALL_TALK_RE.test(body)) {
     line = "הכל טוב, תודה!"
   } else {

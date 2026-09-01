@@ -6,6 +6,7 @@ import {
   ensureSingleCustomerHeader,
   formatOutboundMessages,
   sanitizeBotGenderSlashes,
+  sanitizeBotEmojis,
   sanitizeCustomerAddress,
 } from "@/lib/agents/greeting"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -15,7 +16,7 @@ describe("greeting reply", () => {
     const reply = buildGreetingReply()
     assert.match(reply, /^(\*הום בוט :\)\*\n)/)
     assert.match(reply, /שמח שפנית/)
-    assert.match(reply, /😀/)
+    assert.doesNotMatch(reply, /😀/)
     assert.doesNotMatch(reply, /שמח\/ה/)
     assert.doesNotMatch(reply, /כאן הום בוט/)
   })
@@ -25,6 +26,20 @@ describe("greeting reply", () => {
       sanitizeBotGenderSlashes("שמח/ה שפנית — מצטער/ת לשמוע"),
       "שמח שפנית — מצטער לשמוע"
     )
+  })
+
+  it("strips decorative emoji from operational messages", () => {
+    const raw =
+      "קודם אמצא את ההזמנה שלכם בזריזות 🔍 האם היא רשומה על המספר ממנו אני מתכתב?"
+    const cleaned = sanitizeBotEmojis(raw)
+    assert.doesNotMatch(cleaned, /🔍/)
+    assert.match(cleaned, /הזמנה/)
+  })
+
+  it("allows at most one smiley on non-operational replies", () => {
+    const cleaned = sanitizeBotEmojis("בשמחה ☺️ וגם 😀")
+    assert.match(cleaned, /☺/)
+    assert.doesNotMatch(cleaned, /😀/)
   })
 
   it("sanitizes SKU label to מק״ט example for customers", () => {
