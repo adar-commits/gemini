@@ -111,6 +111,60 @@ export function isRefundTimelineQuestion(text: string) {
   return false
 }
 
+/** How to redeem credit / credit code — not refund timeline or pickup status. */
+export function isCreditRedemptionQuestion(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || trimmed.length > 220) return false
+  if (isRefundTimelineQuestion(trimmed)) return false
+  if (isRefundStatusInquiry(trimmed)) return false
+  if (isCreditCodeOnlineRedemptionRequest(trimmed)) return false
+
+  return (
+    /(?:קוד\s+)זיכוי/i.test(trimmed) ||
+    (/זיכוי/i.test(trimmed) &&
+      /(?:איך|כיצד|מ?(?:ממש|ממש)|לבצע|לממש|מימוש|אונליין|באתר|באינטרנט)/i.test(
+        trimmed
+      ))
+  )
+}
+
+export function isCreditRedemptionPolicyPending(history: { role: string; content: string }[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return /על איזה זיכוי מדובר|למימוש באתר אעביר/i.test(message.content)
+  }
+  return false
+}
+
+/** Credit code redemption online — hand off to service (not self-service on site). */
+export function isCreditCodeOnlineRedemptionRequest(
+  text: string,
+  history: { role: string; content: string }[] = []
+) {
+  const trimmed = text.trim()
+  if (!trimmed || trimmed.length > 120) return false
+  if (isRefundTimelineQuestion(trimmed)) return false
+
+  if (/קוד\s+זיכוי/i.test(trimmed) && /(?:אונליין|באתר|באינטרנט)/i.test(trimmed)) {
+    return true
+  }
+
+  if (isCreditRedemptionPolicyPending(history)) {
+    if (/^2(?:[\s.)]|$)/.test(trimmed)) return true
+    if (/קוד\s+זיכוי/i.test(trimmed)) return true
+    if (/^(?:בא(?:תר|ינטרנט)|אונליין)(?:[\s,.!?]|$)/i.test(trimmed)) return true
+    if (
+      /^(?:כן|מ?(?:ממש|ממש)|רוצ(?:ה|ים|ות))(?:[\s,.!?]|$)/i.test(trimmed) &&
+      /(?:אונליין|באתר|באינטרנט)/i.test(trimmed)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
 /** Policy / hypothetical exchange question — portal is NOT used for exchanges. */
 export function isExchangePolicyQuestion(text: string) {
   const trimmed = text.trim()

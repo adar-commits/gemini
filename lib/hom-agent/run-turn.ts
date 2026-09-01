@@ -16,8 +16,14 @@ import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import {
   buildCarpetRentalPolicyReply,
+  buildCreditCodeOnlineHandoffReply,
+  buildCreditRedemptionPolicyReply,
   isCarpetRentalQuestion,
 } from "@/lib/agents/policy-subjects"
+import {
+  isCreditCodeOnlineRedemptionRequest,
+  isCreditRedemptionQuestion,
+} from "@/lib/agents/inquiry-intent"
 import {
   buildDissatisfactionRescueReply,
   isDissatisfactionWithoutDefect,
@@ -109,6 +115,60 @@ export async function runHomAgentTurn(
       reply: preTurn.reply,
       action,
       route: ["faq"],
+    })
+  }
+
+  if (isCreditCodeOnlineRedemptionRequest(body, history)) {
+    const reply = validateHomAgentReply(
+      { reply: buildCreditCodeOnlineHandoffReply(), action: "human_service" },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "service",
+      userText: body,
+      assistantText: reply,
+      action: "human_service",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "service",
+      reply,
+      action: "human_service",
+      route: ["service"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_credit_code_online",
+      },
+    })
+  }
+
+  if (isCreditRedemptionQuestion(body)) {
+    const reply = validateHomAgentReply(
+      { reply: buildCreditRedemptionPolicyReply(), action: "reply" },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "faq",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply,
+      action: "reply",
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_credit_redemption",
+      },
     })
   }
 

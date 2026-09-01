@@ -7,6 +7,8 @@ import {
   isActiveReturnExchangePickupCase,
   isExchangeOnlyIntent,
   isExchangePolicyQuestion,
+  isCreditCodeOnlineRedemptionRequest,
+  isCreditRedemptionQuestion,
   isRefundTimelineQuestion,
   mentionsExchangeIntent,
   mentionsReturnIntent,
@@ -239,6 +241,38 @@ ${RETURNS_PORTAL_URL}
 export function buildRefundStatusHandoffReply() {
   return `קיבלנו. אם השטיח כבר נאסף — ההחזר הכספי מתבצע עד 7 ימי עסקים ממועד ביטול העסקה.
 כדי לבדוק את הסטטוס המדויק של ההחזר, אפשר להעביר לצוות השירות שיוכלו לתת מענה מדויק. להעביר לנציג שירות?`
+}
+
+export function buildCreditRedemptionPolicyReply() {
+  return `אשמח לעזור! כדי שאוכל לכוון נכון — על איזה זיכוי מדובר?
+
+1. זיכוי כספי (החזר לכרטיס אשראי) — אם כבר אושר ההחזר, הוא מתבצע עד 7 ימי עסקים ממועד ביטול העסקה.
+
+2. קוד זיכוי — אם קיבלתם קוד זיכוי, ניתן לממש בסניפי הרשת או באתר. למימוש באתר אעביר את השיחה לנציג שירות.
+
+אם מדובר בפתיחת בקשת החזרה/ביטול חדשה, אפשר לעשות זאת דרך פורטל ההחזרות:
+${RETURNS_PORTAL_URL}
+מה מתאים למצב שלכם?`
+}
+
+export function buildCreditCodeOnlineHandoffReply() {
+  return `מובן — למימוש קוד זיכוי באתר אעביר את השיחה לנציג שירות שיסייע בהמשך.`
+}
+
+/** Fix LLM drift — credit code is not self-service online; never say שובר. */
+export function sanitizeCreditRedemptionWording(reply: string) {
+  let text = reply
+  text = text.replace(/קוד\s+זיכוי\s*[/\\|]\s*שובר/gi, "קוד זיכוי")
+  text = text.replace(/(?:\/|\s+או\s+)שובר(?=[\s,.)\]|$])/gi, "")
+  text = text.replace(
+    /(?:אפשר\s+)?(?:להזין|לממש)[^\n]*(?:עמוד\s+)?(?:ה)?תשלום[^\n]*/gi,
+    "אם קיבלתם קוד זיכוי, ניתן לממש בסניפי הרשת או באתר. למימוש באתר אעביר את השיחה לנציג שירות."
+  )
+  text = text.replace(
+    /(?:ב)?שדה\s+['"]?(?:קוד\s+)?(?:קופון\s*[/\\|]\s*)?זיכוי['"]?[^\n.]*/gi,
+    "למימוש באתר אעביר את השיחה לנציג שירות."
+  )
+  return text
 }
 
 /** Fix LLM drift on refund timeline — KB counts from cancellation, not warehouse arrival. */

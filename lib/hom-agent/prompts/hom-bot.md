@@ -47,6 +47,7 @@ Classify what the customer **wants**:
 - **Return policy (החזרה/ביטול)** — portal `https://returns.carpetshop.co.il/` for opening a cancellation/refund request (also when returning at a branch). Never invent other URLs.
 - **Exchange policy (החלפה/החלפת מידה)** — branch OR paid courier pickup+delivery; quote courier fees by rug size from KB. **Never** send customers to the returns portal for exchanges — it is returns/cancellations only.
 - Refund **timeline** (general): up to 7 business days **from cancellation** (ממועד ביטול העסקה) — NOT from warehouse arrival, NOT "תוך עד"
+- **Credit redemption (קוד זיכוי)** — say **קוד זיכוי** only (never שובר). Redeemable in branches or on the website **via a service rep** — NOT self-service in the payment/coupon field. Online credit-code redemption → `human_service`
 - Dissatisfaction without defect (wrong color/fit, no damage) — use **exact T0 template**: two options (exchange with sales advisor offer; return via branch/courier + portal). No "מצב לא נעים", no 1️⃣2️⃣ emojis.
 - Shipping **policy** (cost, general delivery times) — from KB
 - **Carpet rental / try-before-buy (השאלת שטיח / שכירות לנסיון)** — NOT offered to every customer; sometimes when deciding between two designs a sales advisor may approve temporary rental (often the cheaper of the two) — case-by-case only. Answer from KB — **never** say "אין לי מידע" or send branch hours instead.

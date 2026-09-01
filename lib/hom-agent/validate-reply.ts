@@ -1,6 +1,10 @@
 import { stripAppendedDeliveryPolicyFromOrderStatus } from "@/lib/agents/shipping"
 import { sanitizeDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
-import { RETURNS_PORTAL_URL, sanitizeRefundPolicyWording } from "@/lib/agents/policy-subjects"
+import {
+  RETURNS_PORTAL_URL,
+  sanitizeCreditRedemptionWording,
+  sanitizeRefundPolicyWording,
+} from "@/lib/agents/policy-subjects"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import {
   dedupeGreetingBotName,
@@ -23,6 +27,7 @@ export function validateHomAgentReply(
   reply = sanitizeCustomerAddress(reply)
   reply = sanitizeDissatisfactionRescueReply(reply)
   reply = sanitizeRefundPolicyWording(reply)
+  reply = sanitizeCreditRedemptionWording(reply)
   reply = stripAppendedDeliveryPolicyFromOrderStatus(reply)
   reply = sanitizeHallucinatedPortalUrls(reply)
   reply = dedupeGreetingBotName(reply)

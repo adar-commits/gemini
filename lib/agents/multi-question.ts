@@ -21,13 +21,18 @@ import {
   isOrderConfirmationPending,
   isPhoneLookupConfirmPending,
 } from "@/lib/agents/order-lookup"
-import { isRefundTimelineQuestion, isRefundStatusInquiry } from "@/lib/agents/inquiry-intent"
+import {
+  isCreditRedemptionQuestion,
+  isRefundTimelineQuestion,
+  isRefundStatusInquiry,
+} from "@/lib/agents/inquiry-intent"
 import {
   buildBranchReviewLinkReply,
   isBranchReviewLinkRequest,
 } from "@/lib/agents/feedback-handling"
 import {
   buildCarpetRentalPolicyReply,
+  buildCreditRedemptionPolicyReply,
   buildRefundTimelinePolicyReply,
   buildRefundStatusHandoffReply,
   resolveReturnExchangePolicyReply,
@@ -267,6 +272,7 @@ export function answerFaqQuestionDeterministic(question: string) {
 
   const subjects = matchPolicySubjects(text)
   if (subjects.includes("carpet_rental")) return buildCarpetRentalPolicyReply()
+  if (isCreditRedemptionQuestion(text)) return buildCreditRedemptionPolicyReply()
   if (isRefundTimelineQuestion(text)) return buildRefundTimelinePolicyReply()
   if (isRefundStatusInquiry(text)) return buildRefundStatusHandoffReply()
   if (isBranchReviewLinkRequest(text)) return buildBranchReviewLinkReply(text)
