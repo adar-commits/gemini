@@ -32,6 +32,24 @@ import {
 } from "@/lib/agents/dissatisfaction"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
+import {
+  buildPostPurchaseIntentConfirm,
+  buildIntentConfirmDeclinedReply,
+  isPostPurchaseIntentConfirmPending,
+  isPostPurchaseIntentConfirmed,
+  isPostPurchaseIntentDeclined,
+} from "@/lib/agents/intent-confirmation"
+import {
+  classifyPostPurchaseCase,
+} from "@/lib/agents/inquiry-intent"
+import {
+  buildServiceHandoffConfirmReply,
+  buildServiceRepHandoffNote,
+  extractServiceIntake,
+  isServiceHandoffSummaryConfirmed,
+  isServiceHandoffSummaryPending,
+  needsServiceSummaryConfirm,
+} from "@/lib/agents/service-intake"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { invokeHomAgent } from "@/lib/hom-agent/invoke"
 import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
@@ -117,6 +135,135 @@ export async function runHomAgentTurn(
       reply: preTurn.reply,
       action,
       route: ["faq"],
+    })
+  }
+
+  if (isServiceHandoffSummaryPending(history)) {
+    if (isServiceHandoffSummaryConfirmed(body)) {
+      const intake = extractServiceIntake(history, body)
+      const note = buildServiceRepHandoffNote(intake)
+      const reply = validateHomAgentReply(
+        {
+          reply: `${note}\n\nמעולה 🙏 מעבירים עכשיו לנציג שירות שיוכלו לעזור.`,
+          action: "human_service",
+        },
+        body
+      ).reply
+      await appendTurn({
+        conversationId,
+        agent: "service",
+        userText: body,
+        assistantText: reply,
+        action: "human_service",
+        preview,
+      })
+      return finish({
+        ok: true,
+        agent: "service",
+        reply,
+        action: "human_service",
+        route: ["service"],
+        metrics: {
+          llm_calls: 0,
+          profile: runtime.activeProfile,
+          routing_path: "v3_t0_service_handoff",
+        },
+      })
+    }
+  }
+
+  if (isPostPurchaseIntentConfirmPending(history)) {
+    if (isPostPurchaseIntentDeclined(body)) {
+      const reply = validateHomAgentReply(
+        { reply: buildIntentConfirmDeclinedReply(), action: "reply" },
+        body
+      ).reply
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: reply,
+        action: "reply",
+        preview,
+      })
+      return finish({
+        ok: true,
+        agent: "faq",
+        reply,
+        action: "reply",
+        route: ["faq"],
+        metrics: {
+          llm_calls: 0,
+          profile: runtime.activeProfile,
+          routing_path: "v3_t0_intent_declined",
+        },
+      })
+    }
+
+    if (isPostPurchaseIntentConfirmed(body)) {
+      const intake = extractServiceIntake(history, body)
+      const replyText = needsServiceSummaryConfirm(intake)
+        ? buildServiceHandoffConfirmReply(intake)
+        : `${buildServiceRepHandoffNote(intake)}\n\nמעבירים לנציג שירות — רגע אחד 🙏`
+      const action = needsServiceSummaryConfirm(intake)
+        ? ("reply" as const)
+        : ("human_service" as const)
+      const reply = validateHomAgentReply({ reply: replyText, action }, body).reply
+      await appendTurn({
+        conversationId,
+        agent: "service",
+        userText: body,
+        assistantText: reply,
+        action,
+        preview,
+      })
+      return finish({
+        ok: true,
+        agent: "service",
+        reply,
+        action,
+        route: ["service"],
+        metrics: {
+          llm_calls: 0,
+          profile: runtime.activeProfile,
+          routing_path: "v3_t0_post_purchase_confirm",
+        },
+      })
+    }
+  }
+
+  const postPurchaseKind = classifyPostPurchaseCase(body)
+  if (
+    postPurchaseKind &&
+    !isPostPurchaseIntentConfirmPending(history) &&
+    !isOrderConfirmationPending(history)
+  ) {
+    const reply = validateHomAgentReply(
+      {
+        reply: buildPostPurchaseIntentConfirm(postPurchaseKind, body),
+        action: "reply",
+      },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "service",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "service",
+      reply,
+      action: "reply",
+      route: ["service"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_post_purchase_intent",
+      },
     })
   }
 

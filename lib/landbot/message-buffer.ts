@@ -1,18 +1,30 @@
+import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
+import { getConversationContext } from "@/lib/agents/memory"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { mergeTurns, type UserTurn } from "@/lib/agents/user-turn"
 
-import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
-
 const DEFAULT_DEBOUNCE_MS = 5000
+const DEFAULT_FIRST_TURN_DEBOUNCE_MS = 8000
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** LAND BOT_DEBOUNCE_MS env wins when set — otherwise runtime config / default. */
-export async function debounceWindowMs() {
+function configuredDebounceMs() {
   const env = Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")
   if (Number.isFinite(env) && env > 0) return env
+  return null
+}
+
+function configuredFirstTurnDebounceMs() {
+  const env = Number(process.env.LANDBOT_FIRST_TURN_DEBOUNCE_MS ?? "")
+  if (Number.isFinite(env) && env > 0) return env
+  return DEFAULT_FIRST_TURN_DEBOUNCE_MS
+}
+
+async function baseDebounceMs() {
+  const envOverride = configuredDebounceMs()
+  if (envOverride) return envOverride
 
   try {
     const runtime = await getRuntimeConfig()
@@ -20,6 +32,23 @@ export async function debounceWindowMs() {
   } catch {
     return DEFAULT_DEBOUNCE_MS
   }
+}
+
+/** Opening customer turn waits longer so rapid first messages merge before routing. */
+export async function debounceWindowMs(conversationId?: string) {
+  if (conversationId) {
+    try {
+      const { history } = await getConversationContext(conversationId)
+      const priorUserTurns = history.filter((message) => message.role === "user").length
+      if (priorUserTurns === 0) {
+        return configuredFirstTurnDebounceMs()
+      }
+    } catch {
+      // fall through to default debounce
+    }
+  }
+
+  return baseDebounceMs()
 }
 
 export async function enqueueCustomerTurn(conversationId: string, turn: UserTurn) {
@@ -44,9 +73,11 @@ export async function enqueueCustomerTurn(conversationId: string, turn: UserTurn
 
 /** Wait until the buffer has been quiet for debounceWindowMs since the last customer message. */
 export async function waitAndTakeBufferedTurn(
-  conversationId: string
+  conversationId: string,
+  options?: { quietAccumulatesAfterMs?: number }
 ): Promise<UserTurn | null> {
-  const window = await debounceWindowMs()
+  const window = await debounceWindowMs(conversationId)
+  const quietFloor = options?.quietAccumulatesAfterMs ?? 0
   const pollMs = 250
   const deadline = Date.now() + 120_000
 
@@ -61,7 +92,9 @@ export async function waitAndTakeBufferedTurn(
     if (error) throw error
     if (!data?.updated_at) return null
 
-    const quietMs = Date.now() - new Date(String(data.updated_at)).getTime()
+    const quietMs =
+      Date.now() -
+      Math.max(new Date(String(data.updated_at)).getTime(), quietFloor)
     if (quietMs >= window) break
 
     await sleep(Math.min(pollMs, Math.max(50, window - quietMs)))
@@ -79,7 +112,9 @@ export async function waitAndTakeBufferedTurn(
     return null
   }
 
-  const quietMs = Date.now() - new Date(String(snapshot.updated_at)).getTime()
+  const quietMs =
+    Date.now() -
+    Math.max(new Date(String(snapshot.updated_at)).getTime(), quietFloor)
   if (quietMs < window) return null
 
   const { data: claimed, error: claimError } = await supabase
@@ -104,9 +139,14 @@ export async function drainConversationBuffer(input: {
   conversationId: string
   handler: (turn: UserTurn) => Promise<void>
 }) {
+  let quietAccumulatesAfterMs = 0
+
   while (true) {
-    const turn = await waitAndTakeBufferedTurn(input.conversationId)
+    const turn = await waitAndTakeBufferedTurn(input.conversationId, {
+      quietAccumulatesAfterMs,
+    })
     if (!turn) break
     await input.handler(turn)
+    quietAccumulatesAfterMs = Date.now()
   }
 }

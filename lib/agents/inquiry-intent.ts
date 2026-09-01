@@ -331,8 +331,60 @@ function matchesPreorderDelay(text: string) {
   return false
 }
 
-const PICKUP_WAIT_RE =
-  /(?:מחכ(?:ה|ים|ות)|(?:ל)?(?:חכ(?:ה|ות|ית))|מ(?:מתינ(?:ה|ים|ות)?|צ(?:פ(?:ה|ים|ות)?)?|ש(?:ך|כה)))\s*(?:ל)?(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|איסוף\s+(?:ה)?(?:שטיח|מוצר|החזר(?:ה|ות)?)|(?:ל)?(?:אסוף|לאסוף))|(?:ש)?(?:ליח|משלוח)\s+(?:י(?:בוא|גיע)|(?:ל)?(?:איסוף|החזרה)))|(?:עדיין|כבר).{0,35}(?:לא\s+(?:בא(?:ו|ה)|הגיע(?:ו|ה)?|אספ(?:ו|u)|יצא(?:ו|ה)?)|(?:מ)?(?:חכ(?:ה|ים|ות)|מתינ(?:ה|ים|ות)?))|(?:לא\s+(?:בא(?:ו|ה)|הגיע(?:ו|ה)?)\s+(?:ל)?(?:לאסוף|לקחת|אסוף))|(?:הרבה|כ(?:\"|״|')?ל\s+כ(?:\"|״|')?ך)\s+זמן.{0,40}(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף|אספ))/i
+const PICKUP_WAIT_VERB_RE =
+  /(?:מחכ(?:ה|ים|ות)|(?:ל)?(?:חכ(?:ה|ות|ית))|מ(?:מתינ(?:ה|ים|ות)?|צ(?:פ(?:ה|ים|ות)?)?|ש(?:ך|כה)))/i
+
+const PICKUP_ACTION_RE =
+  /(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף|אספ)|(?:ש)?(?:ליח|משלוח)\s+(?:י(?:בוא|גיע)|(?:ל)?(?:איסוף|החזרה)))/i
+
+/** Waiting for courier/home pickup — allow filler words between verb and action (e.g. "ממתין גבר שבועיים שיאספו"). */
+function hasPickupWaitSignal(text: string) {
+  if (
+    /(?:ש)?(?:יאספ(?:ו|u)\\s+ממני|(?:ל)?(?:איסוף|לאסוף).{0,30}ממני)/i.test(text) &&
+    /(?:שטיח|פוף|מוצר|להחזיר|החזר)/i.test(text)
+  ) {
+    return true
+  }
+
+  const waitStem = "מתין" // מתinin with final nun
+  const waitPattern = new RegExp(
+    `(?:מ)?(?:${waitStem}(?:ה|ים|ות)?|חכ(?:ה|ים|ות|ית)|מ(?:ש(?:ך|כה)|צ(?:פ(?:ה|ים|ות)?)?)).{0,100}(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף|אספ))`,
+    "i"
+  )
+  if (waitPattern.test(text)) return true
+
+  if (
+    /(?:עדיין|כבר).{0,35}(?:לא\s+(?:בא(?:ו|ה)|הגיע(?:ו|ה)?|אספ(?:ו|u)|יצא(?:ו|ה)?)|(?:מ)?(?:חכ(?:ה|ים|ות)|מתinin(?:ה|ים|ות)?))/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+  if (
+    /(?:לא\s+(?:בא(?:ו|ה)|הגיע(?:ו|ה)?)\s+(?:ל)?(?:לאסוף|לקחת|אסוף))/i.test(text)
+  ) {
+    return true
+  }
+  if (
+    /(?:הרבה|כ(?:"|״|')?ל\s+כ(?:"|״|')?ך)\s+זמן.{0,40}(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף|אספ))/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+
+  const verbMatch = text.match(PICKUP_WAIT_VERB_RE)
+  if (!verbMatch || verbMatch.index == null) return false
+
+  const afterVerb = text.slice(verbMatch.index + verbMatch[0].length, verbMatch.index + 120)
+  return PICKUP_ACTION_RE.test(afterVerb)
+}
+
+const PICKUP_WAIT_RE = {
+  test(text: string) {
+    return hasPickupWaitSignal(text)
+  },
+}
 
 /** Customer submitted a return via portal and is waiting for courier pickup — not starting a new return. */
 function isReturnPickupWaitComplaint(text: string) {

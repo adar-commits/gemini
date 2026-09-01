@@ -2,7 +2,20 @@ import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
-import { isReturnFlowCorrection, isReturnPolicyQuestion, isPreorderDelayComplaint, isMissingOrPartialDeliveryComplaint, mentionsReturnIntent, isActiveReturnExchangePickupCase, isRefundStatusInquiry, classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
+import {
+  isReturnFlowCorrection,
+  isReturnPolicyQuestion,
+  isPreorderDelayComplaint,
+  isMissingOrPartialDeliveryComplaint,
+  mentionsReturnIntent,
+  isActiveReturnExchangePickupCase,
+  isRefundStatusInquiry,
+  classifyPostPurchaseCase,
+} from "@/lib/agents/inquiry-intent"
+import {
+  buildServiceHandoffConfirmReply,
+  extractServiceIntake,
+} from "@/lib/agents/service-intake"
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
 import type { AgentId } from "@/lib/agents/types"
 import {
@@ -1165,6 +1178,11 @@ async function replyAfterOrderIdentified(
 ) {
   if (activeOrderLineItemVerificationRequest(history)) {
     return deliverOrderVerificationDocumentReply(lookupPhone)
+  }
+  if (isServiceLookupContext(history)) {
+    const intake = extractServiceIntake(history, "")
+    intake.orderNumber = order.orderNumber
+    return buildServiceHandoffConfirmReply(intake)
   }
   return buildOrderStatusReply(order)
 }
