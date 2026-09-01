@@ -11,7 +11,7 @@ describe("buildConfirmationSummary", () => {
   it("uses בכל סגנון for no-preference style answers", () => {
     const intake = extractSalesIntake(
       [
-        { role: "assistant", content: "איזה סגנון או תחושה מחפשים?", agent: "sales" },
+        { role: "assistant", content: "איזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?" },
       ],
       "האמת שאין לי מושג"
     )
@@ -58,13 +58,67 @@ describe("buildConfirmationSummary", () => {
       {
         role: "assistant",
         content:
-          "*הום בוט :)*\nאיזה סגנון או תחושה מחפשים — יוקרתי, מודרני, כפרי, או משהו אחר?",
+          "*הום בוט :)*\nאפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב.",
+        agent: "sales",
+      },
+      { role: "user", content: "אין לי תמונה", agent: null },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nאיזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?",
         agent: "sales",
       },
     ]
     const reply = buildSalesIntakeReply(history, "מעדיף ייעוץ")
     assert.doesNotMatch(reply, /תקציב/)
     assert.match(reply, /דרישות מיוחדות|קל לניקוי|בעלי חיים/)
+  })
+
+  it("asks for room photo before style after pets", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "שטיח לסלון", agent: null },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nמה מידת הספה או הגודל הכללי של הסלון?",
+        agent: "sales",
+      },
+      { role: "user", content: "2 על 3", agent: null },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nהאם אמור להתאים לבעלי חיים?",
+        agent: "sales",
+      },
+      { role: "user", content: "לא", agent: null },
+    ]
+    const reply = buildSalesIntakeReply(history, "")
+    assert.match(reply, /תמונה.*יועץ העיצוב/)
+    assert.doesNotMatch(reply, /מודרני.*בוהו/)
+  })
+
+  it("shows style fallback when customer has no photo", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "שטיח לסלון", agent: null },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nמה מידת הספה או הגודל הכללי של הסלון?",
+        agent: "sales",
+      },
+      { role: "user", content: "2 על 3", agent: null },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nהאם אמור להתאים לבעלי חיים?",
+        agent: "sales",
+      },
+      { role: "user", content: "לא", agent: null },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nאפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב.",
+        agent: "sales",
+      },
+    ]
+    const reply = buildSalesIntakeReply(history, "אין לי תמונה")
+    assert.match(reply, /מודרני.*בוהו.*מינימליסטי/)
+    assert.match(reply, /יועץ להחליט/)
   })
 
   it("asks sofa size before pets when living room is known", () => {
@@ -91,7 +145,7 @@ describe("buildConfirmationSummary", () => {
       {
         role: "assistant",
         content:
-          "*הום בוט :)*\nאיזה סגנון או תחושה מחפשים — יוקרתי, מודרני, כפרי, או משהו אחר? יש צבע שאהוב?",
+          "*הום בוט :)*\nאיזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?",
         agent: "sales",
       },
     ]

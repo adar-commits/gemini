@@ -42,6 +42,8 @@ export type SalesIntake = {
   sofaSize?: string
   furnitureSize?: string
   roomPhotoReceived?: boolean
+  /** Customer declined or skipped the pre-style room photo request. */
+  stylePhotoSkipped?: boolean
   budget?: string
   practicalNeeds?: string
   /** Customer could not give size — omit from summary, do not re-ask. */
@@ -81,7 +83,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|צבע שאהוב|מידת הספה|מידת המיטה|רהיט העיקרי|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|החדר משמש ביום|דרישות מיוחדות|משהו חשוב שכדאי|לפני שנגיע למחיר|ילדים קטנים|תמונה\s+תעזור\s+ליועץ\s+לדייק|אעזור\s+לדייק\s+את\s+המידה/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|צבע שאהוב|מידת הספה|מידת המיטה|רהיט העיקרי|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|החדר משמש ביום|דרישות מיוחדות|משהו חשוב שכדאי|לפני שנגיע למחיר|ילדים קטנים|תמונה\s+תעזור\s+ליועץ\s+לדייק|יעזור\s+ליועץ\s+העיצוב|אעזור\s+לדייק\s+את\s+המידה/i
 
 const HEBREW_COLOR_RE =
   /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
@@ -98,8 +100,10 @@ const BEDROOM_USE_Q =
   "אוקיי קיבלתי — החדר משמש ביום־יום כחדר תינוקות, ילדים, זוגי, או משהו אחר?"
 const CHILDREN_Q = "מדובר בילדים קטנים, גדולים, או גם וגם?"
 const PETS_Q = "האם אמור להתאים לבעלי חיים?"
+const STYLE_PHOTO_Q =
+  "אפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב."
 const STYLE_Q =
-  "איזה סגנון או תחושה מחפשים — יוקרתי, מודרני, כפרי, או משהו אחר? יש צבע שאהוב?"
+  "איזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?"
 const SOFA_SIZE_Q = "מה מידת הספה?"
 const SOFA_SIZE_Q_SALON = "מה מידת הספה או הגודל הכללי של הסלון?"
 const FURNITURE_SIZE_Q = "מה מידת המיטה או הרהיט העיקרי בחדר?"
@@ -199,7 +203,7 @@ export function mentionsPetInText(text: string) {
 }
 
 const SALES_PHOTO_REQUEST_RE =
-  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|תמונה\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה/i
+  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|תמונה\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה|יעזור\s+ליועץ\s+העיצוב/i
 
 /** Customer already has the product — needs help picking the right size (exchange / resize). */
 export function isSizeExchangeIntakeContext(history: HistoryMessage[], body = "") {
@@ -332,6 +336,7 @@ function questionKindForText(question: string): string | null {
   if (/סגנון/.test(question)) return "style"
   if (/מידת הספה|גודל כללי של הסלון/.test(question)) return "sofa"
   if (/מידת המיטה|רהיט העיקרי/.test(question)) return "furniture"
+  if (/יעזור\s+ליועץ\s+העיצוב/.test(question)) return "style_photo"
   if (/תמונה\s+של\s+החלל|תמונה\s+תעזור\s+ליועץ\s+לדייק/.test(question)) return "photo"
   if (/תקציב/.test(question)) return "budget"
   if (/דרישות מיוחדות|משהו חשוב שכדאי/.test(question)) return "practical"
@@ -601,6 +606,10 @@ function applyContextualIntakeAnswers(
     applyStyleAnswer(intake, recentUserReplies(history, body))
   }
 
+  if (shouldApplyIntakeKind("style_photo", kind, options?.force)) {
+    applyStylePhotoAnswer(intake, history, body)
+  }
+
   if (shouldApplyIntakeKind("bedroom", kind, options?.force) && !intake.bedroomUse) {
     const trimmed = body.trim()
     if (trimmed.length >= 2 && trimmed.length <= 60) {
@@ -722,7 +731,9 @@ function intakeStepSatisfied(intake: SalesIntake, kind: string) {
     case "pets":
       return intake.pets != null
     case "style":
-      return styleStepComplete(intake)
+      return stylePreferenceComplete(intake)
+    case "style_photo":
+      return stylePhotoResolved(intake)
     case "sofa":
       return hasKnownSofaSize(intake) || hasKnownRugSize(intake) || Boolean(intake.sizeUnknown)
     case "furniture":
@@ -762,7 +773,8 @@ const SOFT_REPROMPT: Partial<Record<string, string>> = {
   children: "מדובר בילדים קטנים, גדולים, או גם וגם?",
   pets: "לגבי בעלי חיים — האם השטיח אמור להתאים?",
   style:
-    "ומה לגבי הסגנון — יוקרתי, מודרני, כפרי, או משהו אחר? ואולי גם צבע מועדף?",
+    "איזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?",
+  style_photo: "אפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב.",
   sofa: "מה מידת הספה או הגודל הכללי של הסלון?",
   furniture: "מה מידת המיטה או הרהיט העיקרי בחדר?",
   photo: "אפשר לצרף תמונה של החלל?",
@@ -945,8 +957,13 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   const color = extractFavoredColor(combined)
   if (color) intake.favoredColor = color
 
-  if (/יוקרתי/.test(combined)) intake.style = "יוקרתי"
+  if (/יועץ\s+להחליט|תנ(?:ו|)ו\s+ליועץ|מעד(?:יף|יפ(?:ה|ים))\s+ייעוץ|ייעוץ\s+מקצועי/i.test(combined)) {
+    intake.style = "ללא העדפת סגנון"
+  } else if (/יוקרתי/.test(combined)) intake.style = "יוקרתי"
   else if (/מודרני/.test(combined)) intake.style = "מודרני"
+  else if (/בוהו|boho/i.test(combined)) intake.style = "בוהו"
+  else if (/מינימ(?:alist)?|מינימליסטי/i.test(combined)) intake.style = "מינימליסטי"
+  else if (/קלאסי|וינטג|vintage/i.test(combined)) intake.style = "קלאסי/וינטג'"
   else if (/כפרי/.test(combined)) intake.style = "כפרי"
   else if (/ייחוד|ooak|one[\s-]?of[\s-]?a[\s-]?kind|משהו\s+מיוחד/i.test(combined)) {
     intake.style = "ייחודי"
@@ -955,6 +972,55 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   } else if (!intake.style && combined.length <= 50 && !isUnknownIntakeAnswer(combined)) {
     intake.style = combined.slice(0, 50)
   }
+}
+
+function isStylePhotoDeclined(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || /\[media:image:/i.test(trimmed)) return false
+  if (
+    /^(?:לא|אין|בלי|ל(?:א|י)\s+מ(?:צליח|עניין)|(?:אין|ל(?:י|נו))\s+תמונה|לא\s+(?:רוצ(?:ה|ים)|(?:י|)כ(?:ול|ל)(?:ה|ו|ים)?\s+ל(?:של(?:ח|וח)|צר(?:ף|ור)))|(?:לא\s+)?(?:ע(?:כ|)שיו|כרגע)|אין\s+ל(?:י|נו)(?:[\s,.!?]|$))/i.test(
+      trimmed
+    )
+  ) {
+    return true
+  }
+  return /אין\s+(?:לי|לנו)\s+תמונה|לא\s+מצ(?:ליח|ליח)|בלי\s+תמונה/i.test(trimmed)
+}
+
+function hasStylePreferenceSignal(text: string) {
+  return /יוקרתי|מודרני|כפרי|בוהו|boho|מינימ(?:alist)?|מינימליסטי|קלאסי|וינטג|vintage|יועץ\s+להחליט|תנ(?:ו|)ו\s+ליועץ|מעד(?:יף|יפ(?:ה|ים))\s+ייעוץ|ייעוץ\s+מקצועי/i.test(
+    text
+  )
+}
+
+function applyStylePhotoAnswer(intake: SalesIntake, history: HistoryMessage[], body: string) {
+  if (hasRoomPhotoInHistory(history) || /\[media:image:/i.test(body)) {
+    intake.roomPhotoReceived = true
+    return
+  }
+
+  const replies = recentUserReplies(history, body)
+  const combined = replies.join(" ")
+
+  if (hasStylePreferenceSignal(combined)) {
+    intake.stylePhotoSkipped = true
+    applyStyleAnswer(intake, replies)
+    return
+  }
+
+  if (isStylePhotoDeclined(combined)) {
+    intake.stylePhotoSkipped = true
+  }
+}
+
+function stylePhotoResolved(intake: SalesIntake, history: HistoryMessage[] = []) {
+  if (intake.roomPhotoReceived || hasRoomPhotoInHistory(history)) return true
+  return Boolean(intake.stylePhotoSkipped)
+}
+
+function stylePreferenceComplete(intake: SalesIntake, history: HistoryMessage[] = []) {
+  if (intake.roomPhotoReceived || hasRoomPhotoInHistory(history)) return true
+  return styleStepComplete(intake)
 }
 
 function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
@@ -1213,6 +1279,16 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
       case "style":
         applyStyleAnswer(intake, answers)
         break
+      case "style_photo":
+        if (answers.some((answer) => /\[media:image:/i.test(answer))) {
+          intake.roomPhotoReceived = true
+        } else if (hasStylePreferenceSignal(combined)) {
+          intake.stylePhotoSkipped = true
+          applyStyleAnswer(intake, answers)
+        } else if (isStylePhotoDeclined(combined)) {
+          intake.stylePhotoSkipped = true
+        }
+        break
       case "sofa":
         applySofaSizeAnswer(intake, answers)
         break
@@ -1424,7 +1500,8 @@ function nextIntakeQuestion(
   if (intake.household?.includes("ילד") && !intake.childrenAge) return CHILDREN_Q
   if (needsSpaceSizeQuestion(intake)) return spaceSizeQuestion(intake)
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
-  if (!styleStepComplete(intake)) return STYLE_Q
+  if (!stylePhotoResolved(intake, history)) return STYLE_PHOTO_Q
+  if (!stylePreferenceComplete(intake, history)) return STYLE_Q
   if (!intake.practicalNeeds) return PRACTICAL_Q
   return null
 }
@@ -1569,7 +1646,7 @@ function formatStyleForSummary(intake: SalesIntake) {
     return "בכל סגנון"
   }
   if (style === "ייחודי") return "בסגנון ייחודי"
-  if (/יוקרתי|מודרני|כפרי/.test(style)) return `בסגנון ${style}`
+  if (/יוקרתי|מודרני|כפרי|בוהו|מינימליסטי|קלאסי\/וינטג'/.test(style)) return `בסגנון ${style}`
   if (intake.favoredColor && style.includes(intake.favoredColor)) return "בכל סגנון"
   if (style.length > 35 || isUnknownIntakeAnswer(style)) return "בכל סגנון"
   return `בסגנון ${style}`
@@ -1624,6 +1701,9 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
     if (pendingKind === "pets") {
       reconcilePetsFromThread(intake, history, body)
     }
+    if (pendingKind === "style_photo") {
+      applyStylePhotoAnswer(intake, history, body)
+    }
   }
 
   const intro = introForFlow(body, history, intake)
@@ -1645,6 +1725,9 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
       })
       if (lastKind === "pets") {
         reconcilePetsFromThread(intake, history, body)
+      }
+      if (lastKind === "style_photo") {
+        applyStylePhotoAnswer(intake, history, body)
       }
     }
     next = nextIntakeQuestion(intake, history, body)
@@ -1705,6 +1788,7 @@ function questionOrder(kind: string) {
     "furniture",
     "photo",
     "pets",
+    "style_photo",
     "style",
     "practical",
     "confirm",
