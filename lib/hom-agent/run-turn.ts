@@ -45,7 +45,9 @@ import {
 import {
   buildServiceHandoffConfirmReply,
   buildServiceRepHandoffNote,
+  buildReturnPickupAwaitingServiceReply,
   extractServiceIntake,
+  isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
   needsServiceSummaryConfirm,
@@ -172,6 +174,42 @@ export async function runHomAgentTurn(
     }
   }
 
+  if (
+    isReturnPickupAwaitingThread(history, body) &&
+    !isServiceHandoffSummaryPending(history) &&
+    !isPostPurchaseIntentConfirmPending(history)
+  ) {
+    const intake = extractServiceIntake(history, body)
+    intake.issueKind = "return_pickup_pending"
+    const reply = validateHomAgentReply(
+      {
+        reply: buildReturnPickupAwaitingServiceReply(intake, body),
+        action: "reply",
+      },
+      body
+    ).reply
+    await appendTurn({
+      conversationId,
+      agent: "service",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+      preview,
+    })
+    return finish({
+      ok: true,
+      agent: "service",
+      reply,
+      action: "reply",
+      route: ["service"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_t0_return_pickup_summary",
+      },
+    })
+  }
+
   if (isPostPurchaseIntentConfirmPending(history)) {
     if (isPostPurchaseIntentDeclined(body)) {
       const reply = validateHomAgentReply(
@@ -235,6 +273,7 @@ export async function runHomAgentTurn(
   const postPurchaseKind = classifyPostPurchaseCase(body)
   if (
     postPurchaseKind &&
+    postPurchaseKind !== "return_pickup_pending" &&
     !isPostPurchaseIntentConfirmPending(history) &&
     !isOrderConfirmationPending(history)
   ) {

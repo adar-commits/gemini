@@ -1,24 +1,41 @@
 import { resolveOrderShippingReply } from "@/lib/agents/order-lookup"
-import { isActiveReturnExchangePickupCase, classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
-import { isPostPurchaseServiceFlow } from "@/lib/agents/service-intake"
+import {
+  isActiveReturnExchangePickupCase,
+  classifyPostPurchaseCase,
+} from "@/lib/agents/inquiry-intent"
+import {
+  isPostPurchaseServiceFlow,
+  isReturnPickupAwaitingThread,
+} from "@/lib/agents/service-intake"
+import type { HistoryMessage } from "@/lib/agents/types"
+
+function returnPickupContextInThread(
+  history: HistoryMessage[],
+  body: string
+) {
+  return (
+    isReturnPickupAwaitingThread(history, body) ||
+    isActiveReturnExchangePickupCase(body) ||
+    classifyPostPurchaseCase(body) === "return_pickup_pending"
+  )
+}
 
 export async function executeLookupOrderStatus(input: {
   body: string
   phone?: string
-  history?: { role: "user" | "assistant"; content: string }[]
+  history?: HistoryMessage[]
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
 
   if (
-    isActiveReturnExchangePickupCase(body) ||
-    classifyPostPurchaseCase(body) === "return_pickup_pending" ||
+    returnPickupContextInThread(history, body) ||
     isPostPurchaseServiceFlow(history)
   ) {
     return {
       ok: false as const,
       error:
-        "Return/exchange pickup wait is a service case — confirm intent and use service handoff summary, not shipping status lookup.",
+        "Return pickup wait — customer already filed return and awaits courier. Use service summary + human_service; never shipping/self-pickup status.",
     }
   }
 

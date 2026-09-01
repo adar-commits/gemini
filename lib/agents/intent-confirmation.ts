@@ -58,7 +58,7 @@ function buildIntentSummary(kind: PostPurchaseCaseKind, body: string) {
   const product = productNoun(body)
 
   if (kind === "return_pickup_pending") {
-    return `אוקיי, אני מבין שהוקמה בקשת איסוף לצורך החזרת מוצר וטרם הגיעו לאסוף ${product === "המוצר" ? "אותו" : "אותו"} ממך`
+    return `אוקיי, אני מבין שכבר פתחתם בקשת החזרה, קיבלתם את ${product}, וממתינים ששליח יאסוף ${product === "המוצר" ? "אותו" : "אותו"} מהבית — וטרם הגיעו`
   }
 
   if (kind === "return_request") {

@@ -13,8 +13,10 @@ import {
   classifyPostPurchaseCase,
 } from "@/lib/agents/inquiry-intent"
 import {
+  buildReturnPickupAwaitingServiceReply,
   buildServiceHandoffConfirmReply,
   extractServiceIntake,
+  isReturnPickupAwaitingThread,
 } from "@/lib/agents/service-intake"
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
 import type { AgentId } from "@/lib/agents/types"
@@ -1302,6 +1304,13 @@ export async function resolveOrderShippingReply(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
+
+  if (isReturnPickupAwaitingThread(history, body)) {
+    const intake = extractServiceIntake(history, body)
+    intake.issueKind = "return_pickup_pending"
+    return buildReturnPickupAwaitingServiceReply(intake, body)
+  }
+
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
 

@@ -4,10 +4,12 @@ import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
 } from "@/lib/agents/inquiry-intent"
-import { buildPostPurchaseIntentConfirm } from "@/lib/agents/intent-confirmation"
+import type { HistoryMessage } from "@/lib/agents/types"
 import {
+  buildReturnPickupAwaitingServiceReply,
   buildServiceHandoffConfirmReply,
   extractServiceIntake,
+  isReturnPickupAwaitingThread,
   needsServiceSummaryConfirm,
 } from "@/lib/agents/service-intake"
 
@@ -20,11 +22,14 @@ describe("return pickup opening message", () => {
     assert.equal(classifyPostPurchaseCase(OPENING), "return_pickup_pending")
   })
 
-  it("starts with intent confirm, not shipping lookup", () => {
-    const reply = buildPostPurchaseIntentConfirm("return_pickup_pending", OPENING)
-    assert.match(reply, /בקשת איסוף/)
-    assert.match(reply, /אני צודק/)
+  it("starts with service summary handoff, not shipping lookup", () => {
+    const intake = extractServiceIntake([], OPENING)
+    intake.issueKind = "return_pickup_pending"
+    const reply = buildReturnPickupAwaitingServiceReply(intake, OPENING)
+    assert.match(reply, /כבר פתחתם בקשת החזרה/)
+    assert.match(reply, /לסיכום לנציג/)
     assert.doesNotMatch(reply, /מוכנה לאיסוף/)
+    assert.doesNotMatch(reply, /מה מספר ההזמנה/)
   })
 
   it("builds service summary with wait duration and goal", () => {
@@ -35,6 +40,23 @@ describe("return pickup opening message", () => {
 
     const summary = buildServiceHandoffConfirmReply(intake)
     assert.match(summary, /לסיכום/)
-    assert.match(summary, /איסוף מהבית/)
+    assert.match(summary, /בקשת החזרה/)
+  })
+
+  it("detects return pickup thread from phone reply after wrong LLM derail", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "user",
+        content: OPENING,
+      },
+      {
+        role: "assistant",
+        content: "מה מספר ההזמנה או שאבדוק לפי הטלפון?",
+      },
+    ]
+    assert.equal(
+      isReturnPickupAwaitingThread(history, "כן זה הטלפון שלי"),
+      true
+    )
   })
 })

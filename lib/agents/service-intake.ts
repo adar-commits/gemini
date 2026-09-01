@@ -3,6 +3,7 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import {
   classifyPostPurchaseCase,
   type PostPurchaseCaseKind,
+  isActiveReturnExchangePickupCase,
 } from "@/lib/agents/inquiry-intent"
 import {
   activeIntentConfirmKind,
@@ -27,7 +28,8 @@ const CUSTOMER_GOAL_RE =
   /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:חכ(?:ה|ים|ות)|ממתינ(?:ה|ים|ות)?)|(?:מ)?(?:צ(?:ריך|ריכ(?:ה|ים|ות)?|פ(?:ה|ים|ות)?))|(?:מ)?(?:בקש(?:ה|ת)?|מעונ(?:יין|יינ(?:ת|ים|ות)?)))\s*(?:ל)?(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף)|(?:ל)?(?:דעת|עדכון|סטטוס|לזרז|לזרז\s+א(?:ת|ת)?)|(?:ש)?(?:נציג|יועץ))/i
 
 const ISSUE_LABELS: Record<PostPurchaseCaseKind, string> = {
-  return_pickup_pending: "איסוף מהבית לצורך החזרה — ממתינים לשליח",
+  return_pickup_pending:
+    "בקשת החזרה כבר הוגשה — ממתינים לאיסוף שליח מהבית (לפני זיכוי)",
   return_request: "בקשת החזרה",
   exchange_request: "בקשת החלפה",
   defect: "פגם / בעיה במוצר",
@@ -99,10 +101,55 @@ export function extractServiceIntake(
 
 export function needsServiceSummaryConfirm(intake: ServiceIntake) {
   if (!intake.issueKind) return true
-  if (intake.issueKind === "return_pickup_pending" && !intake.orderNumber) {
-    return true
-  }
+  if (intake.issueKind === "return_pickup_pending") return true
   return false
+}
+
+export function isReturnPickupAwaitingThread(
+  history: HistoryMessage[],
+  body: string
+) {
+  const userTexts = history
+    .filter((message) => message.role === "user")
+    .slice(-6)
+    .map((message) => message.content)
+  userTexts.push(body)
+
+  return userTexts.some(
+    (text) =>
+      classifyPostPurchaseCase(text) === "return_pickup_pending" ||
+      isActiveReturnExchangePickupCase(text)
+  )
+}
+
+function pickupProductPhrase(body: string) {
+  if (/שטיח/i.test(body)) return "השטיח"
+  if (/פוף/i.test(body)) return "הפוף"
+  return "המוצר"
+}
+
+/** Awaiting courier pickup after return was already filed — summary + rep handoff, never shipping lookup. */
+export function buildReturnPickupAwaitingServiceReply(
+  intake: ServiceIntake,
+  body: string
+) {
+  const product = pickupProductPhrase(body)
+  const waitPhrase = intake.waitDuration
+    ? ` — ${intake.waitDuration} שממתינים`
+    : ""
+  const summary = buildServiceHandoffSummary(intake)
+
+  return `${CUSTOMER_HEADER}
+קיבלתי 🙏 מבין שכבר פתחתם בקשת החזרה, קיבלתם את ${product}, וממתינים ששליח יאסוף אותו מהבית${waitPhrase}.
+
+אז לסיכום לנציג השירות: ${summary}. אני צודק?`
+}
+
+/** Service cases that may still need order ID before handoff (not return-pickup-wait). */
+export function buildServiceOrderIdPrompt() {
+  return `${CUSTOMER_HEADER}
+קיבלתי, מצטער על ההמתנה. כדי שאוכל לבדוק את הסטטוס עבורך — יש לך במקרה מספר ההזמנה?
+אם לא, אני יכול לנסות לאתר לפי הטלפון שממנו אנחנו מתכתבים כעת.`
 }
 
 export function buildServiceHandoffSummary(intake: ServiceIntake) {
