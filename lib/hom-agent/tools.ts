@@ -38,7 +38,7 @@ export function createHomAgentTools(context: HomAgentToolContext) {
     }),
     lookup_inventory: tool({
       description:
-        "Branch stock for a SKU with hyphen (e.g. 40400025-200290). Use only when customer asks availability in stores.",
+        "Branch stock for a SKU with hyphen (e.g. 31503138-200290). Use only when customer asks availability in stores.",
       inputSchema: z.object({
         sku: z.string().describe("Product SKU including hyphen"),
         branchHint: z.string().optional().describe("City or branch name filter"),

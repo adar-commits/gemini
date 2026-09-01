@@ -52,13 +52,19 @@ export type InventoryBranchRow = {
   inventory: InventoryLocation[]
 }
 
-/** Priority branch_id → customer-facing store name. Extend as new codes appear. */
+/** Priority warehouse_id → customer-facing store name (getInventoryBranch). */
 const INVENTORY_BRANCH_LABELS: Record<string, string> = {
-  WMS: "מחסן",
+  WMS: "מרלוג איירפורט סיטי",
   "3000": "אתר",
+  "20": "איירפורט סיטי",
+  "30": "קריית אתא",
+  "40": "ראשון לציון",
+  "60": "נתניה",
+  "90": "בני ברק",
 }
 
 const WAREHOUSE_BRANCH_IDS = new Set(["WMS"])
+const BACKOFFICE_WAREHOUSE_IDS = new Set(["120", "140"])
 
 function resolveInventoryBranchLabel(branchId: string) {
   const key = branchId.trim()
@@ -68,6 +74,16 @@ function resolveInventoryBranchLabel(branchId: string) {
 
 function isRetailBranch(branchId: string) {
   return !WAREHOUSE_BRANCH_IDS.has(branchId.trim().toUpperCase())
+}
+
+/** Showroom branches only — exclude central warehouses (מחסן / מרלוג). */
+function isCustomerStoreBranch(location: InventoryLocation) {
+  const id = location.branch_id.trim()
+  if (BACKOFFICE_WAREHOUSE_IDS.has(id)) return false
+  if (!isRetailBranch(id)) return false
+  const name = locationDisplayName(location)
+  if (/מחסן|מרלוג/i.test(name)) return false
+  return true
 }
 
 function parsePreorder(value: unknown): PreorderInfo | null {
@@ -286,10 +302,18 @@ export function isInventoryAvailabilityReply(reply: string) {
   return (
     /בדקתי זמינות/.test(reply) &&
     (/\*יש במלאי\*/.test(reply) ||
-      /\*אין במלאי כרגע\*/.test(reply) ||
-      /אין במלאי באף/.test(reply) ||
+      /\*לפי המערכת לא מופיע\*/.test(reply) ||
+      /לא מופיע מלאי/.test(reply) ||
       /זמין(?:\s+כרגע)?\s+להזמנה מוקדמת/.test(reply))
   )
+}
+
+function buildInventoryUnconfirmedReply(label: string, branchLabel?: string | null) {
+  const where = branchLabel ? `בסניף ${branchLabel}` : "בסניפים"
+  return `${CUSTOMER_HEADER}
+בדקתי זמינות לדגם ${label} ${where}.
+לפי הנתונים במערכת לא מופיע מלאי כרגע — ייתכנו פערים מול מצב הרצפה בסניף.
+האם להעביר ליועץ מכירות שיבדוק ויאמת?`
 }
 
 export function parseInventoryBranchPayload(data: unknown): InventoryBranchRow | null {
@@ -474,7 +498,7 @@ export function buildInventoryAvailabilityReply(
   const unavailable: string[] = []
 
   for (const location of row.inventory) {
-    if (!isRetailBranch(location.branch_id)) continue
+    if (!isCustomerStoreBranch(location)) continue
     const name = locationDisplayName(location)
     if (!name) continue
     if (branchFilter && !locationMatchesBranch(name, branchFilter)) continue
@@ -489,9 +513,7 @@ export function buildInventoryAvailabilityReply(
   }
 
   if (available.length === 0 && unavailable.length === 0) {
-    return `${CUSTOMER_HEADER}
-בדקתי את הדגם ${label} — כרגע אין במלאי בסניפים.
-אפשר להעביר ליועץ מכירות שיבדוק עבורכם?`
+    return buildInventoryUnconfirmedReply(label, branchLabel)
   }
 
   const lines = [
@@ -501,16 +523,16 @@ export function buildInventoryAvailabilityReply(
   ]
 
   if (available.length === 0) {
+    return buildInventoryUnconfirmedReply(label, branchLabel)
+  }
+
+  lines.push("", "*יש במלאי:*", ...available.map((name) => `• ${name}`))
+  if (unavailable.length > 0) {
     lines.push(
-      branchLabel
-        ? `כרגע אין במלאי בסניף ${branchLabel}.`
-        : "כרגע אין במלאי באף אחד מהסניפים שבדקתי."
+      "",
+      "*לפי המערכת לא מופיע:*",
+      ...unavailable.map((name) => `• ${name}`)
     )
-  } else {
-    lines.push("", "*יש במלאי:*", ...available.map((name) => `• ${name}`))
-    if (unavailable.length > 0) {
-      lines.push("", "*אין במלאי כרגע:*", ...unavailable.map((name) => `• ${name}`))
-    }
   }
 
   lines.push("", CUSTOMER_NATURAL_CLOSE)

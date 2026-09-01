@@ -177,15 +177,35 @@ describe("inventory vs product URL routing", () => {
 })
 
 describe("buildInventoryAvailabilityReply", () => {
-  it("reports no branch stock when API returns empty inventory", () => {
+  it("reports unconfirmed stock when API returns empty inventory", () => {
     const reply = buildInventoryAvailabilityReply({
       sku: "40400025-200290",
       preorder: null,
       inventory: [],
     })
-    assert.match(reply, /בדקתי את הדגם 40400025-200290/)
-    assert.match(reply, /אין במלאי בסניפים/)
+    assert.match(reply, /בדקתי זמינות/)
+    assert.match(reply, /לא מופיע מלאי/)
+    assert.match(reply, /יועץ מכירות/)
+    assert.doesNotMatch(reply, /כרגע אין במלאי/)
     assert.doesNotMatch(reply, /לא מצאתי את הדגם/)
+  })
+
+
+  it("does not claim definitive out-of-stock when branch filter returns zero qty", () => {
+    const reply = buildInventoryAvailabilityReply(
+      {
+        sku: "31503138-140190",
+        preorder: null,
+        inventory: [
+          { branch_id: "60", displayName: "סניף נתניה", quantity: 0 },
+          { branch_id: "20", displayName: "סניף ראשון לציון", quantity: 2 },
+        ],
+      },
+      "נתניה"
+    )
+    assert.match(reply, /לא מופיע מלאי/)
+    assert.match(reply, /יועץ מכירות/)
+    assert.doesNotMatch(reply, /כרגע אין במלאי/)
   })
 
   it("reports preorder availability before branch stock", () => {
@@ -235,7 +255,7 @@ describe("buildInventoryAvailabilityReply", () => {
     })
     assert.match(reply, /\*יש במלאי:\*/)
     assert.match(reply, /ראשון לציון/)
-    assert.match(reply, /\*אין במלאי כרגע:\*/)
+    assert.match(reply, /\*לפי המערכת לא מופיע:\*/)
     assert.match(reply, /נתניה/)
     assert.doesNotMatch(reply, /WMS/)
     assert.doesNotMatch(reply, /1001/)
