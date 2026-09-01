@@ -11,12 +11,28 @@ import {
   extractServiceIntake,
   isReturnPickupAwaitingThread,
   needsServiceSummaryConfirm,
+  salvageReturnPickupAwaitingReply,
 } from "@/lib/agents/service-intake"
 
 const OPENING =
   "אני ממתין גבר שבועיים שיאספו ממני שטיח שרציתי להחזיר"
 
+const EXACT_PRODUCTION_OPENING =
+  "אני ממתין כבר שבועיים שיאספו ממני שטיח שרציתי להחזיר"
+
 describe("return pickup opening message", () => {
+  it("detects exact production opener without filler words", () => {
+    assert.equal(isActiveReturnExchangePickupCase(EXACT_PRODUCTION_OPENING), true)
+    assert.equal(classifyPostPurchaseCase(EXACT_PRODUCTION_OPENING), "return_pickup_pending")
+  })
+
+  it("salvages service summary when the main pipeline returns empty", () => {
+    const reply = salvageReturnPickupAwaitingReply(EXACT_PRODUCTION_OPENING)
+    assert.ok(reply)
+    assert.match(reply!, /כבר פתחתם בקשת החזרה/)
+    assert.match(reply!, /לסיכום לנציג/)
+  })
+
   it("detects pickup wait even with filler between verb and action", () => {
     assert.equal(isActiveReturnExchangePickupCase(OPENING), true)
     assert.equal(classifyPostPurchaseCase(OPENING), "return_pickup_pending")

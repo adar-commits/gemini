@@ -340,7 +340,7 @@ const PICKUP_ACTION_RE =
 /** Waiting for courier/home pickup — allow filler words between verb and action (e.g. "ממתין גבר שבועיים שיאספו"). */
 function hasPickupWaitSignal(text: string) {
   if (
-    /(?:ש)?(?:יאספ(?:ו|u)\\s+ממני|(?:ל)?(?:איסוף|לאסוף).{0,30}ממני)/i.test(text) &&
+    /(?:ש)?(?:יאספ(?:ו|u)\s+ממני|(?:ל)?(?:איסוף|לאסוף).{0,30}ממני)/i.test(text) &&
     /(?:שטיח|פוף|מוצר|להחזיר|החזר)/i.test(text)
   ) {
     return true

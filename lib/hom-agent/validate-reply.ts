@@ -1,3 +1,4 @@
+import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { stripAppendedDeliveryPolicyFromOrderStatus } from "@/lib/agents/shipping"
 import { sanitizeDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
 import {

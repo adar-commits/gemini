@@ -105,6 +105,22 @@ export function needsServiceSummaryConfirm(intake: ServiceIntake) {
   return false
 }
 
+/** Last-resort when the main pipeline timed out or returned empty — known pickup-wait openings. */
+export function salvageReturnPickupAwaitingReply(body: string) {
+  const trimmed = body.trim()
+  if (!trimmed) return null
+  if (
+    classifyPostPurchaseCase(trimmed) !== "return_pickup_pending" &&
+    !isActiveReturnExchangePickupCase(trimmed)
+  ) {
+    return null
+  }
+
+  const intake = extractServiceIntake([], trimmed)
+  intake.issueKind = "return_pickup_pending"
+  return buildReturnPickupAwaitingServiceReply(intake, trimmed)
+}
+
 export function isReturnPickupAwaitingThread(
   history: HistoryMessage[],
   body: string

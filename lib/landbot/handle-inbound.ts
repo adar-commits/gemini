@@ -41,6 +41,7 @@ import {
 import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
 import { buildNeverStuckReply, buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
+import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
 import {
   handleTrainerProfileCommand,
@@ -65,6 +66,10 @@ function outboundReply(result: AgentResponse) {
     return "*הום בוט :)*\nהפנייה הועברה ליועץ מכירות. ניצור קשר בהקדם."
   }
   return ""
+}
+
+function stuckOrSalvagedReply(body: string) {
+  return salvageReturnPickupAwaitingReply(body) ?? buildProcessingStuckReply()
 }
 
 export async function handleLandbotInbound(
@@ -207,7 +212,7 @@ export async function handleLandbotInbound(
   const watchdog = startProcessingWatchdog({
     replyEnabled,
     onStuck: async () => {
-      const stuckReply = buildProcessingStuckReply()
+      const stuckReply = stuckOrSalvagedReply(body)
       await appendTurn({
         conversationId,
         agent: "faq",
@@ -256,7 +261,7 @@ export async function handleLandbotInbound(
     !result.duplicateSuppressed &&
     (result.action === "reply" || result.action === "shipping")
   ) {
-    draftReply = buildProcessingStuckReply()
+    draftReply = stuckOrSalvagedReply(body)
     result = { ...result, reply: draftReply }
   }
 
@@ -266,7 +271,7 @@ export async function handleLandbotInbound(
     result.duplicateSuppressed &&
     (result.action === "reply" || result.action === "shipping")
   ) {
-    draftReply = buildProcessingStuckReply()
+    draftReply = stuckOrSalvagedReply(body)
     result = { ...result, reply: draftReply, duplicateSuppressed: false }
   }
 
