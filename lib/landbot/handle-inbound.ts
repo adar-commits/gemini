@@ -1,7 +1,7 @@
 import { runCustomerConversation } from "@/lib/agents/conversation"
 import { formatOutboundMessages } from "@/lib/agents/greeting"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
-import { appendTurn, clearInactivityWatchState, getSessionInactivityState } from "@/lib/agents/memory"
+import { appendTurn, clearInactivityWatchState, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
@@ -227,6 +227,13 @@ export async function handleLandbotInbound(
       onPriorityApiCall: replyEnabled
         ? async () => {
             await sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
+            await recordProactiveAssistantMessage({
+              conversationId,
+              assistantText: PRIORITY_API_PREMESSAGE,
+              action: "reply",
+            }).catch((error) => {
+              console.warn("[handle-inbound] failed to persist priority pre-message", error)
+            })
             headerAlreadySent = true
             watchdog.markReplySent()
           }

@@ -17,12 +17,18 @@ import {
   isSalesIntakeAnswer,
   pendingSalesIntakeQuestionKind,
 } from "@/lib/agents/sales-intake"
-import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
+import { callPriorityWebhook, getPriorityApiLogContext } from "@/lib/agents/priority-webhook"
 import {
+  recallConversationOrdersLookup,
   recallOrdersLookup,
+  rememberConversationOrdersLookup,
   rememberOrdersLookup,
 } from "@/lib/agents/order-lookup-cache"
-import { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-terminology"
+import {
+  buildDeliveryStatusMessage,
+  isUnknownDeliveryStatusMessage,
+} from "@/lib/agents/delivery-status-terminology"
+import { buildOrderStatusMessage } from "@/lib/agents/order-status-terminology"
 import {
   isValidIsraeliMobilePhone,
   normalizePhoneForOrderApi,
@@ -180,12 +186,34 @@ export function describeShipmentStatus(order: OrderShipmentStatus) {
     formatHebrewDate(order.raw.ZPIT_UDATE)
   const coordinateDate = formatHebrewDate(order.raw.ZPIT_COORDATE)
 
-  return buildDeliveryStatusMessage({
+  const deliveryMessage = buildDeliveryStatusMessage({
     deliveryStatusId: order.statusCode,
     deliveryStatusDesc: order.statusLabel || "לא ידוע",
     deliveryDate,
     coordinateDate,
   })
+
+  if (!isUnknownDeliveryStatusMessage(deliveryMessage)) {
+    return deliveryMessage
+  }
+
+  const orderStatusMessage = buildOrderStatusMessage(order.orderStatus)
+  if (orderStatusMessage) return orderStatusMessage
+
+  return deliveryMessage
+}
+
+export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
+  const deliveryMessage = buildDeliveryStatusMessage({
+    deliveryStatusId: order.statusCode,
+    deliveryStatusDesc: order.statusLabel || "לא ידוע",
+    deliveryDate:
+      formatHebrewDate(order.raw.ZPIT_DELDATE) ??
+      formatHebrewDate(order.raw.ZPIT_UDATE),
+    coordinateDate: formatHebrewDate(order.raw.ZPIT_COORDATE),
+  })
+  if (!isUnknownDeliveryStatusMessage(deliveryMessage)) return false
+  return !buildOrderStatusMessage(order.orderStatus)
 }
 
 function statusAsOfDate(order: OrderShipmentStatus) {
@@ -1142,11 +1170,22 @@ async function replyAfterOrderIdentified(
 }
 
 async function lookupOrdersForPhone(phone: string) {
+  const conversationId = getPriorityApiLogContext().conversationId
+  if (conversationId) {
+    const byConversation = recallConversationOrdersLookup(conversationId, phone)
+    if (byConversation) return byConversation
+  }
+
   const cached = recallOrdersLookup(phone)
   if (cached) return cached
 
   const orders = await lookupOrdersByPhone(phone)
-  if (orders) rememberOrdersLookup(phone, orders)
+  if (orders) {
+    rememberOrdersLookup(phone, orders)
+    if (conversationId) {
+      rememberConversationOrdersLookup(conversationId, phone, orders)
+    }
+  }
   return orders
 }
 

@@ -9,6 +9,10 @@ type CacheEntry = {
 }
 
 const ordersByPhone = new Map<string, CacheEntry>()
+const ordersByConversation = new Map<
+  string,
+  CacheEntry & { phone: string }
+>()
 
 function cacheKey(phone: string) {
   return normalizePhoneForOrderApi(phone)
@@ -33,10 +37,42 @@ export function recallOrdersLookup(phone: string): OrderShipmentStatus[] | null 
   return entry.orders
 }
 
+/** Same-thread reuse — survives confirm turn without a second n8n call. */
+export function rememberConversationOrdersLookup(
+  conversationId: string,
+  phone: string,
+  orders: OrderShipmentStatus[]
+) {
+  const key = conversationId.trim()
+  const phoneKey = cacheKey(phone)
+  if (!key || !phoneKey) return
+  rememberOrdersLookup(phone, orders)
+  ordersByConversation.set(key, { orders, at: Date.now(), phone: phoneKey })
+}
+
+export function recallConversationOrdersLookup(
+  conversationId: string,
+  phone: string
+): OrderShipmentStatus[] | null {
+  const key = conversationId.trim()
+  const phoneKey = cacheKey(phone)
+  if (!key || !phoneKey) return recallOrdersLookup(phone)
+
+  const entry = ordersByConversation.get(key)
+  if (!entry) return recallOrdersLookup(phone)
+  if (Date.now() - entry.at > CACHE_TTL_MS) {
+    ordersByConversation.delete(key)
+    return recallOrdersLookup(phone)
+  }
+  if (entry.phone !== phoneKey) return recallOrdersLookup(phone)
+  return entry.orders
+}
+
 export function clearOrdersLookupCache(phone?: string) {
   if (phone) {
     ordersByPhone.delete(cacheKey(phone))
     return
   }
   ordersByPhone.clear()
+  ordersByConversation.clear()
 }

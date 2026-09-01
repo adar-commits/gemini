@@ -2,7 +2,9 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   clearOrdersLookupCache,
+  recallConversationOrdersLookup,
   recallOrdersLookup,
+  rememberConversationOrdersLookup,
   rememberOrdersLookup,
 } from "@/lib/agents/order-lookup-cache"
 import type { OrderShipmentStatus } from "@/lib/agents/order-lookup"
@@ -38,5 +40,13 @@ describe("order lookup cache", () => {
     } finally {
       Date.now = originalNow
     }
+  })
+
+  it("recalls orders by conversation id on confirm turn", () => {
+    clearOrdersLookupCache()
+    rememberConversationOrdersLookup("conv-123", "0547380553", [sampleOrder])
+    const cached = recallConversationOrdersLookup("conv-123", "054-738-0553")
+    assert.ok(cached)
+    assert.equal(cached![0]?.orderNumber, "SO26020975")
   })
 })

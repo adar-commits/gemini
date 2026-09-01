@@ -43,6 +43,10 @@ export function bindPriorityApiLogContext(context: {
   priorityApiLogContext = context
 }
 
+export function getPriorityApiLogContext() {
+  return priorityApiLogContext
+}
+
 /** When true, skip the pre-message (e.g. already sent earlier in this conversation). */
 export function bindPriorityApiPreMessageGuard(guard: (() => boolean) | null) {
   priorityApiPreMessageSkipGuard = guard

@@ -146,9 +146,15 @@ type ToolStep = NonNullable<Awaited<ReturnType<typeof generateText>>["steps"]>[n
 function extractDeterministicToolReply(steps: ToolStep[] | undefined): HomAgentOutput | null {
   for (const step of steps ?? []) {
     for (const result of step.toolResults ?? []) {
-      const output = result.output as { ok?: boolean; reply?: string } | undefined
+      const output = result.output as
+        | { ok?: boolean; reply?: string; action?: string }
+        | undefined
       if (!output?.ok || !output.reply?.trim()) continue
-      return { reply: output.reply.trim(), action: "reply" }
+      const action =
+        output.action === "human_service" || output.action === "human_sales"
+          ? output.action
+          : "reply"
+      return { reply: output.reply.trim(), action }
     }
   }
   return null

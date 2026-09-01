@@ -11,7 +11,12 @@ export async function executeLookupOrderStatus(input: {
       phone: input.phone,
       history: input.history ?? [],
     })
-    return { ok: true as const, reply: reply.trim() }
+    const trimmed = reply.trim()
+    const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
+      ? ("human_service" as const)
+      : ("reply" as const)
+
+    return { ok: true as const, reply: trimmed, action }
   } catch (error) {
     return {
       ok: false as const,

@@ -22,8 +22,14 @@ const PICKUP_PROCESSING_MESSAGE =
 const SELF_PICKUP_COLLECTED_MESSAGE =
   "ההזמנה סומנה כנאספה באופן עצמאי ממחסני החברה."
 
-const UNKNOWN_STATUS_MESSAGE =
+export const UNKNOWN_DELIVERY_STATUS_MESSAGE =
   "ההזמנה נמצאה, אך לא ניתן להציג כרגע סטטוס משלוח חד-משמעי. הפנייה תועבר להמשך טיפול."
+
+const UNKNOWN_STATUS_MESSAGE = UNKNOWN_DELIVERY_STATUS_MESSAGE
+
+export function isUnknownDeliveryStatusMessage(message: string) {
+  return message.trim() === UNKNOWN_DELIVERY_STATUS_MESSAGE
+}
 
 function coordinatedDeliveryMessage(coordinateDate?: string | null) {
   if (coordinateDate?.trim()) {

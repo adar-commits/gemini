@@ -24,6 +24,7 @@ import {
 } from "@/lib/agents/dissatisfaction"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
+import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { invokeHomAgent } from "@/lib/hom-agent/invoke"
 import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
@@ -73,7 +74,7 @@ export async function runHomAgentTurn(
       (message) =>
         message.role === "assistant" &&
         /אני על זה, כמה רגעים/i.test(message.content)
-    )
+    ) || isOrderConfirmationPending(history)
   )
 
   beginTurnMetrics(conversationId, runtime.activeProfile, phone)
