@@ -40,6 +40,17 @@ export function isValidInventorySku(value: string) {
   return /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$/.test(token)
 }
 
+/** Letter placeholders (ABC-12345) → real site-format מק״ט example for customer copy. */
+const FAKE_SKU_PLACEHOLDER_RE = /\b[A-Za-z]{2,}[A-Za-z0-9]*-\d+\b/g
+
+export function normalizeSkuExamplesInReply(text: string) {
+  if (!/מק(?:״|"|')?ט|מלאi|SKU|המספר עם המקף/i.test(text)) return text
+
+  let out = text.replace(FAKE_SKU_PLACEHOLDER_RE, INVENTORY_SKU_EXAMPLE)
+  out = out.replace(/\(המספר עם המקף,\s*למשל[^)]+\)/gi, INVENTORY_SKU_EXAMPLE_HINT)
+  return out
+}
+
 export function validatePriorityApiPayload(input: {
   actionType: string
   value: string

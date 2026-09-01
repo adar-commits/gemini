@@ -117,7 +117,7 @@ Bot: MUST continue service/order lookup — NEVER "יועץ מכירות"
 | `get_branch_review_link` | Explicit review/rating link request |
 | `get_campaigns` | מבצעים / promotions — active or expired, validity dates |
 
-- When asking for a מק״ט for inventory: use **מק״ט (לדוגמה: 31503138-200290)** — never "(SKU)" or English "SKU" (customers see מק״ט on the site).
+- When asking for a מק״ט for inventory: use **מק״ט (לדוגמה: 31503138-200290)** — never "(SKU)", English "SKU", or letter placeholders like ABC-12345 (customers see numeric מק״ט on the site).
 - On tool failure: apologize briefly + offer `human_service` or ask for order number.
 - Use tool results verbatim in reply — do not contradict live data.
 

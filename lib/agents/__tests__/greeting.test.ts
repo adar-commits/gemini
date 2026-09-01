@@ -51,6 +51,14 @@ describe("greeting reply", () => {
     assert.match(cleaned, /מה תעדיפו/)
   })
 
+  it("replaces letter SKU placeholders with real מק״ט example", () => {
+    const raw =
+      'אני צריך את המק"ט (המספר עם המקף, למשל ABC-12345). השם לבד לא מספיק.'
+    const cleaned = sanitizeCustomerAddress(raw)
+    assert.match(cleaned, /31503138-200290/)
+    assert.doesNotMatch(cleaned, /ABC-12345/i)
+  })
+
   it("sanitizes masculine singular customer address to plural", () => {
     const raw =
       "איך תעדיף להמשיך? אפשר לחבר אותך ליועץ — שלח/י את הפרטים אם יש לך."

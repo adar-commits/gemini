@@ -1,5 +1,5 @@
 import { CUSTOMER_HEADER, type HistoryMessage } from "@/lib/agents/types"
-import { INVENTORY_SKU_EXAMPLE_HINT } from "@/lib/agents/phone-for-api"
+import { INVENTORY_SKU_EXAMPLE_HINT, normalizeSkuExamplesInReply } from "@/lib/agents/phone-for-api"
 
 const LEADING_GREETING_RE =
   /^(?:שלום|היי|הי|אהלן|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|hello|hi|hey|good\s+(?:morning|evening))(?:[\s,!?.]+)*/iu
@@ -123,7 +123,7 @@ export function sanitizeCustomerAddress(text: string) {
     out = out.replace(pattern, replacement)
   }
 
-  return sanitizeBotEmojis(out)
+  return sanitizeBotEmojis(normalizeSkuExamplesInReply(out))
 }
 
 /** No emoji on operational flows; elsewhere at most one ☺️ — never decorative (🔍 👋 😀 ✨). */
