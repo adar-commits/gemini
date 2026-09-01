@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { selectFaqKb } from "@/lib/agents/kb"
+import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
+import type { HistoryMessage } from "@/lib/agents/types"
 
 const root = join(process.cwd(), "lib/hom-agent")
 
@@ -16,11 +18,25 @@ export function buildHomAgentSystemPrompt(input?: {
   sessionSummary?: string | null
   whatsappPhone?: string | null
   userText?: string | null
+  history?: HistoryMessage[]
 }) {
   const parts = [readHomBotPrompt()]
 
   parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
   parts.push(selectFaqKb(input?.userText?.trim() ?? ""))
+
+  const hints =
+    input?.history && input.userText != null
+      ? buildConversationHints({
+          history: input.history,
+          body: input.userText,
+          whatsappPhone: input.whatsappPhone ?? undefined,
+        })
+      : null
+  if (hints) {
+    parts.push("\n\n### THIS TURN — READ FIRST\n")
+    parts.push(hints)
+  }
 
   if (input?.whatsappPhone?.trim()) {
     parts.push(

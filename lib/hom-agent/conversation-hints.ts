@@ -1,0 +1,148 @@
+import {
+  isChannelPhoneSelfReference,
+  isOrderConfirmationPending,
+  isOrderNumberRequestPending,
+  isPhoneLookupConfirmPending,
+} from "@/lib/agents/order-lookup"
+import {
+  classifyPostPurchaseCase,
+  isCreditCodeOnlineRedemptionRequest,
+  isCreditRedemptionQuestion,
+  isRefundTimelineQuestion,
+} from "@/lib/agents/inquiry-intent"
+import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import {
+  isCarpetRentalQuestion,
+  isReturnExchangePolicyFaqQuestion,
+} from "@/lib/agents/policy-subjects"
+import {
+  isPostPurchaseIntentConfirmPending,
+  isPostPurchaseIntentConfirmed,
+  isPostPurchaseIntentDeclined,
+} from "@/lib/agents/intent-confirmation"
+import {
+  buildServiceRepHandoffNote,
+  extractServiceIntake,
+  isReturnPickupAwaitingThread,
+  isServiceHandoffSummaryConfirmed,
+  isServiceHandoffSummaryPending,
+} from "@/lib/agents/service-intake"
+import type { HistoryMessage } from "@/lib/agents/types"
+
+/** Dynamic turn hints — guide the LLM without bypassing it. */
+export function buildConversationHints(input: {
+  history: HistoryMessage[]
+  body: string
+  whatsappPhone?: string
+}): string | null {
+  const { history, body } = input
+  const lines: string[] = []
+
+  if (isServiceHandoffSummaryPending(history)) {
+    if (isServiceHandoffSummaryConfirmed(body)) {
+      const intake = extractServiceIntake(history, body)
+      lines.push(
+        `Service summary was confirmed. Reply briefly, set action \`human_service\`, include rep note: ${buildServiceRepHandoffNote(intake)}`
+      )
+    } else {
+      lines.push(
+        "Waiting for customer to confirm service summary (אני צודק?). If they correct details, update summary and ask again. If they confirm (כן/נכון), action human_service."
+      )
+    }
+  }
+
+  if (
+    isReturnPickupAwaitingThread(history, body) &&
+    !isServiceHandoffSummaryPending(history) &&
+    !isPostPurchaseIntentConfirmPending(history)
+  ) {
+    lines.push(
+      "RETURN PICKUP WAIT: customer already filed return and awaits home courier pickup (before credit). Do NOT call lookup_order_status or mention shipping/self-pickup. Acknowledge wait → service summary ('אז לסיכום לנציג…') → after confirm, human_service. Do not ask order number unless customer volunteered it."
+    )
+  }
+
+  if (isPostPurchaseIntentConfirmPending(history)) {
+    if (isPostPurchaseIntentDeclined(body)) {
+      lines.push(
+        "Customer corrected your intent mirror. Thank them and ask how to help — do not repeat the same confirm question."
+      )
+    } else if (isPostPurchaseIntentConfirmed(body)) {
+      const intake = extractServiceIntake(history, body)
+      if (intake.issueKind === "return_pickup_pending") {
+        lines.push(
+          "Intent confirmed — return pickup wait. Service summary → human_service after confirm; never shipping lookup."
+        )
+      } else {
+        lines.push(
+          "Intent confirmed — continue service intake (order ID if helpful) → summary → human_service."
+        )
+      }
+    } else {
+      lines.push(
+        "You asked 'אני צודק?' on post-purchase intent. Wait for כן/לא; on כן continue the matching playbook."
+      )
+    }
+  }
+
+  const postPurchaseKind = classifyPostPurchaseCase(body)
+  if (
+    postPurchaseKind === "return_pickup_pending" &&
+    !isReturnPickupAwaitingThread(history, body)
+  ) {
+    lines.push(
+      "Opening: return pickup wait. Mirror briefly if needed, then service summary — not order lookup."
+    )
+  }
+
+  if (
+    input.whatsappPhone &&
+    isChannelPhoneSelfReference(body) &&
+    (isOrderNumberRequestPending(history) || isPhoneLookupConfirmPending(history))
+  ) {
+    lines.push(
+      `Customer confirmed the WhatsApp channel phone (${input.whatsappPhone}). Call lookup_order_status now — do not re-ask the same phone question.`
+    )
+  }
+
+  if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
+    lines.push(
+      "Order/shipment lookup in progress — bind short replies (כן/המספר שלי) to the pending lookup, not a new topic."
+    )
+  }
+
+  if (isDissatisfactionWithoutDefect(body)) {
+    lines.push(
+      "Dissatisfaction without defect: use the two-option playbook (exchange + sales advisor offer; return via branch/courier + returns portal). Never 'מצב לא נעים' or numbered emoji bullets."
+    )
+  }
+
+  if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
+    lines.push(
+      "Policy FAQ: returns/cancellations → returns portal; exchanges → branch or paid courier fees from KB — never portal for exchanges."
+    )
+  }
+
+  if (isCreditRedemptionQuestion(body)) {
+    lines.push(
+      "Credit redemption FAQ: say קוד זיכוי (never שובר). Branches or website via service rep — not self-service coupon field."
+    )
+  }
+
+  if (isCreditCodeOnlineRedemptionRequest(body, history)) {
+    lines.push("Online credit-code redemption → explain policy briefly, action human_service.")
+  }
+
+  if (isCarpetRentalQuestion(body)) {
+    lines.push(
+      "Carpet rental / try-before-buy: answer from KB (case-by-case via sales advisor). Never 'אין לי מידע' or branch hours dump."
+    )
+  }
+
+  if (isRefundTimelineQuestion(body)) {
+    lines.push(
+      "Refund timeline: up to 7 business days from cancellation date — not from warehouse/branch receipt."
+    )
+  }
+
+  return lines.length > 0 ? lines.map((line) => `- ${line}`).join("\n") : null
+}

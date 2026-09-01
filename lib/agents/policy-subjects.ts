@@ -10,6 +10,7 @@ import {
   isCreditCodeOnlineRedemptionRequest,
   isCreditRedemptionQuestion,
   isRefundTimelineQuestion,
+  isReturnPolicyQuestion,
   mentionsExchangeIntent,
   mentionsReturnIntent,
 } from "@/lib/agents/inquiry-intent"
