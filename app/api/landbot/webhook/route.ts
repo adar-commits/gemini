@@ -88,7 +88,9 @@ export async function POST(request: Request) {
   }
 
   if (isAgentChat(hook)) {
-    await recordHumanAgentActivity(hook.conversationId)
+    if (isConfiguredHumanAgentId(hook.agentId)) {
+      await recordHumanAgentActivity(hook.conversationId)
+    }
     return NextResponse.json({ ok: true, skipped: "human_agent_message" })
   }
 

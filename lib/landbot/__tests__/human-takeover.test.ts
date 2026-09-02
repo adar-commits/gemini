@@ -91,23 +91,57 @@ describe("parseLandbotHookMessage", () => {
   })
 
   it("parses human agent messages", () => {
-    const parsed = parseLandbotHookMessage(
-      {
-        messages: [
-          {
-            type: "text",
-            timestamp: 2,
-            data: { body: "היי, אני נציג" },
-            sender: { id: 40684, name: "Pau", type: "agent" },
-            customer: { id: 65462634 },
-          },
-        ],
-      },
-      null
-    )
-    assert.equal(isAgentChat(parsed!), true)
-    if (parsed && isAgentChat(parsed)) {
-      assert.equal(parsed.agentId, 40684)
+    const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
+    process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "40684"
+    try {
+      const parsed = parseLandbotHookMessage(
+        {
+          messages: [
+            {
+              type: "text",
+              timestamp: 2,
+              data: { body: "היי, אני נציג" },
+              sender: { id: 40684, name: "Pau", type: "agent" },
+              customer: { id: 65462634 },
+            },
+          ],
+        },
+        null
+      )
+      assert.equal(isAgentChat(parsed!), true)
+      if (parsed && isAgentChat(parsed)) {
+        assert.equal(parsed.agentId, 40684)
+        assert.equal(isConfiguredHumanAgentId(parsed.agentId), true)
+      }
+    } finally {
+      process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
+    }
+  })
+
+  it("does not treat API bot outbound as a configured human rep", () => {
+    const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
+    process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "40684"
+    try {
+      const parsed = parseLandbotHookMessage(
+        {
+          messages: [
+            {
+              type: "text",
+              timestamp: 3,
+              data: { body: "*הום בוט :)*\nהשיחה אופסה." },
+              sender: { id: 99999, name: "API", type: "agent" },
+              customer: { id: 65462634 },
+            },
+          ],
+        },
+        null
+      )
+      assert.equal(isAgentChat(parsed!), true)
+      if (parsed && isAgentChat(parsed)) {
+        assert.equal(isConfiguredHumanAgentId(parsed.agentId), false)
+      }
+    } finally {
+      process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
     }
   })
 
