@@ -76,7 +76,7 @@ See plan section + [`06-faq-kb.md`](06-faq-kb.md) (to be generated from `faq.md`
 
 ## Inactivity
 
-3 min → `עדיין כאן?` → +15 min → close. See [`08-inactivity.md`](08-inactivity.md).
+15 min → `עדיין כאן?` → +30 min → close. See [`08-inactivity.md`](08-inactivity.md).
 
 ## NEVER-do
 
