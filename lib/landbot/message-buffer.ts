@@ -1,8 +1,9 @@
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 import { getConversationContext } from "@/lib/agents/memory"
 import { isExtendedOpeningDebounce } from "@/lib/agents/greeting"
+import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { getAgentSupabase } from "@/lib/agents/supabase"
-import { mergeTurns, type UserTurn } from "@/lib/agents/user-turn"
+import { mergeTurns, summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
 const DEFAULT_DEBOUNCE_MS = 8000
 const DEFAULT_FIRST_TURN_DEBOUNCE_MS = 8000
@@ -43,12 +44,22 @@ export async function debounceWindowMs(conversationId?: string) {
       if (isExtendedOpeningDebounce(context)) {
         return configuredFirstTurnDebounceMs()
       }
+      if (isOrderConfirmationPending(context.history)) {
+        return configuredFirstTurnDebounceMs()
+      }
     } catch {
       // fall through to default debounce
     }
   }
 
   return baseDebounceMs()
+}
+
+/** Short single-line bursts (e.g. "נכון") often precede a follow-up — soak before handling. */
+function looksLikePartialBurst(turn: UserTurn) {
+  const text = summarizeTurn(turn).trim()
+  if (!text || text.includes("\n")) return false
+  return text.length <= 48
 }
 
 type BufferSnapshot = {
@@ -159,6 +170,11 @@ export async function absorbBufferedTurn(conversationId: string): Promise<UserTu
       const extra = await claimBufferedTurn(conversationId)
       if (!extra) break
       turn = mergeTurns([turn, extra])
+    }
+
+    if (looksLikePartialBurst(turn)) {
+      const window = await debounceWindowMs(conversationId)
+      await sleep(window)
     }
 
     const after = await readBufferSnapshot(conversationId)

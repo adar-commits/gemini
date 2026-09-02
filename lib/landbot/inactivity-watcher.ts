@@ -12,6 +12,7 @@ import {
   recordProactiveAssistantMessage,
   touchSessionMeta,
 } from "@/lib/agents/memory"
+import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
@@ -168,6 +169,13 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
   if (await isHumanWaitingConversation(payload.conversationId)) {
     return "human_handoff" as const
   }
+
+  const { getConversationHistory } = await import("@/lib/agents/memory")
+  const history = await getConversationHistory(payload.conversationId)
+  if (isOrderConfirmationPending(history)) {
+    return "order_confirmation_pending" as const
+  }
+
   return null
 }
 

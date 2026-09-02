@@ -694,11 +694,34 @@ function formatOrderBranchPhrase(branch: string) {
   return `ב${label}`
 }
 
+function orderConfirmFirstLine(body: string) {
+  return body.trim().split(/\n+/)[0]?.trim() ?? body.trim()
+}
+
+/** Customer asks when/where the order is — often sent right after confirming the order card. */
+export function isOrderDeliveryStatusQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|משלוח|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה))/i.test(
+    text
+  )
+}
+
 export function isPureOrderConfirmation(body: string) {
   const text = body.trim()
-  if (!text || text.length > 80) return false
+  if (!text || text.length > 120) return false
   if (extractPhoneFromText(text)) return false
   if (/^(?:כן(?:\s+כן)?(?:\s+אני)?\s+)?(?:עדיין\s+)?(?:כאן|פה)/iu.test(text)) return false
+  const lead = orderConfirmFirstLine(text)
+  if (isOrderConfirmationYes(lead)) {
+    const rest = text
+      .slice(lead.length)
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (rest.length === 0) return true
+    return rest.every((line) => isOrderDeliveryStatusQuestion(line) || line.length <= 12)
+  }
   return isOrderConfirmationYes(text)
 }
 
@@ -1130,6 +1153,22 @@ export function resolveLookupPhoneFromHistory(
       const cachedPhone = recallConversationLookupPhone(conversationId)
       if (cachedPhone) return cachedPhone
     }
+
+    const lead = body?.trim() ? orderConfirmFirstLine(body) : ""
+    if (
+      lead &&
+      (isOrderConfirmationYes(lead) || isPurePhoneLookupConfirmYes(lead))
+    ) {
+      const channel = channelPhone(whatsappPhone)
+      if (channel) return channel
+    }
+
+    const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
+    if (authorized) return authorized
+
+    // Order card was already shown — reuse channel phone when in-memory cache is cold.
+    const channel = channelPhone(whatsappPhone)
+    if (channel) return channel
   }
 
   const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
@@ -1393,6 +1432,14 @@ async function resolveOrderConfirmationFlow(input: {
     return buildOrderNumberNotFoundReply(pendingOrder)
   }
 
+  if (pendingOrder && isOrderDeliveryStatusQuestion(input.body)) {
+    const matched = findOrderByNumber(sorted, pendingOrder)
+    if (matched) {
+      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
+    }
+    return buildOrderNumberNotFoundReply(pendingOrder)
+  }
+
   if (pendingOrder && isOrderConfirmationNo(input.body)) {
     const shown = countOrderConfirmationPrompts(input.history)
     if (shown >= MAX_ORDER_PICK_ATTEMPTS) {
@@ -1485,9 +1532,21 @@ export async function resolveOrderShippingReply(input: {
     maybeApplyCancellationEmpathy(reply, body, history)
 
   if (isOrderConfirmationPending(history)) {
-    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+    const lookupPhone =
+      resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+      channelPhone(whatsappPhone)
     if (!lookupPhone) return buildPhoneLookupDeclinedReply()
     return resolveOrderConfirmationFlow({ body, lookupPhone, history })
+  }
+
+  const pendingOrder = pendingOrderNumberFromHistory(history)
+  if (pendingOrder && isOrderDeliveryStatusQuestion(body)) {
+    const lookupPhone =
+      resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+      channelPhone(whatsappPhone)
+    if (lookupPhone) {
+      return resolveOrderConfirmationFlow({ body, lookupPhone, history })
+    }
   }
 
   if (isAlternatePhoneRequestPending(history)) {
