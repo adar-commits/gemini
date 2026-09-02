@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { shouldProcessPhone, shouldReplyPhone, landbotPhonePolicy } from "@/lib/landbot/allowlist"
+import { isTrainerPhone } from "@/lib/landbot/trainer"
+import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
+import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
 
 describe("trainer-only allowlist", () => {
   it("processes and replies only the default trainer phone", () => {
@@ -42,6 +45,22 @@ describe("trainer-only allowlist", () => {
       assert.equal(shouldProcessPhone("972506703444"), true)
       assert.equal(shouldReplyPhone("+972547495083"), true)
       assert.equal(landbotPhonePolicy().mode, "all_customers")
+      assert.equal(isTrainerPhone("+972547495083"), true)
+      assert.equal(isTrainerResetRequest("+972547495083", "איפוס"), true)
+      assert.equal(isTrainerPhone("+972523925554"), false)
+    } finally {
+      if (previous === undefined) delete process.env.LANDBOT_TRAINER_PHONES
+      else process.env.LANDBOT_TRAINER_PHONES = previous
+    }
+  })
+
+  it("allows trainer reset for explicit trainer alongside *", () => {
+    const previous = process.env.LANDBOT_TRAINER_PHONES
+    process.env.LANDBOT_TRAINER_PHONES = "*,+972523925554"
+    try {
+      assert.equal(isTrainerPhone("+972523925554"), true)
+      assert.equal(isTrainerResetRequest("+972523925554", "איפוס"), true)
+      assert.deepEqual(landbotPhonePolicy().explicitTrainers, ["+972523925554"])
     } finally {
       if (previous === undefined) delete process.env.LANDBOT_TRAINER_PHONES
       else process.env.LANDBOT_TRAINER_PHONES = previous

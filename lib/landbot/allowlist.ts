@@ -1,4 +1,9 @@
-import { allowAllCustomerPhones, isCustomerPhoneAllowed, trainerPhones } from "@/lib/landbot/trainer"
+import {
+  allowAllCustomerPhones,
+  explicitTrainerPhones,
+  isCustomerPhoneAllowed,
+  trainerPhones,
+} from "@/lib/landbot/trainer"
 
 /**
  * Inbound gate: `LANDBOT_TRAINER_PHONES=*` opens all customers; otherwise trainer list only.
@@ -28,10 +33,11 @@ export function landbotPhonePolicy() {
     mode: allCustomers ? ("all_customers" as const) : ("trainer_only" as const),
     env: "LANDBOT_TRAINER_PHONES",
     trainers,
+    explicitTrainers: explicitTrainerPhones(),
     process: allCustomers ? ["*"] : trainers,
     reply: allCustomers ? ["*"] : trainers,
     note: allCustomers
-      ? "LANDBOT_TRAINER_PHONES=* — all WhatsApp customers run AI and get replies."
+      ? "LANDBOT_TRAINER_PHONES=* — all customers get replies. Trainer commands (איפוס) need your number too: *,+9725XXXXXXXX."
       : "Set LANDBOT_TRAINER_PHONES (comma-separated) or * for all customers.",
   }
 }

@@ -5,7 +5,10 @@ import { isTrainerPhone } from "@/lib/landbot/trainer"
 const TRAINER_RESET_PHRASE = "איפוס"
 
 function normalizeTrainerText(text: string) {
-  return text.replace(/\s+/g, " ").trim()
+  return text
+    .replace(/[\u200e\u200f\u202a-\u202e\ufeff]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 /** Exact trainer-only reset command — not "התחלה" or other menu resets. */

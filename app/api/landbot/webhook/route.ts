@@ -148,6 +148,21 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (trainerResetBypass) {
+      const resetResult = await handleLandbotInbound(
+        inbound.customerId,
+        inbound.conversationId,
+        inbound.turn,
+        {
+          replyEnabled,
+          phone,
+          customerName: inbound.customerName,
+          assignedAgentId: inbound.assignedAgentId,
+        }
+      )
+      return NextResponse.json(resetResult)
+    }
+
     await enqueueCustomerTurn(inbound.conversationId, inbound.turn)
 
     const isDrainer = await claimConversationProcessor(inbound.conversationId)

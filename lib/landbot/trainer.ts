@@ -29,16 +29,18 @@ export function trainerPhone() {
   return phones[0] ?? DEFAULT_TRAINER_PHONE
 }
 
+/** Numbers allowed to run trainer commands (איפוס, שאלה:, לתיקון:) — not the same as allow-all. */
+export function explicitTrainerPhones() {
+  const listed = trainerPhones().filter((item) => item !== "*")
+  if (listed.length > 0) return listed
+  if (allowAllCustomerPhones()) return [DEFAULT_TRAINER_PHONE]
+  return trainerPhones()
+}
+
 export function isTrainerPhone(phone: string | null | undefined) {
   if (!phone?.trim()) return false
-  if (allowAllCustomerPhones()) {
-    const key = phoneKey(phone)
-    return trainerPhones()
-      .filter((item) => item !== "*")
-      .some((item) => phoneKey(item) === key)
-  }
   const key = phoneKey(phone)
-  return trainerPhones().some((item) => phoneKey(item) === key)
+  return explicitTrainerPhones().some((item) => phoneKey(item) === key)
 }
 
 export function isCustomerPhoneAllowed(phone: string | null | undefined) {
