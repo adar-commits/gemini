@@ -3,11 +3,31 @@ import { join } from "node:path"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
 
 const kbPath = join(process.cwd(), "lib/agents/kb/faq.md")
+const pozitiveKbPath = join(process.cwd(), "lib/agents/kb/pozitive-products.md")
 let cachedKb = ""
+let cachedPozitiveKb = ""
 
 function rawKb() {
   if (!cachedKb) cachedKb = readFileSync(kbPath, "utf8")
   return cachedKb
+}
+
+function rawPozitiveKb() {
+  if (!cachedPozitiveKb) cachedPozitiveKb = readFileSync(pozitiveKbPath, "utf8")
+  return cachedPozitiveKb
+}
+
+/** Pozitive bean-bag product FAQ + assembly/care tutorials. */
+export const POZITIVE_TOPIC_RE =
+  /פוף|פופ(?:ים|צ|ס|ל)?|pozitive|pozitiveshop|bean\s*bag|pouf|הרכב(?:ה|ת)|שרינק|veluto|ולוטו|milo|מילו|riviera|ריביירה|flaffy|פלאפי|poufchik|פופצ|pinuki|פינוק|harmony|הרמונ|friendly|פרנדלי|poufale|פופל|sunpouf|סאנפ|longi|לונג|big\s*pouf|בוסט|boost|ניעור|נער(?:ו)?\s*(?:את\s)?(?:ה)?פוף|כ(?:בס|יסוי)|גשם|olefin|outdoor|מרפסת|גינה|beanbag/i
+
+export function shouldIncludePozitiveKb(userText = "") {
+  return POZITIVE_TOPIC_RE.test(userText.trim())
+}
+
+function withPozitiveKb(base: string, userText: string, force = false) {
+  if (!force && !shouldIncludePozitiveKb(userText)) return base
+  return `${base.trim()}\n\n${rawPozitiveKb()}`
 }
 
 type Section = { title: string; body: string }
@@ -72,19 +92,23 @@ function sectionsForText(text: string, sections: Section[]) {
 /** Full KB for hard cases (T3 / policy dispute). */
 export function selectFaqKbFull() {
   const { header, sections } = parseSections(rawKb())
-  return `${header}\n\n${sections.map((section) => section.body).join("\n\n")}`
+  return withPozitiveKb(
+    `${header}\n\n${sections.map((section) => section.body).join("\n\n")}`,
+    "",
+    true
+  )
 }
 
 /** Section-selective KB for T1/T2 — reduces input tokens. */
 export function selectFaqKb(userText = "", tier: ModelTier | null = null) {
-  const { header, sections } = parseSections(rawKb())
   if (tier === "T3") return selectFaqKbFull()
 
+  const { header, sections } = parseSections(rawKb())
   const picked = sectionsForText(userText, sections)
   const body =
     picked.length > 0
       ? picked.map((section) => section.body).join("\n\n")
       : sections.map((section) => section.body).join("\n\n")
 
-  return `${header}\n\n${body}`
+  return withPozitiveKb(`${header}\n\n${body}`, userText)
 }

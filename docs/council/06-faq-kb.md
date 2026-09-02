@@ -14,6 +14,7 @@ Source: [`lib/agents/kb/faq.md`](../../lib/agents/kb/faq.md) — **inject full f
 | Shipping policy | עלות משלוח, זמן אספקה, איסוף, קומה 4 | FAQ | Free >199₪ rugs; 4 business days rugs; 14 ready poufs; include shipping-policy URL |
 | Refund/exchange/cancel | החזרה, ביטול, החלפה, לא מרוצה | FAQ first | **Always:** returns portal + 14 days + condition + branch/pickup + refund-policy URL |
 | FAQ extra facts | אריזה, ניקוי, הדמיה, נשירה | FAQ | Visualization how-to → visualization-page URL |
+| Pozitive / פוף products | הרכבה, מילוי, כביסה, חוץ, ילדים, גשם, veluto/milo | FAQ | Full Q&A in `pozitive-products.md`; post-purchase → tutorial videos page |
 | Carpet rental | השכרה, ניסיון לפני קנייה | FAQ → Sales offer | Case-by-case advisor discretion |
 | Online consulting | ייעוץ אונליין | **Sales** | Intake → human (not terms dump) |
 | Accessibility | נגישות | FAQ | Coordinator + accessibility URL |

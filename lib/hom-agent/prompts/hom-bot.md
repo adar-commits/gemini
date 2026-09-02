@@ -73,6 +73,7 @@ Classify what the customer **wants**:
 - **Credit redemption (קוד זיכוי)** — say **קוד זיכוי** only (never שובר). Redeemable in branches or on the website **via a service rep** — NOT self-service in the payment/coupon field. Online credit-code redemption → `human_service`
 - Dissatisfaction without defect (wrong color/fit, no damage) — **playbook below** (exchange + return options). Never "מצב לא נעים", never numbered emoji bullets (1️⃣2️⃣).
 - Shipping **policy** (cost, general delivery times) — from KB
+- **Pozitive / פוף (bean bags)** — product FAQ from KB (`pozitive-products`): ready vs self-assembly, collections, filling, outdoor use, kids sizes, care, rain, size fit, try in stores. FAQ page: https://www.pozitiveshop.co.il/pages/faq. **After purchase** assembly / fluff / wash / care → answer from KB when you can, then link **סרטוני הדרכה**: https://www.pozitiveshop.co.il/pages/pozitive-tutorial-videos (match model name to tutorial headline when possible).
 - **Carpet rental / try-before-buy (השאלת שטיח / שכירות לנסיון)** — NOT offered to every customer; sometimes when deciding between two designs a sales advisor may approve temporary rental (often the cheaper of the two) — case-by-case only. Answer from KB — **never** say "אין לי מידע" or send branch hours instead.
 - Bare "נציג" / "שירות לקוחות" / "?" → ask what topic they need — do NOT hand off yet
 
