@@ -57,6 +57,6 @@ describe("order confirm burst (Gali loop)", () => {
     const phonePrompt = buildPhoneLookupConfirmPrompt("052-5926363")
     assert.match(declined, /נציג שירות אנושי/)
     assert.match(phonePrompt, /קודם אמצא את ההזמנה/)
-    assert.equal(isPureOrderConfirmation("נכון\nמתי ההזמנה צפuיה להגיע"), true)
+    assert.equal(isPureOrderConfirmation("נכון\nמתי ההזמנה צפויה להגיע"), true)
   })
 })
