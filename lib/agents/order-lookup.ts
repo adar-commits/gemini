@@ -35,7 +35,9 @@ import {
 } from "@/lib/agents/sales-intake"
 import { callPriorityWebhook, getPriorityApiLogContext } from "@/lib/agents/priority-webhook"
 import {
+  recallConversationLookupPhone,
   recallConversationOrdersLookup,
+  recallConversationOrdersRelaxed,
   recallOrdersLookup,
   rememberConversationOrdersLookup,
   rememberOrdersLookup,
@@ -374,11 +376,36 @@ function parseDocumentLinkFromPayload(data: unknown) {
   return null
 }
 
+const ORDER_NUMBER_MIN_DIGITS = 5
+
+function normalizeExtractedOrderNumber(value: string) {
+  const normalized = value.replace(/\s+/g, "").toUpperCase()
+  const digits = normalized.replace(/\D/g, "")
+  if (digits.length < ORDER_NUMBER_MIN_DIGITS) return null
+  return normalized
+}
+
+/** Keep Latin order ids readable in RTL WhatsApp bubbles. */
+export function ltrIsolateOrderNumber(orderNumber: string) {
+  const trimmed = orderNumber.trim()
+  if (!trimmed) return trimmed
+  return `\u2066${trimmed}\u2069`
+}
+
 export function extractOrderNumber(text: string) {
   const compact = text.match(/\b((?:SO|IN|OV)\s*\d+)\b/i)
-  if (compact?.[1]) return compact[1].replace(/\s+/g, "").toUpperCase()
+  if (compact?.[1]) return normalizeExtractedOrderNumber(compact[1])
   const match = text.match(/\b((?:SO|IN|OV)\d+)\b/i)
-  return match?.[1]?.toUpperCase() ?? null
+  if (match?.[1]) return normalizeExtractedOrderNumber(match[1])
+  return null
+}
+
+export function extractOrderNumberFromConfirmationPrompt(text: string) {
+  const labeled =
+    text.match(/\(מס(?:'|׳|")?\s*הזמנה\s+((?:SO|IN|OV)\d+)\)/i) ??
+    text.match(/מס(?:'|׳|")?\s*הזמנה\s+((?:SO|IN|OV)\d+)/i)
+  if (labeled?.[1]) return normalizeExtractedOrderNumber(labeled[1])
+  return extractOrderNumber(text)
 }
 
 /** Order-specific eligibility — not a general policy/options question. */
@@ -716,12 +743,26 @@ export function isOrderDisambiguationPending(history: HistoryMessage[]) {
   return isOrderConfirmationPending(history)
 }
 
+function isPriorityApiWaitAssistantMessage(content: string) {
+  return /אני על זה, כמה רגעים/i.test(content)
+}
+
+function isOrderConfirmationAssistantMessage(content: string) {
+  return (
+    /(?:נדמה לי שמצאתי את ההזמנה|האם מדובר (?:על )?הזמנה)/i.test(content) ||
+    /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(content)
+  )
+}
+
 export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return extractOrderNumber(message.content)
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    if (!isOrderConfirmationAssistantMessage(message.content)) continue
+    const order = extractOrderNumberFromConfirmationPrompt(message.content)
+    if (order) return order
   }
   return null
 }
@@ -768,7 +809,7 @@ export function buildOrderConfirmationPrompt(order: OrderShipmentStatus) {
   const pricePhrase = price ? ` על סך ${price} ש׳׳ח` : ""
 
   return `${CUSTOMER_HEADER}
-אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${order.orderNumber})`
+אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${ltrIsolateOrderNumber(order.orderNumber)})`
 }
 
 export function buildOrderConfirmationClarifyPrompt(order: OrderShipmentStatus) {
@@ -984,9 +1025,11 @@ export function userProvidedPhone(body: string) {
 
 function isPhoneLookupConfirmAssistantMessage(content: string) {
   return (
-    /האם (?:היא )?רשומה על המספר/i.test(content) ||
+    /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(content) ||
     /האם ההזמנה (?:היא )?על טלפון/i.test(content) ||
-    /האם ההזמנה על המספר/i.test(content)
+    /(?:ממנו|שממנו).{0,40}(?:מתכתב|מדבר)/i.test(content) ||
+    (/(?:מספר\s+)?אחר(?:\s|$|[?.!,])/i.test(content) &&
+      /(?:הזמנה|מספר|טלפון)/i.test(content))
   )
 }
 
@@ -1034,6 +1077,22 @@ export function authorizedLookupPhoneFromHistory(
     }
   }
 
+  if (!authorized) {
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const message = history[index]
+      if (message.role !== "assistant") continue
+      if (!isOrderConfirmationAssistantMessage(message.content)) continue
+      for (let replyIndex = index - 1; replyIndex >= 0; replyIndex -= 1) {
+        const prior = history[replyIndex]
+        if (prior.role === "assistant") break
+        if (prior.role !== "user") continue
+        const typed = userProvidedPhone(prior.content)
+        if (typed) return typed
+      }
+      break
+    }
+  }
+
   return authorized
 }
 
@@ -1065,6 +1124,14 @@ export function resolveLookupPhoneFromHistory(
     if (channel) return channel
   }
 
+  if (isOrderConfirmationPending(history)) {
+    const conversationId = getPriorityApiLogContext()?.conversationId
+    if (conversationId) {
+      const cachedPhone = recallConversationLookupPhone(conversationId)
+      if (cachedPhone) return cachedPhone
+    }
+  }
+
   const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
   if (authorized) return authorized
 
@@ -1088,11 +1155,10 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
     return (
-      /האם היא רשומה על המספר/i.test(message.content) ||
+      /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
-      /האם ההזמנה על המספר/i.test(message.content) ||
       /האם (?:ה)?טלפון.{0,60}שבוצעה עליו/i.test(message.content) ||
-      /מתכתב כרגע/i.test(message.content)
+      /(?:ממנו|שממנו).{0,40}(?:מתכתב|מדבר)/i.test(message.content)
     )
   }
   return false
@@ -1176,7 +1242,7 @@ export function buildOrderLookupApiFailureReply() {
 
 export function buildOrderNumberNotFoundReply(orderNumber: string) {
   return `${CUSTOMER_HEADER}
-לא מצאתי הזמנה ${orderNumber} על המספר שבדקתי.
+לא מצאתי הזמנה ${ltrIsolateOrderNumber(orderNumber)} על המספר שבדקתי.
 האם להעביר לנציג שירות שיבדוק עבורכם?`
 }
 
@@ -1296,10 +1362,18 @@ async function resolveOrderConfirmationFlow(input: {
   history: HistoryMessage[]
 }) {
   const pendingOrder = pendingOrderNumberFromHistory(input.history)
+  const conversationId = getPriorityApiLogContext()?.conversationId
+  const threadOrders = conversationId
+    ? recallConversationOrdersRelaxed(conversationId)
+    : null
+  const threadLookupPhone =
+    (conversationId ? recallConversationLookupPhone(conversationId) : null) ??
+    input.lookupPhone
 
-  const orders = await lookupOrdersForPhone(input.lookupPhone)
+  const orders =
+    threadOrders ?? (await lookupOrdersForPhone(input.lookupPhone))
   if (orders == null) return buildOrderLookupApiFailureReply()
-  if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
+  if (orders.length === 0) return buildNoOrdersFoundReply(threadLookupPhone)
 
   const sorted = orders
   const explicitOrder = extractOrderNumber(input.body)
@@ -1307,14 +1381,14 @@ async function resolveOrderConfirmationFlow(input: {
   if (explicitOrder) {
     const matched = findOrderByNumber(sorted, explicitOrder)
     if (matched) {
-      return replyAfterOrderIdentified(matched, input.lookupPhone, input.history)
+      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
     }
   }
 
   if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
     if (matched) {
-      return replyAfterOrderIdentified(matched, input.lookupPhone, input.history)
+      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
     }
     return buildOrderNumberNotFoundReply(pendingOrder)
   }
@@ -1340,7 +1414,7 @@ async function resolveOrderConfirmationFlow(input: {
   }
 
   if (sorted[0]) return buildOrderConfirmationPrompt(sorted[0]!)
-  return buildNoOrdersFoundReply(input.lookupPhone)
+  return buildNoOrdersFoundReply(threadLookupPhone)
 }
 
 /** Identify order number for return-pickup service report — no shipping status to customer. */

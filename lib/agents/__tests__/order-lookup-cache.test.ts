@@ -2,7 +2,9 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   clearOrdersLookupCache,
+  recallConversationLookupPhone,
   recallConversationOrdersLookup,
+  recallConversationOrdersRelaxed,
   recallOrdersLookup,
   rememberConversationOrdersLookup,
   rememberOrdersLookup,
@@ -48,5 +50,12 @@ describe("order lookup cache", () => {
     const cached = recallConversationOrdersLookup("conv-123", "054-738-0553")
     assert.ok(cached)
     assert.equal(cached![0]?.orderNumber, "SO26020975")
+  })
+
+  it("recalls lookup phone and orders for confirm without phone match", () => {
+    clearOrdersLookupCache()
+    rememberConversationOrdersLookup("conv-456", "0544760645", [sampleOrder])
+    assert.equal(recallConversationLookupPhone("conv-456"), "0544760645")
+    assert.equal(recallConversationOrdersRelaxed("conv-456")?.[0]?.orderNumber, "SO26020975")
   })
 })

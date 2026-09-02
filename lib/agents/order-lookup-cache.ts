@@ -68,6 +68,34 @@ export function recallConversationOrdersLookup(
   return entry.orders
 }
 
+/** Phone used for the last getOrders in this thread — survives confirm "כן" without re-guessing. */
+export function recallConversationLookupPhone(conversationId: string): string | null {
+  const key = conversationId.trim()
+  if (!key) return null
+  const entry = ordersByConversation.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.at > CACHE_TTL_MS) {
+    ordersByConversation.delete(key)
+    return null
+  }
+  return entry.phone
+}
+
+/** Reuse orders from this thread on confirm — even if resolveLookupPhone drifted to channel phone. */
+export function recallConversationOrdersRelaxed(
+  conversationId: string
+): OrderShipmentStatus[] | null {
+  const key = conversationId.trim()
+  if (!key) return null
+  const entry = ordersByConversation.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.at > CACHE_TTL_MS) {
+    ordersByConversation.delete(key)
+    return null
+  }
+  return entry.orders
+}
+
 export function clearOrdersLookupCache(phone?: string) {
   if (phone) {
     ordersByPhone.delete(cacheKey(phone))
