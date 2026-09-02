@@ -1,12 +1,12 @@
 import { CUSTOMER_HEADER, type HistoryMessage } from "@/lib/agents/types"
 
-/** Wait after bot asks a question before "still there?" ping — default 180s. */
+/** Wait after bot asks a question before "still there?" ping — default 15 minutes. */
 export const INACTIVITY_PING_MS = Number(
-  process.env.INACTIVITY_PING_MS ?? "180000"
+  process.env.INACTIVITY_PING_MS ?? "900000"
 )
-/** Wait after ping before auto-close — default 15 minutes. */
+/** Wait after ping before auto-close — default 30 minutes. */
 export const INACTIVITY_CLOSE_AFTER_PING_MS = Number(
-  process.env.INACTIVITY_CLOSE_AFTER_PING_MS ?? "900000"
+  process.env.INACTIVITY_CLOSE_AFTER_PING_MS ?? "1800000"
 )
 
 export function buildInactivityPingReply(customerName?: string) {
