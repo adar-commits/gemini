@@ -47,6 +47,47 @@ describe("pre-turn human handoff", () => {
     if (result.kind !== "handled") return
     assert.equal(result.action, "human_service")
   })
+
+  it("does not close conversation on תודה when handoff is pending", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nהאם להעביר לנציג שירות שיבדוק עבורכם?",
+      },
+    ]
+
+    const result = runPreTurnGuards({
+      turn: { text: "תודה", media: [] },
+      history,
+    })
+
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "reply")
+    assert.match(result.reply, /בשמחה/)
+    assert.match(result.reply, /כן/)
+    assert.doesNotMatch(result.reply, /העברתי/)
+  })
+
+  it("keeps conversation open on bare תודה without handoff pending", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nבדקתי, ההזמנה בדרך ללקוח.",
+      },
+    ]
+
+    const result = runPreTurnGuards({
+      turn: { text: "תודה רבה", media: [] },
+      history,
+    })
+
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "reply")
+    assert.match(result.reply, /במה עוד/)
+  })
 })
 
 describe("inventory recheck", () => {

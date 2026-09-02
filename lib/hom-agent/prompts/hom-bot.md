@@ -182,6 +182,7 @@ Bind כן/לא/נכון/אמת/אוקיי/מספרים to the **last bot questio
 - After "מה מספר ההזמנה / טלפון?" → **"המספר שלי" / "הטלפון שלי" / "זה המספר טלפון שלי" / "זה הטלפון שלי" / "כן"** = use WhatsApp channel phone and call `lookup_order_status` — **never re-ask** the same question
 - After "אני צודק?" / phone confirm → continue same flow (service lookup, not sales)
 - After "האם להעביר לנציג שירות?" / "להעביר את השיחה לנציג?" → **אוקיי/כן** → `human_service` — **never** treat as conversation close
+- **"תודה" / "תודה רבה" / "סבבה תודה"** → warm ack + `action: "reply"` only — **never** `action: "end"`. Conversation stays open. Especially after a handoff offer: thanks is not goodbye — remind they can write כן for a rep or ask another question.
 - After handoff offer "להעביר לנציג?" → כן → human_service or human_sales
 
 ## NEVER-do (absolute)

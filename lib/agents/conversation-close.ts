@@ -41,10 +41,27 @@ export function isConversationClosing(body: string) {
   return directClosing || resolvedClosing
 }
 
-export function buildClosingAckReply(customerName?: string) {
+/** Thanks / wrap-up wording — conversation stays open (never action=end). */
+export function isThanksAcknowledgment(body: string) {
+  return isConversationClosing(body)
+}
+
+export function buildThanksAckReply(
+  customerName?: string,
+  options?: { handoffPending?: boolean }
+) {
+  if (options?.handoffPending) {
+    return `${CUSTOMER_HEADER}
+בשמחה! 🙏 אם תרצו שאעביר לנציג — כתבו כן. יש עוד שאלה? אני כאן.`
+  }
+
   const name = customerName?.trim()
-  const greeting = name
-    ? `שמחתי לעזור לכם ${name}, אני כאן לכל עניין נוסף.`
-    : "שמחתי לעזור לכם, אני כאן לכל עניין נוסף."
-  return `${CUSTOMER_HEADER}\n${greeting}`
+  const greeting = name ? `${name}, בשמחה! 😊` : "בשמחה! 😊"
+  return `${CUSTOMER_HEADER}
+${greeting} במה עוד אוכל לעזור?`
+}
+
+/** @deprecated Use buildThanksAckReply — kept for callers expecting the old name. */
+export function buildClosingAckReply(customerName?: string) {
+  return buildThanksAckReply(customerName)
 }

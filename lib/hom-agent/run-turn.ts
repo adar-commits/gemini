@@ -14,6 +14,7 @@ import {
 } from "@/lib/agent-core/turn-metrics"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
+import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
@@ -124,7 +125,10 @@ export async function runHomAgentTurn(
     llmCalls = 0
   }
 
-  const action = mapHomAction(output.action)
+  const action =
+    output.action === "end" && isThanksAcknowledgment(body)
+      ? mapHomAction("reply")
+      : mapHomAction(output.action)
   const agent = mapHomAgent(output.action)
 
   await appendTurn({

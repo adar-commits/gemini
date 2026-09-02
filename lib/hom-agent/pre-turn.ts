@@ -1,4 +1,4 @@
-import { buildClosingAckReply, isConversationClosing } from "@/lib/agents/conversation-close"
+import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import {
   buildInactivityStillHereAck,
@@ -62,16 +62,22 @@ export function runPreTurnGuards(input: {
         action: "reply",
       }
     }
+    if (isThanksAcknowledgment(body)) {
+      return {
+        kind: "handled",
+        reply: buildThanksAckReply(input.customerName, { handoffPending: true }),
+        action: "reply",
+      }
+    }
   }
 
   if (
-    isConversationClosing(body) &&
-    !isHumanHandoffPending(input.history) &&
+    isThanksAcknowledgment(body) &&
     !isOrderConfirmationPending(input.history)
   ) {
     return {
       kind: "handled",
-      reply: buildClosingAckReply(input.customerName),
+      reply: buildThanksAckReply(input.customerName),
       action: "reply",
     }
   }

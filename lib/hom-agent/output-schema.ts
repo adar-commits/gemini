@@ -32,6 +32,8 @@ export function homAgentOutputSchema() {
         action: {
           type: "string",
           enum: [...HOM_AGENT_ACTIONS],
+          description:
+            "Use reply for almost all turns. Never use end for thanks (תודה). end is rare — inactivity only.",
         },
       },
     }),
