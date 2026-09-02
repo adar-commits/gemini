@@ -1,5 +1,6 @@
 import {
   isChannelPhoneSelfReference,
+  customerOrderNumberStyleFromHistory,
   isOrderConfirmationPending,
   isOrderNumberRequestPending,
   isPhoneLookupConfirmPending,
@@ -125,6 +126,19 @@ export function buildConversationHints(input: {
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
     lines.push(
       "Order/shipment lookup in progress — bind short replies (כן/המספר שלי) to the pending lookup, not a new topic."
+    )
+  }
+
+  const orderStyle = customerOrderNumberStyleFromHistory(history, body)
+  if (orderStyle) {
+    const styleHint =
+      orderStyle === "hash"
+        ? "#76884-style"
+        : orderStyle === "digits"
+          ? "bare digits (76884)"
+          : "SO26005938-style"
+    lines.push(
+      `Customer uses ${styleHint} order IDs — keep the same format in every reply this thread (never switch to another shape).`
     )
   }
 

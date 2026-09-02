@@ -655,6 +655,111 @@ export function extractOrderReference(text: string, history: HistoryMessage[] = 
   return null
 }
 
+export const ORDER_NUMBER_EXAMPLE_SO = "SO26005938"
+export const ORDER_NUMBER_EXAMPLE_HASH = "#76884"
+
+/** Short, concrete examples for customer-facing order-ID asks — not abstract patterns. */
+export const ORDER_NUMBER_ASK_EXAMPLES = `(למשל ${ORDER_NUMBER_EXAMPLE_SO} או ${ORDER_NUMBER_EXAMPLE_HASH})`
+
+export type CustomerOrderNumberStyle = "so" | "hash" | "digits"
+
+export function inferCustomerOrderNumberStyle(text: string): CustomerOrderNumberStyle | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  if (/#\s*\d{4,8}\b/.test(trimmed)) return "hash"
+  if (/\b(?:SO|IN|OV)\s*\d+\b/i.test(trimmed)) return "so"
+  const ref = extractOrderReference(trimmed)
+  if (!ref) return null
+  if (/^(?:SO|IN|OV)/i.test(ref)) return "so"
+  const digits = ref.replace(/\D/g, "")
+  if (digits.length >= 4 && digits.length <= 8) return "digits"
+  return null
+}
+
+/** First style the customer used in-thread — keep all later order IDs in the same shape. */
+export function customerOrderNumberStyleFromHistory(
+  history: HistoryMessage[],
+  body?: string
+): CustomerOrderNumberStyle | null {
+  if (body?.trim()) {
+    const fromBody = inferCustomerOrderNumberStyle(body)
+    if (fromBody) return fromBody
+  }
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    const style = inferCustomerOrderNumberStyle(message.content)
+    if (style) return style
+  }
+  return null
+}
+
+function shopifyReferenceDigits(order: OrderShipmentStatus): string | null {
+  const ref = String(
+    (order.raw as PriorityOrderRow & { REFERENCE?: string }).REFERENCE ?? ""
+  ).replace(/\D/g, "")
+  if (ref.length >= 4 && ref.length <= 8) return ref
+  return null
+}
+
+function customerReferenceDigitsFromHistory(
+  history: HistoryMessage[],
+  body?: string
+): string | null {
+  const corpus = [
+    ...(body?.trim() ? [body] : []),
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content)
+      .reverse(),
+  ]
+  for (const text of corpus) {
+    const hash = text.match(/#\s*(\d{4,8})\b/)
+    if (hash?.[1]) return hash[1]
+    const ref = extractOrderReference(text, history)
+    if (ref && !/^(?:SO|IN|OV)/i.test(ref)) return ref.replace(/\D/g, "")
+  }
+  return null
+}
+
+export function formatCustomerOrderNumber(input: {
+  orderNumber: string
+  style?: CustomerOrderNumberStyle | null
+  order?: OrderShipmentStatus | null
+  history?: HistoryMessage[]
+  body?: string
+}): string {
+  const canonical = input.orderNumber.trim().toUpperCase()
+  const style =
+    input.style ??
+    (input.history
+      ? customerOrderNumberStyleFromHistory(input.history, input.body)
+      : null)
+
+  if (!style || style === "so") return canonical
+
+  const digits =
+    (input.order ? shopifyReferenceDigits(input.order) : null) ??
+    (input.history
+      ? customerReferenceDigitsFromHistory(input.history, input.body)
+      : null)
+
+  if (!digits) return canonical
+  if (style === "hash") return `#${digits}`
+  return digits
+}
+
+export function formatCustomerOrderNumberForThread(
+  orderNumber: string,
+  history: HistoryMessage[] = [],
+  body?: string,
+  order?: OrderShipmentStatus | null
+): string {
+  return ltrIsolateOrderNumber(
+    formatCustomerOrderNumber({ orderNumber, history, body, order })
+  )
+}
+
 export function findOrderByNumber(
   orders: OrderShipmentStatus[],
   orderNumber: string
@@ -824,19 +929,33 @@ function formatOrderPrice(price: number | null) {
 }
 
 /** Ask customer to confirm a single order (branch, age, total as cues). */
-export function buildOrderConfirmationPrompt(order: OrderShipmentStatus) {
+export function buildOrderConfirmationPrompt(
+  order: OrderShipmentStatus,
+  history: HistoryMessage[] = [],
+  body?: string
+) {
   const price = formatOrderPrice(order.totalPrice)
   const branchPhrase = formatOrderBranchPhrase(order.branchLabel)
   const daysPhrase = formatDaysAgoPhrase(daysSinceOrder(order.raw))
   const placedPhrase = daysPhrase ? `, בוצעה ${daysPhrase}` : ""
   const pricePhrase = price ? ` על סך ${price} ש׳׳ח` : ""
+  const displayOrder = formatCustomerOrderNumberForThread(
+    order.orderNumber,
+    history,
+    body,
+    order
+  )
 
   return `${CUSTOMER_HEADER}
-אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${ltrIsolateOrderNumber(order.orderNumber)})`
+אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${displayOrder})`
 }
 
-export function buildOrderConfirmationClarifyPrompt(order: OrderShipmentStatus) {
-  return `${buildOrderConfirmationPrompt(order)}
+export function buildOrderConfirmationClarifyPrompt(
+  order: OrderShipmentStatus,
+  history: HistoryMessage[] = [],
+  body?: string
+) {
+  return `${buildOrderConfirmationPrompt(order, history, body)}
 
 לא הבנתי — כתבו כן אם זו ההזמנה, או לא כדי לבדוק אחרת.`
 }
@@ -1185,7 +1304,7 @@ export function resolveLookupPhoneFromHistory(
 /** @deprecated Legacy step — new flows skip straight to phone confirm. */
 export function buildOrderNumberRequestPrompt() {
   return `${CUSTOMER_HEADER}
-אוכל לקבל את מספר ההזמנה שלכם?`
+אוכל לקבל את מספר ההזמנה שלכם? ${ORDER_NUMBER_ASK_EXAMPLES}`
 }
 
 export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
@@ -1279,9 +1398,15 @@ export function buildOrderLookupApiFailureReply() {
   return buildApiFailureReply()
 }
 
-export function buildOrderNumberNotFoundReply(orderNumber: string) {
+export function buildOrderNumberNotFoundReply(
+  orderNumber: string,
+  history: HistoryMessage[] = [],
+  body?: string,
+  order?: OrderShipmentStatus | null
+) {
+  const display = formatCustomerOrderNumberForThread(orderNumber, history, body, order)
   return `${CUSTOMER_HEADER}
-לא מצאתי הזמנה ${ltrIsolateOrderNumber(orderNumber)} על המספר שבדקתי.
+לא מצאתי הזמנה ${display} על המספר שבדקתי.
 האם להעביר לנציג שירות שיבדוק עבורכם?`
 }
 
@@ -1336,7 +1461,7 @@ async function replyAfterOrderIdentified(
   if (isServiceLookupContext(history)) {
     const intake = extractServiceIntake(history, "")
     intake.orderNumber = order.orderNumber
-    return buildServiceHandoffConfirmReply(intake)
+    return buildServiceHandoffConfirmReply(intake, "", history)
   }
   return buildOrderStatusReply(order)
 }
@@ -1381,17 +1506,26 @@ async function lookupOrderByReference(input: {
     return replyAfterOrderIdentified(matched, input.lookupPhone, input.history)
   }
   if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
-  return buildOrderNumberNotFoundReply(input.orderReference)
+  return buildOrderNumberNotFoundReply(
+    input.orderReference,
+    input.history,
+    input.body
+  )
 }
 
 async function lookupAndStartOrderConfirm(
   phone: string,
-  empathize?: (reply: string) => string
+  empathize?: (reply: string) => string,
+  context?: { history: HistoryMessage[]; body?: string }
 ) {
   const orders = await lookupOrdersForPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply(phone)
-  const reply = buildOrderConfirmationPrompt(orders[0]!)
+  const reply = buildOrderConfirmationPrompt(
+    orders[0]!,
+    context?.history ?? [],
+    context?.body
+  )
   return empathize ? empathize(reply) : reply
 }
 
@@ -1429,7 +1563,7 @@ async function resolveOrderConfirmationFlow(input: {
     if (matched) {
       return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
     }
-    return buildOrderNumberNotFoundReply(pendingOrder)
+    return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body, matched)
   }
 
   if (pendingOrder && isOrderDeliveryStatusQuestion(input.body)) {
@@ -1437,7 +1571,7 @@ async function resolveOrderConfirmationFlow(input: {
     if (matched) {
       return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
     }
-    return buildOrderNumberNotFoundReply(pendingOrder)
+    return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body)
   }
 
   if (pendingOrder && isOrderConfirmationNo(input.body)) {
@@ -1447,7 +1581,7 @@ async function resolveOrderConfirmationFlow(input: {
     }
     const nextOrder = sorted[shown]
     if (nextOrder) {
-      return buildOrderConfirmationPrompt(nextOrder)
+      return buildOrderConfirmationPrompt(nextOrder, input.history, input.body)
     }
     return buildOrderPickExhaustedReply()
   }
@@ -1455,12 +1589,14 @@ async function resolveOrderConfirmationFlow(input: {
   if (pendingOrder) {
     const current = findOrderByNumber(sorted, pendingOrder)
     if (current) {
-      return buildOrderConfirmationClarifyPrompt(current)
+      return buildOrderConfirmationClarifyPrompt(current, input.history, input.body)
     }
-    return buildOrderNumberNotFoundReply(pendingOrder)
+    return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body, current)
   }
 
-  if (sorted[0]) return buildOrderConfirmationPrompt(sorted[0]!)
+  if (sorted[0]) {
+    return buildOrderConfirmationPrompt(sorted[0]!, input.history, input.body)
+  }
   return buildNoOrdersFoundReply(threadLookupPhone)
 }
 
@@ -1525,7 +1661,7 @@ export async function resolveOrderShippingReply(input: {
       phone: whatsappPhone,
       history,
     })
-    return buildReturnPickupAwaitingServiceReply(intake, body)
+    return buildReturnPickupAwaitingServiceReply(intake, body, history)
   }
 
   const empathize = (reply: string) =>
@@ -1551,19 +1687,23 @@ export async function resolveOrderShippingReply(input: {
 
   if (isAlternatePhoneRequestPending(history)) {
     const alternatePhone = userProvidedPhone(body)
-    if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
+    if (alternatePhone) {
+      return lookupAndStartOrderConfirm(alternatePhone, empathize, { history, body })
+    }
     return `${CUSTOMER_HEADER}
 לא זיהיתי מספר טלפון — שלחו את המספר (למשל 050-1234567).`
   }
 
   if (isPhoneLookupConfirmPending(history)) {
     const alternatePhone = userProvidedPhone(body)
-    if (alternatePhone) return lookupAndStartOrderConfirm(alternatePhone, empathize)
+    if (alternatePhone) {
+      return lookupAndStartOrderConfirm(alternatePhone, empathize, { history, body })
+    }
 
     if (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body)) {
       const confirmed = channelPhone(whatsappPhone)
       if (!confirmed) return buildPhoneLookupDeclinedReply()
-      return lookupAndStartOrderConfirm(confirmed, empathize)
+      return lookupAndStartOrderConfirm(confirmed, empathize, { history, body })
     }
 
     if (isOrderConfirmationNo(body) && mentionsAlternatePhoneIntent(body)) {
@@ -1591,7 +1731,9 @@ export async function resolveOrderShippingReply(input: {
 
     if (isChannelPhoneSelfReference(body)) {
       const confirmed = channelPhone(whatsappPhone)
-      if (confirmed) return lookupAndStartOrderConfirm(confirmed, empathize)
+      if (confirmed) {
+        return lookupAndStartOrderConfirm(confirmed, empathize, { history, body })
+      }
     }
 
     const orderReference = extractOrderReference(body, history)
@@ -1624,7 +1766,7 @@ export async function resolveOrderShippingReply(input: {
 
   const providedPhone = userProvidedPhone(body)
   if (providedPhone && orderLookupEnabled()) {
-    return lookupAndStartOrderConfirm(providedPhone, empathize)
+    return lookupAndStartOrderConfirm(providedPhone, empathize, { history, body })
   }
 
   if (whatsappPhone) {

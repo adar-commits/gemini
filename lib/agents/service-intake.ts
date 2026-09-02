@@ -9,7 +9,11 @@ import {
   activeIntentConfirmKind,
   isPostPurchaseIntentConfirmPending,
 } from "@/lib/agents/intent-confirmation"
-import { extractOrderNumber } from "@/lib/agents/order-lookup"
+import {
+  extractOrderNumber,
+  formatCustomerOrderNumberForThread,
+  ORDER_NUMBER_ASK_EXAMPLES,
+} from "@/lib/agents/order-lookup"
 
 export type ServiceIntake = {
   issueKind: PostPurchaseCaseKind | null
@@ -168,12 +172,21 @@ function returnPickupGoalReportLine(intake: ServiceIntake, body: string) {
 }
 
 /** Customer-visible rep report — bullet lines for service handoff. */
-export function buildServiceHandoffReportBlock(intake: ServiceIntake, body = "") {
+export function buildServiceHandoffReportBlock(
+  intake: ServiceIntake,
+  body = "",
+  history: HistoryMessage[] = []
+) {
   const lines: string[] = []
   const product = pickupProductLabel(body)
 
   if (intake.orderNumber) {
-    lines.push(`מס׳ הזמנה: ${intake.orderNumber}`)
+    const orderLabel = formatCustomerOrderNumberForThread(
+      intake.orderNumber,
+      history,
+      body
+    )
+    lines.push(`מס׳ הזמנה: ${orderLabel}`)
   }
 
   if (intake.issueKind === "return_pickup_pending") {
@@ -203,11 +216,12 @@ export function buildServiceHandoffReportBlock(intake: ServiceIntake, body = "")
 /** Awaiting courier pickup after return was already filed — rep report + confirm, not shipping status. */
 export function buildReturnPickupAwaitingServiceReply(
   intake: ServiceIntake,
-  body: string
+  body: string,
+  history: HistoryMessage[] = []
 ) {
   const product = pickupProductPhrase(body)
   const waitAck = returnPickupWaitAck(intake)
-  const report = buildServiceHandoffReportBlock(intake, body)
+  const report = buildServiceHandoffReportBlock(intake, body, history)
 
   return `${CUSTOMER_HEADER}
 הבנתי שכבר פתחתם בקשת החזרה וממתינים שהשליח יגיע לאסוף את ${product} מהבית ${waitAck}.
@@ -221,15 +235,24 @@ ${report}
 /** Service cases that may still need order ID before handoff (not return-pickup-wait). */
 export function buildServiceOrderIdPrompt() {
   return `${CUSTOMER_HEADER}
-קיבלתי, מצטער על ההמתנה. כדי שאוכל לבדוק את הסטטוס עבורך — יש לך במקרה מספר ההזמנה?
+קיבלתי, מצטער על ההמתנה. כדי שאוכל לבדוק את הסטטוס עבורך — יש לך במקרה מספר ההזמנה? ${ORDER_NUMBER_ASK_EXAMPLES}
 אם לא, אני יכול לנסות לאתר לפי הטלפון שממנו אנחנו מתכתבים כעת.`
 }
 
-export function buildServiceHandoffSummary(intake: ServiceIntake) {
+export function buildServiceHandoffSummary(
+  intake: ServiceIntake,
+  history: HistoryMessage[] = [],
+  body = ""
+) {
   const parts: string[] = []
 
   if (intake.orderNumber) {
-    parts.push(`הזמנה ${intake.orderNumber}`)
+    const orderLabel = formatCustomerOrderNumberForThread(
+      intake.orderNumber,
+      history,
+      body
+    )
+    parts.push(`הזamנה ${orderLabel}`)
   }
 
   if (intake.issueKind) {
@@ -249,8 +272,12 @@ export function buildServiceHandoffSummary(intake: ServiceIntake) {
   return parts.join(" · ")
 }
 
-export function buildServiceHandoffConfirmReply(intake: ServiceIntake, body = "") {
-  const report = buildServiceHandoffReportBlock(intake, body)
+export function buildServiceHandoffConfirmReply(
+  intake: ServiceIntake,
+  body = "",
+  history: HistoryMessage[] = []
+) {
+  const report = buildServiceHandoffReportBlock(intake, body, history)
   return `${CUSTOMER_HEADER}
 אז מסכם את הפנייה שלכם עבור נציג שירות הלקוחות שלנו:
 ${report}

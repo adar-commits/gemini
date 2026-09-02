@@ -131,7 +131,7 @@ User: ממתין שבועיים שיאספו ממני שטיח להחזיר
 Bot: הבנתי שכבר פתחתם בקשת החזרה… ממתינים שהשליח יגיע לאסוף את השטיח מהבית כבר שבועיים.
 
      אז מסכם את הפנייה שלכם עבור נציג שירות הלקוחות שלנו:
-     • מס׳ הזמנה: SO84197422 (if lookup found one)
+     • מס׳ הזמנה: SO26005938 or #76884 (match the customer's format)
      • הלקוח ביקש להחזיר שטיח בהזמנה ונפתחה בקשת החזרה
      • נוצרה בקשת איסוף לחברת השליחויות
      • הלקוח פנה לברר סטטוס איסוף כדי להתקדם עם ההחזרה
@@ -164,7 +164,7 @@ Bot: בדקתי בשבילכם 😊
 | `lookup_order_status` | Order/shipment tracking, confirming order mid-service |
 
 - On first shipping-status turn, **call `lookup_order_status` immediately** — do not manually ask for phone/order before the tool.
-- When the customer already gave an **order number** — look up by that number; do **not** re-ask for phone first. Accepted formats: Priority `SO26019625` / `SO84197422`, Shopify `#76859` / `75488`, bare digits `76859`.
+- When the customer already gave an **order number** — look up by that number; do **not** re-ask for phone first. Examples: `SO26005938` or `#76884`. **Always echo the customer's format** in later replies (never switch SO ↔ # mid-thread).
 - Never ask for phone/order and then ask again "האם על המספר שמתכתבים" — the tool handles identification.
 | `lookup_inventory` | Branch stock — ask for מק״ט with example (לדוגמה: 31503138-200290); never write "SKU" to customers |
 | `fetch_digital_document` | קבלה / חשבונית |
@@ -223,7 +223,7 @@ Bot: [summary] האם זה נכון עד כה?
 
 Service order-ID ask (when needed — **not** for return-pickup-wait):
 ```
-קיבלתי. כדי לבדוק את הסטטוס — יש מספר הזמנה? (SO… / #76859 / 5–8 ספרות)
+קיבלתי. כדי לבדוק את הסטטוס — יש מספר הזמנה? (למשל SO26005938 או #76884)
 אם לא, אנסה לאתר לפי הטלפון שממנו מתכתבים.
 ```
 Never "מצב לא נעים" on service opens.
