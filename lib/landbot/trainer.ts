@@ -8,7 +8,7 @@ function phoneKey(phone: string) {
   return value
 }
 
-/** Comma/space-separated list — only these phones run AI and get WhatsApp replies. */
+/** Comma/space-separated list — only these phones run AI and get WhatsApp replies. Use `*` for all customers. */
 export function trainerPhones() {
   const raw = process.env.LANDBOT_TRAINER_PHONES?.trim()
   if (raw) {
@@ -20,12 +20,29 @@ export function trainerPhones() {
   return [DEFAULT_TRAINER_PHONE]
 }
 
+export function allowAllCustomerPhones() {
+  return trainerPhones().some((item) => item === "*")
+}
+
 export function trainerPhone() {
-  return trainerPhones()[0]
+  const phones = trainerPhones().filter((item) => item !== "*")
+  return phones[0] ?? DEFAULT_TRAINER_PHONE
 }
 
 export function isTrainerPhone(phone: string | null | undefined) {
   if (!phone?.trim()) return false
+  if (allowAllCustomerPhones()) {
+    const key = phoneKey(phone)
+    return trainerPhones()
+      .filter((item) => item !== "*")
+      .some((item) => phoneKey(item) === key)
+  }
   const key = phoneKey(phone)
   return trainerPhones().some((item) => phoneKey(item) === key)
+}
+
+export function isCustomerPhoneAllowed(phone: string | null | undefined) {
+  if (!phone?.trim()) return false
+  if (allowAllCustomerPhones()) return true
+  return isTrainerPhone(phone)
 }

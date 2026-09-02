@@ -35,6 +35,19 @@ describe("trainer-only allowlist", () => {
     }
   })
 
+  it("opens all customers when LANDBOT_TRAINER_PHONES is *", () => {
+    const previous = process.env.LANDBOT_TRAINER_PHONES
+    process.env.LANDBOT_TRAINER_PHONES = "*"
+    try {
+      assert.equal(shouldProcessPhone("972506703444"), true)
+      assert.equal(shouldReplyPhone("+972547495083"), true)
+      assert.equal(landbotPhonePolicy().mode, "all_customers")
+    } finally {
+      if (previous === undefined) delete process.env.LANDBOT_TRAINER_PHONES
+      else process.env.LANDBOT_TRAINER_PHONES = previous
+    }
+  })
+
   it("ignores legacy LANDBOT_PROCESS_PHONES / LANDBOT_REPLY_PHONES", () => {
     const prevProcess = process.env.LANDBOT_PROCESS_PHONES
     const prevReply = process.env.LANDBOT_REPLY_PHONES

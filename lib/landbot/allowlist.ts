@@ -1,15 +1,14 @@
-import { isTrainerPhone, trainerPhones } from "@/lib/landbot/trainer"
+import { allowAllCustomerPhones, isCustomerPhoneAllowed, trainerPhones } from "@/lib/landbot/trainer"
 
 /**
- * Trainer-only gate: only `LANDBOT_TRAINER_PHONES` run the agent, receive replies,
- * and call Priority/n8n. All other inbound WhatsApp messages are skipped.
+ * Inbound gate: `LANDBOT_TRAINER_PHONES=*` opens all customers; otherwise trainer list only.
  */
 export function shouldProcessPhone(phone: string | null | undefined) {
-  return isTrainerPhone(phone)
+  return isCustomerPhoneAllowed(phone)
 }
 
 export function shouldReplyPhone(phone: string | null | undefined) {
-  return isTrainerPhone(phone)
+  return isCustomerPhoneAllowed(phone)
 }
 
 /** @deprecated Use trainerPhones() from @/lib/landbot/trainer */
@@ -24,12 +23,15 @@ export function isPhoneAllowed(phone: string | null | undefined) {
 
 export function landbotPhonePolicy() {
   const trainers = trainerPhones()
+  const allCustomers = allowAllCustomerPhones()
   return {
-    mode: "trainer_only" as const,
+    mode: allCustomers ? ("all_customers" as const) : ("trainer_only" as const),
     env: "LANDBOT_TRAINER_PHONES",
     trainers,
-    process: trainers,
-    reply: trainers,
-    note: "Set LANDBOT_TRAINER_PHONES (comma-separated). Only those numbers run AI and get replies.",
+    process: allCustomers ? ["*"] : trainers,
+    reply: allCustomers ? ["*"] : trainers,
+    note: allCustomers
+      ? "LANDBOT_TRAINER_PHONES=* — all WhatsApp customers run AI and get replies."
+      : "Set LANDBOT_TRAINER_PHONES (comma-separated) or * for all customers.",
   }
 }

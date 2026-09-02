@@ -41,7 +41,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     method: "POST",
-    note: "Landbot message hook. Only LANDBOT_TRAINER_PHONES run AI and receive WhatsApp replies. All other phones are skipped before any LLM call.",
+    note: "Landbot message hook. LANDBOT_TRAINER_PHONES=* opens all customers; otherwise only listed phones run AI and get replies.",
     policy: landbotPhonePolicy(),
     models,
     debounceMs,
