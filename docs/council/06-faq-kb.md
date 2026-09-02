@@ -15,6 +15,8 @@ Source: [`lib/agents/kb/faq.md`](../../lib/agents/kb/faq.md) — **inject full f
 | Refund/exchange/cancel | החזרה, ביטול, החלפה, לא מרוצה | FAQ first | **Always:** returns portal + 14 days + condition + branch/pickup + refund-policy URL |
 | FAQ extra facts | אריזה, ניקוי, הדמיה, נשירה | FAQ | Visualization how-to → visualization-page URL |
 | Pozitive / פוף products | הרכבה, מילוי, כביסה, חוץ, ילדים, גשם, veluto/milo | FAQ | Full Q&A in `pozitive-products.md`; post-purchase → tutorial videos page |
+| Carpet / שטיח products | אריזה, פריסה, נשירה, הדמיה, מידה, ניקוי | FAQ | `carpet-products-faq.md` from carpetshop FAQ page |
+| Carpet terminology | שאגי, קילים, פרסי, סגנון | FAQ (vocab only) | `carpet-terminology.md` — explain terms, not sales advice |
 | Carpet rental | השכרה, ניסיון לפני קנייה | FAQ → Sales offer | Case-by-case advisor discretion |
 | Online consulting | ייעוץ אונליין | **Sales** | Intake → human (not terms dump) |
 | Accessibility | נגישות | FAQ | Coordinator + accessibility URL |

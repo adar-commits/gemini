@@ -171,6 +171,7 @@ Updated 09.11.25
 - Privacy: https://www.carpetshop.co.il/policies/privacy-policy
 - Online consulting: https://www.carpetshop.co.il/pages/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%99%D7%99%D7%A2%D7%95%D7%A5-%D7%90%D7%95%D7%A0%D7%9C%D7%99%D7%99%D7%9F-%D7%91%D7%90%D7%AA%D7%A8
 - FAQ: https://www.carpetshop.co.il/pages/faq
+- Carpet terminology glossary: https://www.carpetshop.co.il/pages/%D7%9E%D7%99%D7%9C%D7%95%D7%9F-%D7%9E%D7%95%D7%A0%D7%97%D7%99%D7%9D
 - Pozitive product FAQ: https://www.pozitiveshop.co.il/pages/faq
 - Pozitive assembly/care videos: https://www.pozitiveshop.co.il/pages/pozitive-tutorial-videos
 - About: https://www.carpetshop.co.il/pages/about
