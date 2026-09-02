@@ -7,7 +7,7 @@
 1. Bot sends message with a question → starts watch (`runInactivityPipeline`)
 2. **3 minutes** silence → proactive ping (`INACTIVITY_PING_MS=180000`)
 3. Customer replies `כן`/`פה` → ack + resume thread
-4. **15 minutes** after ping, still silent → close message (chained `inactivity-watch` + cron backup)
+4. **15 minutes** after ping, still silent → close message (chained `inactivity-watch` + cron backup) — **service / unknown flows only**; **never** on active sales or inventory threads (lead may still convert)
 5. **Skip** ping/close if already `human_sales` / `human_service`
 
 ## Close scheduling (v2 fix)

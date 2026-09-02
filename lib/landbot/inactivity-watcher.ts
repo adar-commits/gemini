@@ -14,6 +14,7 @@ import {
   touchSessionMeta,
 } from "@/lib/agents/memory"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
+import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
@@ -240,6 +241,13 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
   if (await isHumanWaitingConversation(payload.conversationId)) {
     return "human_handoff" as const
   }
+
+  const { getConversationContext } = await import("@/lib/agents/memory")
+  const context = await getConversationContext(payload.conversationId)
+  if (shouldSkipInactivityClose(context.history, context.lastAgent)) {
+    return "sales_flow_no_close" as const
+  }
+
   return null
 }
 
@@ -368,13 +376,17 @@ export async function runInactivityWatch(payload: InactivityWatchPayload) {
     const session = await getSessionInactivityState(payload.conversationId)
     const watchPingSentAt = asText(session?.inactivity_ping_sent_at)
     if (watchPingSentAt) {
-      void scheduleInactivityCloseWatch({
-        conversationId: payload.conversationId,
-        customerId: payload.customerId,
-        customerName: payload.customerName,
-        customerPhone: payload.customerPhone,
-        watchPingSentAt,
-      })
+      const { getConversationContext } = await import("@/lib/agents/memory")
+      const context = await getConversationContext(payload.conversationId)
+      if (!shouldSkipInactivityClose(context.history, context.lastAgent)) {
+        void scheduleInactivityCloseWatch({
+          conversationId: payload.conversationId,
+          customerId: payload.customerId,
+          customerName: payload.customerName,
+          customerPhone: payload.customerPhone,
+          watchPingSentAt,
+        })
+      }
     }
 
     return { ok: true, sent: "ping" as const }

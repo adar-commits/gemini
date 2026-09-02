@@ -12,6 +12,7 @@ import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
+import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 
 type IdleSessionRow = {
   conversation_id: string
@@ -360,6 +361,12 @@ async function attemptInactivityClose(row: CloseCandidate) {
   if (!customerId) return "skipped" as const
   if (!shouldReplyPhone(row.customer_phone)) return "skipped" as const
 
+  const { getConversationContext } = await import("@/lib/agents/memory")
+  const context = await getConversationContext(row.conversation_id)
+  if (shouldSkipInactivityClose(context.history, context.lastAgent)) {
+    return "skipped" as const
+  }
+
   const pingAt = await lastAssistantIsInactivityPing(row.conversation_id)
   if (!pingAt) return "skipped" as const
   if (await userRepliedAfterTimestamp(row.conversation_id, pingAt)) {
@@ -410,12 +417,17 @@ export async function processInactivityTimeouts() {
         continue
       }
 
-      const { getConversationHistory } = await import("@/lib/agents/memory")
-      const history = await getConversationHistory(row.conversation_id)
-      if (shouldSuppressInactivityWatch(history)) {
+      const { getConversationContext } = await import("@/lib/agents/memory")
+      const context = await getConversationContext(row.conversation_id)
+      if (shouldSuppressInactivityWatch(context.history)) {
         results.skipped += 1
         continue
       }
+
+      const skipCloseForSales = shouldSkipInactivityClose(
+        context.history,
+        context.lastAgent
+      )
 
       if (!(await isBotWaitingForUser(row)) || (await hasPendingBuffer(row.conversation_id))) {
         results.skipped += 1
@@ -471,7 +483,7 @@ export async function processInactivityTimeouts() {
         })
         const pingSession = await getSessionInactivityState(row.conversation_id)
         const watchPingSentAt = asText(pingSession?.inactivity_ping_sent_at)
-        if (watchPingSentAt) {
+        if (watchPingSentAt && !skipCloseForSales) {
           void scheduleInactivityCloseWatch({
             conversationId: row.conversation_id,
             customerId,
