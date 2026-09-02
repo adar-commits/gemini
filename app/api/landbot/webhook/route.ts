@@ -30,6 +30,8 @@ import {
   recordHumanAgentActivity,
   releaseHumanThread,
 } from "@/lib/landbot/human-takeover"
+import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
+import { summarizeTurn } from "@/lib/agents/user-turn"
 
 export const maxDuration = 300
 export const runtime = "nodejs"
@@ -104,10 +106,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: "not_customer_message" })
   }
 
-  if (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId)) {
-    return NextResponse.json({ ok: true, skipped: "human_thread_active" })
-  }
-
   let phone = inbound.phone
   if (!phone) {
     const customer = await getCustomer(inbound.customerId).catch(() => null)
@@ -129,6 +127,17 @@ export async function POST(request: Request) {
       skipped: "not_processed",
       phone: phone || null,
     })
+  }
+
+  const trainerResetBypass = isTrainerResetRequest(
+    phone,
+    summarizeTurn(inbound.turn)
+  )
+  if (
+    !trainerResetBypass &&
+    (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId))
+  ) {
+    return NextResponse.json({ ok: true, skipped: "human_thread_active" })
   }
 
   const replyEnabled = shouldReplyPhone(phone)

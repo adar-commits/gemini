@@ -1,5 +1,6 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { resetAgentSession } from "@/lib/landbot/resolve-customer"
+import { isTrainerPhone } from "@/lib/landbot/trainer"
 
 const TRAINER_RESET_PHRASE = "איפוס"
 
@@ -10,6 +11,15 @@ function normalizeTrainerText(text: string) {
 /** Exact trainer-only reset command — not "התחלה" or other menu resets. */
 export function isTrainerResetCommand(text: string) {
   return splitTrainerResetBody(text).isResetOnly
+}
+
+/** Trainer reset must run even when a human rep owns the thread (testing / recovery). */
+export function isTrainerResetRequest(
+  phone: string | null | undefined,
+  text: string
+) {
+  if (!isTrainerPhone(phone)) return false
+  return splitTrainerResetBody(text).isReset
 }
 
 /** Reset on its own line at the start of a burst — remainder is processed after reset. */

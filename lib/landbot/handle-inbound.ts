@@ -16,6 +16,7 @@ import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
   buildTrainerResetReply,
+  isTrainerResetRequest,
   resetTrainerConversation,
   splitTrainerResetBody,
 } from "@/lib/landbot/trainer-reset"
@@ -96,9 +97,15 @@ export async function handleLandbotInbound(
 ): Promise<LandbotInboundResult> {
   const replyEnabled = options?.replyEnabled !== false
   const mode: InboundMode = replyEnabled ? "reply" : "shadow"
+  const turnSummary = summarizeTurn(turn)
+  const trainerResetBypass = isTrainerResetRequest(
+    options?.phone,
+    turnSummary
+  )
 
   if (
     replyEnabled &&
+    !trainerResetBypass &&
     (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
   ) {
     return {
