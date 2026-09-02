@@ -43,6 +43,8 @@ export async function runHomAgentTurn(
     phone?: string
     priorityApiEnabled?: boolean
     onPriorityApiCall?: () => void | Promise<void>
+    /** When false, compute reply but do not persist — used while coalescing rapid messages. */
+    persistTurn?: boolean
   }
 ): Promise<AgentResponse> {
   bindPriorityApiBeforeCall(options?.onPriorityApiCall ?? null)
@@ -58,6 +60,7 @@ export async function runHomAgentTurn(
   const runtime = await bindRuntimeConfig()
   const body = summarizeTurn(turn)
   const preview = options?.preview
+  const persistTurn = options?.persistTurn !== false && !preview
   const phone = options?.phone?.trim() || ""
   const { history, conversationSummary } = await getConversationContext(conversationId)
 
@@ -87,14 +90,16 @@ export async function runHomAgentTurn(
 
   if (preTurn.kind === "handled") {
     const action = mapHomAction(preTurn.action)
-    await appendTurn({
-      conversationId,
-      agent: "faq",
-      userText: body,
-      assistantText: preTurn.reply,
-      action,
-      preview,
-    })
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: preTurn.reply,
+        action,
+        preview,
+      })
+    }
     return finish({
       ok: true,
       agent: "faq",
@@ -131,14 +136,16 @@ export async function runHomAgentTurn(
       : mapHomAction(output.action)
   const agent = mapHomAgent(output.action)
 
-  await appendTurn({
-    conversationId,
-    agent,
-    userText: body,
-    assistantText: output.reply,
-    action,
-    preview,
-  })
+  if (persistTurn) {
+    await appendTurn({
+      conversationId,
+      agent,
+      userText: body,
+      assistantText: output.reply,
+      action,
+      preview,
+    })
+  }
 
   return finish({
     ok: true,

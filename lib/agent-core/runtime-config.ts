@@ -108,7 +108,7 @@ function codeDefaultConfig(): RuntimeConfig {
 
   const debounceEnv = Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")
   const debounceMs =
-    Number.isFinite(debounceEnv) && debounceEnv > 0 ? debounceEnv : 5000
+    Number.isFinite(debounceEnv) && debounceEnv > 0 ? debounceEnv : 8000
 
   return {
     activeProfile: DEFAULT_PROFILE_NAME,
@@ -171,7 +171,7 @@ function rowToConfig(row: RuntimeRow): RuntimeConfig {
         : Number.isFinite(Number(process.env.LANDBOT_DEBOUNCE_MS ?? "")) &&
             Number(process.env.LANDBOT_DEBOUNCE_MS) > 0
           ? Number(process.env.LANDBOT_DEBOUNCE_MS)
-          : 5000,
+          : 8000,
     historyLimit:
       typeof row.history_limit === "number" && row.history_limit > 0 ? row.history_limit : 40,
     orchestraMode,

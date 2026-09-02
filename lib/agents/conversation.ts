@@ -13,6 +13,7 @@ export async function runCustomerConversation(
     phone?: string
     priorityApiEnabled?: boolean
     onPriorityApiCall?: () => void | Promise<void>
+    persistTurn?: boolean
   }
 ): Promise<AgentResponse> {
   if (!usesHomAgentV3()) {

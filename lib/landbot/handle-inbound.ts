@@ -42,7 +42,7 @@ import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
 import { buildNeverStuckReply, buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
-import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
+import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
 import {
   handleTrainerProfileCommand,
   isTrainerProfileCommand,
@@ -229,6 +229,7 @@ export async function handleLandbotInbound(
       customerName: customerName || undefined,
       phone: options?.phone?.trim() || undefined,
       priorityApiEnabled: replyEnabled,
+      persistTurn: !replyEnabled,
       onPriorityApiCall: replyEnabled
         ? async () => {
             await sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
@@ -244,6 +245,30 @@ export async function handleLandbotInbound(
           }
         : undefined,
     })
+
+    while (replyEnabled) {
+      const mergedTurn = await coalesceTrailingBufferedTurn(conversationId, activeTurn)
+      if (summarizeTurn(mergedTurn) === summarizeTurn(activeTurn)) break
+      activeTurn = mergedTurn
+      body = summarizeTurn(activeTurn)
+      result = await runCustomerConversation(conversationId, activeTurn, {
+        customerName: customerName || undefined,
+        phone: options?.phone?.trim() || undefined,
+        priorityApiEnabled: replyEnabled,
+        persistTurn: false,
+        onPriorityApiCall: undefined,
+      })
+    }
+
+    if (replyEnabled) {
+      await appendTurn({
+        conversationId,
+        agent: result.agent ?? "faq",
+        userText: body,
+        assistantText: result.reply ?? "",
+        action: result.action ?? "reply",
+      })
+    }
   } catch (error) {
     console.error("[handle-inbound] runCustomerConversation failed", error)
     result = {
