@@ -2,7 +2,8 @@ import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { stripAppendedDeliveryPolicyFromOrderStatus } from "@/lib/agents/shipping"
 import { sanitizeDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
 import {
-  RETURNS_PORTAL_URL,
+  buildReturnsPortalUrl,
+  personalizeReturnsPortalUrls,
   sanitizeCreditRedemptionWording,
   sanitizeRefundPolicyWording,
 } from "@/lib/agents/policy-subjects"
@@ -18,7 +19,8 @@ import type { HomAgentOutput } from "@/lib/hom-agent/output-schema"
 
 export function validateHomAgentReply(
   output: HomAgentOutput,
-  userText: string
+  userText: string,
+  whatsappPhone?: string | null
 ): HomAgentOutput {
   let reply = output.reply?.trim() ?? ""
   if (!reply && output.action === "reply") {
@@ -30,7 +32,8 @@ export function validateHomAgentReply(
   reply = sanitizeRefundPolicyWording(reply)
   reply = sanitizeCreditRedemptionWording(reply)
   reply = stripAppendedDeliveryPolicyFromOrderStatus(reply)
-  reply = sanitizeHallucinatedPortalUrls(reply)
+  reply = sanitizeHallucinatedPortalUrls(reply, whatsappPhone)
+  reply = personalizeReturnsPortalUrls(reply, whatsappPhone)
   reply = dedupeGreetingBotName(reply)
 
   if (reply && !shouldSkipHeader(userText, reply)) {
@@ -51,15 +54,16 @@ export function validateHomAgentReply(
 
 const HALLUCINATED_PORTAL_RE = /https?:\/\/(?:www\.)?my\.hom-?group\.co\.il\/?/gi
 
-function sanitizeHallucinatedPortalUrls(reply: string) {
+function sanitizeHallucinatedPortalUrls(reply: string, whatsappPhone?: string | null) {
   if (!/my\.hom-?group\.co\.il/i.test(reply)) return reply
+  const portalUrl = buildReturnsPortalUrl(whatsappPhone)
   if (/החלפ/i.test(reply)) {
     return reply
       .replace(HALLUCINATED_PORTAL_RE, "")
       .replace(/\n{3,}/g, "\n\n")
       .trim()
   }
-  return reply.replace(HALLUCINATED_PORTAL_RE, RETURNS_PORTAL_URL)
+  return reply.replace(HALLUCINATED_PORTAL_RE, portalUrl)
 }
 
 function shouldSkipHeader(userText: string, reply: string) {

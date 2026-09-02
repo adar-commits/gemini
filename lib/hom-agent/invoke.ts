@@ -78,7 +78,7 @@ export async function invokeHomAgent(input: {
   const deterministicReply = extractDeterministicToolReply(toolResult.steps)
   if (deterministicReply) {
     return {
-      output: validateHomAgentReply(deterministicReply, input.body),
+      output: validateHomAgentReply(deterministicReply, input.body, input.phone),
       llmCalls,
       model,
     }
@@ -123,7 +123,7 @@ export async function invokeHomAgent(input: {
   }
 
   return {
-    output: validateHomAgentReply(normalized, input.body),
+    output: validateHomAgentReply(normalized, input.body, input.phone),
     llmCalls,
     model,
   }

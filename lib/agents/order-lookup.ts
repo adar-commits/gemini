@@ -56,6 +56,8 @@ export { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
 const CANCELLATION_EMPATHY_PREFIX =
   "אני מצטער לשמוע, אנסה קודם לאתר את ההזמנה שלכם.."
 
+export const MAX_ORDER_PICK_ATTEMPTS = 3
+
 /** Raw row from Priority via n8n getOrders. */
 export type PriorityOrderRow = {
   CUSTNAME?: string | null
@@ -196,30 +198,64 @@ export function sortOrdersNewestFirst(orders: OrderShipmentStatus[]) {
 }
 
 /** Customer-facing status body — date is appended in buildOrderStatusReply. */
+export function hasDeliveryStatusData(order: OrderShipmentStatus) {
+  return Boolean(order.statusCode?.trim() || order.statusLabel?.trim())
+}
+
+export function countOrderConfirmationPrompts(history: HistoryMessage[]) {
+  let count = 0
+  for (const message of history) {
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (/נדמה לי שמצאתי את ההזמנה/i.test(message.content)) count += 1
+  }
+  return count
+}
+
 export function describeShipmentStatus(order: OrderShipmentStatus) {
   const deliveryDate =
     formatHebrewDate(order.raw.ZPIT_DELDATE) ??
     formatHebrewDate(order.raw.ZPIT_UDATE)
   const coordinateDate = formatHebrewDate(order.raw.ZPIT_COORDATE)
 
-  const deliveryMessage = buildDeliveryStatusMessage({
-    deliveryStatusId: order.statusCode,
-    deliveryStatusDesc: order.statusLabel || "לא ידוע",
-    deliveryDate,
-    coordinateDate,
-  })
+  if (hasDeliveryStatusData(order)) {
+    const deliveryMessage = buildDeliveryStatusMessage({
+      deliveryStatusId: order.statusCode,
+      deliveryStatusDesc: order.statusLabel || "לא ידוע",
+      deliveryDate,
+      coordinateDate,
+    })
 
-  if (!isUnknownDeliveryStatusMessage(deliveryMessage)) {
-    return deliveryMessage
+    if (!isUnknownDeliveryStatusMessage(deliveryMessage)) {
+      return deliveryMessage
+    }
   }
 
   const orderStatusMessage = buildOrderStatusMessage(order.orderStatus)
   if (orderStatusMessage) return orderStatusMessage
 
-  return deliveryMessage
+  if (hasDeliveryStatusData(order)) {
+    return buildDeliveryStatusMessage({
+      deliveryStatusId: order.statusCode,
+      deliveryStatusDesc: order.statusLabel || "לא ידוע",
+      deliveryDate,
+      coordinateDate,
+    })
+  }
+
+  return buildDeliveryStatusMessage({
+    deliveryStatusId: "",
+    deliveryStatusDesc: "",
+    deliveryDate,
+    coordinateDate,
+  })
 }
 
 export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
+  if (!hasDeliveryStatusData(order)) {
+    return !buildOrderStatusMessage(order.orderStatus)
+  }
+
   const deliveryMessage = buildDeliveryStatusMessage({
     deliveryStatusId: order.statusCode,
     deliveryStatusDesc: order.statusLabel || "לא ידוע",
@@ -1284,11 +1320,11 @@ async function resolveOrderConfirmationFlow(input: {
   }
 
   if (pendingOrder && isOrderConfirmationNo(input.body)) {
-    const currentIndex = sorted.findIndex(
-      (order) => order.orderNumber.toUpperCase() === pendingOrder.toUpperCase()
-    )
-    const nextIndex = currentIndex >= 0 ? currentIndex + 1 : 1
-    const nextOrder = sorted[nextIndex]
+    const shown = countOrderConfirmationPrompts(input.history)
+    if (shown >= MAX_ORDER_PICK_ATTEMPTS) {
+      return buildOrderPickExhaustedReply()
+    }
+    const nextOrder = sorted[shown]
     if (nextOrder) {
       return buildOrderConfirmationPrompt(nextOrder)
     }

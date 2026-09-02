@@ -3,6 +3,7 @@
  * Used before sales intake so mid-flow policy questions get KB-grounded answers.
  */
 
+import { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
 import {
   isActiveReturnExchangePickupCase,
   isExchangeOnlyIntent,
@@ -38,7 +39,26 @@ type PolicySubject = {
 }
 
 /** Returns portal is for cancellations/refunds only — never for product exchanges (החלפות). */
-export const RETURNS_PORTAL_URL = "https://returns.carpetshop.co.il/"
+export const RETURNS_PORTAL_BASE_URL = "https://returns.carpetshop.co.il/"
+export const RETURNS_PORTAL_URL = RETURNS_PORTAL_BASE_URL
+
+export function buildReturnsPortalUrl(phone?: string | null) {
+  if (!phone?.trim()) return RETURNS_PORTAL_BASE_URL
+  const digits = normalizePhoneForOrderApi(phone.trim())
+  if (!/^0\d{9}$/.test(digits)) return RETURNS_PORTAL_BASE_URL
+  return `${RETURNS_PORTAL_BASE_URL}?phone=${encodeURIComponent(digits)}`
+}
+
+/** Upgrade bare portal links when WhatsApp channel phone is known. */
+export function personalizeReturnsPortalUrls(text: string, phone?: string | null) {
+  if (!phone?.trim()) return text
+  const personalized = buildReturnsPortalUrl(phone)
+  if (personalized === RETURNS_PORTAL_BASE_URL) return text
+  return text.replace(
+    /https?:\/\/returns\.carpetshop\.co\.il\/?(?:\?phone=[^\s\n]+)?/gi,
+    personalized
+  )
+}
 
 export const EXCHANGE_COURIER_FEES = `דמי שליח לאיסוף ומשלוח (לכיוון) לפי מידת השטיח:
 • שטיח עד 160×230 — 85 ₪
@@ -175,21 +195,22 @@ ${EXCHANGE_COURIER_FEES}
 החלפה מתבצעת בסניפי הרשת או דרך נציג שירות — לא דרך פורטל ההחזרות (הפורטל מיועד להחזרות וביטולים בלבד).`
 }
 
-export function buildReturnPolicyBody() {
+export function buildReturnPolicyBody(phone?: string | null) {
+  const portalUrl = buildReturnsPortalUrl(phone)
   return `ניתן להחזיר מוצר שהתקבל (ביטול/זיכוי) באחת משתי האפשרויות:
 1. החזרה לסניפי הרשת
 2. איסוף מהבית באמצעות שליח — בתשלום (לפי גודל השטיח)
 
 בכל החזרה, גם כאשר מחזירים את המוצר בסניף, יש לפתוח בקשת החזרה דרך פורטל ההחזרות:
-${RETURNS_PORTAL_URL}
+${portalUrl}
 ניתן לבצע החזרה בתוך 14 ימים מקבלת המוצר, כשהמוצר לא היה בשימוש, שלם וארוז באריזתו המקורית ובהתאם לתנאי ההחזרה.`
 }
 
-export function buildCombinedReturnExchangePolicyBody() {
+export function buildCombinedReturnExchangePolicyBody(phone?: string | null) {
   return `${buildExchangePolicyBody()}
 
 לחלופין, אם מעדיפים החזרה וזיכוי (לא החלפה):
-${buildReturnPolicyBody()}`
+${buildReturnPolicyBody(phone)}`
 }
 
 export function buildExchangePolicyReply() {
@@ -198,8 +219,8 @@ export function buildExchangePolicyReply() {
 אם רוצים להמשיך עם החלפה דרך שליח — אעביר לנציג שירות. אם מעדיפים להגיע לסניפי הרשת, אשמח לשלוח את רשימת הסניפים. במה להמשיך?`
 }
 
-export function buildReturnCancellationPolicyReply() {
-  return `${buildReturnPolicyBody()}
+export function buildReturnCancellationPolicyReply(phone?: string | null) {
+  return `${buildReturnPolicyBody(phone)}
 
 אפשר לעזור במשהו נוסף?`
 }
@@ -216,10 +237,10 @@ export function isReturnExchangePolicyFaqQuestion(body: string) {
 }
 
 /** Pick the right deterministic policy text — portal only for returns/cancellations. */
-export function resolveReturnExchangePolicyReply(body: string) {
-  if (isRefundTimelineQuestion(body)) return buildRefundTimelinePolicyReply()
+export function resolveReturnExchangePolicyReply(body: string, phone?: string | null) {
+  if (isRefundTimelineQuestion(body)) return buildRefundTimelinePolicyReply(phone)
   if (mentionsReturnIntent(body) && mentionsExchangeIntent(body)) {
-    return `${buildCombinedReturnExchangePolicyBody()}
+    return `${buildCombinedReturnExchangePolicyBody(phone)}
 
 אפשר לעזור במשהו נוסף?`
   }
@@ -227,9 +248,9 @@ export function resolveReturnExchangePolicyReply(body: string) {
     return buildExchangePolicyReply()
   }
   if (mentionsReturnIntent(body)) {
-    return buildReturnCancellationPolicyReply()
+    return buildReturnCancellationPolicyReply(phone)
   }
-  return `${buildCombinedReturnExchangePolicyBody()}
+  return `${buildCombinedReturnExchangePolicyBody(phone)}
 
 אפשר לעזור במשהו נוסף?`
 }
@@ -239,11 +260,12 @@ export function buildReturnExchangePolicyReply(body = "") {
   return resolveReturnExchangePolicyReply(body)
 }
 
-export function buildRefundTimelinePolicyReply() {
+export function buildRefundTimelinePolicyReply(phone?: string | null) {
+  const portalUrl = buildReturnsPortalUrl(phone)
   return `הזיכוי מתבצע בהקדם האפשרי ולא יאוחר מ-7 ימי עסקים ממועד ביטול העסקה, בכפוף לאישור שהמוצר לא היה בשימוש (בדיקת המעבדה).
 
 גם בהחזרה בסניף יש לפתוח בקשת החזרה בפורטל:
-${RETURNS_PORTAL_URL}
+${portalUrl}
 
 אם כבר מסרתם את המוצר ופתחתם בקשה — בדרך כלל הזיכוי מופיע עד 7 ימי עסקים ממועד ביטול העסקה. לבדיקת סטטוס ספציפי אפשר לפנות לשירות בטלפון *3076.
 
@@ -255,7 +277,8 @@ export function buildRefundStatusHandoffReply() {
 כדי לבדוק את הסטטוס המדויק של ההחזר, אפשר להעביר לצוות השירות שיוכלו לתת מענה מדויק. להעביר לנציג שירות?`
 }
 
-export function buildCreditRedemptionPolicyReply() {
+export function buildCreditRedemptionPolicyReply(phone?: string | null) {
+  const portalUrl = buildReturnsPortalUrl(phone)
   return `אשמח לעזור! כדי שאוכל לכוון נכון — על איזה זיכוי מדובר?
 
 1. זיכוי כספי (החזר לכרטיס אשראי) — אם כבר אושר ההחזר, הוא מתבצע עד 7 ימי עסקים ממועד ביטול העסקה.
@@ -263,7 +286,7 @@ export function buildCreditRedemptionPolicyReply() {
 2. קוד זיכוי — אם קיבלתם קוד זיכוי, ניתן לממש בסניפי הרשת או באתר. למימוש באתר אעביר את השיחה לנציג שירות.
 
 אם מדובר בפתיחת בקשת החזרה/ביטול חדשה, אפשר לעשות זאת דרך פורטל ההחזרות:
-${RETURNS_PORTAL_URL}
+${portalUrl}
 מה מתאים למצב שלכם?`
 }
 
@@ -301,12 +324,13 @@ export function sanitizeRefundPolicyWording(reply: string) {
   return text
 }
 
-export function buildCantVisitBranchReturnReply() {
+export function buildCantVisitBranchReturnReply(phone?: string | null) {
+  const portalUrl = buildReturnsPortalUrl(phone)
   return `אני מבין שקשה להגיע לסניף.
 ניתן להחזיר או להחליף גם באיסוף מהבית בתשלום — נציג שירות יתאם איתכם את האיסוף.
 
 בכל החזרה יש לפתוח בקשה בפורטל:
-${RETURNS_PORTAL_URL}
+${portalUrl}
 
 לתיאום איסוף מהבית אפשר גם לפנות לשירות בטלפון *3076.`
 }

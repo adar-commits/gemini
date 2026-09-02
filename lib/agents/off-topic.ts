@@ -73,33 +73,35 @@ export function isOffTopicQuestion(body: string) {
   return matchesOffTopicPattern(text)
 }
 
+/** Explicit new-purchase / model-selection intent — not generic product mentions. */
+export function isExplicitSalesHandoffIntent(text: string) {
+  return (
+    /(?:עזור(?:ו)?\s+(?:לי|לנו)\s+(?:לבחור|למצוא)|יועץ\s+מכירות|מחלקת\s+מכירות|התאמת\s+שטיח|ל(?:בחור|מצוא)\s+דגם|דגם\s+אחר\s+ש(?:יתאים|מתאים)|מעבר\s+ל(?:דגם|מוצר)\s+אחר|איזה\s+דגם\s+(?:מתאים|ל(?:בחור|קנות)))/i.test(
+      text
+    ) ||
+    /(?:רוצ(?:ה|ים|ות)\s+(?:ל)?(?:קנות|לרכוש)|מחפש(?:ים|ת|ים)?\s+(?:ל)?(?:קנות|לרכוש)|שטיח\s+ל(?:סלון|חדר)|כמה\s+עולה|תקציב)/i.test(
+      text
+    )
+  )
+}
+
 export function inferHumanHandoffAction(
   history: HistoryMessage[],
   lastAgent: AgentId | null
 ): "human_sales" | "human_service" {
   const transcript = history.map((message) => message.content).join("\n")
+  const last = lastAssistantText(history)
 
-  if (lastAgent === "sales") return "human_sales"
-  if (lastAgent === "service") return "human_service"
-
-  if (/האם להעביר את הפנייה כעת ליועץ מכירות/.test(lastAssistantText(history))) {
+  if (/האם להעביר את הפנייה כעת ליועץ מכירות/.test(last)) {
     return "human_sales"
   }
 
-  if (
-    /מחפש|רוצ(?:ה|ים|ות)\s+לקנות|שטיח|פוף|תקציב|מחיר|מכירות|יועץ\s+מכירות|התאמת\s+שטיח/i.test(
-      transcript
-    )
-  ) {
+  if (lastAgent === "sales" && isExplicitSalesHandoffIntent(transcript)) {
     return "human_sales"
   }
 
-  if (
-    /הזמנה|משלוח(\s+שלי)?|החזר|תלונה|פגום|לא\s+קיבלתי|חשבונית|נציג\s+שירות/i.test(
-      transcript
-    )
-  ) {
-    return "human_service"
+  if (isExplicitSalesHandoffIntent(transcript)) {
+    return "human_sales"
   }
 
   return "human_service"
