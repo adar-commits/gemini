@@ -14,7 +14,9 @@ describe("order reference lookup", () => {
   it("extracts Shopify-style order numbers", () => {
     assert.equal(extractOrderReference(SHOPIFY_MESSAGE), "75488")
     assert.equal(extractOrderReference("הזמנה #75488"), "75488")
+    assert.equal(extractOrderReference("#76859"), "76859")
     assert.equal(extractOrderReference("SO26019625"), "SO26019625")
+    assert.equal(extractOrderReference("SO 84197422"), "SO84197422")
   })
 
   it("uses channel phone when customer already gave order number", () => {

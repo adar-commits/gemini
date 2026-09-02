@@ -7,6 +7,7 @@ import {
   formatOutboundMessages,
   sanitizeBotGenderSlashes,
   sanitizeBotEmojis,
+  sanitizeBotVoiceGender,
   sanitizeCustomerAddress,
 } from "@/lib/agents/greeting"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -26,6 +27,12 @@ describe("greeting reply", () => {
       sanitizeBotGenderSlashes("שמח/ה שפנית — מצטער/ת לשמוע"),
       "שמח שפנית — מצטער לשמוע"
     )
+  })
+
+  it("keeps masculine bot voice and replaces awkward closings", () => {
+    assert.equal(sanitizeBotVoiceGender("אני שמחה לעזור"), "אני שמח לעזור")
+    assert.match(sanitizeBotVoiceGender("יום טוב! שיהיה בשורות טובות"), /יום נפלא/)
+    assert.doesNotMatch(sanitizeBotVoiceGender("יום טוב! שיהיה בשורות טובות"), /בשורות/)
   })
 
   it("strips decorative emoji from operational messages", () => {

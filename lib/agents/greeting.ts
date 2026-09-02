@@ -68,12 +68,30 @@ export function sanitizeBotGenderSlashes(text: string) {
     .replace(/בטוח\/ה/g, "בטוח")
 }
 
+/** Bot speaks masculine; company "we" stays masculine — not feminine LLM drift. */
+export function sanitizeBotVoiceGender(text: string) {
+  let out = sanitizeBotGenderSlashes(text)
+  const replacements: Array<[RegExp, string]> = [
+    [/(?<![\u0590-\u05FF])אני\s+שמחה(?![\u0590-\u05FF])/g, "אני שמח"],
+    [/(?<![\u0590-\u05FF])אני\s+מצטערת(?![\u0590-\u05FF])/g, "אני מצטער"],
+    [/(?<![\u0590-\u05FF])אני\s+בטוחה(?![\u0590-\u05FF])/g, "אני בטוח"],
+    [/(?<![\u0590-\u05FF])אוכלת(?![\u0590-\u05FF])/g, "אוכל"],
+    [/(?<![\u0590-\u05FF])נשמח(?![\u0590-\u05FF])/g, "אשמח"],
+    [/שיהיה\s+בשורות\s+טובות/gi, "יום נפלא"],
+    [/בשורות\s+טובות/gi, "יום נפלא"],
+  ]
+  for (const [pattern, replacement] of replacements) {
+    out = out.replace(pattern, replacement)
+  }
+  return out
+}
+
 /**
  * Normalize customer address to plural or impersonal — never masculine singular (תעדיף, אותך, שלך).
  * Bot voice stays first-person masculine (אני מבין); this only fixes how we address the customer.
  */
 export function sanitizeCustomerAddress(text: string) {
-  let out = sanitizeBotGenderSlashes(text)
+  let out = sanitizeBotVoiceGender(text)
 
   const replacements: Array<[RegExp, string]> = [
     [/\(SKU\)/gi, INVENTORY_SKU_EXAMPLE_HINT],

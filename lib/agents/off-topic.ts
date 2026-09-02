@@ -51,7 +51,11 @@ export function isHumanHandoffPending(history: HistoryMessage[]) {
 }
 
 export function isHumanHandoffAffirmation(body: string) {
-  return /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|ok|yes|👍)/i.test(body.trim())
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  return /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|מעולה|ok|yes|👍|אוקיי|אוקי|okay)(?:[\s,.!?]|$)/i.test(
+    text
+  )
 }
 
 export function isHumanHandoffDecline(body: string) {

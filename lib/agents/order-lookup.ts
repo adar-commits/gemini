@@ -339,6 +339,8 @@ function parseDocumentLinkFromPayload(data: unknown) {
 }
 
 export function extractOrderNumber(text: string) {
+  const compact = text.match(/\b((?:SO|IN|OV)\s*\d+)\b/i)
+  if (compact?.[1]) return compact[1].replace(/\s+/g, "").toUpperCase()
   const match = text.match(/\b((?:SO|IN|OV)\d+)\b/i)
   return match?.[1]?.toUpperCase() ?? null
 }
@@ -566,6 +568,9 @@ export function extractOrderReference(text: string, history: HistoryMessage[] = 
 
   const prefixed = extractOrderNumber(text)
   if (prefixed) return prefixed
+
+  const hashMatch = text.match(/#\s*(\d{4,8})\b/)
+  if (hashMatch?.[1]) return hashMatch[1]
 
   const labeled =
     text.match(/(?:ה)?זמנ(?:ה|ות)\s*(?:#|מס(?:'|׳|"|')?\s*)?(\d{4,8})\b/i) ??

@@ -21,6 +21,10 @@ import {
   isReturnExchangePolicyFaqQuestion,
 } from "@/lib/agents/policy-subjects"
 import {
+  isActiveInventoryThread,
+  isInventoryRecheckRequest,
+} from "@/lib/agents/inventory-lookup"
+import {
   isPostPurchaseIntentConfirmPending,
   isPostPurchaseIntentConfirmed,
   isPostPurchaseIntentDeclined,
@@ -155,6 +159,12 @@ export function buildConversationHints(input: {
   if (isRefundTimelineQuestion(body)) {
     lines.push(
       "Refund timeline: up to 7 business days from cancellation date — not from warehouse/branch receipt."
+    )
+  }
+
+  if (isActiveInventoryThread(history) || isInventoryRecheckRequest(body)) {
+    lines.push(
+      "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy."
     )
   }
 

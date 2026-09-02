@@ -1526,7 +1526,7 @@ function introForFlow(text: string, history: HistoryMessage[], intake: SalesInta
   const visualAck = visualConsultAck(text)
   if (visualAck) return visualAck
   if (isSizeExchangeIntakeContext(history, text) && !hasOngoingSalesIntake(history)) {
-    return "בסדר, אעזור לדייק את המידה.\n"
+    return "בסדר, אעביר את הפרטים ליועץ שיעזור עם המידה.\n"
   }
   if (hasOngoingSalesIntake(history)) return ""
   if (intakeHasProgress(intake)) return ""

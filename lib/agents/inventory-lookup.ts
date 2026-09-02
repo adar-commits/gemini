@@ -392,6 +392,21 @@ function formatLocationName(name: string) {
   return name.replace(/\\"/g, '"').trim()
 }
 
+/** Customer wants another stock check after a prior lookup — need fresh SKU. */
+export function isInventoryRecheckRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return /(?:שוב|עוד\s+(?:פעם|דגם|מ(?:ק(?:״|"|')?ט|וצר)?)|דגם\s+אחר|מ(?:ק(?:״|"|')?ט)\s+אחר|(?:ת|)?(?:ב)?דוק(?:\s+לי|\s+שוב)?\s*(?:שוב|עוד)|לבדוק\s+(?:שוב|עוד)|(?:יש|זמין)\s+ג(?:ם|ם)\s+ב)/i.test(
+    text
+  )
+}
+
+export function buildInventoryRecheckSkuPrompt() {
+  return `${CUSTOMER_HEADER}
+בשמחה — כדי לבדוק דגם נוסף, שלחו את המק״ט שלו ${INVENTORY_SKU_EXAMPLE_HINT}.
+אחרי הבדיקה אפשר להעביר ליועץ מכירות אם תרצו להמשיך לרכישה.`
+}
+
 export function buildSkuRequestPrompt(context?: {
   branch?: string | null
   product?: string | null
@@ -547,7 +562,10 @@ export function buildInventoryAvailabilityReply(
     )
   }
 
-  lines.push("", CUSTOMER_NATURAL_CLOSE)
+  lines.push(
+    "",
+    "רוצים לבדוק דגם נוסף? שלחו מק״ט. לרכישה — אפשר להעביר ליועץ מכירות."
+  )
   return `${CUSTOMER_HEADER}\n${lines.join("\n")}`
 }
 
@@ -591,9 +609,15 @@ export async function resolveBranchInventoryReply(input: {
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
-  const sku = extractRecentSku(body, history)
+  const skuInBody = extractSku(body)
+  const recheck = isInventoryRecheckRequest(body) && isActiveInventoryThread(history)
+  const sku = skuInBody ?? (recheck ? null : extractRecentSku(body, history))
   const { branch, product } = inventoryContextFromRecentMessages(body, history)
   const skuContext = { branch, product }
+
+  if (recheck && !skuInBody) {
+    return buildInventoryRecheckSkuPrompt()
+  }
 
   if (hasProductUrlInText(body) && !sku) {
     return buildProductUrlSkuPrompt(product)

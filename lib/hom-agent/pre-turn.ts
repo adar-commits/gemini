@@ -5,16 +5,26 @@ import {
   isInactivityPingPending,
   isInactivityStillHereReply,
 } from "@/lib/agents/inactivity"
+import {
+  buildHumanHandoffConfirmedReply,
+  buildHumanHandoffDeclinedReply,
+  inferHumanHandoffAction,
+  isHumanHandoffAffirmation,
+  isHumanHandoffDecline,
+  isHumanHandoffPending,
+} from "@/lib/agents/off-topic"
+import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
+import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
 
 export type PreTurnResult =
   | { kind: "skip"; response: null }
   | {
       kind: "handled"
       reply: string
-      action: "reply" | "end"
+      action: HomAgentAction
     }
 
 export function runPreTurnGuards(input: {
@@ -36,7 +46,29 @@ export function runPreTurnGuards(input: {
     }
   }
 
-  if (isConversationClosing(body)) {
+  if (isHumanHandoffPending(input.history)) {
+    if (isHumanHandoffAffirmation(body)) {
+      const action = inferHumanHandoffAction(input.history, null)
+      return {
+        kind: "handled",
+        reply: buildHumanHandoffConfirmedReply(action),
+        action,
+      }
+    }
+    if (isHumanHandoffDecline(body)) {
+      return {
+        kind: "handled",
+        reply: buildHumanHandoffDeclinedReply(),
+        action: "reply",
+      }
+    }
+  }
+
+  if (
+    isConversationClosing(body) &&
+    !isHumanHandoffPending(input.history) &&
+    !isOrderConfirmationPending(input.history)
+  ) {
     return {
       kind: "handled",
       reply: buildClosingAckReply(input.customerName),
