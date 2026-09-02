@@ -1,6 +1,7 @@
 import type { UserMediaPart, UserTurn } from "@/lib/agents/user-turn"
 
-export type LandbotInboundMessage = {
+export type LandbotCustomerMessage = {
+  kind: "customer"
   customerId: number
   conversationId: string
   turn: UserTurn
@@ -8,7 +9,33 @@ export type LandbotInboundMessage = {
   senderType: string
   phone: string
   customerName: string
+  assignedAgentId: number | null
 }
+
+export type LandbotAgentMessage = {
+  kind: "agent"
+  customerId: number
+  conversationId: string
+  messageKey: string
+  agentId: number | null
+}
+
+export type LandbotEventMessage = {
+  kind: "event"
+  customerId: number
+  conversationId: string
+  messageKey: string
+  action: "assign" | "unassign"
+  agentId: number | null
+}
+
+export type LandbotHookMessage =
+  | LandbotCustomerMessage
+  | LandbotAgentMessage
+  | LandbotEventMessage
+
+/** @deprecated Use LandbotCustomerMessage — kept for callers that only handle customer turns. */
+export type LandbotInboundMessage = LandbotCustomerMessage
 
 type UnknownRecord = Record<string, unknown>
 
@@ -59,20 +86,44 @@ function extractTurn(message: UnknownRecord): UserTurn | null {
   }
 }
 
-export function parseLandbotWebhook(
-  payload: unknown,
-  sentryTrace: string | null
-): LandbotInboundMessage | null {
+function extractMessages(payload: unknown) {
   const root = asRecord(payload)
-  if (!root) return null
+  if (!root) return []
 
-  const messages = Array.isArray(root.messages)
+  return Array.isArray(root.messages)
     ? root.messages
     : Array.isArray(asRecord(root.body)?.messages)
       ? (asRecord(root.body)?.messages as unknown[])
       : []
+}
 
-  const first = asRecord(messages[0])
+function baseMessageKey(
+  first: UnknownRecord,
+  raw: UnknownRecord | null,
+  sentryTrace: string | null,
+  suffix: string
+) {
+  return (
+    asText(raw?.uuid) ||
+    asText(sentryTrace) ||
+    `${asText(first.timestamp)}:${suffix}`
+  )
+}
+
+function customerFields(customer: UnknownRecord | null) {
+  const customFields = asRecord(customer?.custom_fields)
+  return {
+    phone: asText(customer?.phone) || asText(asRecord(customFields?.phone)?.value),
+    customerName: asText(customer?.name) || asText(customer?.first_name),
+    assignedAgentId: asNumber(customer?.agent_id),
+  }
+}
+
+export function parseLandbotHookMessage(
+  payload: unknown,
+  sentryTrace: string | null
+): LandbotHookMessage | null {
+  const first = asRecord(extractMessages(payload)[0])
   if (!first) return null
 
   const sender = asRecord(first.sender)
@@ -82,33 +133,81 @@ export function parseLandbotWebhook(
   const customerId = asNumber(customer?.id) ?? asNumber(sender?.id)
   if (!customerId) return null
 
+  const conversationId = String(customerId)
+  const { phone, customerName, assignedAgentId } = customerFields(customer)
+  const messageType = asText(first.type).toLowerCase()
+
+  if (messageType === "event" || senderType === "sys") {
+    const action = asText(first.action || raw?.action).toLowerCase()
+    if (action !== "assign" && action !== "unassign") return null
+    const agentId =
+      asNumber(first.agent_id) ??
+      asNumber(raw?.agent_id) ??
+      asNumber(raw?.message) ??
+      asNumber(first.message)
+    return {
+      kind: "event",
+      customerId,
+      conversationId,
+      messageKey: baseMessageKey(first, raw, sentryTrace, `event:${action}`),
+      action,
+      agentId,
+    }
+  }
+
+  if (senderType === "agent") {
+    const agentId = asNumber(sender?.id) ?? assignedAgentId
+    return {
+      kind: "agent",
+      customerId,
+      conversationId,
+      messageKey: baseMessageKey(first, raw, sentryTrace, `agent:${agentId ?? "unknown"}`),
+      agentId,
+    }
+  }
+
+  if (senderType !== "customer") return null
+
   const turn = extractTurn(first)
   if (!turn) return null
 
-  const messageKey =
-    asText(raw?.uuid) ||
-    asText(sentryTrace) ||
-    `${customerId}:${asText(first.timestamp)}:${turn.text}:${turn.media[0]?.url ?? ""}`
-
-  const customFields = asRecord(customer?.custom_fields)
-  const phone =
-    asText(customer?.phone) || asText(asRecord(customFields?.phone)?.value)
-  const customerName = asText(customer?.name) || asText(customer?.first_name)
-
   return {
+    kind: "customer",
     customerId,
-    conversationId: String(customerId),
+    conversationId,
     turn,
-    messageKey,
+    messageKey: baseMessageKey(
+      first,
+      raw,
+      sentryTrace,
+      `${turn.text}:${turn.media[0]?.url ?? ""}`
+    ),
     senderType,
     phone,
     customerName,
+    assignedAgentId,
   }
 }
 
-export function isCustomerChat(message: LandbotInboundMessage) {
+export function parseLandbotWebhook(
+  payload: unknown,
+  sentryTrace: string | null
+): LandbotCustomerMessage | null {
+  const parsed = parseLandbotHookMessage(payload, sentryTrace)
+  return parsed?.kind === "customer" ? parsed : null
+}
+
+export function isCustomerChat(message: LandbotCustomerMessage) {
   return (
     message.senderType === "customer" &&
     (Boolean(message.turn.text.trim()) || message.turn.media.length > 0)
   )
+}
+
+export function isAgentChat(message: LandbotHookMessage): message is LandbotAgentMessage {
+  return message.kind === "agent"
+}
+
+export function isLandbotEvent(message: LandbotHookMessage): message is LandbotEventMessage {
+  return message.kind === "event"
 }

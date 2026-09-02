@@ -63,6 +63,7 @@ export async function resetAgentSession(conversationId: string) {
     updated_at: new Date().toISOString(),
     inactivity_ping_sent_at: null,
     inactivity_closed_at: null,
+    human_agent_last_at: null,
   })
 }
 

@@ -22,8 +22,12 @@ create table if not exists public.hom_agent_sessions (
   inactivity_ping_sent_at timestamptz,
   inactivity_closed_at timestamptz,
   customer_name text,
-  customer_phone text
+  customer_phone text,
+  human_agent_last_at timestamptz
 );
+
+alter table public.hom_agent_sessions
+  add column if not exists human_agent_last_at timestamptz;
 
 alter table public.hom_agent_messages enable row level security;
 alter table public.hom_agent_sessions enable row level security;

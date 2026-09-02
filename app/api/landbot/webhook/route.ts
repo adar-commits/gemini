@@ -18,7 +18,18 @@ import {
   drainConversationBuffer,
   enqueueCustomerTurn,
 } from "@/lib/landbot/message-buffer"
-import { isCustomerChat, parseLandbotWebhook } from "@/lib/landbot/parse-webhook"
+import {
+  isAgentChat,
+  isCustomerChat,
+  isLandbotEvent,
+  parseLandbotHookMessage,
+} from "@/lib/landbot/parse-webhook"
+import {
+  isConfiguredHumanAgentId,
+  isHumanThreadActive,
+  recordHumanAgentActivity,
+  releaseHumanThread,
+} from "@/lib/landbot/human-takeover"
 
 export const maxDuration = 300
 export const runtime = "nodejs"
@@ -69,9 +80,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: "invalid_json" })
   }
 
-  const inbound = parseLandbotWebhook(payload, request.headers.get("sentry-trace"))
-  if (!inbound || !isCustomerChat(inbound)) {
+  const hook = parseLandbotHookMessage(payload, request.headers.get("sentry-trace"))
+  if (!hook) {
+    return NextResponse.json({ ok: true, skipped: "unrecognized_message" })
+  }
+
+  if (isAgentChat(hook)) {
+    await recordHumanAgentActivity(hook.conversationId)
+    return NextResponse.json({ ok: true, skipped: "human_agent_message" })
+  }
+
+  if (isLandbotEvent(hook)) {
+    if (hook.action === "assign" && isConfiguredHumanAgentId(hook.agentId)) {
+      await recordHumanAgentActivity(hook.conversationId)
+    } else if (hook.action === "unassign") {
+      await releaseHumanThread(hook.conversationId)
+    }
+    return NextResponse.json({ ok: true, skipped: "landbot_event" })
+  }
+
+  const inbound = hook
+  if (!isCustomerChat(inbound)) {
     return NextResponse.json({ ok: true, skipped: "not_customer_message" })
+  }
+
+  if (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId)) {
+    return NextResponse.json({ ok: true, skipped: "human_thread_active" })
   }
 
   let phone = inbound.phone
@@ -127,6 +161,7 @@ export async function POST(request: Request) {
               phone,
               customerName: inbound.customerName,
               headerAlreadySent,
+              assignedAgentId: inbound.assignedAgentId,
             }
           )
           if (lastResult.outbound_header_sent) {

@@ -307,13 +307,52 @@ export async function getSessionInactivityState(conversationId: string) {
   const { data, error } = await supabase
     .from("hom_agent_sessions")
     .select(
-      "last_assistant_at, last_user_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+      "last_assistant_at, last_user_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone, human_agent_last_at"
     )
     .eq("conversation_id", conversationId)
     .maybeSingle()
 
   if (error) throw error
   return data
+}
+
+export async function getHumanTakeoverState(conversationId: string) {
+  conversationId = safeId(conversationId)
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_sessions")
+    .select("human_agent_last_at, last_user_at")
+    .eq("conversation_id", conversationId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+export async function markHumanAgentActivity(conversationId: string, at?: string) {
+  conversationId = safeId(conversationId)
+  const supabase = getAgentSupabase()
+  const now = at ?? new Date().toISOString()
+  const { error } = await supabase.from("hom_agent_sessions").upsert({
+    conversation_id: conversationId,
+    human_agent_last_at: now,
+    updated_at: now,
+  })
+  if (error) throw error
+}
+
+export async function clearHumanAgentActivity(conversationId: string) {
+  conversationId = safeId(conversationId)
+  const supabase = getAgentSupabase()
+  const { error } = await supabase
+    .from("hom_agent_sessions")
+    .update({
+      human_agent_last_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("conversation_id", conversationId)
+
+  if (error) throw error
 }
 
 export async function appendTurn(input: {

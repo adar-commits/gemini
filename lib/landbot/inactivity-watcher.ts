@@ -1,4 +1,5 @@
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
+import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_PING_MS,
@@ -99,6 +100,7 @@ async function lastMeaningfulAssistantMessage(conversationId: string) {
 }
 
 async function isHumanWaitingConversation(conversationId: string) {
+  if (await isHumanThreadActive(conversationId)) return true
   const [lastAction, meaningful] = await Promise.all([
     lastMessageAction(conversationId),
     lastMeaningfulAssistantMessage(conversationId),
@@ -172,8 +174,8 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
     return "human_handoff" as const
   }
 
-  const { getConversationHistory } = await import("@/lib/agents/memory")
-  const history = await getConversationHistory(payload.conversationId)
+  const { getHistory } = await import("@/lib/agents/memory")
+  const history = await getHistory(payload.conversationId)
   if (isOrderConfirmationPending(history)) {
     return "order_confirmation_pending" as const
   }

@@ -1,7 +1,7 @@
 import { runCustomerConversation } from "@/lib/agents/conversation"
 import { formatOutboundMessages } from "@/lib/agents/greeting"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
-import { appendTurn, clearInactivityWatchState, getConversationHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
@@ -45,9 +45,15 @@ import { buildNeverStuckReply, buildProcessingStuckReply } from "@/lib/agent-cor
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
 import {
+  isHumanThreadActive,
+  recordHumanAgentActivity,
+  releaseHumanThread,
+} from "@/lib/landbot/human-takeover"
+import {
   handleTrainerProfileCommand,
   isTrainerProfileCommand,
 } from "@/lib/landbot/trainer-runtime"
+import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
 
 export type InboundMode = "reply" | "shadow"
 
@@ -56,6 +62,8 @@ export type LandbotInboundResult = AgentResponse & {
   draft_reply?: string
   /** True when a customer-visible message already included *הום בוט :)* this drain. */
   outbound_header_sent?: boolean
+  /** Bot intentionally stayed silent (e.g. human rep owns the thread). */
+  skipped?: string
 }
 
 function outboundReply(result: AgentResponse) {
@@ -83,10 +91,26 @@ export async function handleLandbotInbound(
     customerName?: string
     /** Prior outbound in the same debounce drain already showed the header. */
     headerAlreadySent?: boolean
+    assignedAgentId?: number | null
   }
 ): Promise<LandbotInboundResult> {
   const replyEnabled = options?.replyEnabled !== false
   const mode: InboundMode = replyEnabled ? "reply" : "shadow"
+
+  if (
+    replyEnabled &&
+    (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
+  ) {
+    return {
+      ok: true,
+      agent: "master",
+      action: "reply",
+      reply: "",
+      duplicateSuppressed: true,
+      mode,
+      skipped: "human_thread_active",
+    }
+  }
 
   let customerName = options?.customerName?.trim() || ""
   if (!customerName) {
@@ -320,7 +344,9 @@ export async function handleLandbotInbound(
       const human = pickHumanAgentId(result.action, customerId)
       if (human) await assignToHuman(customerId, human)
       else await unassignCustomer(customerId)
+      await recordHumanAgentActivity(conversationId)
     } else if (outboundMessages.length > 0) {
+      await releaseHumanThread(conversationId)
       const lastOutbound = outboundMessages[outboundMessages.length - 1] ?? ""
       if (
         shouldSkipInactivityForHumanWait({
@@ -330,7 +356,7 @@ export async function handleLandbotInbound(
       ) {
         await clearInactivityWatchState(conversationId)
       } else {
-        const history = await getConversationHistory(conversationId)
+        const history = await getHistory(conversationId)
         if (shouldSuppressInactivityWatch(history)) {
           await clearInactivityWatchState(conversationId)
         } else {
