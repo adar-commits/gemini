@@ -1,7 +1,7 @@
 import { runCustomerConversation } from "@/lib/agents/conversation"
 import { formatOutboundMessages } from "@/lib/agents/greeting"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
-import { appendTurn, clearInactivityWatchState, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { appendTurn, clearInactivityWatchState, getConversationHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
@@ -38,6 +38,7 @@ import {
   ensureSessionMetaFromInbound,
   runInactivityPipeline,
 } from "@/lib/landbot/inactivity-watcher"
+import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
 import { after } from "next/server"
 import type { AgentResponse } from "@/lib/agents/types"
 import { buildNeverStuckReply, buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
@@ -329,6 +330,10 @@ export async function handleLandbotInbound(
       ) {
         await clearInactivityWatchState(conversationId)
       } else {
+        const history = await getConversationHistory(conversationId)
+        if (shouldSuppressInactivityWatch(history)) {
+          await clearInactivityWatchState(conversationId)
+        } else {
         const session = await getSessionInactivityState(conversationId)
         const watchAssistantAt = session?.last_assistant_at
         if (watchAssistantAt) {
@@ -350,6 +355,7 @@ export async function handleLandbotInbound(
               console.error("[inactivity-watch] pipeline failed", error)
             }
           })
+        }
         }
       }
     }

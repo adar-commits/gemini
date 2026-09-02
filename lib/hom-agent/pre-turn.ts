@@ -1,9 +1,11 @@
 import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import {
+  buildInactivityDeferAck,
   buildInactivityStillHereAck,
   isInactivityPingPending,
   isInactivityStillHereReply,
+  isInactivityUnavailableReply,
 } from "@/lib/agents/inactivity"
 import {
   buildHumanHandoffConfirmedReply,
@@ -42,6 +44,14 @@ export function runPreTurnGuards(input: {
     return {
       kind: "handled",
       reply: buildInactivityStillHereAck(input.customerName),
+      action: "reply",
+    }
+  }
+
+  if (isInactivityPingPending(input.history) && isInactivityUnavailableReply(body)) {
+    return {
+      kind: "handled",
+      reply: buildInactivityDeferAck(input.customerName),
       action: "reply",
     }
   }

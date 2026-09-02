@@ -5,6 +5,7 @@ import {
   buildInactivityCloseReply,
   buildInactivityPingReply,
   isInactivityAssistantMessage,
+  shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
 import { getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { getAgentSupabase } from "@/lib/agents/supabase"
@@ -405,6 +406,13 @@ export async function processInactivityTimeouts() {
   for (const row of sessions) {
     try {
       if (await shouldSkipIdleForHumanWait(row)) {
+        results.skipped += 1
+        continue
+      }
+
+      const { getConversationHistory } = await import("@/lib/agents/memory")
+      const history = await getConversationHistory(row.conversation_id)
+      if (shouldSuppressInactivityWatch(history)) {
         results.skipped += 1
         continue
       }

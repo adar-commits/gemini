@@ -5,6 +5,7 @@ import {
   buildInactivityCloseReply,
   buildInactivityPingReply,
   isInactivityAssistantMessage,
+  shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
 import { resolveCronSecret } from "@/lib/agents/cron-auth"
 import {
@@ -174,6 +175,10 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
   const history = await getConversationHistory(payload.conversationId)
   if (isOrderConfirmationPending(history)) {
     return "order_confirmation_pending" as const
+  }
+
+  if (shouldSuppressInactivityWatch(history)) {
+    return "customer_deferred" as const
   }
 
   return null
