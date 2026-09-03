@@ -86,7 +86,7 @@ export function buildThanksReply(customerName?: string) {
 
 export function buildLlmFailureReply() {
   return `${CUSTOMER_HEADER}
-עוד כמה רגעים — משהו נתקע בצד שלי, סליחה על זה.
+משהו נתקע בצד שלי, סליחה על זה.
 אפשר לנסח שוב בקצרה, או שאעביר לנציג שימשיך מכאן?`
 }
 

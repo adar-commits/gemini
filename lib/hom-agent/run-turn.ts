@@ -11,6 +11,7 @@ import { bindRuntimeConfig } from "@/lib/agent-core/config"
 import {
   beginTurnMetrics,
   finishTurnMetrics,
+  setFallbackLayer,
   setTurnTier,
 } from "@/lib/agent-core/turn-metrics"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
@@ -158,7 +159,11 @@ export async function runHomAgentTurn(
     llmCalls = invoked.llmCalls
     model = invoked.model
   } catch (error) {
-    console.error("[hom-agent] invoke failed", error)
+    console.error("[hom-agent] invoke failed", {
+      conversationId,
+      error: error instanceof Error ? error.message : error,
+    })
+    setFallbackLayer(conversationId, "invoke_exception")
     output = { reply: buildLlmFailureReply(), action: "reply" as const }
     llmCalls = 0
   }
