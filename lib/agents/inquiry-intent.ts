@@ -20,7 +20,7 @@ export type PostPurchaseCaseKind =
   | "missing_item"
 
 const RETURN_INTENT_RE =
-  /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חזיר|החזר)|(?:ל)?החזיר(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החזר(?:ה|ות)?(?:\s|$)|(?:^|\s)(?:ביטול|זיכוי)(?:\s|$|[?.!,])/i
+  /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חזיר|החזר)|(?:נוכל|אפשר|מותר)\s+(?:ל)?(?:ה)?(?:חזיר|החזר)|(?:ל)?החזיר(?:\s+(?:ב(?:[א-ת]+|\d)|א(?:ת|ת)?|אות(?:ו|ה|ם)?))|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החזר(?:ה|ות)?(?:\s|$)|(?:^|\s)(?:ביטול|זיכוי)(?:\s|$|[?.!,])/i
 
 const EXCHANGE_INTENT_RE =
   /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חליף|החלפ)|(?:ל)?(?:ה)?חליף(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החלפ(?:ה|ות)?(?:\s|$|[?.!,])|(?:^|[\s,])(?:ו)?החלפ(?:ה|ות)?(?:\s|$|[?.!,])/i
@@ -251,6 +251,53 @@ export function isReturnPolicyQuestion(text: string) {
     /(?:להחזיר|החזר)/i.test(trimmed) &&
     /(?:מה\s+(?:ע(?:לי|ל|ל)?|אפשר|לעשות|צריך|עושים)|איך\s+(?:עושים|מ(?:בצעים|חזירים)|מחזירים))/i.test(
       trimmed
+    )
+  ) {
+    return true
+  }
+
+  if (/במידה\s+(?:ו|ש)/i.test(trimmed) && /(?:להחזיר|החזיר|החזר|זיכוי|ביטול)/i.test(trimmed)) {
+    return true
+  }
+
+  if (
+    /לא\s+(?:ימצא\s+)?חן\s+בעינ/i.test(trimmed) &&
+    /(?:להחזיר|החזיר|החזר|זיכוי)/i.test(trimmed)
+  ) {
+    return true
+  }
+
+  if (
+    /(?:נוכל|אפשר|מותר).*(?:ל)?(?:ה)?(?:חזיר|החזר)/i.test(trimmed) &&
+    !/^(?:החזרה|ביצוע\s+החזרה)/i.test(trimmed)
+  ) {
+    return true
+  }
+
+  return false
+}
+
+/** Hypothetical return eligibility — policy FAQ, not execution or pickup wait. */
+export function isReturnEligibilityQuestion(
+  body: string,
+  history: { role: string; content: string }[] = []
+) {
+  const text = body.trim()
+  if (!text) return false
+  if (isActiveReturnExchangePickupCase(text)) return false
+  if (classifyPostPurchaseCase(text)) return false
+  if (isReturnPolicyQuestion(text)) return true
+
+  const recentUser = history
+    .filter((message) => message.role === "user")
+    .slice(-3)
+    .map((message) => message.content)
+  const thread = [...recentUser, text].join("\n")
+
+  if (
+    RECEIVED_RE.test(thread) &&
+    /(?:במידה|אם|לא\s+(?:ימצא\s+)?חן|(?:נוכל|אפשר|מותר)|מה\s+(?:מ(?:ותר|המדיניות)|אפשר)).{0,80}(?:להחזיר|החזיר|החזר|זיכוי|ביטול)/i.test(
+      text
     )
   ) {
     return true

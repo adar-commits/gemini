@@ -5,6 +5,7 @@ import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
   isPostPurchaseDissatisfaction,
+  isReturnEligibilityQuestion,
   isReturnPolicyQuestion,
 } from "@/lib/agents/inquiry-intent"
 import { buildDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
@@ -57,6 +58,21 @@ describe("owner routing decisions (v3 pattern layer)", () => {
       assert.equal(isReturnPolicyQuestion(message), true, message)
       assert.equal(classifyPostPurchaseCase(message), null, message)
     }
+  })
+
+  it("treats hypothetical return eligibility after delivery as FAQ, not order lookup", () => {
+    const delivery =
+      "היי מה קורה השטיח הגיע היום ואני לא בבית עד מוצאי שבת"
+    const eligibility =
+      "במידה וזה לא ימצא חן בעיני נוכל להחזיר בראשון ולקבל את הזיכוי?"
+    const history: HistoryMessage[] = [
+      { role: "user", content: delivery },
+    ]
+
+    assert.equal(isReturnPolicyQuestion(eligibility), true)
+    assert.equal(isReturnEligibilityQuestion(eligibility, history), true)
+    assert.equal(classifyPostPurchaseCase(eligibility), null)
+    assert.equal(isReturnEligibilityQuestion(`${delivery}\n${eligibility}`), true)
   })
 
   it("routes delayed shipment to shipping status, not service", () => {

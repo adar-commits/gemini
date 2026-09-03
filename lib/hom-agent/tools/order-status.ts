@@ -7,6 +7,7 @@ import {
 import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
+  isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
   enrichReturnPickupIntake,
@@ -32,6 +33,14 @@ export async function executeLookupOrderStatus(input: {
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
+
+  if (isReturnEligibilityQuestion(body, history)) {
+    return {
+      ok: false as const,
+      error:
+        "Return eligibility / policy FAQ — answer from KB (14 days from receipt, portal, branch or paid courier). Do not look up order status.",
+    }
+  }
 
   if (returnPickupContextInThread(history, body)) {
     let intake = extractServiceIntake(history, body)

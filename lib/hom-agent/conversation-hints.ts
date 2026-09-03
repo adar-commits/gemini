@@ -14,6 +14,7 @@ import {
   isCreditCodeOnlineRedemptionRequest,
   isCreditRedemptionQuestion,
   isRefundTimelineQuestion,
+  isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
@@ -173,7 +174,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
+  if (isReturnEligibilityQuestion(body, history)) {
+    lines.push(
+      "Return ELIGIBILITY FAQ (hypothetical — not executing a return now): answer immediately from return policy — 14 days from receipt, unused + original packaging, branch or paid courier, returns portal to open the request. Confirm their planned day (e.g. Sunday) is within the window. Do NOT call lookup_order_status."
+    )
+  } else if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
     lines.push(
       "Policy FAQ: returns/cancellations → returns portal; exchanges → branch or paid courier fees from KB — never portal for exchanges."
     )
