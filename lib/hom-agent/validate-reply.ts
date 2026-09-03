@@ -14,14 +14,17 @@ import {
   ensureSingleCustomerHeader,
   isCasualGreeting,
   isSelfContainedGreetingReply,
+  prependOpeningGreetingReply,
   sanitizeCustomerAddress,
 } from "@/lib/agents/greeting"
+import type { HistoryMessage } from "@/lib/agents/types"
 import type { HomAgentOutput } from "@/lib/hom-agent/output-schema"
 
 export function validateHomAgentReply(
   output: HomAgentOutput,
   userText: string,
-  whatsappPhone?: string | null
+  whatsappPhone?: string | null,
+  history: HistoryMessage[] = []
 ): HomAgentOutput {
   let reply = output.reply?.trim() ?? ""
   if (!reply && output.action === "reply") {
@@ -37,6 +40,7 @@ export function validateHomAgentReply(
   reply = sanitizeHallucinatedPortalUrls(reply, whatsappPhone)
   reply = personalizeReturnsPortalUrls(reply, whatsappPhone)
   reply = dedupeGreetingBotName(reply)
+  reply = prependOpeningGreetingReply(reply, userText, history)
 
   if (reply && !shouldSkipHeader(userText, reply)) {
     reply = reply.replace(/^(?:\*הום בוט :\)\*\n?)+/g, `${CUSTOMER_HEADER}\n`)

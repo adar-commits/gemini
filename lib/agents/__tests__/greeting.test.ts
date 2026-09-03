@@ -2,9 +2,11 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   buildGreetingReply,
+  buildOpeningGreetingEcho,
   dedupeGreetingBotName,
   ensureSingleCustomerHeader,
   formatOutboundMessages,
+  prependOpeningGreetingReply,
   sanitizeBotGenderSlashes,
   sanitizeBotEmojis,
   sanitizeBotVoiceGender,
@@ -141,5 +143,31 @@ ${CUSTOMER_HEADER}
     })
     assert.doesNotMatch(messages[0], /^\*הום בוט :\)\*/)
     assert.match(messages[0], /שאלה נוספת/)
+  })
+})
+
+describe("opening greeting echo", () => {
+  it("prepends mirrored hello on first substantive turn with hello + ask", () => {
+    assert.equal(buildOpeningGreetingEcho("היי שלום אני רוצה לדעת"), "היי שלום! 😊")
+
+    const raw = `${CUSTOMER_HEADER}
+קודם אמצא את ההזמנה שלכם בזריזות, האם היא רשומה על המספר ממנו אני מתכתב כרגע? (054-7495083)
+אם לא, אשמח לקבל אותו.`
+
+    const reply = prependOpeningGreetingReply(raw, "היי שלום אני רוצה לדעת אם קיבלתי את השטיח", [
+      { role: "user", content: "איפוס" },
+      { role: "assistant", content: "*הום בוט :)*\nהשיחה אופסה. אפשר להתחיל מחדש." },
+    ])
+    assert.match(reply, /היי שלום! 😊/)
+    assert.match(reply, /קודם אמצא את ההזמנה/)
+  })
+
+  it("does not prepend greeting mid-thread", () => {
+    const raw = `${CUSTOMER_HEADER}\nעוד שאלה`
+    const reply = prependOpeningGreetingReply(raw, "היי", [
+      { role: "user", content: "שאלה קודמת" },
+      { role: "assistant", content: "תשובה" },
+    ])
+    assert.equal(reply, raw)
   })
 })

@@ -26,6 +26,57 @@ function stripLeadingGreetings(text: string) {
   return body
 }
 
+/** Greeting words at the start of a message — even when a business ask follows. */
+export function extractLeadingGreeting(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  const match = trimmed.match(
+    /^(?:היי\s+שלום|שלום\s+היי|בוקר\s+טוב|ערב\s+טוב|מה\s+נשמע|מה\s+קורה|מה\s+שלומ(?:ך|כם)|שלום|היי|הי|אהלן|hello|hi|hey)(?:[\s,!?.]+)*/iu
+  )
+  if (!match) return null
+  return match[0].replace(/[\s,!?.]+$/, "").trim() || null
+}
+
+export function isFirstSubstantiveCustomerTurn(history: HistoryMessage[]) {
+  return substantiveUserMessages(history).length === 0
+}
+
+/** Mirror hello on the first substantive turn when the customer opened with one. */
+export function buildOpeningGreetingEcho(body: string) {
+  const leading = extractLeadingGreeting(body)
+  if (!leading) return null
+  const normalized = leading.replace(/\s+/g, " ").trim()
+  if (/היי\s+שלום|שלום\s+היי/i.test(normalized)) return "היי שלום! 😊"
+  if (/^היי/i.test(normalized)) return "היי! 😊"
+  if (/^שלום/i.test(normalized)) return "שלום! 😊"
+  if (/^אהלן/i.test(normalized)) return "אהלן! 😊"
+  if (/בוקר\s+טוב/i.test(normalized)) return "בוקר טוב! 😊"
+  if (/ערב\s+טוב/i.test(normalized)) return "ערב טוב! 😊"
+  if (/^מה\s+נשמע/i.test(normalized)) return "הכל טוב, תודה! 😊"
+  if (/^מה\s+קורה/i.test(normalized)) return "היי! 😊"
+  return `${normalized}! 😊`
+}
+
+export function prependOpeningGreetingReply(
+  reply: string,
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (!isFirstSubstantiveCustomerTurn(history)) return reply
+  const echo = buildOpeningGreetingEcho(body)
+  if (!echo) return reply
+
+  const withoutHeader = reply.replace(/^\*הום בוט :\)\*\n?/, "").trim()
+  if (/^(?:שלום|היי|הי|אהלן|בוקר|ערב|הכל טוב)/i.test(withoutHeader)) {
+    return reply
+  }
+
+  if (reply.startsWith(CUSTOMER_HEADER)) {
+    return `${CUSTOMER_HEADER}\n${echo}\n\n${withoutHeader}`
+  }
+  return `${CUSTOMER_HEADER}\n${echo}\n\n${reply.trim()}`
+}
+
 export function isCasualGreeting(text: string) {
   const body = text.trim()
   if (!body || body.length > 100) return false

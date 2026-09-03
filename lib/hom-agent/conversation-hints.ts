@@ -20,6 +20,8 @@ import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
   isCasualGreeting,
   isCasualSmallTalk,
+  extractLeadingGreeting,
+  isFirstSubstantiveCustomerTurn,
   substantiveUserMessages,
 } from "@/lib/agents/greeting"
 import {
@@ -54,11 +56,13 @@ export function buildConversationHints(input: {
   const lines: string[] = []
 
   if (
-    substantiveUserMessages(history).length === 0 &&
-    (isCasualGreeting(body) || isCasualSmallTalk(body))
+    isFirstSubstantiveCustomerTurn(history) &&
+    (isCasualGreeting(body) ||
+      isCasualSmallTalk(body) ||
+      extractLeadingGreeting(body))
   ) {
     lines.push(
-      'OPENING GREETING: mirror their hello warmly (e.g. "היי שלום" → "היי שלום! 😊"). Use 1–2 emojis (😊 ☺️ 👋). Never a dry "איך אפשר לעזור?" without warmth first.'
+      'OPENING GREETING: mirror their hello warmly on your first line (e.g. "היי שלום" → "היי שלום! 😊") — even when you continue to order lookup or policy. Use 1–2 emojis (😊 ☺️ 👋). Never jump straight to "קודם אמצא את ההזמנה" without greeting first.'
     )
   }
 

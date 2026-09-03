@@ -140,7 +140,7 @@ async function invokeWithTools(ctx: InvokeContext) {
   const deterministicReply = extractDeterministicToolReply(toolResult.steps)
   if (deterministicReply) {
     return {
-      output: validateHomAgentReply(deterministicReply, ctx.body, ctx.phone),
+      output: validateHomAgentReply(deterministicReply, ctx.body, ctx.phone, ctx.history),
       llmCalls,
       model: ctx.model,
     }
@@ -230,7 +230,7 @@ function finalizeStructuredOutput(
   }
 
   return {
-    output: validateHomAgentReply(normalized, ctx.body, ctx.phone),
+    output: validateHomAgentReply(normalized, ctx.body, ctx.phone, ctx.history),
     llmCalls,
     model: ctx.model,
   }

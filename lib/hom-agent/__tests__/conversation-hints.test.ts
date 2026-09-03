@@ -58,4 +58,17 @@ describe("buildConversationHints", () => {
     assert.match(hints, /OPENING GREETING/i)
     assert.match(hints, /😊/)
   })
+
+  it("guides opening greeting when hello and business ask are in one message", () => {
+    const hints = buildConversationHints({
+      history: [
+        { role: "user", content: "איפוס" },
+        { role: "assistant", content: "*הום בוט :)*\nהשיחה אופסה." },
+      ],
+      body: "היי שלום אני רוצה לדעת אם קיבלתי את השטיח היום",
+    })
+    assert.ok(hints)
+    assert.match(hints, /OPENING GREETING/i)
+    assert.match(hints, /Never jump straight to "קודם אמצא/)
+  })
 })
