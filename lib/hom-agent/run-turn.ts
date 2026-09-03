@@ -25,7 +25,6 @@ import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import { runPreTurnGuards, runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
-import { debugSessionLog } from "@/lib/debug/session-log"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
   if (action === "human_sales" || action === "human_service") return action
@@ -170,20 +169,6 @@ export async function runHomAgentTurn(
   } catch (error) {
     const canRetry = shouldRetryInvokeAfterFailure(conversationId)
     const gatewayBudgetExceeded = isGatewayBudgetExceeded(error)
-    // #region agent log
-    debugSessionLog({
-      location: "run-turn.ts:invoke",
-      message: "invoke failed",
-      hypothesisId: "H5",
-      data: {
-        conversationId,
-        canRetry,
-        model,
-        gatewayBudgetExceeded,
-        error: error instanceof Error ? error.message : String(error),
-      },
-    })
-    // #endregion
     console.error("[hom-agent] invoke failed", {
       conversationId,
       canRetry,

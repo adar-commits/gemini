@@ -32,7 +32,6 @@ import {
 } from "@/lib/landbot/human-takeover"
 import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
 import { summarizeTurn } from "@/lib/agents/user-turn"
-import { debugSessionLog } from "@/lib/debug/session-log"
 
 export const maxDuration = 300
 export const runtime = "nodejs"
@@ -152,18 +151,6 @@ export async function POST(request: Request) {
 
   try {
     if (trainerResetBypass) {
-      // #region agent log
-      debugSessionLog({
-        location: "webhook/route.ts:POST",
-        message: "trainer reset bypass path",
-        hypothesisId: "H1",
-        data: {
-          conversationId: inbound.conversationId,
-          messageKey: inbound.messageKey,
-          phone: phone?.slice(-4),
-        },
-      })
-      // #endregion
       const resetResult = await handleLandbotInbound(
         inbound.customerId,
         inbound.conversationId,
