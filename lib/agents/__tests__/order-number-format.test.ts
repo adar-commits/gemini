@@ -7,19 +7,15 @@ import {
   buildOrderNumberRequestPrompt,
   customerOrderNumberStyleFromHistory,
   formatCustomerOrderNumber,
+  mapPriorityOrderRow,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
 
-const shopifyOrder: OrderShipmentStatus = {
-  orderNumber: "SO26076884",
-  branchLabel: "אתר אינטרנט",
-  statusCode: "1",
-  statusLabel: "בטיפול",
-  statusDescription: "",
-  branchCode: null,
-  totalPrice: 500,
-  raw: { ORDNAME: "SO26076884", REFERENCE: "76884" },
-}
+const shopifyOrder: OrderShipmentStatus = mapPriorityOrderRow({
+  ORDNAME: "SO26076884",
+  REFERENCE: "76884",
+  BRANCHNAME: "3000",
+})
 
 describe("customer order number format", () => {
   it("uses concrete examples in ask prompts", () => {
@@ -35,6 +31,12 @@ describe("customer order number format", () => {
       { role: "user", content: "הזamנה #76884", agent: null },
     ]
     assert.equal(customerOrderNumberStyleFromHistory(history), "hash")
+  })
+
+  it("defaults website orders to REFERENCE digits in confirmation", () => {
+    const prompt = buildOrderConfirmationPrompt(shopifyOrder)
+    assert.match(prompt, /76884/)
+    assert.doesNotMatch(prompt, /SO26076884/)
   })
 
   it("keeps hash format in confirmation prompt", () => {

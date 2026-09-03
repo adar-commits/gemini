@@ -3,6 +3,8 @@ import { describe, it } from "node:test"
 import {
   extractOrderReference,
   findOrderByNumber,
+  mapPriorityOrderRow,
+  resolveCustomerOrderNumber,
   resolveLookupPhoneFromHistory,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
@@ -24,31 +26,40 @@ describe("order reference lookup", () => {
     assert.equal(phone, "0523925554")
   })
 
+  it("uses REFERENCE as order number when BRANCHNAME is 3000 (website)", () => {
+    const row = {
+      ORDNAME: "SO26075488",
+      REFERENCE: "75488",
+      BRANCHNAME: "3000",
+    }
+    assert.equal(resolveCustomerOrderNumber(row), "75488")
+    assert.equal(mapPriorityOrderRow(row).orderNumber, "75488")
+  })
+
+  it("keeps ORDNAME for non-website branches", () => {
+    const row = {
+      ORDNAME: "SO26075488",
+      REFERENCE: "75488",
+      BRANCHNAME: "1001",
+    }
+    assert.equal(resolveCustomerOrderNumber(row), "SO26075488")
+  })
+
   it("matches bare Shopify numbers against Priority ORDNAME suffix", () => {
     const orders: OrderShipmentStatus[] = [
-      {
-        orderNumber: "SO26075488",
-        branchLabel: "אתר אינטרנט",
-        statusCode: "3",
-        statusLabel: "בדרך",
-        statusDescription: "בדרך",
-        branchCode: null,
-        totalPrice: 100,
-        raw: { ORDNAME: "SO26075488" },
-      },
-      {
-        orderNumber: "SO26019999",
-        branchLabel: "אתר אינטרנט",
-        statusCode: "1",
-        statusLabel: "חדש",
-        statusDescription: "חדש",
-        branchCode: null,
-        totalPrice: 200,
-        raw: { ORDNAME: "SO26019999" },
-      },
+      mapPriorityOrderRow({
+        ORDNAME: "SO26075488",
+        REFERENCE: "75488",
+        BRANCHNAME: "3000",
+      }),
+      mapPriorityOrderRow({
+        ORDNAME: "SO26019999",
+        REFERENCE: "19999",
+        BRANCHNAME: "3000",
+      }),
     ]
 
-    assert.equal(findOrderByNumber(orders, "75488")?.orderNumber, "SO26075488")
-    assert.equal(findOrderByNumber(orders, "SO26075488")?.orderNumber, "SO26075488")
+    assert.equal(findOrderByNumber(orders, "75488")?.orderNumber, "75488")
+    assert.equal(findOrderByNumber(orders, "SO26075488")?.orderNumber, "75488")
   })
 })

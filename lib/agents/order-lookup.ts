@@ -66,6 +66,8 @@ export type PriorityOrderRow = {
   CDES?: string | null
   CURDATE?: string | null
   ORDNAME: string
+  REFERENCE?: string | null
+  BRANCHNAME?: string | null
   ORDSTATUSDES?: string | null
   TOTPRICE?: number | null
   LTRN_SELLERNAME?: string | null
@@ -274,8 +276,33 @@ function statusAsOfDate(order: OrderShipmentStatus) {
   return formatHebrewDate(order.raw.ZPIT_UDATE) ?? formatHebrewDateTime(order.raw.ZPIT_UDATE)
 }
 
+const WEBSITE_BRANCH_NAME = "3000"
+
+export function isWebsiteOrderRow(row: PriorityOrderRow) {
+  return String(row.BRANCHNAME ?? "").trim() === WEBSITE_BRANCH_NAME
+}
+
+function priorityReferenceDigits(row: PriorityOrderRow): string | null {
+  const ref = String(row.REFERENCE ?? "").trim().replace(/\D/g, "")
+  if (ref.length >= 4 && ref.length <= 8) return ref
+  return null
+}
+
+/** Customer-facing order id — Shopify REFERENCE for website (BRANCHNAME 3000), else Priority ORDNAME. */
+export function resolveCustomerOrderNumber(row: PriorityOrderRow): string {
+  if (isWebsiteOrderRow(row)) {
+    const reference = priorityReferenceDigits(row)
+    if (reference) return reference
+  }
+  return row.ORDNAME.trim()
+}
+
+export function priorityOrdName(order: OrderShipmentStatus) {
+  return order.raw.ORDNAME.trim()
+}
+
 export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus {
-  const orderNumber = row.ORDNAME.trim()
+  const orderNumber = resolveCustomerOrderNumber(row)
   const statusCode = String(row.ZPIT_DELSTATUSCODE ?? "").trim()
   const statusLabel = String(row.ZPIT_DELSTATUSDES ?? "").trim()
   const delDate = formatHebrewDate(row.ZPIT_DELDATE)
@@ -402,9 +429,17 @@ export function extractOrderNumber(text: string) {
 
 export function extractOrderNumberFromConfirmationPrompt(text: string) {
   const labeled =
-    text.match(/\(מס(?:'|׳|")?\s*הזמנה\s+((?:SO|IN|OV)\d+)\)/i) ??
-    text.match(/מס(?:'|׳|")?\s*הזמנה\s+((?:SO|IN|OV)\d+)/i)
-  if (labeled?.[1]) return normalizeExtractedOrderNumber(labeled[1])
+    text.match(/\(מס(?:'|׳|")?\s*הזמנה\s+([^)]+)\)/i) ??
+    text.match(/מס(?:'|׳|")?\s*הזמנה\s+(\S+)/i)
+  if (labeled?.[1]) {
+    const token = labeled[1].replace(/[\u2066\u2069]/g, "").trim()
+    const prefixed = extractOrderNumber(token)
+    if (prefixed) return prefixed
+    const hash = token.match(/#\s*(\d{4,8})\b/)
+    if (hash?.[1]) return hash[1]
+    const digits = token.replace(/\D/g, "")
+    if (digits.length >= 4 && digits.length <= 8) return digits
+  }
   return extractOrderNumber(text)
 }
 
@@ -695,10 +730,12 @@ export function customerOrderNumberStyleFromHistory(
 }
 
 function shopifyReferenceDigits(order: OrderShipmentStatus): string | null {
-  const ref = String(
-    (order.raw as PriorityOrderRow & { REFERENCE?: string }).REFERENCE ?? ""
-  ).replace(/\D/g, "")
+  const ref = String(order.raw.REFERENCE ?? "").replace(/\D/g, "")
   if (ref.length >= 4 && ref.length <= 8) return ref
+  if (isWebsiteOrderRow(order.raw)) {
+    const digits = order.orderNumber.replace(/\D/g, "")
+    if (digits.length >= 4 && digits.length <= 8) return digits
+  }
   return null
 }
 
@@ -768,12 +805,20 @@ export function findOrderByNumber(
   const digits = key.replace(/\D/g, "")
 
   const exact =
-    orders.find((order) => order.orderNumber.toUpperCase() === key) ?? null
+    orders.find(
+      (order) =>
+        order.orderNumber.toUpperCase() === key ||
+        priorityOrdName(order).toUpperCase() === key
+    ) ?? null
   if (exact) return exact
 
   if (/^(?:SO|IN|OV)\d+$/i.test(key)) {
     return (
-      orders.find((order) => order.orderNumber.toUpperCase().includes(key)) ?? null
+      orders.find(
+        (order) =>
+          order.orderNumber.toUpperCase().includes(key) ||
+          priorityOrdName(order).toUpperCase().includes(key)
+      ) ?? null
     )
   }
 
@@ -781,15 +826,21 @@ export function findOrderByNumber(
     const shopifyMatch = orders.find((order) => {
       const ordDigits = order.orderNumber.replace(/\D/g, "")
       if (ordDigits === digits || ordDigits.endsWith(digits)) return true
-      const reference = String(
-        (order.raw as PriorityOrderRow & { REFERENCE?: string }).REFERENCE ?? ""
-      ).replace(/\D/g, "")
+      const priorityDigits = priorityOrdName(order).replace(/\D/g, "")
+      if (priorityDigits === digits || priorityDigits.endsWith(digits)) return true
+      const reference = String(order.raw.REFERENCE ?? "").replace(/\D/g, "")
       return reference === digits || reference.endsWith(digits)
     })
     if (shopifyMatch) return shopifyMatch
   }
 
-  return orders.find((order) => order.orderNumber.toUpperCase().includes(key)) ?? null
+  return (
+    orders.find(
+      (order) =>
+        order.orderNumber.toUpperCase().includes(key) ||
+        priorityOrdName(order).toUpperCase().includes(key)
+    ) ?? null
+  )
 }
 
 function formatOrderBranchPhrase(branch: string) {
@@ -878,7 +929,7 @@ function isPriorityApiWaitAssistantMessage(content: string) {
 function isOrderConfirmationAssistantMessage(content: string) {
   return (
     /(?:נדמה לי שמצאתי את ההזמנה|האם מדובר (?:על )?הזמנה)/i.test(content) ||
-    /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(content)
+    /\(מס(?:'|׳)?\s*הזמנה\s+/i.test(content)
   )
 }
 
