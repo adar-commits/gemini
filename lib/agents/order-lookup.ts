@@ -1397,21 +1397,10 @@ export function resolveLookupPhoneFromHistory(
       if (cachedPhone) return cachedPhone
     }
 
-    const lead = body?.trim() ? orderConfirmFirstLine(body) : ""
-    if (
-      lead &&
-      (isOrderConfirmationYes(lead) || isPurePhoneLookupConfirmYes(lead))
-    ) {
-      const channel = channelPhone(whatsappPhone)
-      if (channel) return channel
-    }
-
     const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
     if (authorized) return authorized
 
-    // Order card was already shown — reuse channel phone when in-memory cache is cold.
-    const channel = channelPhone(whatsappPhone)
-    if (channel) return channel
+    return null
   }
 
   const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
@@ -1699,15 +1688,24 @@ async function resolveOrderConfirmationFlow(input: {
   }
 
   if (pendingOrder && isOrderConfirmationNo(input.body)) {
+    if (userProvidedPhone(input.body)) {
+      return lookupAndStartOrderConfirm(userProvidedPhone(input.body)!, undefined, {
+        history: input.history,
+        body: input.body,
+      })
+    }
+    if (mentionsAlternatePhoneIntent(input.body)) {
+      return buildAlternatePhoneRequestPrompt()
+    }
     const shown = countOrderConfirmationPrompts(input.history)
     if (shown >= MAX_ORDER_PICK_ATTEMPTS) {
-      return buildOrderPickExhaustedReply()
+      return buildAlternatePhoneRequestPrompt()
     }
     const nextOrder = sorted[shown]
     if (nextOrder) {
       return buildOrderConfirmationPrompt(nextOrder, input.history, input.body)
     }
-    return buildOrderPickExhaustedReply()
+    return buildAlternatePhoneRequestPrompt()
   }
 
   if (pendingOrder) {
@@ -1817,10 +1815,18 @@ export async function resolveOrderShippingReply(input: {
   }
 
   if (isOrderConfirmationPending(history)) {
-    const lookupPhone =
-      resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
-      channelPhone(whatsappPhone)
-    if (!lookupPhone) return buildPhoneLookupDeclinedReply()
+    const alternatePhone = userProvidedPhone(body)
+    if (alternatePhone) {
+      return lookupAndStartOrderConfirm(alternatePhone, empathize, { history, body })
+    }
+
+    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+    if (!lookupPhone) {
+      if (whatsappPhone) {
+        return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+      }
+      return buildPhoneLookupDeclinedReply()
+    }
     return resolveOrderConfirmationFlow({ body, lookupPhone, history })
   }
 

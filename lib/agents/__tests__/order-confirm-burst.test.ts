@@ -15,6 +15,10 @@ import {
   resolveLookupPhoneFromHistory,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
+import {
+  clearOrdersLookupCache,
+  rememberConversationOrdersLookup,
+} from "@/lib/agents/order-lookup-cache"
 
 const sampleOrder: OrderShipmentStatus = {
   orderNumber: "SO26020772",
@@ -39,14 +43,28 @@ describe("order confirm burst (Gali loop)", () => {
     assert.equal(isOrderDeliveryStatusQuestion(body), true)
   })
 
-  it("resolves channel phone on confirm when cache is cold", () => {
+  it("does not guess channel phone on confirm when cache and auth are cold", () => {
     resetPriorityApiTurnState()
+    clearOrdersLookupCache()
     bindPriorityApiLogContext({
-      conversationId: "conv-gali",
+      conversationId: "conv-gali-cold",
       whatsappPhone: "+972525926363",
     })
 
     assert.equal(pendingOrderNumberFromHistory(baseHistory), "SO26020772")
+    const phone = resolveLookupPhoneFromHistory(baseHistory, "+972525926363", "נכון")
+    assert.equal(phone, null)
+  })
+
+  it("resolves conversation cache phone on confirm when cache is warm", () => {
+    resetPriorityApiTurnState()
+    clearOrdersLookupCache()
+    bindPriorityApiLogContext({
+      conversationId: "conv-gali",
+      whatsappPhone: "+972525926363",
+    })
+    rememberConversationOrdersLookup("conv-gali", "0525926363", [sampleOrder])
+
     const phone = resolveLookupPhoneFromHistory(baseHistory, "+972525926363", "נכון")
     assert.ok(phone)
     assert.match(phone!, /5926363/)

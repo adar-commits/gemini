@@ -119,3 +119,106 @@ describe("order confirm after alternate phone", () => {
     assert.match(buildOrderConfirmationPrompt(sampleOrder), /\u2066SO26021240\u2069/)
   })
 })
+
+describe("alternate phone during order rejection", () => {
+  const wrongOrder: OrderShipmentStatus = {
+    orderNumber: "SO26016425",
+    branchLabel: "סגולה פ\"ת",
+    statusCode: "1",
+    statusLabel: "בטיפול",
+    statusDescription: "ההזמנה נארזה.",
+    branchCode: null,
+    totalPrice: 770,
+    raw: { ORDNAME: "SO26016425", CURDATE: "2026-07-19T00:00:00Z" },
+  }
+
+  const alternateOrder: OrderShipmentStatus = {
+    orderNumber: "SO26029999",
+    branchLabel: "אתר אינטרנט",
+    statusCode: "2",
+    statusLabel: "משלוח נוצר",
+    statusDescription: "ההזמנה נארזה ומוכנה לאיסוף.",
+    branchCode: null,
+    totalPrice: 1200,
+    raw: { ORDNAME: "SO26029999" },
+  }
+
+  it("looks up with typed alternate phone instead of repeating rejected order", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-noa-alt-phone",
+      whatsappPhone: "+972501234567",
+    })
+    rememberConversationOrdersLookup("conv-noa-alt-phone", "0501234567", [wrongOrder])
+    rememberConversationOrdersLookup("conv-noa-alt-phone", "0528386981", [alternateOrder])
+
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildOrderConfirmationPrompt(wrongOrder),
+      },
+    ]
+
+    const { resolveOrderShippingReply } = await import("@/lib/agents/order-lookup")
+    const reply = await resolveOrderShippingReply({
+      body: "0528386981",
+      phone: "+972501234567",
+      history,
+    })
+
+    assert.match(reply, /SO26029999/)
+    assert.doesNotMatch(reply, /SO26016425/)
+    assert.doesNotMatch(reply, /לא הבנתי — כתבו כן/)
+  })
+
+  it("asks for alternate phone when customer rejects the only order on file", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-noa-reject",
+      whatsappPhone: "+972501234567",
+    })
+    rememberConversationOrdersLookup("conv-noa-reject", "0501234567", [wrongOrder])
+
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildOrderConfirmationPrompt(wrongOrder),
+      },
+    ]
+
+    const { resolveOrderShippingReply, buildAlternatePhoneRequestPrompt } =
+      await import("@/lib/agents/order-lookup")
+    const reply = await resolveOrderShippingReply({
+      body: "לא... זאת לא ההזמנה שלי",
+      phone: "+972501234567",
+      history,
+    })
+
+    assert.equal(reply.trim(), buildAlternatePhoneRequestPrompt().trim())
+  })
+
+  it("requires phone confirm before lookup when order card exists without authorization", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildOrderConfirmationPrompt(wrongOrder),
+      },
+    ]
+
+    const { resolveOrderShippingReply, buildPhoneLookupConfirmPrompt } =
+      await import("@/lib/agents/order-lookup")
+    const reply = await resolveOrderShippingReply({
+      body: "כן",
+      phone: "+972501234567",
+      history,
+    })
+
+    assert.match(reply, /קודם אמצא את ההזמנה/)
+    assert.doesNotMatch(reply, /בדקתי,/)
+  })
+})

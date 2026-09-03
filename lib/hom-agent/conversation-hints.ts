@@ -7,6 +7,7 @@ import {
   isOrderNumberRequestPending,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
+  userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import {
   classifyPostPurchaseCase,
@@ -129,6 +130,12 @@ export function buildConversationHints(input: {
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
     lines.push(
       "Order/shipment lookup in progress — bind short replies (כן/המספר שלי) to the pending lookup, not a new topic."
+    )
+  }
+
+  if (isOrderConfirmationPending(history) && userProvidedPhone(body)) {
+    lines.push(
+      "Customer sent a phone number during order confirmation — call lookup_order_status with that number immediately; do not repeat the rejected order card."
     )
   }
 
