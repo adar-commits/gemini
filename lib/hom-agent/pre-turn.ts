@@ -15,7 +15,19 @@ import {
   isHumanHandoffDecline,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
-import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
+import {
+  extractOrderNumber,
+  isAlternatePhoneRequestPending,
+  isChannelPhoneSelfReference,
+  isDeliveryEstimateQuestion,
+  isOrderConfirmationNo,
+  isOrderConfirmationPending,
+  isOrderDeliveryStatusQuestion,
+  isPhoneLookupConfirmPending,
+  isPureOrderConfirmation,
+  resolveOrderShippingReply,
+  userProvidedPhone,
+} from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
@@ -93,4 +105,51 @@ export function runPreTurnGuards(input: {
   }
 
   return { kind: "skip", response: null }
+}
+
+function orderLookupStructuredBinding(body: string) {
+  return (
+    isPureOrderConfirmation(body) ||
+    isOrderConfirmationNo(body) ||
+    userProvidedPhone(body) != null ||
+    isChannelPhoneSelfReference(body) ||
+    isOrderDeliveryStatusQuestion(body) ||
+    isDeliveryEstimateQuestion(body) ||
+    extractOrderNumber(body) != null
+  )
+}
+
+/** Structured mid-flow — bind כן/לא/phone before LLM can paraphrase or miss intent. */
+export async function runStructuredOrderLookupPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  phone?: string
+}): Promise<PreTurnResult> {
+  const body = summarizeTurn(input.turn)
+  const orderConfirmPending = isOrderConfirmationPending(input.history)
+  const phoneLookupPending =
+    isPhoneLookupConfirmPending(input.history) ||
+    isAlternatePhoneRequestPending(input.history)
+
+  if (!orderConfirmPending && !phoneLookupPending) {
+    return { kind: "skip", response: null }
+  }
+
+  if (orderConfirmPending && !orderLookupStructuredBinding(body)) {
+    return { kind: "skip", response: null }
+  }
+
+  const reply = await resolveOrderShippingReply({
+    body,
+    phone: input.phone,
+    history: input.history,
+  })
+
+  const action: HomAgentAction =
+    /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply) &&
+    /האם להעביר לנציג שירות/i.test(reply)
+      ? "human_service"
+      : "reply"
+
+  return { kind: "handled", reply, action }
 }

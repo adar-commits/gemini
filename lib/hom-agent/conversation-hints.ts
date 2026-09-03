@@ -129,7 +129,7 @@ export function buildConversationHints(input: {
 
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
     lines.push(
-      "Order/shipment lookup in progress — bind short replies (כן/המספר שלי) to the pending lookup, not a new topic."
+      "Order/shipment lookup in progress — bind short replies (כן/כן זה/נכון/המספר שלי) to the pending lookup, not a new topic. Never repeat the order card — the tool handles confirm."
     )
   }
 

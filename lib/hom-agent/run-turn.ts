@@ -19,7 +19,7 @@ import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent } from "@/lib/hom-agent/invoke"
-import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
+import { runPreTurnGuards, runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
@@ -106,6 +106,38 @@ export async function runHomAgentTurn(
       reply: preTurn.reply,
       action,
       route: ["faq"],
+    })
+  }
+
+  const structuredOrder = await runStructuredOrderLookupPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredOrder.kind === "handled") {
+    const action = mapHomAction(structuredOrder.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: structuredOrder.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredOrder.reply,
+      action,
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_order",
+      },
     })
   }
 

@@ -906,9 +906,11 @@ export function isOrderConfirmationPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
     return (
       /(?:האם מדובר (?:על )?הזמנה|נדמה לי שמצאתי את ההזמנה)/i.test(message.content) ||
-      /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(message.content)
+      /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(message.content) ||
+      /\(מס(?:'|׳)?\s*הזמנה\s+\d{4,8}\)/i.test(message.content)
     )
   }
   return false
@@ -998,14 +1000,9 @@ export function buildOrderConfirmationPrompt(
 אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${displayOrder})`
 }
 
-export function buildOrderConfirmationClarifyPrompt(
-  order: OrderShipmentStatus,
-  history: HistoryMessage[] = [],
-  body?: string
-) {
-  return `${buildOrderConfirmationPrompt(order, history, body)}
-
-לא הבנתי — כתבו כן אם זו ההזמנה, או לא כדי לבדוק אחרת.`
+export function buildOrderConfirmationClarifyPrompt() {
+  return `${CUSTOMER_HEADER}
+לא הבנתי — זו ההזמנה? כתבו כן או לא.`
 }
 
 export function buildOrderStatusReply(order: OrderShipmentStatus) {
@@ -1711,7 +1708,7 @@ async function resolveOrderConfirmationFlow(input: {
   if (pendingOrder) {
     const current = findOrderByNumber(sorted, pendingOrder)
     if (current) {
-      return buildOrderConfirmationClarifyPrompt(current, input.history, input.body)
+      return buildOrderConfirmationClarifyPrompt()
     }
     return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body, current)
   }
