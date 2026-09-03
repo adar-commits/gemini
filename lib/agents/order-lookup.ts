@@ -48,6 +48,7 @@ import {
   UNKNOWN_DELIVERY_STATUS_MESSAGE,
 } from "@/lib/agents/delivery-status-terminology"
 import { buildOrderStatusMessage } from "@/lib/agents/order-status-terminology"
+import { buildDeliveryEstimatePolicyReply } from "@/lib/agents/delivery-estimate-policy"
 import {
   isValidIsraeliMobilePhone,
   normalizePhoneForOrderApi,
@@ -840,8 +841,22 @@ function orderConfirmFirstLine(body: string) {
 export function isOrderDeliveryStatusQuestion(body: string) {
   const text = body.trim()
   if (!text) return false
+  if (isDeliveryEstimateQuestion(text)) return true
   return /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|משלוח|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה))/i.test(
     text
+  )
+}
+
+/** Customer asks for delivery timeline/estimate — answer from status + policy, never guess dates. */
+export function isDeliveryEstimateQuestion(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+
+  return (
+    /(?:מה|יש|כמה)\s*(?:ה)?(?:צפי|צפוי(?:ה|ים|ות)?)/i.test(text) ||
+    /(?:לוח\s+)?(?:ז)?(?:מנים|מנים)\s+(?:ל)?(?:אספקה|משלוח|קבלה|הגעה)/i.test(text) ||
+    /(?:מתי|ממתי)\s+(?:צפוי(?:ה|ים|ות)?|נקבל|ת(?:קב|ג)?יע|מ(?:גיע|סופק))/i.test(text) ||
+    /(?:צפוי(?:ה|ים|ות)?)\s+(?:ל)?(?:הגיע|ל(?:הגיע|אספק)|קבלה)/i.test(text)
   )
 }
 
@@ -1014,6 +1029,82 @@ export function isBotHelpJustDelivered(history: HistoryMessage[]) {
     )
   }
   return false
+}
+
+/** Order was located and status shared — follow-ups must reuse cache, not restart phone flow. */
+export function isOrderStatusDeliveredInThread(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (/בדקתי,/i.test(message.content) && /נכון לתאריך/i.test(message.content)) {
+      return true
+    }
+    if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return false
+    if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return false
+    break
+  }
+  return false
+}
+
+export function identifiedOrderNumberFromThread(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+
+    const fromStatus = message.content.match(/לגבי הזמנה\s+((?:SO|IN|OV)\d+)/i)
+    if (fromStatus?.[1]) return fromStatus[1]
+
+    const fromConfirm = extractOrderNumberFromConfirmationPrompt(message.content)
+    if (fromConfirm) return fromConfirm
+
+    if (/בדקתי,/i.test(message.content)) {
+      for (let prior = index - 1; prior >= 0; prior -= 1) {
+        const earlier = history[prior]
+        if (earlier.role !== "assistant") continue
+        const order = extractOrderNumberFromConfirmationPrompt(earlier.content)
+        if (order) return order
+        if (/בדקתי,/i.test(earlier.content)) break
+      }
+    }
+  }
+  return pendingOrderNumberFromHistory(history)
+}
+
+async function resolveIdentifiedOrderFromThread(input: {
+  history: HistoryMessage[]
+  whatsappPhone?: string
+  body?: string
+}): Promise<OrderShipmentStatus | null> {
+  const lookupPhone = resolveLookupPhoneFromHistory(
+    input.history,
+    input.whatsappPhone,
+    input.body
+  )
+  if (!lookupPhone) return null
+
+  const conversationId = getPriorityApiLogContext()?.conversationId
+  const orders =
+    (conversationId ? recallConversationOrdersRelaxed(conversationId) : null) ??
+    recallConversationOrdersLookup(conversationId ?? "", lookupPhone) ??
+    recallOrdersLookup(lookupPhone)
+
+  if (!orders?.length) {
+    const fresh = await lookupOrdersForPhone(lookupPhone)
+    if (!fresh?.length) return null
+    const orderNumber = identifiedOrderNumberFromThread(input.history)
+    if (orderNumber) {
+      return findOrderByNumber(fresh, orderNumber) ?? fresh[0]!
+    }
+    return fresh[0]!
+  }
+
+  const orderNumber = identifiedOrderNumberFromThread(input.history)
+  if (orderNumber) {
+    return findOrderByNumber(orders, orderNumber) ?? orders[0]!
+  }
+  return orders[0]!
 }
 
 export function isExplicitHumanRequest(body: string) {
@@ -1699,6 +1790,31 @@ export async function resolveOrderShippingReply(input: {
 
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
+
+  if (isOrderStatusDeliveredInThread(history)) {
+    if (isDeliveryEstimateQuestion(body)) {
+      const order = await resolveIdentifiedOrderFromThread({
+        history,
+        whatsappPhone,
+        body,
+      })
+      if (order) return buildDeliveryEstimatePolicyReply(order)
+      return buildOrderStatusClarificationReply(history)
+    }
+
+    if (isOrderStatusClarificationQuestion(body)) {
+      return buildOrderStatusClarificationReply(history)
+    }
+
+    if (isOrderDeliveryStatusQuestion(body)) {
+      const order = await resolveIdentifiedOrderFromThread({
+        history,
+        whatsappPhone,
+        body,
+      })
+      if (order) return buildOrderStatusReply(order)
+    }
+  }
 
   if (isOrderConfirmationPending(history)) {
     const lookupPhone =

@@ -1,8 +1,11 @@
 import {
   isChannelPhoneSelfReference,
   customerOrderNumberStyleFromHistory,
+  isDeliveryEstimateQuestion,
   isOrderConfirmationPending,
+  isOrderDeliveryStatusQuestion,
   isOrderNumberRequestPending,
+  isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
 } from "@/lib/agents/order-lookup"
 import {
@@ -126,6 +129,15 @@ export function buildConversationHints(input: {
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
     lines.push(
       "Order/shipment lookup in progress — bind short replies (כן/המספר שלי) to the pending lookup, not a new topic."
+    )
+  }
+
+  if (
+    isOrderStatusDeliveredInThread(history) &&
+    (isDeliveryEstimateQuestion(body) || isOrderDeliveryStatusQuestion(body))
+  ) {
+    lines.push(
+      "Order already identified this thread — do NOT call lookup_order_status again or re-ask phone. Delivery estimate (צפי) → policy by status code only; never invent a calendar date."
     )
   }
 
