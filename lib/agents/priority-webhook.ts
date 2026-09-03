@@ -60,6 +60,11 @@ export function bindPriorityApiPreMessageGuard(guard: (() => boolean) | null) {
   priorityApiPreMessageSkipGuard = guard
 }
 
+/** True when a wait bubble was already sent this turn — retry must not re-call Priority tools. */
+export function wasPriorityApiPreMessageSentThisTurn() {
+  return priorityApiPreMessageSentThisTurn
+}
+
 async function maybeSendPriorityApiPreMessage() {
   if (!priorityApiBeforeCall) return
   if (priorityApiPreMessageSentThisTurn) return

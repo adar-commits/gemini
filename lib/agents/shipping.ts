@@ -70,6 +70,18 @@ function hasDeliveryTrackingIntent(text: string) {
     return true
   }
 
+  if (/מה\s+קורה\s+ע(?:ם|im)\s+(?:ה)?(?:משלוח|הזמנה|חבילה|אספקה)/i.test(text)) {
+    return true
+  }
+
+  if (/(?:ע(?:וד\s+)?)?לא\s+יצא\s+(?:ל)?(?:הפצה|משלוח|לשליח)/i.test(text)) {
+    return true
+  }
+
+  if (/(?:למה|יש)\s+עיכוב\s+(?:ע(?:ם|im)\s+)?(?:ה)?(?:משלוח|האספקה|אספקה)/i.test(text)) {
+    return true
+  }
+
   return false
 }
 

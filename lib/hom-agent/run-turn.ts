@@ -21,6 +21,7 @@ import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent } from "@/lib/hom-agent/invoke"
+import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import { runPreTurnGuards, runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
 
@@ -146,8 +147,10 @@ export async function runHomAgentTurn(
   let output
   let llmCalls = 0
   let model = runtime.profile.faq.model
-  try {
-    const invoked = await invokeHomAgent({
+  let routingPath = "v3"
+
+  const invokeOnce = () =>
+    invokeHomAgent({
       conversationId,
       turn,
       history,
@@ -155,17 +158,41 @@ export async function runHomAgentTurn(
       phone: phone || undefined,
       sessionSummary: conversationSummary,
     })
+
+  try {
+    const invoked = await invokeOnce()
     output = invoked.output
     llmCalls = invoked.llmCalls
     model = invoked.model
   } catch (error) {
+    const canRetry = shouldRetryInvokeAfterFailure(conversationId, body)
     console.error("[hom-agent] invoke failed", {
       conversationId,
+      canRetry,
       error: error instanceof Error ? error.message : error,
     })
-    setFallbackLayer(conversationId, "invoke_exception")
-    output = { reply: buildLlmFailureReply(), action: "reply" as const }
-    llmCalls = 0
+
+    if (canRetry) {
+      try {
+        const invoked = await invokeOnce()
+        output = invoked.output
+        llmCalls = invoked.llmCalls
+        model = invoked.model
+        routingPath = "v3_invoke_retry"
+      } catch (retryError) {
+        console.error("[hom-agent] invoke retry failed", {
+          conversationId,
+          error: retryError instanceof Error ? retryError.message : retryError,
+        })
+        setFallbackLayer(conversationId, "invoke_exception")
+        output = { reply: buildLlmFailureReply(), action: "reply" as const }
+        llmCalls = 0
+      }
+    } else {
+      setFallbackLayer(conversationId, "invoke_exception")
+      output = { reply: buildLlmFailureReply(), action: "reply" as const }
+      llmCalls = 0
+    }
   }
 
   const action =
@@ -195,7 +222,7 @@ export async function runHomAgentTurn(
       llm_calls: llmCalls,
       models_used: model ? [model] : undefined,
       profile: runtime.activeProfile,
-      routing_path: "v3",
+      routing_path: routingPath,
     },
   })
 }

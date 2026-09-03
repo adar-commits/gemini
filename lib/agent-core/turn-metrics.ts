@@ -91,3 +91,15 @@ export function finishTurnMetrics(conversationId: string) {
     routing_path: metrics.routingPath,
   }
 }
+
+/** In-flight turn progress — used to avoid duplicate customer replies on invoke retry. */
+export function getTurnProgress(conversationId: string) {
+  const metrics = store.get(conversationId)
+  if (!metrics) return null
+  return {
+    llmCalls: metrics.llmCalls,
+    inputTokens: metrics.inputTokens,
+    outputTokens: metrics.outputTokens,
+    routingPath: metrics.routingPath,
+  }
+}
