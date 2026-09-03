@@ -31,6 +31,24 @@ export function isUnknownDeliveryStatusMessage(message: string) {
   return message.trim() === UNKNOWN_DELIVERY_STATUS_MESSAGE
 }
 
+const MAPPED_DELIVERY_STATUS_IDS = new Set([
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "21",
+  "22",
+  "23",
+  "80",
+])
+
+export function isMappedDeliveryStatusId(statusId: string | number | null | undefined) {
+  const normalized = String(statusId ?? "").trim()
+  return normalized.length > 0 && MAPPED_DELIVERY_STATUS_IDS.has(normalized)
+}
+
 function coordinatedDeliveryMessage(coordinateDate?: string | null) {
   if (coordinateDate?.trim()) {
     return `המשלוח נמצא אצל חברת השליחויות ומתואם לאספקה בתאריך ${coordinateDate.trim()}.`
@@ -63,9 +81,6 @@ export function buildDeliveryStatusMessage(input: {
   if (statusId === "23") return SELF_PICKUP_COLLECTED_MESSAGE
   if (statusId === "1") return PACKED_AWAITING_COURIER_MESSAGE
   if (statusId === "2") return PACKED_AWAITING_COURIER_MESSAGE
-  if (/משלוח\s+נוצר|ממתין\s+לאיסוף\s+ש(?:ל|ל)?(?:חברת\s+)?(?:ה)?שליח/i.test(input.deliveryStatusDesc ?? "")) {
-    return PACKED_AWAITING_COURIER_MESSAGE
-  }
 
   return UNKNOWN_STATUS_MESSAGE
 }

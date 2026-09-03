@@ -45,6 +45,7 @@ import {
 import {
   buildDeliveryStatusMessage,
   isUnknownDeliveryStatusMessage,
+  UNKNOWN_DELIVERY_STATUS_MESSAGE,
 } from "@/lib/agents/delivery-status-terminology"
 import { buildOrderStatusMessage } from "@/lib/agents/order-status-terminology"
 import {
@@ -223,22 +224,6 @@ export function describeShipmentStatus(order: OrderShipmentStatus) {
   const coordinateDate = formatHebrewDate(order.raw.ZPIT_COORDATE)
 
   if (hasDeliveryStatusData(order)) {
-    const deliveryMessage = buildDeliveryStatusMessage({
-      deliveryStatusId: order.statusCode,
-      deliveryStatusDesc: order.statusLabel || "לא ידוע",
-      deliveryDate,
-      coordinateDate,
-    })
-
-    if (!isUnknownDeliveryStatusMessage(deliveryMessage)) {
-      return deliveryMessage
-    }
-  }
-
-  const orderStatusMessage = buildOrderStatusMessage(order.orderStatus)
-  if (orderStatusMessage) return orderStatusMessage
-
-  if (hasDeliveryStatusData(order)) {
     return buildDeliveryStatusMessage({
       deliveryStatusId: order.statusCode,
       deliveryStatusDesc: order.statusLabel || "לא ידוע",
@@ -247,28 +232,25 @@ export function describeShipmentStatus(order: OrderShipmentStatus) {
     })
   }
 
-  return buildDeliveryStatusMessage({
-    deliveryStatusId: "",
-    deliveryStatusDesc: "",
-    deliveryDate,
-    coordinateDate,
-  })
+  const orderStatusMessage = buildOrderStatusMessage(order.orderStatus)
+  if (orderStatusMessage) return orderStatusMessage
+
+  return UNKNOWN_DELIVERY_STATUS_MESSAGE
 }
 
 export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
-  if (!hasDeliveryStatusData(order)) {
-    return !buildOrderStatusMessage(order.orderStatus)
+  if (hasDeliveryStatusData(order)) {
+    const deliveryMessage = buildDeliveryStatusMessage({
+      deliveryStatusId: order.statusCode,
+      deliveryStatusDesc: order.statusLabel || "לא ידוע",
+      deliveryDate:
+        formatHebrewDate(order.raw.ZPIT_DELDATE) ??
+        formatHebrewDate(order.raw.ZPIT_UDATE),
+      coordinateDate: formatHebrewDate(order.raw.ZPIT_COORDATE),
+    })
+    return isUnknownDeliveryStatusMessage(deliveryMessage)
   }
 
-  const deliveryMessage = buildDeliveryStatusMessage({
-    deliveryStatusId: order.statusCode,
-    deliveryStatusDesc: order.statusLabel || "לא ידוע",
-    deliveryDate:
-      formatHebrewDate(order.raw.ZPIT_DELDATE) ??
-      formatHebrewDate(order.raw.ZPIT_UDATE),
-    coordinateDate: formatHebrewDate(order.raw.ZPIT_COORDATE),
-  })
-  if (!isUnknownDeliveryStatusMessage(deliveryMessage)) return false
   return !buildOrderStatusMessage(order.orderStatus)
 }
 

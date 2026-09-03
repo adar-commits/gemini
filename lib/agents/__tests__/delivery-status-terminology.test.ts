@@ -66,17 +66,27 @@ describe("delivery status terminology", () => {
     )
   })
 
-  it("maps packed-awaiting-courier code 2 and shipment-created label", () => {
+  it("maps packed-awaiting-courier code 2", () => {
     assert.match(
       buildDeliveryStatusMessage({ deliveryStatusId: "2" }),
       /נארזה ומוכנה לאיסוף/
+    )
+  })
+
+  it("does not infer delivery copy from unmapped code + label alone", () => {
+    assert.match(
+      buildDeliveryStatusMessage({
+        deliveryStatusId: "15",
+        deliveryStatusDesc: "משלוח נוצר",
+      }),
+      /לא ניתן להציג כרגע סטטוס משלוח/
     )
     assert.match(
       buildDeliveryStatusMessage({
         deliveryStatusId: "99",
         deliveryStatusDesc: "משלוח נוצר",
       }),
-      /נארזה ומוכנה לאיסוף/
+      /לא ניתן להציג כרגע סטטוס משלוח/
     )
   })
 

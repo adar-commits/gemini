@@ -37,6 +37,19 @@ describe("order status terminology", () => {
     assert.equal(requiresOrderStatusServiceHandoff(order), false)
   })
 
+  it("does not substitute order status when delivery code exists but is unmapped", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26018793",
+      ZPIT_DELSTATUSCODE: "15",
+      ZPIT_DELSTATUSDES: "לא ידוע",
+      ORDSTATUSDES: "הושלם",
+      ZPIT_UDATE: "2026-08-18T00:00:00+03:00",
+    })
+    assert.match(order.statusDescription, /לא ניתן להציג כרגע סטטוס משלוח/)
+    assert.doesNotMatch(order.statusDescription, /נמסרה ליעדה/)
+    assert.equal(requiresOrderStatusServiceHandoff(order), true)
+  })
+
   it("requires service handoff when both delivery and order status are unknown", () => {
     const order = mapPriorityOrderRow({
       ORDNAME: "SO26018793",
