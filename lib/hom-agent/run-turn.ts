@@ -7,6 +7,7 @@ import {
   resetPriorityApiTurnState,
 } from "@/lib/agents/priority-webhook"
 import { buildLlmFailureReply } from "@/lib/agent-core/fallbacks"
+import { isGatewayBudgetExceeded } from "@/lib/agent-core/gateway-errors"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
 import {
   beginTurnMetrics,
@@ -24,6 +25,7 @@ import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import { runPreTurnGuards, runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
+import { debugSessionLog } from "@/lib/debug/session-log"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
   if (action === "human_sales" || action === "human_service") return action
@@ -167,15 +169,31 @@ export async function runHomAgentTurn(
     model = invoked.model
   } catch (error) {
     const canRetry = shouldRetryInvokeAfterFailure(conversationId)
+    const gatewayBudgetExceeded = isGatewayBudgetExceeded(error)
+    // #region agent log
+    debugSessionLog({
+      location: "run-turn.ts:invoke",
+      message: "invoke failed",
+      hypothesisId: "H5",
+      data: {
+        conversationId,
+        canRetry,
+        model,
+        gatewayBudgetExceeded,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    })
+    // #endregion
     console.error("[hom-agent] invoke failed", {
       conversationId,
       canRetry,
       model,
+      gatewayBudgetExceeded,
       error: error instanceof Error ? error.message : error,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    if (canRetry) {
+    if (canRetry && !gatewayBudgetExceeded) {
       const retryModel =
         model !== INVOKE_FALLBACK_MODEL ? INVOKE_FALLBACK_MODEL : undefined
       try {
@@ -191,12 +209,21 @@ export async function runHomAgentTurn(
           error: retryError instanceof Error ? retryError.message : retryError,
         })
         setFallbackLayer(conversationId, "invoke_exception")
-        output = { reply: buildLlmFailureReply(), action: "reply" as const }
+        output = {
+          reply: buildLlmFailureReply({ gatewayBudgetExceeded }),
+          action: "reply" as const,
+        }
         llmCalls = 0
       }
     } else {
-      setFallbackLayer(conversationId, "invoke_exception")
-      output = { reply: buildLlmFailureReply(), action: "reply" as const }
+      setFallbackLayer(
+        conversationId,
+        gatewayBudgetExceeded ? "gateway_budget" : "invoke_exception"
+      )
+      output = {
+        reply: buildLlmFailureReply({ gatewayBudgetExceeded }),
+        action: "reply" as const,
+      }
       llmCalls = 0
     }
   }

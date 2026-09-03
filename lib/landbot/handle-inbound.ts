@@ -55,6 +55,7 @@ import {
   isTrainerProfileCommand,
 } from "@/lib/landbot/trainer-runtime"
 import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
+import { debugSessionLog } from "@/lib/debug/session-log"
 
 export type InboundMode = "reply" | "shadow"
 
@@ -151,6 +152,19 @@ export async function handleLandbotInbound(
     if (resetSplit.isReset) {
       await resetTrainerConversation(conversationId)
       const resetReply = buildTrainerResetReply()
+      // #region agent log
+      debugSessionLog({
+        location: "handle-inbound.ts:trainer-reset",
+        message: "trainer reset sending",
+        hypothesisId: "H1",
+        data: {
+          conversationId,
+          isResetOnly: resetSplit.isResetOnly,
+          replyEnabled,
+          customerId,
+        },
+      })
+      // #endregion
       await appendTurn({
         conversationId,
         agent: "master",
@@ -165,10 +179,11 @@ export async function handleLandbotInbound(
         return {
           ok: true,
           agent: "master",
-          reply: resetReply,
+          reply: "",
           action: "reset",
           mode,
-          draft_reply: resetReply,
+          draft_reply: undefined,
+          outbound_header_sent: true,
         }
       }
       body = resetSplit.remainder
@@ -339,6 +354,19 @@ export async function handleLandbotInbound(
     formatOutboundMessages(rawOutbound, { headerAlreadySent })
 
   if (replyEnabled && !watchdog.stuckAlreadySent()) {
+    // #region agent log
+    debugSessionLog({
+      location: "handle-inbound.ts:outbound",
+      message: "sending outbound messages",
+      hypothesisId: "H2",
+      data: {
+        conversationId,
+        count: outboundMessages.length,
+        action: result.action,
+        preview: outboundMessages[0]?.slice(0, 60),
+      },
+    })
+    // #endregion
     for (const text of outboundMessages) {
       await sendCustomerText(customerId, text)
     }

@@ -84,7 +84,12 @@ export function buildThanksReply(customerName?: string) {
   return `${CUSTOMER_HEADER}\n${line}`
 }
 
-export function buildLlmFailureReply() {
+export function buildLlmFailureReply(options?: { gatewayBudgetExceeded?: boolean }) {
+  if (options?.gatewayBudgetExceeded) {
+    return `${CUSTOMER_HEADER}
+המערכת שלי מלאה כרגע — לא הצלחתי לעבד את ההודעה.
+אעביר לנציג שירות שימשיך מכאן?`
+  }
   return `${CUSTOMER_HEADER}
 משהו נתקע בצד שלי, סליחה על זה.
 אפשר לנסח שוב בקצרה, או שאעביר לנציג שימשיך מכאן?`

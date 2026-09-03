@@ -1,3 +1,5 @@
+import { debugSessionLog } from "@/lib/debug/session-log"
+
 const LANDBOT_API = "https://api.landbot.io/v1"
 
 function authHeader() {
@@ -106,6 +108,18 @@ function splitWhatsApp(text: string) {
 }
 
 export async function sendCustomerText(customerId: number, message: string) {
+  // #region agent log
+  debugSessionLog({
+    location: "client.ts:sendCustomerText",
+    message: "landbot send_text",
+    hypothesisId: "H2",
+    data: {
+      customerId,
+      preview: message.slice(0, 80),
+      length: message.length,
+    },
+  })
+  // #endregion
   const chunks = splitWhatsApp(message)
   for (const chunk of chunks) {
     try {

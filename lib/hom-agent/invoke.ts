@@ -14,6 +14,7 @@ import {
 } from "@/lib/hom-agent/output-schema"
 import { createHomAgentTools } from "@/lib/hom-agent/tools"
 import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
+import { debugSessionLog } from "@/lib/debug/session-log"
 
 const MAX_TOOL_ROUNDS = 2
 const INVOKE_FALLBACK_MODEL = MODEL_PROFILES.balanced.faq.model
@@ -82,6 +83,18 @@ export async function invokeHomAgent(input: {
   try {
     return await invokeWithTools(ctx)
   } catch (error) {
+    // #region agent log
+    debugSessionLog({
+      location: "invoke.ts:invokeHomAgent",
+      message: "tool pass failed",
+      hypothesisId: "H4",
+      data: {
+        conversationId: input.conversationId,
+        model: ctx.model,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    })
+    // #endregion
     console.warn("[hom-agent] tool invoke failed, trying kb-only pass", {
       conversationId: input.conversationId,
       model: ctx.model,
@@ -89,7 +102,23 @@ export async function invokeHomAgent(input: {
     })
     const kbModel =
       ctx.model === INVOKE_FALLBACK_MODEL ? ctx.model : INVOKE_FALLBACK_MODEL
-    return invokeKbOnly({ ...ctx, model: kbModel })
+    try {
+      return await invokeKbOnly({ ...ctx, model: kbModel })
+    } catch (kbError) {
+      // #region agent log
+      debugSessionLog({
+        location: "invoke.ts:invokeHomAgent",
+        message: "kb-only pass failed",
+        hypothesisId: "H4",
+        data: {
+          conversationId: input.conversationId,
+          model: kbModel,
+          error: kbError instanceof Error ? kbError.message : String(kbError),
+        },
+      })
+      // #endregion
+      throw kbError
+    }
   }
 }
 
@@ -210,6 +239,15 @@ async function invokeKbOnly(ctx: InvokeContext) {
   })
 
   setRoutingPath(ctx.conversationId, "v3_kb_only")
+
+  // #region agent log
+  debugSessionLog({
+    location: "invoke.ts:invokeKbOnly",
+    message: "kb-only pass ok",
+    hypothesisId: "H4",
+    data: { conversationId: ctx.conversationId, model: ctx.model },
+  })
+  // #endregion
 
   return finalizeStructuredOutput(structured, ctx, 1)
 }
