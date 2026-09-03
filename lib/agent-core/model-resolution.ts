@@ -49,6 +49,6 @@ export function modelResolutionReport(defaults: {
     sales: resolvedSpecialistModel("sales", defaults.specialist),
     service: resolvedSpecialistModel("service", defaults.specialist),
     note:
-      "AGENT_MODEL overrides all roles unless a role-specific AGENT_*_MODEL is set. Code defaults apply only when env is unset.",
+      "Role-specific AGENT_*_MODEL overrides all. Supabase runtime config beats global AGENT_MODEL. Code defaults apply when env is unset.",
   }
 }

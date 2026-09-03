@@ -4,6 +4,11 @@ import { CUSTOMER_HEADER } from "@/lib/agents/types"
 const DEFAULT_PRIORITY_WEBHOOK_URL =
   "https://redcarpet.app.n8n.cloud/webhook/9a1bc56f-d8c6-472c-a665-833421632caf"
 
+/** Wait this long before sending a hold bubble — fast lookups stay silent. */
+export function priorityPreMessageDelayMs() {
+  return Number(process.env.PRIORITY_PREMESSAGE_DELAY_MS ?? "2500")
+}
+
 /** Max wait for Priority/n8n tool responses — empty reply after this triggers fallbacks. */
 export const PRIORITY_API_TIMEOUT_MS = Number(
   process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "15000"
@@ -25,6 +30,7 @@ type PriorityApiBeforeCall = (() => void | Promise<void>) | null
 let priorityApiBeforeCall: PriorityApiBeforeCall = null
 let priorityApiPreMessageSentThisTurn = false
 let priorityApiPreMessageSkipGuard: (() => boolean) | null = null
+let priorityApiPreMessageTimer: ReturnType<typeof setTimeout> | null = null
 let priorityApiEnabled = true
 let priorityApiLogContext: { conversationId?: string; whatsappPhone?: string } = {}
 
@@ -34,9 +40,17 @@ export function bindPriorityApiBeforeCall(handler: PriorityApiBeforeCall) {
 }
 
 export function resetPriorityApiTurnState() {
+  cancelPriorityApiPreMessageTimer()
   priorityApiPreMessageSentThisTurn = false
   priorityApiEnabled = true
   priorityApiLogContext = {}
+}
+
+function cancelPriorityApiPreMessageTimer() {
+  if (priorityApiPreMessageTimer) {
+    clearTimeout(priorityApiPreMessageTimer)
+    priorityApiPreMessageTimer = null
+  }
 }
 
 /** Shadow / preview turns skip live n8n calls — avoids ghost getOrders from non-reply phones. */
@@ -69,8 +83,20 @@ async function maybeSendPriorityApiPreMessage() {
   if (!priorityApiBeforeCall) return
   if (priorityApiPreMessageSentThisTurn) return
   if (priorityApiPreMessageSkipGuard?.()) return
-  priorityApiPreMessageSentThisTurn = true
-  await priorityApiBeforeCall()
+  if (priorityApiPreMessageTimer) return
+
+  priorityApiPreMessageTimer = setTimeout(async () => {
+    priorityApiPreMessageTimer = null
+    if (!priorityApiBeforeCall) return
+    if (priorityApiPreMessageSentThisTurn) return
+    if (priorityApiPreMessageSkipGuard?.()) return
+    priorityApiPreMessageSentThisTurn = true
+    try {
+      await priorityApiBeforeCall()
+    } catch (error) {
+      console.warn("[priority-api] pre-message handler failed", error)
+    }
+  }, priorityPreMessageDelayMs())
 }
 
 export function priorityWebhookUrl(fallback = DEFAULT_PRIORITY_WEBHOOK_URL) {
@@ -136,6 +162,8 @@ export async function callPriorityWebhook(input: {
       signal: AbortSignal.timeout(PRIORITY_API_TIMEOUT_MS),
     })
 
+    cancelPriorityApiPreMessageTimer()
+
     if (!response.ok) return null
 
     const contentType = response.headers.get("content-type") ?? ""
@@ -152,6 +180,7 @@ export async function callPriorityWebhook(input: {
 
     return null
   } catch {
+    cancelPriorityApiPreMessageTimer()
     return null
   }
 }

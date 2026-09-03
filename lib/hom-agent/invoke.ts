@@ -1,5 +1,6 @@
 import { generateText, stepCountIs } from "ai"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
+import { MODEL_PROFILES } from "@/lib/agent-core/model-profiles"
 import { recordTokenUsage } from "@/lib/agent-core/token-usage"
 import { setRoutingPath } from "@/lib/agent-core/turn-metrics"
 import { buildModelMessages } from "@/lib/agents/multimodal"
@@ -15,9 +16,13 @@ import { createHomAgentTools } from "@/lib/hom-agent/tools"
 import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 const MAX_TOOL_ROUNDS = 2
+const INVOKE_FALLBACK_MODEL = MODEL_PROFILES.balanced.faq.model
 
-function homAgentModel(profile: Awaited<ReturnType<typeof bindRuntimeConfig>>) {
-  return profile.profile.faq.model
+function homAgentModel(
+  profile: Awaited<ReturnType<typeof bindRuntimeConfig>>,
+  override?: string
+) {
+  return override?.trim() || profile.profile.faq.model
 }
 
 function homAgentTemperature(profile: Awaited<ReturnType<typeof bindRuntimeConfig>>) {
@@ -35,9 +40,11 @@ export async function invokeHomAgent(input: {
   body: string
   phone?: string
   sessionSummary?: string | null
+  /** Retry path — use a lighter model when the primary call failed instantly. */
+  modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
   const runtime = await bindRuntimeConfig()
-  const model = homAgentModel(runtime)
+  const model = homAgentModel(runtime, input.modelOverride)
   const system = buildHomAgentSystemPrompt({
     sessionSummary: input.sessionSummary,
     whatsappPhone: input.phone,
@@ -128,6 +135,8 @@ export async function invokeHomAgent(input: {
     model,
   }
 }
+
+export { INVOKE_FALLBACK_MODEL }
 
 function parseFallbackOutput(text: string): HomAgentOutput {
   try {

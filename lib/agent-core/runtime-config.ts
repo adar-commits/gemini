@@ -35,26 +35,33 @@ type RuntimeRow = {
 const CACHE_TTL_MS = 60_000
 let cached: { at: number; value: RuntimeConfig } | null = null
 
-function envEmergencyModel(role: "router" | "faq" | "sales" | "service"): string | null {
-  const keys: Record<string, string[]> = {
-    router: ["AGENT_ROUTER_MODEL", "AGENT_MODEL"],
-    faq: ["AGENT_FAQ_MODEL", "AGENT_MODEL"],
-    sales: ["AGENT_SALES_MODEL", "AGENT_MODEL"],
-    service: ["AGENT_SERVICE_MODEL", "AGENT_MODEL"],
-  }
-  for (const key of keys[role]) {
-    const value = process.env[key]?.trim()
-    if (value) return value
-  }
-  return null
+function envRoleModel(role: "router" | "faq" | "sales" | "service"): string | null {
+  const key =
+    role === "router"
+      ? "AGENT_ROUTER_MODEL"
+      : role === "faq"
+        ? "AGENT_FAQ_MODEL"
+        : role === "sales"
+          ? "AGENT_SALES_MODEL"
+          : "AGENT_SERVICE_MODEL"
+  return process.env[key]?.trim() || null
 }
 
+function envGlobalModel(): string | null {
+  return process.env.AGENT_MODEL?.trim() || null
+}
+
+/** Role-specific env wins; Supabase profile beats global AGENT_MODEL. */
 function mergeRole(
   base: RoleModelConfig,
   override: Partial<RoleModelConfig> | undefined,
-  emergencyModel: string | null
+  roleEnvModel: string | null,
+  globalEnvModel: string | null,
+  fromSupabase: boolean
 ): RoleModelConfig {
-  const model = emergencyModel ?? override?.model ?? base.model
+  const model =
+    roleEnvModel ??
+    (fromSupabase ? base.model : globalEnvModel ?? base.model)
   return {
     model,
     temperature: override?.temperature ?? base.temperature,
@@ -96,9 +103,10 @@ function parseProfileJson(
 
 function codeDefaultConfig(): RuntimeConfig {
   const profile = profileByName(DEFAULT_PROFILE_NAME)
-  const hasEmergency = Boolean(process.env.AGENT_MODEL?.trim())
+  const hasEmergency = Boolean(envGlobalModel() || envRoleModel("faq"))
+  const globalEnv = envGlobalModel()
   const applyEmergency = (role: "router" | "faq" | "sales" | "service", cfg: RoleModelConfig) =>
-    mergeRole(cfg, undefined, envEmergencyModel(role))
+    mergeRole(cfg, undefined, envRoleModel(role), globalEnv, false)
 
   const routingRaw = process.env.AGENT_ROUTING_MODE?.trim().toLowerCase()
   const routingMode: AgentRoutingMode =
@@ -129,13 +137,14 @@ function codeDefaultConfig(): RuntimeConfig {
   }
 }
 
-function rowToConfig(row: RuntimeRow): RuntimeConfig {
+export function rowToConfig(row: RuntimeRow): RuntimeConfig {
   const name = (row.active_profile?.trim() || DEFAULT_PROFILE_NAME) as ProfileName
   const base = parseProfileJson(name, row.profile_json)
-  const hasEmergency = Boolean(process.env.AGENT_MODEL?.trim())
+  const hasEmergency = Boolean(envGlobalModel() || envRoleModel("faq"))
+  const globalEnv = envGlobalModel()
 
   const applyEmergency = (role: "router" | "faq" | "sales" | "service", cfg: RoleModelConfig) =>
-    mergeRole(cfg, undefined, envEmergencyModel(role))
+    mergeRole(cfg, undefined, envRoleModel(role), globalEnv, true)
 
   const routingRaw = row.routing_mode?.trim().toLowerCase()
   const routingMode: AgentRoutingMode =

@@ -20,7 +20,7 @@ import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
-import { invokeHomAgent } from "@/lib/hom-agent/invoke"
+import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import { runPreTurnGuards, runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
@@ -149,7 +149,7 @@ export async function runHomAgentTurn(
   let model = runtime.profile.faq.model
   let routingPath = "v3"
 
-  const invokeOnce = () =>
+  const invokeOnce = (modelOverride?: string) =>
     invokeHomAgent({
       conversationId,
       turn,
@@ -157,6 +157,7 @@ export async function runHomAgentTurn(
       body,
       phone: phone || undefined,
       sessionSummary: conversationSummary,
+      modelOverride,
     })
 
   try {
@@ -165,23 +166,28 @@ export async function runHomAgentTurn(
     llmCalls = invoked.llmCalls
     model = invoked.model
   } catch (error) {
-    const canRetry = shouldRetryInvokeAfterFailure(conversationId, body)
+    const canRetry = shouldRetryInvokeAfterFailure(conversationId)
     console.error("[hom-agent] invoke failed", {
       conversationId,
       canRetry,
+      model,
       error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     if (canRetry) {
+      const retryModel =
+        model !== INVOKE_FALLBACK_MODEL ? INVOKE_FALLBACK_MODEL : undefined
       try {
-        const invoked = await invokeOnce()
+        const invoked = await invokeOnce(retryModel)
         output = invoked.output
         llmCalls = invoked.llmCalls
         model = invoked.model
-        routingPath = "v3_invoke_retry"
+        routingPath = retryModel ? "v3_invoke_model_fallback" : "v3_invoke_retry"
       } catch (retryError) {
         console.error("[hom-agent] invoke retry failed", {
           conversationId,
+          retryModel: retryModel ?? model,
           error: retryError instanceof Error ? retryError.message : retryError,
         })
         setFallbackLayer(conversationId, "invoke_exception")
