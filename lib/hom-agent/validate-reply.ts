@@ -1,6 +1,7 @@
 import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { stripAppendedDeliveryPolicyFromOrderStatus } from "@/lib/agents/shipping"
 import { sanitizeDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
+import { sanitizeServiceDefectLiabilityReply } from "@/lib/agents/service-defect-wording"
 import {
   buildReturnsPortalUrl,
   personalizeReturnsPortalUrls,
@@ -28,6 +29,7 @@ export function validateHomAgentReply(
   }
 
   reply = sanitizeCustomerAddress(reply)
+  reply = sanitizeServiceDefectLiabilityReply(reply)
   reply = sanitizeDissatisfactionRescueReply(reply)
   reply = sanitizeRefundPolicyWording(reply)
   reply = sanitizeCreditRedemptionWording(reply)

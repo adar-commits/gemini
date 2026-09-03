@@ -1,3 +1,4 @@
+import { DEFECT_ISSUE_REPORT_LABEL } from "@/lib/agents/service-defect-wording"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import {
@@ -36,7 +37,7 @@ const ISSUE_LABELS: Record<PostPurchaseCaseKind, string> = {
     "בקשת החזרה כבר הוגשה — ממתינים לאיסוף שליח מהבית (לפני זיכוי)",
   return_request: "בקשת החזרה",
   exchange_request: "בקשת החלפה",
-  defect: "פגם / בעיה במוצר",
+  defect: DEFECT_ISSUE_REPORT_LABEL,
   dissatisfaction: "אי-שביעות רצון מהמוצר",
   missing_item: "פריט חסר בהזמנה",
   preorder_delay: "עיכוב בהזמנה מוקדמת",

@@ -15,6 +15,7 @@ export function postPurchaseKindFromIntentConfirm(text: string): PostPurchaseCas
   if (/בקשת איסוף לצורך החזרת מוצר/.test(text)) return "return_pickup_pending"
   if (/ורוצה להחליף/.test(text)) return "exchange_request"
   if (/ורוצה להחזיר/.test(text)) return "return_request"
+  if (/דיווח(?:ת)?\s+על\s+בעיה/.test(text)) return "defect"
   if (/יש בו פגם/.test(text)) return "defect"
   if (/אינך מרוצה/.test(text)) return "dissatisfaction"
   if (/חלק מההזמנה לא הגיע/.test(text)) return "missing_item"
@@ -70,7 +71,7 @@ function buildIntentSummary(kind: PostPurchaseCaseKind, body: string) {
   }
 
   if (kind === "defect") {
-    return `אוקיי, אני מבין שקיבלת ${product} ויש בו פגם או בעיה`
+    return `אוקיי, אני מבין שקיבלת ${product} ודיווחת על בעיה או חשש לגבי ${product === "המוצר" ? "אותו" : "אותו"}`
   }
 
   if (kind === "dissatisfaction") {

@@ -108,6 +108,12 @@ export function buildConversationHints(input: {
   }
 
   const postPurchaseKind = classifyPostPurchaseCase(body)
+  if (postPurchaseKind === "defect") {
+    lines.push(
+      "Defect / damage report: empathize and describe what you see or what they reported — never confirm 'מדובר בפגם' or 'פגם מלכתחילה'. Rep bullet: דיווח על בעיה / חשש (לפי הלקוח). Human verifies liability."
+    )
+  }
+
   if (
     postPurchaseKind === "return_pickup_pending" &&
     !isReturnPickupAwaitingThread(history, body)
