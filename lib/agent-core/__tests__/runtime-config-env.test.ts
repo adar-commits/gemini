@@ -41,7 +41,7 @@ describe("runtime config env priority", () => {
     assert.equal(config.profile.faq.model, "anthropic/claude-sonnet-4.6")
   })
 
-  it("still honors role-specific AGENT_FAQ_MODEL over Supabase", async () => {
+  it("ignores role-specific AGENT_FAQ_MODEL when Supabase row is loaded", async () => {
     stashEnv("AGENT_MODEL")
     stashEnv("AGENT_FAQ_MODEL")
     process.env.AGENT_MODEL = "anthropic/claude-opus-4.6"
@@ -62,6 +62,7 @@ describe("runtime config env priority", () => {
       updated_by: "test",
     })
 
-    assert.equal(config.profile.faq.model, "google/gemini-2.5-flash")
+    assert.equal(config.profile.faq.model, "anthropic/claude-sonnet-4.6")
+    assert.equal(config.source, "supabase")
   })
 })

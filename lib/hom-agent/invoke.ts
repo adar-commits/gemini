@@ -18,6 +18,17 @@ import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 const MAX_TOOL_ROUNDS = 2
 const INVOKE_FALLBACK_MODEL = MODEL_PROFILES.balanced.faq.model
 
+type InvokeContext = {
+  conversationId: string
+  turn: UserTurn
+  history: HistoryMessage[]
+  body: string
+  phone?: string
+  sessionSummary?: string | null
+  model: string
+  runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
+}
+
 function homAgentModel(
   profile: Awaited<ReturnType<typeof bindRuntimeConfig>>,
   override?: string
@@ -33,6 +44,28 @@ function homAgentMaxTokens(profile: Awaited<ReturnType<typeof bindRuntimeConfig>
   return profile.profile.faq.maxOutputTokens
 }
 
+function buildInvokeContext(input: {
+  conversationId: string
+  turn: UserTurn
+  history: HistoryMessage[]
+  body: string
+  phone?: string
+  sessionSummary?: string | null
+  modelOverride?: string
+  runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
+}): InvokeContext {
+  return {
+    conversationId: input.conversationId,
+    turn: input.turn,
+    history: input.history,
+    body: input.body,
+    phone: input.phone,
+    sessionSummary: input.sessionSummary,
+    model: homAgentModel(input.runtime, input.modelOverride),
+    runtime: input.runtime,
+  }
+}
+
 export async function invokeHomAgent(input: {
   conversationId: string
   turn: UserTurn
@@ -44,50 +77,68 @@ export async function invokeHomAgent(input: {
   modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
   const runtime = await bindRuntimeConfig()
-  const model = homAgentModel(runtime, input.modelOverride)
-  const system = buildHomAgentSystemPrompt({
-    sessionSummary: input.sessionSummary,
-    whatsappPhone: input.phone,
-    userText: input.body,
-    history: input.history,
-  })
+  const ctx = buildInvokeContext({ ...input, runtime })
 
+  try {
+    return await invokeWithTools(ctx)
+  } catch (error) {
+    console.warn("[hom-agent] tool invoke failed, trying kb-only pass", {
+      conversationId: input.conversationId,
+      model: ctx.model,
+      error: error instanceof Error ? error.message : error,
+    })
+    const kbModel =
+      ctx.model === INVOKE_FALLBACK_MODEL ? ctx.model : INVOKE_FALLBACK_MODEL
+    return invokeKbOnly({ ...ctx, model: kbModel })
+  }
+}
+
+async function invokeWithTools(ctx: InvokeContext) {
+  const system = buildHomAgentSystemPrompt({
+    sessionSummary: ctx.sessionSummary,
+    whatsappPhone: ctx.phone,
+    userText: ctx.body,
+    history: ctx.history,
+  })
   const tools = createHomAgentTools({
-    body: input.body,
-    phone: input.phone,
-    history: input.history,
+    body: ctx.body,
+    phone: ctx.phone,
+    history: ctx.history,
   })
 
   let llmCalls = 0
-  const messages = buildModelMessages(input.history, input.turn)
+  const messages = buildModelMessages(ctx.history, ctx.turn)
 
   const toolResult = await generateText({
-    model,
+    model: ctx.model,
     system: `${system}\n\nIf you need live data, call the appropriate tool first. Do not invent order status, stock, or documents.`,
     messages,
     tools,
     stopWhen: stepCountIs(MAX_TOOL_ROUNDS),
-    temperature: homAgentTemperature(runtime),
-    maxOutputTokens: Math.min(homAgentMaxTokens(runtime), 900),
+    temperature: homAgentTemperature(ctx.runtime),
+    maxOutputTokens: Math.min(homAgentMaxTokens(ctx.runtime), 900),
   })
   llmCalls += 1
 
   recordTokenUsage({
-    conversationId: input.conversationId,
+    conversationId: ctx.conversationId,
     purpose: "faq",
     agent: "faq",
-    model,
+    model: ctx.model,
     usage: toolResult.usage,
   })
 
-  setRoutingPath(input.conversationId, (toolResult.steps?.length ?? 0) > 1 ? "v3_tools" : "v3_llm")
+  setRoutingPath(
+    ctx.conversationId,
+    (toolResult.steps?.length ?? 0) > 1 ? "v3_tools" : "v3_llm"
+  )
 
   const deterministicReply = extractDeterministicToolReply(toolResult.steps)
   if (deterministicReply) {
     return {
-      output: validateHomAgentReply(deterministicReply, input.body, input.phone),
+      output: validateHomAgentReply(deterministicReply, ctx.body, ctx.phone),
       llmCalls,
-      model,
+      model: ctx.model,
     }
   }
 
@@ -97,7 +148,7 @@ export async function invokeHomAgent(input: {
     .filter(Boolean)
 
   const structured = await generateText({
-    model,
+    model: ctx.model,
     system,
     messages: [
       ...messages,
@@ -105,24 +156,69 @@ export async function invokeHomAgent(input: {
         role: "user",
         content:
           toolSummaries.length > 0
-            ? `[Tool results — use exactly in your reply, do not invent:\n${toolSummaries.join("\n")}\n]\nCompose the final customer reply for: ${input.body}`
-            : `[Compose the final customer reply for: ${input.body}`,
+            ? `[Tool results — use exactly in your reply, do not invent:\n${toolSummaries.join("\n")}\n]\nCompose the final customer reply for: ${ctx.body}`
+            : `[Compose the final customer reply for: ${ctx.body}`,
       },
     ],
-    temperature: homAgentTemperature(runtime),
-    maxOutputTokens: homAgentMaxTokens(runtime),
+    temperature: homAgentTemperature(ctx.runtime),
+    maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
   })
   llmCalls += 1
 
   recordTokenUsage({
-    conversationId: input.conversationId,
+    conversationId: ctx.conversationId,
     purpose: "faq",
     agent: "faq",
-    model,
+    model: ctx.model,
     usage: structured.usage,
   })
 
+  return finalizeStructuredOutput(structured, ctx, llmCalls)
+}
+
+async function invokeKbOnly(ctx: InvokeContext) {
+  const system = buildHomAgentSystemPrompt({
+    sessionSummary: ctx.sessionSummary,
+    whatsappPhone: ctx.phone,
+    userText: ctx.body,
+    history: ctx.history,
+  })
+  const messages = buildModelMessages(ctx.history, ctx.turn)
+
+  const structured = await generateText({
+    model: ctx.model,
+    system: `${system}\n\nTools are unavailable this turn. Answer from the knowledge base only. For live order status, ask for order number or offer human_service — do not invent status.`,
+    messages: [
+      ...messages,
+      {
+        role: "user",
+        content: `[Compose the final customer reply for: ${ctx.body}`,
+      },
+    ],
+    temperature: homAgentTemperature(ctx.runtime),
+    maxOutputTokens: homAgentMaxTokens(ctx.runtime),
+    output: homAgentOutputSchema(),
+  })
+
+  recordTokenUsage({
+    conversationId: ctx.conversationId,
+    purpose: "faq",
+    agent: "faq",
+    model: ctx.model,
+    usage: structured.usage,
+  })
+
+  setRoutingPath(ctx.conversationId, "v3_kb_only")
+
+  return finalizeStructuredOutput(structured, ctx, 1)
+}
+
+function finalizeStructuredOutput(
+  structured: Awaited<ReturnType<typeof generateText>>,
+  ctx: InvokeContext,
+  llmCalls: number
+) {
   const raw = structured.output ?? parseFallbackOutput(structured.text)
   const normalized: HomAgentOutput = {
     reply: raw.reply ?? "",
@@ -130,9 +226,9 @@ export async function invokeHomAgent(input: {
   }
 
   return {
-    output: validateHomAgentReply(normalized, input.body, input.phone),
+    output: validateHomAgentReply(normalized, ctx.body, ctx.phone),
     llmCalls,
-    model,
+    model: ctx.model,
   }
 }
 

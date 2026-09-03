@@ -140,11 +140,6 @@ function codeDefaultConfig(): RuntimeConfig {
 export function rowToConfig(row: RuntimeRow): RuntimeConfig {
   const name = (row.active_profile?.trim() || DEFAULT_PROFILE_NAME) as ProfileName
   const base = parseProfileJson(name, row.profile_json)
-  const hasEmergency = Boolean(envGlobalModel() || envRoleModel("faq"))
-  const globalEnv = envGlobalModel()
-
-  const applyEmergency = (role: "router" | "faq" | "sales" | "service", cfg: RoleModelConfig) =>
-    mergeRole(cfg, undefined, envRoleModel(role), globalEnv, true)
 
   const routingRaw = row.routing_mode?.trim().toLowerCase()
   const routingMode: AgentRoutingMode =
@@ -163,10 +158,6 @@ export function rowToConfig(row: RuntimeRow): RuntimeConfig {
     profile: {
       ...base,
       name,
-      router: applyEmergency("router", base.router),
-      faq: applyEmergency("faq", base.faq),
-      sales: applyEmergency("sales", base.sales),
-      service: applyEmergency("service", base.service),
     },
     routingMode,
     debounceMs:
@@ -186,7 +177,7 @@ export function rowToConfig(row: RuntimeRow): RuntimeConfig {
     orchestraMode,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
-    source: hasEmergency ? "env_emergency" : "supabase",
+    source: "supabase",
   }
 }
 
@@ -284,5 +275,13 @@ export function runtimeConfigSnapshot(config: RuntimeConfig) {
     source: config.source,
     updatedAt: config.updatedAt,
     updatedBy: config.updatedBy,
+    envOverridesPresent: {
+      AGENT_MODEL: Boolean(envGlobalModel()),
+      AGENT_FAQ_MODEL: Boolean(envRoleModel("faq")),
+      AGENT_SALES_MODEL: Boolean(envRoleModel("sales")),
+      AGENT_SERVICE_MODEL: Boolean(envRoleModel("service")),
+      AGENT_ROUTER_MODEL: Boolean(envRoleModel("router")),
+    },
+    envOverridesApply: config.source !== "supabase",
   }
 }
