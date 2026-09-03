@@ -3,6 +3,7 @@ import {
   bindPriorityApiEnabled,
   bindPriorityApiLogContext,
   bindPriorityApiPreMessageGuard,
+  isPriorityApiWaitMessage,
   resetPriorityApiTurnState,
 } from "@/lib/agents/priority-webhook"
 import { buildLlmFailureReply } from "@/lib/agent-core/fallbacks"
@@ -68,7 +69,7 @@ export async function runHomAgentTurn(
     history.some(
       (message) =>
         message.role === "assistant" &&
-        /אני על זה, כמה רגעים/i.test(message.content)
+        isPriorityApiWaitMessage(message.content)
     ) || isOrderConfirmationPending(history)
   )
 

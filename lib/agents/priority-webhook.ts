@@ -9,8 +9,16 @@ export const PRIORITY_API_TIMEOUT_MS = Number(
   process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "15000"
 )
 
+/** Matches legacy and current Priority wait bubbles in thread history. */
+export const PRIORITY_API_WAIT_PHRASE_RE =
+  /אני על זה,?\s*(?:—|-)?\s*(?:עוד\s+)?(?:כמה\s+)?רגע/i
+
+export function isPriorityApiWaitMessage(content: string) {
+  return PRIORITY_API_WAIT_PHRASE_RE.test(content)
+}
+
 export const PRIORITY_API_PREMESSAGE = `${CUSTOMER_HEADER}
-אני על זה, כמה רגעים בבקשה..`
+אני על זה — עוד כמה רגעים 🙏`
 
 type PriorityApiBeforeCall = (() => void | Promise<void>) | null
 

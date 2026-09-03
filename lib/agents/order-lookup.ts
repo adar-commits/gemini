@@ -33,7 +33,7 @@ import {
   isSalesIntakeAnswer,
   pendingSalesIntakeQuestionKind,
 } from "@/lib/agents/sales-intake"
-import { callPriorityWebhook, getPriorityApiLogContext } from "@/lib/agents/priority-webhook"
+import { callPriorityWebhook, getPriorityApiLogContext, isPriorityApiWaitMessage } from "@/lib/agents/priority-webhook"
 import {
   recallConversationLookupPhone,
   recallConversationOrdersLookup,
@@ -922,7 +922,7 @@ export function isOrderDisambiguationPending(history: HistoryMessage[]) {
 }
 
 function isPriorityApiWaitAssistantMessage(content: string) {
-  return /אני על זה, כמה רגעים/i.test(content)
+  return isPriorityApiWaitMessage(content)
 }
 
 function isOrderConfirmationAssistantMessage(content: string) {

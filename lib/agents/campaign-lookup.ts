@@ -308,7 +308,7 @@ export async function resolveCampaignLookupReply(input: {
   if (campaigns === undefined) {
     return `${CUSTOMER_HEADER}
 לא הצלחתי לבדוק את המבצעים כרגע 😊
-אפשר לנסות שוב בעוד רגע, או להעביר ליועץ מכירות 🙏`
+אפשר לנסות שוב עוד כמה רגעים, או להעביר ליועץ מכירות 🙏`
   }
   return formatCampaignLookupReply(campaigns, value, input.body)
 }

@@ -86,7 +86,7 @@ export function buildThanksReply(customerName?: string) {
 
 export function buildLlmFailureReply() {
   return `${CUSTOMER_HEADER}
-רגע, משהו נתקע בצד שלי — סליחה על זה.
+עוד כמה רגעים — משהו נתקע בצד שלי, סליחה על זה.
 אפשר לנסח שוב בקצרה, או שאעביר לנציג שימשיך מכאן?`
 }
 
@@ -100,6 +100,6 @@ export function buildNeverStuckReply() {
 /** Offer service handoff when the pipeline did not finish in time — not "didn't understand". */
 export function buildProcessingStuckReply() {
   return `${CUSTOMER_HEADER}
-עדיין מעבד את ההודעה 🙏 זה לוקח לי רגע יותר מהרגיל.
-להמתין עוד רגע, או להעביר לנציג שירות?`
+עדיין מעבד את ההודעה 🙏 זה לוקח קצת יותר מהרגיל.
+להמתין עוד כמה רגעים, או להעביר לנציג שירות?`
 }
