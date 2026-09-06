@@ -19,10 +19,8 @@ import {
   extractOrderNumber,
   isAlternatePhoneRequestPending,
   isChannelPhoneSelfReference,
-  isDeliveryEstimateQuestion,
   isOrderConfirmationNo,
   isOrderConfirmationPending,
-  isOrderDeliveryStatusQuestion,
   isPhoneLookupConfirmPending,
   isPureOrderConfirmation,
   resolveOrderShippingReply,
@@ -113,8 +111,6 @@ function orderLookupStructuredBinding(body: string) {
     isOrderConfirmationNo(body) ||
     userProvidedPhone(body) != null ||
     isChannelPhoneSelfReference(body) ||
-    isOrderDeliveryStatusQuestion(body) ||
-    isDeliveryEstimateQuestion(body) ||
     extractOrderNumber(body) != null
   )
 }

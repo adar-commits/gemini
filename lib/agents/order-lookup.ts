@@ -1,4 +1,4 @@
-import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
+import { buildApiFailureReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
@@ -837,13 +837,27 @@ function orderConfirmFirstLine(body: string) {
   return body.trim().split(/\n+/)[0]?.trim() ?? body.trim()
 }
 
-/** Customer asks when/where the order is — often sent right after confirming the order card. */
+/** Customer asks when/where the order is — not carrier identity, order name, or off-topic probes. */
 export function isOrderDeliveryStatusQuestion(body: string) {
   const text = body.trim()
   if (!text) return false
+  if (isOrderOutOfScopeMetadataQuestion(text)) return false
   if (isDeliveryEstimateQuestion(text)) return true
-  return /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|משלוח|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה))/i.test(
+  return /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|(?:^|\s)משלוח(?:\s|$)|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה))/i.test(
     text
+  )
+}
+
+/** Fields we do not have in Priority — must not repeat delivery-status template. */
+export function isOrderOutOfScopeMetadataQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return (
+    /חבר(?:ת|ה)\s+(?:ה)?משלוח/i.test(text) ||
+    /על\s+שם\s+מי/i.test(text) ||
+    /(?:מה|מי)\s+שם\s+(?:על\s+)?(?:ה)?הזמנה/i.test(text) ||
+    /מה\s+השעה/i.test(text) ||
+    /לא\s+עונה\s+בצורה\s+חכמה/i.test(text)
   )
 }
 
@@ -948,14 +962,22 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
 export function isOrderConfirmationYes(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
-  if (/^(?:כן|נכון|בדיוק|זה|זאת|זו|מדובר|אכן|בטח|אמת|yes|👍)/i.test(text)) return true
-  if (/^(?:אוקיי|אוקי|ok|okay|סבבה)(?:[\s,.!?]|$)/i.test(text)) return true
-  if (/^(?:זה|זו|זאת)\s+(?:נכון|ה(?:יא|וא)|מדובר)/i.test(text)) return true
-  if (/זה\s+המספר\s+שלי|המספר\s+(?:ה)?(?:נכון|שלי)/i.test(text)) return true
-  if (/(?:^|[\s,])(?:נראה|כנראה)\s+(?:לי\s+)?שכן(?:[\s,.!?]|$)/i.test(text)) return true
-  if (/^(?:כן\s+)?(?:זה\s+)?(?:נראה|כנראה)(?:\s+לי)?(?:[\s,.!?]|$)/i.test(text)) return true
-  if (/אמר(?:תי|נו)\s+שכן/i.test(text)) return true
-  if (/^(?:כן|yep)[\s,.!?]*$/i.test(text)) return true
+  const firstLine = text.split(/\n+/)[0]?.trim() ?? text
+
+  if (
+    /^(?:כן(?:\s+זה)?(?:\s+נכון)?|נכון|בדיוק|זה|זאת|זו|מדובר|אכן|בטח|אמת|yes|👍)(?:[\s,.!?👍]*)$/i.test(
+      firstLine
+    )
+  ) {
+    return true
+  }
+  if (/^(?:אוקיי|אוקי|ok|okay|סבבה)(?:[\s,.!?]|$)/i.test(firstLine)) return true
+  if (/^(?:זה|זו|זאת)\s+(?:נכון|ה(?:יא|וא)|מדובר)/i.test(firstLine)) return true
+  if (/זה\s+המספר\s+שלי|המספר\s+(?:ה)?(?:נכון|שלי)/i.test(firstLine)) return true
+  if (/(?:^|[\s,])(?:נראה|כנראה)\s+(?:לי\s+)?שכן(?:[\s,.!?]|$)/i.test(firstLine)) return true
+  if (/^(?:כן\s+)?(?:זה\s+)?(?:נראה|כנראה)(?:\s+לי)?(?:[\s,.!?]|$)/i.test(firstLine)) return true
+  if (/אמר(?:תי|נו)\s+שכן/i.test(firstLine)) return true
+  if (/^(?:כן|yep)[\s,.!?]*$/i.test(firstLine)) return true
   return false
 }
 
@@ -1367,6 +1389,14 @@ export function resolveLookupPhoneFromHistory(
 ) {
   const fromBody = body ? userProvidedPhone(body) : null
   if (fromBody) return fromBody
+
+  if (isOrderStatusDeliveredInThread(history)) {
+    const conversationId = getPriorityApiLogContext()?.conversationId
+    if (conversationId) {
+      const cachedPhone = recallConversationLookupPhone(conversationId)
+      if (cachedPhone) return cachedPhone
+    }
+  }
 
   // Current-turn confirm — history does not yet include this user message.
   if (
@@ -1787,6 +1817,10 @@ export async function resolveOrderShippingReply(input: {
     maybeApplyCancellationEmpathy(reply, body, history)
 
   if (isOrderStatusDeliveredInThread(history)) {
+    if (isOrderOutOfScopeMetadataQuestion(body)) {
+      return buildUncertainHandoffReply(body)
+    }
+
     if (isDeliveryEstimateQuestion(body)) {
       const order = await resolveIdentifiedOrderFromThread({
         history,
@@ -1807,7 +1841,13 @@ export async function resolveOrderShippingReply(input: {
         whatsappPhone,
         body,
       })
-      if (order) return buildOrderStatusReply(order)
+      if (order) {
+        const priorStatus = lastOrderStatusAssistantText(history)
+        if (priorStatus && /בדקתי,/i.test(priorStatus)) {
+          return buildOrderStatusClarificationReply(history)
+        }
+        return buildOrderStatusReply(order)
+      }
     }
   }
 

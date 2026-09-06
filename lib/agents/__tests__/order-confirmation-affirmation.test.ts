@@ -4,6 +4,7 @@ import {
   buildOrderConfirmationClarifyPrompt,
   buildOrderConfirmationPrompt,
   isOrderConfirmationPending,
+  isOrderConfirmationYes,
   isPureOrderConfirmation,
   resolveOrderShippingReply,
 } from "@/lib/agents/order-lookup"
@@ -41,6 +42,35 @@ describe("order confirmation natural affirmations", () => {
   it("treats כן זה as order confirmation", () => {
     assert.equal(isPureOrderConfirmation("כן זה"), true)
     assert.equal(isOrderConfirmationPending(history), true)
+  })
+
+  it("does not treat compound confirm + unrelated ask as pure confirmation", () => {
+    assert.equal(isPureOrderConfirmation("כן. מה שם ההזמנה?"), false)
+    assert.equal(isOrderConfirmationYes("כן. מה שם ההזמנה?"), false)
+  })
+
+  it("does not classify carrier or order-name probes as delivery status", async () => {
+    const { isOrderDeliveryStatusQuestion, isOrderOutOfScopeMetadataQuestion } =
+      await import("@/lib/agents/order-lookup")
+    const carrier = "על ידי איזו חברת משלוחים החבילה סופקה?"
+    assert.equal(isOrderOutOfScopeMetadataQuestion(carrier), true)
+    assert.equal(isOrderDeliveryStatusQuestion(carrier), false)
+  })
+
+  it("skips structured pre-turn for out-of-scope ask while confirm pending", async () => {
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-trainer-probe",
+      whatsappPhone: "+972524648170",
+    })
+
+    const result = await runStructuredOrderLookupPreTurn({
+      turn: { text: "כן. מה שם ההזמנה?", media: [] },
+      history,
+      phone: "+972524648170",
+    })
+
+    assert.equal(result.kind, "skip")
   })
 
   it("clarify prompt is short and does not repeat the order card", () => {
