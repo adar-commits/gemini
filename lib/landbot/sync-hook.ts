@@ -60,6 +60,12 @@ export async function inspectMessageHooks() {
           url: hook.url,
           name: hook.name,
           matches_app_url: hook.url === url,
+          duplicate_risk:
+            hook.url !== url
+              ? "foreign_url_may_reply"
+              : hooks.filter((item) => item.url === url).length > 1
+                ? "duplicate_app_url"
+                : null,
         })),
       }
     })
@@ -92,6 +98,14 @@ export async function syncMessageHook(force = false) {
 
   const existing = (await listMessageHooks(channel.id)).hooks ?? []
   const ours = existing.filter((hook) => hook.url === url)
+  const foreign = existing.filter((hook) => hook.url !== url)
+
+  // Always drop duplicate hooks for our URL — repeated POST /setup creates extras and multiplies replies.
+  if (ours.length > 1) {
+    for (const hook of ours.slice(1)) {
+      await deleteMessageHook(channel.id, hook.id)
+    }
+  }
 
   if (ours.length && !force) {
     return {
@@ -100,8 +114,11 @@ export async function syncMessageHook(force = false) {
       channel,
       hook: ours[0],
       webhook_url: url,
+      foreign_hooks: foreign.map((hook) => ({ id: hook.id, url: hook.url, name: hook.name })),
       note:
-        "Hook URL already registered in Landbot. If replies stopped after changing LANDBOT_WEBHOOK_TOKEN on Vercel, POST with {\"force\":true} to recreate the hook with the new token.",
+        foreign.length > 0
+          ? "Extra Landbot message hooks still point at other URLs — they can cause duplicate replies. Remove them in Landbot or delete via API."
+          : "Hook URL already registered in Landbot. If replies stopped after changing LANDBOT_WEBHOOK_TOKEN on Vercel, POST with {\"force\":true} to recreate the hook with the new token.",
     }
   }
 
