@@ -5,8 +5,8 @@ import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { mergeTurns, summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
-const DEFAULT_DEBOUNCE_MS = 8000
-const DEFAULT_FIRST_TURN_DEBOUNCE_MS = 8000
+const DEFAULT_DEBOUNCE_MS = 3000
+const DEFAULT_FIRST_TURN_DEBOUNCE_MS = 3000
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -21,7 +21,12 @@ function configuredDebounceMs() {
 function configuredFirstTurnDebounceMs() {
   const env = Number(process.env.LANDBOT_FIRST_TURN_DEBOUNCE_MS ?? "")
   if (Number.isFinite(env) && env > 0) return env
-  return DEFAULT_FIRST_TURN_DEBOUNCE_MS
+  return configuredDebounceMs() ?? DEFAULT_FIRST_TURN_DEBOUNCE_MS
+}
+
+/** Extra soak for lone short lines — half the quiet window, not a second full wait. */
+function partialBurstSoakMs(window: number) {
+  return Math.min(2000, Math.max(500, Math.floor(window / 2)))
 }
 
 async function baseDebounceMs() {
@@ -174,7 +179,7 @@ export async function absorbBufferedTurn(conversationId: string): Promise<UserTu
 
     if (looksLikePartialBurst(turn)) {
       const window = await debounceWindowMs(conversationId)
-      await sleep(window)
+      await sleep(partialBurstSoakMs(window))
     }
 
     const after = await readBufferSnapshot(conversationId)
