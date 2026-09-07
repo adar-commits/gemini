@@ -1111,7 +1111,7 @@ function lastSharedOrderStatusBodyInThread(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (!/בדקתי,/i.test(message.content)) continue
-    const match = message.content.match(/בדקתי,\s*(.+?)(?:\s+נכון לתאריך|$)/is)
+    const match = message.content.match(/בדקתי,\s*([\s\S]+?)(?:\s+נכון לתאריך|$)/i)
     if (match?.[1]) return match[1].trim()
   }
   return ""
