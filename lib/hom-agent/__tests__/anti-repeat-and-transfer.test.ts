@@ -64,4 +64,19 @@ describe("anti-repeat guard", () => {
     )
     assert.match(result.reply, /תשובה חדשה לגמרי/)
   })
+
+  it("unwraps leaked structured JSON reply text", () => {
+    const result = validateHomAgentReply(
+      {
+        reply:
+          '{"reply":"בסדר גמור — הנה תשובה תקינה בלי מעטפת JSON","action":"reply"}',
+        action: "reply",
+      },
+      "שאלה",
+      undefined,
+      []
+    )
+    assert.equal(result.reply.includes('{"reply"'), false)
+    assert.match(result.reply, /הנה תשובה תקינה/)
+  })
 })

@@ -70,6 +70,13 @@ export function buildConversationHints(input: {
     )
   }
 
+  const questionParts = splitQuestionParts(body)
+  if (questionParts.length >= 3) {
+    lines.push(
+      `MULTI-QUESTION OVERLOAD: customer asked ${questionParts.length} distinct questions/topics in one turn. Do not collapse to one answer. Respond in short blocks and explicitly cover each topic you can answer now. If one item needs live data (order status / inventory / document), answer all non-tool items first, then ask one focused follow-up for that live item. Prefer at most one tool call this turn; never chain several tools in a mixed batch. If the message is too dense, answer the top 2-3 items and ask if they want the rest now — do not ignore topics.`
+    )
+  }
+
   if (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body)) {
     lines.push(
       'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
@@ -249,6 +256,13 @@ export function buildConversationHints(input: {
   }
 
   return lines.length > 0 ? lines.map((line) => `- ${line}`).join("\n") : null
+}
+
+function splitQuestionParts(body: string) {
+  return body
+    .split(/\n+|(?<=\?)/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 6)
 }
 
 function historyShowsHomInvoiceBillingName(history: HistoryMessage[]) {

@@ -58,7 +58,7 @@ const SPLIT_SCHEMA = jsonSchema<{ questions: string[] }>({
       type: "array",
       items: { type: "string" },
       minItems: 1,
-      maxItems: 4,
+      maxItems: 8,
     },
   },
 })

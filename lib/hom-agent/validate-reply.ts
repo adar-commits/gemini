@@ -32,6 +32,7 @@ export function validateHomAgentReply(
   history: HistoryMessage[] = []
 ): HomAgentOutput {
   let reply = output.reply?.trim() ?? ""
+  reply = sanitizeLeakedStructuredJson(reply)
   if (!reply && output.action === "reply") {
     reply = buildNeverStuckReply()
   }
@@ -65,6 +66,20 @@ export function validateHomAgentReply(
   if (antiRepeat) return antiRepeat
 
   return { ...output, reply }
+}
+
+function sanitizeLeakedStructuredJson(reply: string) {
+  const text = reply.trim()
+  if (!text.startsWith("{")) return reply
+  try {
+    const parsed = JSON.parse(text) as { reply?: unknown }
+    if (typeof parsed.reply === "string" && parsed.reply.trim()) {
+      return parsed.reply.trim()
+    }
+  } catch {
+    // keep original text when not valid JSON
+  }
+  return reply
 }
 
 /**

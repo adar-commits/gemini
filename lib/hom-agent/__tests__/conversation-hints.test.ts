@@ -111,4 +111,22 @@ describe("buildConversationHints", () => {
     assert.match(hints, /\[שירות\]\s+מבקשים:/)
     assert.doesNotMatch(hints, /בקשת החזרה כבר הוגשה/)
   })
+
+  it("guides multi-question overload handling without dropping topics", () => {
+    const hints = buildConversationHints({
+      history: [],
+      body: [
+        "אם אני מתלבט בין שני שטיחים אני יכול להשאיר אתכם?",
+        "מה הסניף הכי קרוב לאילת?",
+        "אם המוצר שלי יגיע פגום מה האפשרויות שלי?",
+        "סידי 01 קרם יש אותו במלאי בראשון לציון?",
+        "עד איזה שעה אפשר לעשות איסוף עצמי מהמחסן בחברה?",
+      ].join("\n"),
+    })
+    assert.ok(hints)
+    assert.match(hints, /MULTI-QUESTION OVERLOAD/i)
+    assert.match(hints, /answer all non-tool items first/i)
+    assert.match(hints, /at most one tool call this turn/i)
+    assert.match(hints, /do not ignore topics/i)
+  })
 })
