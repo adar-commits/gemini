@@ -52,6 +52,7 @@ import { buildDeliveryEstimatePolicyReply } from "@/lib/agents/delivery-estimate
 import {
   isValidIsraeliMobilePhone,
   normalizePhoneForOrderApi,
+  stripMediaAndUrls,
 } from "@/lib/agents/phone-for-api"
 
 export { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-terminology"
@@ -466,7 +467,8 @@ export function ltrIsolateOrderNumber(orderNumber: string) {
   return `\u2066${trimmed}\u2069`
 }
 
-export function extractOrderNumber(text: string) {
+export function extractOrderNumber(rawText: string) {
+  const text = stripMediaAndUrls(rawText)
   const compact = text.match(/\b((?:SO|IN|OV)\s*\d+)\b/i)
   if (compact?.[1]) return normalizeExtractedOrderNumber(compact[1])
   const match = text.match(/\b((?:SO|IN|OV)\d+)\b/i)
@@ -704,7 +706,8 @@ export function orderSummaryFromConfirmationHistory(
 }
 
 /** Order reference from customer reply — prefixed (SO/IN/OV), Shopify #, or bare digits (not a phone). */
-export function extractOrderReference(text: string, history: HistoryMessage[] = []) {
+export function extractOrderReference(rawText: string, history: HistoryMessage[] = []) {
+  const text = stripMediaAndUrls(rawText)
   if (isAwaitingSalesIntakeAnswer(history)) {
     const kind = pendingSalesIntakeQuestionKind(history)
     if (kind === "budget" && isLikelyBudgetIntakeAnswer(text)) return null
@@ -1441,7 +1444,8 @@ export function formatDisplayPhone(phone: string) {
   return digits || phone.trim()
 }
 
-export function extractPhoneFromText(text: string) {
+export function extractPhoneFromText(rawText: string) {
+  const text = stripMediaAndUrls(rawText)
   const patterns = text.match(/(?:\+?972|0)[\d\s-]{8,14}/g) ?? []
   for (const raw of patterns) {
     const digits = phoneForOrderApi(raw)

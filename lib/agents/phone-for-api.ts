@@ -4,6 +4,20 @@
 export const INVENTORY_SKU_EXAMPLE = "31503138-200290"
 export const INVENTORY_SKU_EXAMPLE_HINT = `(לדוגמה: ${INVENTORY_SKU_EXAMPLE})`
 
+/**
+ * Remove media placeholders and URLs before scanning a message for phones or
+ * order numbers — media URLs contain the Landbot customer id (9 digits starting
+ * with 5) which pattern-matches an Israeli mobile and hijacked turns into order
+ * lookup (e.g. a room photo answered with "לא מצאתי הזמנות").
+ */
+export function stripMediaAndUrls(text: string) {
+  return text
+    .replace(/\[media:(?:image|audio|video|document):[^\]]+\]/gi, " ")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
 export function normalizePhoneForOrderApi(phone: string) {
   let digits = phone.replace(/\D/g, "")
   if (digits.startsWith("00")) digits = digits.slice(2)

@@ -23,6 +23,7 @@ import {
   isOrderConfirmationPending,
   isOrderLookupPhoneReplyPending,
   isPureOrderConfirmation,
+  requiresOrderIdentification,
   resolveOrderShippingReply,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
@@ -144,7 +145,16 @@ export async function runStructuredOrderLookupPreTurn(input: {
   const body = summarizeTurn(input.turn)
   const orderConfirmPending = isOrderConfirmationPending(input.history)
   const phoneLookupPending = isOrderLookupPhoneReplyPending(input.history)
-  const typedPhone = userProvidedPhone(body)
+  // A phone number only binds the turn to the order flow when order context
+  // exists (pending lookup step or an order/shipping ask in the message) — a
+  // bare phone in an unrelated message (callback request, signature, digits
+  // leaked from media URLs) must reach the LLM instead of hijacking the turn.
+  const typedPhone =
+    orderConfirmPending ||
+    phoneLookupPending ||
+    requiresOrderIdentification(body, input.history)
+      ? userProvidedPhone(body)
+      : null
 
   if (!orderConfirmPending && !phoneLookupPending && !typedPhone) {
     return { kind: "skip", response: null }
