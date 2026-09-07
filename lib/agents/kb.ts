@@ -52,9 +52,9 @@ export function shouldIncludeCarpetFaqKb(userText = "") {
   return CARPET_FAQ_TOPIC_RE.test(userText.trim())
 }
 
-/** Glossary — explain terms only; not purchase advice. */
+/** Glossary + site catalog taxonomy — explain terms and existing categories; not purchase advice. */
 export const CARPET_TERMINOLOGY_RE =
-  /שאגי|shaggy|קילים|kilim|פרסי|persian|אבסטרקט|abstract|מרוק|moroccan|נורד|scandin|קלאסי|classic|עבוד(?:ת|ה)\s*יד|hand\s*made|handmade|מכונה|machine\s*made|צמר|wool|היטסט|hytex|ראנר|runner|מילון|מונח|terminology|סופר\s*זיגלר|ziegler|אפגנ|afghan|אוזבק|uzbek|סומק|maroc|חבל|jute|rope|וינטג|vintage|בוהו|boho|OOAK|יחיד\s*מסוג/i
+  /שאגי|shaggy|קילים|kilim|פרסי|persian|אבסטרקט|abstract|מרוק|moroccan|נורד|scandin|קלאסי|classic|עבוד(?:ת|ה)\s*יד|hand\s*made|handmade|מכונה|machine\s*made|צמר|wool|היטסט|hytex|ראנר|runner|מילון|מונח|terminology|סופר\s*זיגלר|ziegler|אפגנ|afghan|אוזבק|uzbek|סומק|maroc|חבל|jute|rope|וינטג|vintage|בוהו|boho|OOAK|יחיד\s*מסוג|סוג(?:י|ים)?\s*(?:של\s*)?שטיח|קטגורי|קולקצי|איז(?:ה|ו)\s*שטיחים|כביס|ג(?:'|׳)וטה|טלאים|בהזמנה\s*אישית|שייפס|אתני|כפרי|אורבני|שבטי|רטרו|קטיפה/i
 
 export function shouldIncludeCarpetTerminologyKb(userText = "") {
   return CARPET_TERMINOLOGY_RE.test(userText.trim())
