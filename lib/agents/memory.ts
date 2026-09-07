@@ -508,6 +508,8 @@ export async function appendTurn(input: {
     session.reset_at = now
     session.inactivity_ping_sent_at = null
     session.inactivity_closed_at = null
+    // Stale summaries leak the previous topic into the next session's prompt.
+    session.conversation_summary = null
   }
   if (persistUser && input.userText.trim()) {
     session.last_user_at = now

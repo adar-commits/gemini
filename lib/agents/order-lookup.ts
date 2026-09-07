@@ -203,6 +203,19 @@ export function sortOrdersNewestFirst(orders: OrderShipmentStatus[]) {
   )
 }
 
+/** Cancelled, zero-total, and negative (credit/return) rows must not be offered as "your order". */
+export function isOfferableOrderCandidate(order: OrderShipmentStatus) {
+  if (typeof order.totalPrice === "number" && order.totalPrice <= 0) return false
+  if (/בוטל/i.test(order.orderStatus ?? "")) return false
+  return true
+}
+
+/** Candidates to propose to the customer — falls back to all rows if none survive the filter. */
+function offerableOrders(orders: OrderShipmentStatus[]) {
+  const filtered = orders.filter(isOfferableOrderCandidate)
+  return filtered.length ? filtered : orders
+}
+
 /** Customer-facing status body — date is appended in buildOrderStatusReply. */
 export function hasDeliveryStatusData(order: OrderShipmentStatus) {
   return Boolean(order.statusCode?.trim() || order.statusLabel?.trim())
@@ -248,7 +261,7 @@ function pickNextOrderCandidate(
 ) {
   const shownNumbers = shownOrderNumbersFromHistory(history)
   if (shownNumbers.length >= MAX_ORDER_PICK_ATTEMPTS) return null
-  for (const order of sorted) {
+  for (const order of offerableOrders(sorted)) {
     if (!shownNumbers.some((shown) => findOrderByNumber([order], shown))) {
       return order
     }
@@ -1885,7 +1898,7 @@ async function lookupAndStartOrderConfirm(
   const phoneChanged = Boolean(priorPhone && phoneKey && priorPhone !== phoneKey)
   const history = phoneChanged ? [] : (context?.history ?? [])
   const sorted = sortOrdersNewestFirst(orders)
-  const next = pickNextOrderCandidate(sorted, history) ?? sorted[0]
+  const next = pickNextOrderCandidate(sorted, history) ?? offerableOrders(sorted)[0]
   if (!next) {
     const reply = buildOrderPickExhaustedHandoffPrompt()
     return empathize ? empathize(reply) : reply
@@ -1977,8 +1990,9 @@ async function resolveOrderConfirmationFlow(input: {
     return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body, current)
   }
 
-  if (sorted[0]) {
-    return buildOrderConfirmationPrompt(sorted[0]!, input.history, input.body)
+  const firstOfferable = offerableOrders(sorted)[0]
+  if (firstOfferable) {
+    return buildOrderConfirmationPrompt(firstOfferable, input.history, input.body)
   }
   return buildNoOrdersFoundReply(threadLookupPhone)
 }

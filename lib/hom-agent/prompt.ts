@@ -19,11 +19,17 @@ export function buildHomAgentSystemPrompt(input?: {
   whatsappPhone?: string | null
   userText?: string | null
   history?: HistoryMessage[]
+  /** Pre-rendered trainer rules section (see homAgentLearnedRulesSection). */
+  learnedRules?: string | null
 }) {
   const parts = [readHomBotPrompt()]
 
   parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
   parts.push(selectFaqKb(input?.userText?.trim() ?? ""))
+
+  if (input?.learnedRules?.trim()) {
+    parts.push(`\n\n${input.learnedRules.trim()}`)
+  }
 
   const hints =
     input?.history && input.userText != null

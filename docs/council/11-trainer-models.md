@@ -1,6 +1,11 @@
 # Trainer T3 — Model Architect
 
-## Selected stack (owner-confirmed)
+> **SUPERSEDED (Sep 2026 audit):** production runs the v3 single agent on
+> `anthropic/claude-sonnet-4.6` with `google/gemini-2.5-flash-lite` for summaries.
+> See `docs/agent-v3-single-agent.md` and `lib/agents/sql/hom_agent_runtime_production_stack.sql`.
+> The Opus stack below was never a measured win and is kept for history only.
+
+## Selected stack (historical — do not apply)
 
 | Role | Model | Temp | Rationale |
 |------|-------|------|-----------|

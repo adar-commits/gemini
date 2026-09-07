@@ -4,17 +4,28 @@
 
 ## Architecture
 
-One Sonnet-powered agent (`hom-bot.md` + full FAQ KB) handles every substantive customer turn. Live data comes from **tools**, not regex interceptors or silent Master routing.
+One Sonnet-powered agent (`hom-bot.md` + selective FAQ KB + capped trainer rules) handles every substantive customer turn. Live data comes from **tools**, not regex interceptors or silent Master routing.
+
+**One LLM call per turn** (since Sep 2026 audit): tools and the structured `{ reply, action }` output happen in the same `generateText` call — the system prompt is billed once, not twice.
 
 ```
 Customer message
   → pre-turn guards (autoresponder, inactivity ack, close)
-  → HoM Bot LLM (balanced / Sonnet)
-  → optional tools (max 2 steps)
-  → structured { reply, action }
+  → HoM Bot LLM — single call (custom profile / Sonnet 4.6)
+      tools (max 2 rounds) + structured { reply, action } in one pass
   → validate-reply (header, gender, never-stuck)
   → Landbot outbound (always visible Hebrew)
 ```
+
+### Models (production, Sep 2026)
+
+| Role | Model | Used for |
+|------|-------|----------|
+| faq (main agent) | `anthropic/claude-sonnet-4.6` | Every substantive reply |
+| router | `google/gemini-2.5-flash-lite` | Conversation summaries only |
+| error fallback | economy profile (Gemini Flash) | kb-only pass after tool invoke failure |
+
+Supabase `active_profile` = `custom` (see `lib/agents/sql/hom_agent_runtime_production_stack.sql`). Per-role `temperature` from the profile is honored by `invoke.ts`.
 
 ## Entry point
 
@@ -30,9 +41,28 @@ Landbot: `lib/landbot/handle-inbound.ts` → `runCustomerConversation()`.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `AGENT_ENGINE` | v3 (any value except `v2`) | Rollback guard — `v2` throws |
-| Supabase `active_profile` | `balanced` | Sonnet for all roles |
+| Supabase `active_profile` | `custom` | Sonnet main agent + Flash-Lite summaries |
 
 `routing_mode` column is **deprecated** — kept in Supabase for compatibility only.
+
+## Trainer corrections (learned rules)
+
+`לתיקון:` from trainer phones writes `prompt_rule` rows to `hom_agent_learned_rules`.
+Since the Sep 2026 audit these rules **are injected** into the v3 system prompt via
+`homAgentLearnedRulesSection()` — capped at 20 rules / ~2,400 chars, deduped by
+normalized text, newest-wins on conflict. Review new rules periodically:
+
+```sql
+select rule_text, status, created_at from hom_agent_learned_rules
+where rule_kind in ('prompt_rule','off_topic_exception') and status = 'active'
+order by created_at desc;
+```
+
+## Policy decisions (owner, Sep 2026)
+
+- **Dissatisfaction (no defect)** → FAQ return/exchange options first, sales-consult offer embedded. Not a Sales handoff.
+- **Price match / missing credit** → FAQ policy answer first; Service only if the customer insists.
+- **איפוס reset** → clears history *and* `conversation_summary` — no topic bleed into the new session.
 
 ## Output schema
 

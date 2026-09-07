@@ -160,6 +160,47 @@ export async function learnedPromptRules(agent: AgentId | "all") {
   return `\n### LEARNED RULES (auto from shadow review — follow these)\n${lines.join("\n")}\n`
 }
 
+const MAX_PROMPT_RULES = 20
+const MAX_PROMPT_RULES_CHARS = 2400
+
+function normalizedRuleKey(text: string) {
+  return text.replace(/\s+/g, " ").trim().toLowerCase()
+}
+
+/**
+ * Trainer/shadow rules for the v3 single-agent system prompt.
+ * Capped and deduped so the prompt cannot grow unbounded — newest corrections
+ * survive the cap, and the section states that later rules win on conflict.
+ */
+export async function homAgentLearnedRulesSection(): Promise<string> {
+  let rules: LearnedRuleRow[]
+  try {
+    rules = await loadLearnedRules()
+  } catch {
+    return ""
+  }
+
+  const seen = new Set<string>()
+  const picked: string[] = []
+  let chars = 0
+
+  for (const rule of [...rules].reverse()) {
+    if (!isUsableLearnedPromptRule(rule)) continue
+    const text = rule.rule_text.trim()
+    const key = normalizedRuleKey(text)
+    if (seen.has(key)) continue
+    if (picked.length >= MAX_PROMPT_RULES) break
+    if (chars + text.length > MAX_PROMPT_RULES_CHARS) break
+    seen.add(key)
+    picked.push(`- ${text}`)
+    chars += text.length
+  }
+
+  if (!picked.length) return ""
+  picked.reverse()
+  return `### TRAINER RULES (owner corrections — must follow)\nIf a rule here conflicts with earlier guidance, the trainer rule wins. If two trainer rules conflict, the later one wins.\n${picked.join("\n")}`
+}
+
 export function isSafeLearnedPattern(pattern: string) {
   const trimmed = pattern.trim()
   if (!trimmed || trimmed.length > 160) return false
@@ -191,6 +232,18 @@ export async function insertLearnedRule(input: {
 }) {
   if (input.pattern && !isSafeLearnedPattern(input.pattern)) {
     throw new Error(`Unsafe regex pattern: ${input.pattern}`)
+  }
+
+  // Semantic dedup — the unique index only covers pattern-based rules,
+  // so free-text prompt_rules would otherwise duplicate forever.
+  try {
+    const existing = await loadLearnedRules(true)
+    const key = normalizedRuleKey(input.ruleText)
+    if (existing.some((rule) => normalizedRuleKey(rule.rule_text) === key)) {
+      return null
+    }
+  } catch {
+    // dedup is best-effort — never block a trainer correction on a read failure
   }
 
   const supabase = getAgentSupabase()

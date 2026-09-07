@@ -64,6 +64,7 @@ export async function resetAgentSession(conversationId: string) {
     inactivity_ping_sent_at: null,
     inactivity_closed_at: null,
     human_agent_last_at: null,
+    conversation_summary: null,
   })
 }
 

@@ -85,7 +85,7 @@ describe("owner routing decisions (v3 pattern layer)", () => {
     const reply = buildDissatisfactionRescueReply()
     assert.match(reply, /\*החלפה\*/)
     assert.match(reply, /נציג מכירות/)
-    assert.match(reply, /סניף הקרוב/)
+    assert.match(reply, /סניפי הרשת/)
     assert.match(reply, /returns\.carpetshop\.co\.il/)
     assert.doesNotMatch(reply, /מצב לא נעים/)
     assert.doesNotMatch(reply, /^מבין! אפשר להחליף/m)

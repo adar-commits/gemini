@@ -87,10 +87,10 @@ Captured via structured Q&A. Implement in T0/routing + fixtures when code diverg
 
 | # | Topic | Decision |
 |---|---|---|
-| 1 | "רוצה להחזיר" before policy | **Depends:** dissatisfaction ("לא אוהב/לא מתאים") → **Sales** save-the-purchase path first. Plain return intent → **FAQ portal-first**. |
+| 1 | "רוצה להחזיר" before policy | **FAQ-first (owner decision, Sep 2026 — supersedes the earlier Sales-first answer):** dissatisfaction ("לא אוהב/לא מתאים") → FAQ return/exchange options with a sales-consult offer embedded in the reply. Plain return intent → **FAQ portal-first**. |
 | 2 | Website order review link | **ראשון לציון** writereview URL for online/website orders. |
 | 3 | באר שבע | **Address + "פתיחה בקרוב"** — no review link. |
-| 4 | Price match / missing credit | **Service** (billing/post-purchase). |
+| 4 | Price match / missing credit | **FAQ policy answer first (owner decision, Sep 2026 — supersedes Service-first)**; hand off to Service only if the customer insists or facts need account lookup. |
 | 5 | Preorder delay | **Service** complaint intake (not shipping lookup first). |
 | 6 | "נציג" alone | **FAQ opener** — "במה אוכל לעזור?" then route next message. |
 | 7 | Pozitive-only | **Same branches, no review links** — only when customer **explicitly says Pozitive**. |
