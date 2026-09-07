@@ -9,6 +9,25 @@ import { buildNoOrdersFoundReply } from "@/lib/agents/order-lookup"
 import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
 import type { HistoryMessage } from "@/lib/agents/types"
 
+describe("pre-turn voice message", () => {
+  it("apologizes and asks customer to type instead of sending audio", () => {
+    const result = runPreTurnGuards({
+      turn: {
+        text: "",
+        media: [{ kind: "audio", url: "https://example.com/voice.ogg" }],
+      },
+      history: [],
+    })
+
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "reply")
+    assert.match(result.reply, /הודעות קול|להאזין/)
+    assert.match(result.reply, /לכתוב|להקליד/)
+    assert.match(result.reply, /מודל AI|AI/)
+  })
+})
+
 describe("pre-turn human handoff", () => {
   it("assigns human_service when customer says אוקיי after order-not-found handoff offer", () => {
     const history: HistoryMessage[] = [

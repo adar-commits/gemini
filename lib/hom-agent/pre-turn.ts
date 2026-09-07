@@ -28,7 +28,11 @@ import {
 } from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
-import { summarizeTurn } from "@/lib/agents/user-turn"
+import {
+  buildVoiceMessageUnsupportedReply,
+  summarizeTurn,
+  turnHasVoiceMessage,
+} from "@/lib/agents/user-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
 
 export type PreTurnResult =
@@ -45,6 +49,14 @@ export function runPreTurnGuards(input: {
   customerName?: string
 }): PreTurnResult {
   const body = summarizeTurn(input.turn)
+
+  if (turnHasVoiceMessage(input.turn)) {
+    return {
+      kind: "handled",
+      reply: buildVoiceMessageUnsupportedReply(),
+      action: "reply",
+    }
+  }
 
   if (isWhatsappAutoresponder(body)) {
     return { kind: "handled", reply: "", action: "end" }

@@ -1,4 +1,5 @@
 import { mediaMarker } from "@/lib/agents/multimodal"
+import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 export type UserMediaPart = {
   kind: "image" | "audio" | "video" | "document"
@@ -35,4 +36,13 @@ export function mergeTurns(turns: UserTurn[]): UserTurn {
       .join("\n"),
     media: turns.flatMap((turn) => turn.media),
   }
+}
+
+export function turnHasVoiceMessage(turn: UserTurn) {
+  return turn.media.some((part) => part.kind === "audio")
+}
+
+export function buildVoiceMessageUnsupportedReply() {
+  return `${CUSTOMER_HEADER}
+מצטער, אני מודל AI ולא יכול להאזין להודעות קול. אפשר לכתוב/להקליד את הבקשה במקום?`
 }
