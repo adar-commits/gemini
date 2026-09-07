@@ -930,6 +930,11 @@ function isPriorityApiWaitAssistantMessage(content: string) {
   return isPriorityApiWaitMessage(content)
 }
 
+/** Non-terminal assistant bubbles between a prompt and the customer's reply. */
+function shouldContinueReplyScanPastAssistant(content: string) {
+  return isPriorityApiWaitAssistantMessage(content)
+}
+
 function isOrderConfirmationAssistantMessage(content: string) {
   return (
     /(?:נדמה לי שמצאתי את ההזמנה|האם מדובר (?:על )?הזמנה)/i.test(content) ||
@@ -1357,7 +1362,10 @@ export function authorizedLookupPhoneFromHistory(
     if (isPhoneLookupConfirmAssistantMessage(message.content)) {
       for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
         const reply = history[replyIndex]
-        if (reply.role === "assistant") break
+        if (reply.role === "assistant") {
+          if (shouldContinueReplyScanPastAssistant(reply.content)) continue
+          break
+        }
         if (reply.role !== "user") continue
         if (isPurePhoneLookupConfirmYes(reply.content) && channel) {
           authorized = channel
@@ -1380,7 +1388,10 @@ export function authorizedLookupPhoneFromHistory(
     if (isNoOrdersFoundAssistantMessage(message.content)) {
       for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
         const reply = history[replyIndex]
-        if (reply.role === "assistant") break
+        if (reply.role === "assistant") {
+          if (shouldContinueReplyScanPastAssistant(reply.content)) continue
+          break
+        }
         if (reply.role !== "user") continue
         const typed = userProvidedPhone(reply.content)
         if (typed) authorized = typed
@@ -1395,7 +1406,10 @@ export function authorizedLookupPhoneFromHistory(
       if (!isOrderConfirmationAssistantMessage(message.content)) continue
       for (let replyIndex = index - 1; replyIndex >= 0; replyIndex -= 1) {
         const prior = history[replyIndex]
-        if (prior.role === "assistant") break
+        if (prior.role === "assistant") {
+          if (shouldContinueReplyScanPastAssistant(prior.content)) continue
+          break
+        }
         if (prior.role !== "user") continue
         const typed = userProvidedPhone(prior.content)
         if (typed) return typed
@@ -1478,6 +1492,7 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
     return (
       /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||

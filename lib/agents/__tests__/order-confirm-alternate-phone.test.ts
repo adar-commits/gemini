@@ -3,11 +3,13 @@ import { describe, it } from "node:test"
 import {
   bindPriorityApiLogContext,
   resetPriorityApiTurnState,
+  PRIORITY_API_PREMESSAGE,
 } from "@/lib/agents/priority-webhook"
 import type { HistoryMessage } from "@/lib/agents/types"
 import {
   authorizedLookupPhoneFromHistory,
   buildOrderConfirmationPrompt,
+  buildPhoneLookupConfirmPrompt,
   extractOrderNumberFromConfirmationPrompt,
   ltrIsolateOrderNumber,
   pendingOrderNumberFromHistory,
@@ -117,6 +119,70 @@ describe("order confirm after alternate phone", () => {
   it("wraps order numbers for RTL display", () => {
     assert.equal(ltrIsolateOrderNumber("SO26021240"), "\u2066SO26021240\u2069")
     assert.match(buildOrderConfirmationPrompt(sampleOrder), /\u2066SO26021240\u2069/)
+  })
+
+  it("authorizes channel phone when wait message sits between phone prompt and כן", () => {
+    resetPriorityApiTurnState()
+    const whatsappPhone = "+972505222661"
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildPhoneLookupConfirmPrompt(whatsappPhone),
+        agent: "master",
+      },
+      { role: "assistant", content: PRIORITY_API_PREMESSAGE, agent: "master" },
+      { role: "user", content: "כן", agent: null },
+      {
+        role: "assistant",
+        content: buildOrderConfirmationPrompt(sampleOrder),
+        agent: "master",
+      },
+    ]
+
+    assert.equal(
+      authorizedLookupPhoneFromHistory(history, whatsappPhone),
+      "0505222661"
+    )
+    assert.equal(
+      resolveLookupPhoneFromHistory(history, whatsappPhone, "נכון"),
+      "0505222661"
+    )
+  })
+
+  it("delivers shipping status after order confirm when wait broke phone auth scan", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-gal-harel",
+      whatsappPhone: "+972505222661",
+    })
+    rememberConversationOrdersLookup("conv-gal-harel", "0505222661", [sampleOrder])
+
+    const whatsappPhone = "+972505222661"
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildPhoneLookupConfirmPrompt(whatsappPhone),
+        agent: "master",
+      },
+      { role: "assistant", content: PRIORITY_API_PREMESSAGE, agent: "master" },
+      { role: "user", content: "כן", agent: null },
+      {
+        role: "assistant",
+        content: buildOrderConfirmationPrompt(sampleOrder),
+        agent: "master",
+      },
+    ]
+
+    const { resolveOrderShippingReply } = await import("@/lib/agents/order-lookup")
+    const reply = await resolveOrderShippingReply({
+      body: "נכון",
+      phone: whatsappPhone,
+      history,
+    })
+
+    assert.match(reply, /בדקתי,/)
+    assert.doesNotMatch(reply, /קודם אמצא את ההזמנה/)
   })
 })
 
