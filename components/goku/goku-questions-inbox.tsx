@@ -9,7 +9,7 @@ function formatDate(iso: string | null) {
   try {
     return new Date(iso).toLocaleString("he-IL", {
       day: "numeric",
-      month: "numeric",
+      month: "short",
       hour: "2-digit",
       minute: "2-digit",
     })
@@ -26,57 +26,58 @@ export function GokuQuestionsInbox({
   answered: GokuQuestionRow[]
 }) {
   return (
-    <section className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight">
-          שאלות פתוחות מהשטח ({open.length})
+    <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/[0.06]">
+      <div className="border-b border-black/[0.05] px-5 py-4">
+        <h2 className="text-sm font-semibold text-foreground">
+          שאלות מהשטח
+          {open.length > 0 ? (
+            <span className="me-2 inline-flex size-5 items-center justify-center rounded-full bg-amber-100 text-[11px] font-bold text-amber-800">
+              {open.length}
+            </span>
+          ) : null}
         </h2>
-        <p className="text-sm text-muted-foreground">
-          GOKU מזהה ידע שחסר לבוט בשיחות אמיתיות. כל תשובה שתשמרו נכנסת מיידית
-          לידע החי של הבוט (ללא deploy).
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          פערי ידע שזוהו בשיחות — תשובה נכנסת מיד לבוט
         </p>
       </div>
 
       {open.length === 0 ? (
-        <div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
-          אין שאלות פתוחות כרגע — GOKU יוסיף כאן שאלות כשיזהה פערי ידע.
-        </div>
+        <p className="px-5 py-6 text-sm text-muted-foreground">
+          אין שאלות פתוחות
+        </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-black/[0.05]">
           {open.map((question) => (
-            <li key={question.id} className="rounded-xl border p-4">
-              <div className="flex items-start justify-between gap-3">
-                <p className="font-medium">{question.question}</p>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatDate(question.created_at)}
-                </span>
-              </div>
-              {question.source_conversation_id ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  מקור: שיחה {question.source_conversation_id}
+            <li key={question.id} className="px-5 py-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <p className="text-sm font-medium leading-relaxed">
+                  {question.question}
                 </p>
-              ) : null}
-              <form action={answerGokuQuestionAction} className="mt-3 space-y-2">
+                <time className="shrink-0 text-[11px] text-muted-foreground">
+                  {formatDate(question.created_at)}
+                </time>
+              </div>
+              <form action={answerGokuQuestionAction} className="space-y-2.5">
                 <input type="hidden" name="questionId" value={question.id} />
                 <textarea
                   name="answer"
                   required
                   minLength={2}
                   rows={2}
-                  placeholder="כתבו כאן את התשובה העסקית המדויקת…"
-                  className="w-full rounded-lg border bg-background p-2 text-sm"
+                  placeholder="התשובה העסקית המדויקת…"
+                  className="w-full resize-none rounded-xl border-0 bg-zinc-50 px-3.5 py-2.5 text-sm ring-1 ring-black/[0.06] placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
                 />
                 <div className="flex gap-2">
                   <button
                     type="submit"
-                    className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                    className="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
                   >
-                    שמור תשובה
+                    שמור
                   </button>
                   <button
                     type="submit"
                     formAction={dismissGokuQuestionAction}
-                    className="rounded-lg border px-3 py-1.5 text-sm text-muted-foreground"
+                    className="rounded-lg px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-zinc-100"
                   >
                     לא רלוונטי
                   </button>
@@ -88,15 +89,15 @@ export function GokuQuestionsInbox({
       )}
 
       {answered.length > 0 ? (
-        <details className="rounded-xl border p-4">
-          <summary className="cursor-pointer text-sm font-medium">
-            נענו ({answered.length}) — פעילות בידע החי של הבוט
+        <details className="border-t border-black/[0.05]">
+          <summary className="cursor-pointer px-5 py-3 text-xs font-medium text-muted-foreground hover:text-foreground">
+            נענו ({answered.length})
           </summary>
-          <ul className="mt-3 space-y-2">
+          <ul className="divide-y divide-black/[0.05] border-t border-black/[0.04] bg-zinc-50/50">
             {answered.map((question) => (
-              <li key={question.id} className="rounded-lg bg-muted/30 p-3 text-sm">
-                <p className="font-medium">{question.question}</p>
-                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+              <li key={question.id} className="px-5 py-3">
+                <p className="text-sm font-medium">{question.question}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {question.answer}
                 </p>
               </li>

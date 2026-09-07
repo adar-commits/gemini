@@ -1,39 +1,51 @@
 import { gokuGradeTo100, gokuGradeTone } from "@/lib/agents/goku-trainer"
 import { cn } from "@/lib/utils"
 
-export function GokuGradeRing({ grade }: { grade: number }) {
+export function GokuGradeRing({
+  grade,
+  size = "md",
+}: {
+  grade: number
+  size?: "sm" | "md"
+}) {
   const score = gokuGradeTo100(grade)
   const tone = gokuGradeTone(score)
   const stroke =
-    tone === "good"
-      ? "#059669"
-      : tone === "ok"
-        ? "#d97706"
-        : "#dc2626"
+    tone === "good" ? "#059669" : tone === "ok" ? "#d97706" : "#dc2626"
 
-  const radius = 36
+  const dim = size === "sm" ? 72 : 88
+  const radius = size === "sm" ? 28 : 34
+  const strokeWidth = size === "sm" ? 6 : 7
   const circumference = 2 * Math.PI * radius
   const progress = (score / 100) * circumference
 
   return (
-    <div className="relative flex h-24 w-24 items-center justify-center">
-      <svg className="-rotate-90" width="96" height="96" viewBox="0 0 96 96">
+    <div
+      className="relative shrink-0"
+      style={{ width: dim, height: dim }}
+      aria-label={`ציון ${score} מתוך 100`}
+    >
+      <svg
+        className="-rotate-90"
+        width={dim}
+        height={dim}
+        viewBox={`0 0 ${dim} ${dim}`}
+      >
         <circle
-          cx="48"
-          cy="48"
+          cx={dim / 2}
+          cy={dim / 2}
           r={radius}
           fill="none"
-          stroke="currentColor"
-          strokeWidth="8"
-          className="text-muted"
+          stroke="#e4e4e7"
+          strokeWidth={strokeWidth}
         />
         <circle
-          cx="48"
-          cy="48"
+          cx={dim / 2}
+          cy={dim / 2}
           r={radius}
           fill="none"
           stroke={stroke}
-          strokeWidth="8"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={`${progress} ${circumference}`}
         />
@@ -41,7 +53,8 @@ export function GokuGradeRing({ grade }: { grade: number }) {
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span
           className={cn(
-            "text-2xl font-bold tabular-nums",
+            "font-bold tabular-nums leading-none",
+            size === "sm" ? "text-xl" : "text-2xl",
             tone === "good" && "text-emerald-600",
             tone === "ok" && "text-amber-600",
             tone === "poor" && "text-red-600"
@@ -49,9 +62,7 @@ export function GokuGradeRing({ grade }: { grade: number }) {
         >
           {score}
         </span>
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          / 100
-        </span>
+        <span className="mt-0.5 text-[10px] text-muted-foreground">/100</span>
       </div>
     </div>
   )

@@ -41,7 +41,7 @@ export default async function GokuDashboardPage({
     ])
   } catch (err) {
     error =
-      err instanceof Error ? err.message : "Failed to load GOKU reports"
+      err instanceof Error ? err.message : "טעינת דוחות גוקו נכשלה"
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -59,28 +59,38 @@ export default async function GokuDashboardPage({
   )
 
   return (
-    <div className="container mx-auto space-y-8 p-6">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">GOKU Trainer</h1>
-          <span
-            className={
-              isGokuTrainerEnabled()
-                ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                : "rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground"
-            }
-          >
-            {isGokuTrainerEnabled() ? "Active" : "Disabled"}
-          </span>
+    <div className="mx-auto max-w-6xl space-y-8 px-5 py-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              גוקו מאמן
+            </h1>
+            <span
+              className={
+                isGokuTrainerEnabled()
+                  ? "inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/15"
+                  : "inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200"
+              }
+            >
+              <span
+                className={
+                  isGokuTrainerEnabled()
+                    ? "size-1.5 rounded-full bg-emerald-500"
+                    : "size-1.5 rounded-full bg-zinc-400"
+                }
+              />
+              {isGokuTrainerEnabled() ? "פעיל" : "כבוי"}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            סיכומי שיחות, ציוני איכות והמלצות לאימון הבוט
+          </p>
         </div>
-        <p className="max-w-2xl text-muted-foreground">
-          Conversation summaries, quality scores, and retraining suggestions.
-          High-confidence rules apply automatically; review the rest below.
-        </p>
-      </div>
+      </header>
 
       {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-destructive">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       ) : (
@@ -89,9 +99,25 @@ export default async function GokuDashboardPage({
             total={total}
             avgGrade100={avgGrade100}
             pendingApprovals={pendingApprovals}
+            openQuestions={openQuestions.length}
           />
-          <GokuQuestionsInbox open={openQuestions} answered={answeredQuestions} />
-          <GokuReportFeed reports={reports} />
+
+          {openQuestions.length > 0 || answeredQuestions.length > 0 ? (
+            <GokuQuestionsInbox open={openQuestions} answered={answeredQuestions} />
+          ) : null}
+
+          <section className="space-y-4">
+            <h2 className="text-sm font-semibold text-foreground">
+              דוחות שיחות
+              {total > 0 ? (
+                <span className="ms-2 font-normal text-muted-foreground">
+                  ({total})
+                </span>
+              ) : null}
+            </h2>
+            <GokuReportFeed reports={reports} />
+          </section>
+
           {total > PAGE_SIZE ? (
             <GokuPagination page={page} totalPages={totalPages} />
           ) : null}
