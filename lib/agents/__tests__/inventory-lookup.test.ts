@@ -2,10 +2,12 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   buildInventoryAvailabilityReply,
+  buildInventoryColorSalesHandoffReply,
   buildProductUrlSkuPrompt,
   buildSkuRequestPrompt,
   extractSku,
   isActiveInventoryThread,
+  isBranchColorAvailabilityQuestion,
   isBareSkuMessage,
   isInventoryQuestion,
   isInventoryQuestionWithContext,
@@ -185,6 +187,7 @@ describe("buildInventoryAvailabilityReply", () => {
     })
     assert.match(reply, /בדקתי זמינות/)
     assert.match(reply, /לא מופיע מלאי/)
+    assert.match(reply, /כדאי לפנות לסניף/)
     assert.match(reply, /יועץ מכירות/)
     assert.doesNotMatch(reply, /כרגע אין במלאי/)
     assert.doesNotMatch(reply, /לא מצאתי את הדגם/)
@@ -204,8 +207,28 @@ describe("buildInventoryAvailabilityReply", () => {
       "נתניה"
     )
     assert.match(reply, /לא מופיע מלאי/)
-    assert.match(reply, /יועץ מכירות/)
+    assert.match(reply, /כדאי לפנות לסניף לוודא/)
+    assert.match(reply, /מלאי זמין בסניפים אחרים/)
+    assert.match(reply, /ראשון לציון/)
+    assert.doesNotMatch(reply, /פערים/)
     assert.doesNotMatch(reply, /כרגע אין במלאי/)
+  })
+
+  it("suggests warehouse stock when requested branch is empty but WMS has qty", () => {
+    const reply = buildInventoryAvailabilityReply(
+      {
+        sku: "50013316-100",
+        preorder: null,
+        inventory: [{ branch_id: "WMS", quantity: 3 }],
+      },
+      "נתניה"
+    )
+    assert.match(reply, /נתניה/)
+    assert.match(reply, /כדאי לפנות לסניף לוודא/)
+    assert.match(reply, /יש מלאי במערכת/)
+    assert.match(reply, /מרלוג/)
+    assert.match(reply, /יועץ מכירות/)
+    assert.doesNotMatch(reply, /פערים/)
   })
 
   it("reports preorder availability before branch stock", () => {
@@ -261,7 +284,7 @@ describe("buildInventoryAvailabilityReply", () => {
     assert.doesNotMatch(reply, /1001/)
   })
 
-  it("falls back to all branches when branch filter matches no store", () => {
+  it("names alternate branches when branch filter matches no store", () => {
     const reply = buildInventoryAvailabilityReply(
       {
         sku: "31503138-140190",
@@ -273,8 +296,9 @@ describe("buildInventoryAvailabilityReply", () => {
       },
       "יש"
     )
-    assert.match(reply, /\*יש במלאי:\*/)
+    assert.match(reply, /מלאי זמין בסניפים אחרים/)
     assert.match(reply, /ראשון לציון/)
+    assert.match(reply, /להזמין מהסניף/)
     assert.doesNotMatch(reply, /לא מצאתי סניף/)
     assert.doesNotMatch(reply, /לא נותר מלאי בסניפי הרשת/)
   })
@@ -293,6 +317,34 @@ describe("buildInventoryAvailabilityReply", () => {
     )
     assert.match(reply, /לא נותר מלאי בסניפי הרשת/)
     assert.doesNotMatch(reply, /לא מצאתי סניף/)
+  })
+})
+
+describe("branch color availability", () => {
+  it("detects color-at-branch asks", () => {
+    assert.equal(
+      isBranchColorAvailabilityQuestion("50013316-100 זה, באיזה צבעים יש בסניף ?"),
+      true
+    )
+  })
+
+  it("routes color asks to sales handoff without inventory lookup", async () => {
+    const reply = await resolveBranchInventoryReply({
+      body: "50013316-100 זה, באיזה צבעים יש בסניף ?",
+      history: [
+        {
+          role: "user",
+          content: "האם יש בסניף בנתניה פופים? של פוזיטיב?",
+        },
+        {
+          role: "assistant",
+          content: "אם תרצו לוודא שדגם מסוים במלאי — שלחו את מק״ט המוצר",
+        },
+      ],
+    })
+    assert.match(reply, /לא אוכל לראות באילו צבעים/)
+    assert.match(reply, /יועץ מכירות/)
+    assert.doesNotMatch(reply, /בדקתי זמינות/)
   })
 })
 

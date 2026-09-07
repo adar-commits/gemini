@@ -319,10 +319,105 @@ function buildInventoryNoNetworkStockReply(label: string) {
 
 function buildInventoryUnconfirmedReply(label: string, branchLabel?: string | null) {
   const where = branchLabel ? `בסניף ${branchLabel}` : "בסניפים"
+  const noStockLine = branchLabel
+    ? `לפי הנתונים במערכת לא מופיע מלאי בסניף ${branchLabel} כרגע — כדאי לפנות לסניף לוודא.`
+    : "לפי הנתונים במערכת לא מופיע מלאי כרגע — כדאי לפנות לסניף לוודא."
   return `${CUSTOMER_HEADER}
 בדקתי זמינות לדגם ${label} ${where}.
-לפי הנתונים במערכת לא מופיע מלאי כרגע — ייתכנו פערים מול מצב הרצפה בסניף.
+${noStockLine}
 האם להעביר ליועץ מכירות שיבדוק ויאמת?`
+}
+
+type StockLocationBuckets = {
+  retailAvailable: string[]
+  warehouseAvailable: string[]
+}
+
+function collectStockLocations(
+  row: InventoryBranchRow,
+  options?: { excludeBranchFilter?: string | null }
+) {
+  const retailAvailable: string[] = []
+  const warehouseAvailable: string[] = []
+
+  for (const location of row.inventory) {
+    if (Number(location.quantity) <= 0) continue
+    const name = locationDisplayName(location)
+    if (!name) continue
+    if (
+      options?.excludeBranchFilter &&
+      locationMatchesBranch(name, options.excludeBranchFilter)
+    ) {
+      continue
+    }
+
+    const branchId = location.branch_id.trim()
+    if (WAREHOUSE_BRANCH_IDS.has(branchId.toUpperCase())) {
+      warehouseAvailable.push(name)
+      continue
+    }
+    if (!isRetailBranch(branchId) || BACKOFFICE_WAREHOUSE_IDS.has(branchId)) continue
+    if (/מחסן|מרלוג/i.test(name)) continue
+    retailAvailable.push(name)
+  }
+
+  return { retailAvailable, warehouseAvailable }
+}
+
+function buildInventoryBranchMissWithAlternatesReply(
+  label: string,
+  branchLabel: string,
+  alternates: StockLocationBuckets
+) {
+  const lines = [
+    `בדקתי זמינות לדגם ${label} בסניף ${branchLabel}.`,
+    `לפי הנתונים במערכת לא מופיע מלאי בסניף ${branchLabel} כרגע — כדאי לפנות לסניף לוודא.`,
+  ]
+
+  if (alternates.retailAvailable.length > 0) {
+    lines.push(
+      "",
+      "*מלאי זמין בסניפים אחרים:*",
+      ...alternates.retailAvailable.map((name) => `• ${name}`)
+    )
+    lines.push(
+      "",
+      "אפשר להזמין מהסניף עם המלאי, או להעביר ליועץ מכירות שיתאם — מה נוח לכם?"
+    )
+  } else if (alternates.warehouseAvailable.length > 0) {
+    lines.push(
+      "",
+      `*יש מלאי במערכת:* ${alternates.warehouseAvailable.join(", ")} — אפשר להזמין למשלוח או לאיסוף.`,
+      "",
+      "האם להעביר ליועץ מכירות שיתאם הזמנה?"
+    )
+  } else {
+    lines.push("", "האם להעביר ליועץ מכירות שיבדוק ויאמת?")
+  }
+
+  return `${CUSTOMER_HEADER}\n${lines.join("\n")}`
+}
+
+/** Branch color variants — bot cannot answer; sales advisor only. */
+export function isBranchColorAvailabilityQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return /(?:באיזה|אילו|מה)\s+צבע(?:ים)?|צבע(?:ים)?\s+יש|יש\s+(?:עוד\s+)?צבע(?:ים)?/i.test(
+    text
+  )
+}
+
+export function buildInventoryColorSalesHandoffReply(options?: {
+  sku?: string
+  branch?: string | null
+}) {
+  const branch = options?.branch ? normalizeBranchCityHint(options.branch) : null
+  const sku = options?.sku?.trim()
+  const branchPart = branch ? ` בסניף ${branch}` : ""
+  const skuPart = sku ? ` לדגם ${sku}` : ""
+  return `${CUSTOMER_HEADER}
+לא אוכל לראות באילו צבעים${branchPart} זמינים במערכת — זה דורש יועץ מכירות.
+האם להעביר ליועץ מכירות שיבדוק${skuPart} ויחזור אליכם?`
 }
 
 export function parseInventoryBranchPayload(data: unknown): InventoryBranchRow | null {
@@ -533,6 +628,17 @@ export function buildInventoryAvailabilityReply(
   }
 
   if (branchFilter && available.length === 0 && unavailable.length === 0) {
+    const alternates = collectStockLocations(row, { excludeBranchFilter: branchFilter })
+    if (
+      alternates.retailAvailable.length > 0 ||
+      alternates.warehouseAvailable.length > 0
+    ) {
+      return buildInventoryBranchMissWithAlternatesReply(
+        label,
+        branchLabel!,
+        alternates
+      )
+    }
     if (allowBranchRetry) {
       return buildInventoryAvailabilityReply(row, null, { allowBranchRetry: false })
     }
@@ -540,6 +646,10 @@ export function buildInventoryAvailabilityReply(
   }
 
   if (available.length === 0 && unavailable.length === 0) {
+    const alternates = collectStockLocations(row)
+    if (alternates.warehouseAvailable.length > 0) {
+      return buildInventoryBranchMissWithAlternatesReply(label, "ברשת", alternates)
+    }
     return buildInventoryUnconfirmedReply(label, branchLabel)
   }
 
@@ -550,6 +660,21 @@ export function buildInventoryAvailabilityReply(
   ]
 
   if (available.length === 0) {
+    if (branchFilter) {
+      const alternates = collectStockLocations(row, {
+        excludeBranchFilter: branchFilter,
+      })
+      if (
+        alternates.retailAvailable.length > 0 ||
+        alternates.warehouseAvailable.length > 0
+      ) {
+        return buildInventoryBranchMissWithAlternatesReply(
+          label,
+          branchLabel!,
+          alternates
+        )
+      }
+    }
     return buildInventoryUnconfirmedReply(label, branchLabel)
   }
 
@@ -617,6 +742,13 @@ export async function resolveBranchInventoryReply(input: {
 
   if (recheck && !skuInBody) {
     return buildInventoryRecheckSkuPrompt()
+  }
+
+  if (isBranchColorAvailabilityQuestion(body)) {
+    return buildInventoryColorSalesHandoffReply({
+      sku: sku ?? undefined,
+      branch,
+    })
   }
 
   if (hasProductUrlInText(body) && !sku) {

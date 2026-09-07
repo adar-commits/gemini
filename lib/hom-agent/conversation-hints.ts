@@ -244,7 +244,7 @@ export function buildConversationHints(input: {
 
   if (isActiveInventoryThread(history) || isInventoryRecheckRequest(body)) {
     lines.push(
-      "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy."
+      "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy. **Color variants at a branch** → human_sales only, never list colors. When requested branch shows no stock but another branch/warehouse has qty, name where they can order from."
     )
   }
 
