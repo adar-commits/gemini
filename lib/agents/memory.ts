@@ -150,11 +150,14 @@ async function loadStoredMessages(
   limit: number
 ) {
   const supabase = getAgentSupabase()
+  // Newest-first + limit, then reverse — ascending+limit would pin the window to
+  // the OLDEST messages forever in long-lived conversations (bot "forgets" found
+  // orders and answers from stale context).
   let query = supabase
     .from("hom_agent_messages")
     .select("role, content, created_at, agent, action")
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit)
 
   if (resetAt) query = query.gt("created_at", resetAt)
@@ -163,6 +166,7 @@ async function loadStoredMessages(
   if (error) throw error
 
   return (data ?? [])
+    .reverse()
     .filter((row) => row.role === "user" || row.role === "assistant")
     .map((row) => ({
       role: row.role as "user" | "assistant",
@@ -232,7 +236,7 @@ async function loadLandbotMessages(
     .select("body, sender_type, direction, sent_at")
     .in("session_id", sessionIds.length ? sessionIds : [conversationId])
     .not("body", "is", null)
-    .order("sent_at", { ascending: true })
+    .order("sent_at", { ascending: false })
     .limit(limit)
 
   if (resetAt) query = query.gt("sent_at", resetAt)
@@ -240,7 +244,7 @@ async function loadLandbotMessages(
   const { data, error } = await query
   if (error) return []
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).reverse().map((row) => {
     const incoming =
       row.direction === "incoming" || row.sender_type === "customer"
     return {
