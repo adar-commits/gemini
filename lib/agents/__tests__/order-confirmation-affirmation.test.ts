@@ -44,6 +44,29 @@ describe("order confirmation natural affirmations", () => {
     assert.equal(isOrderConfirmationPending(history), true)
   })
 
+  it("treats doubled slang affirmations (כן כן) as confirmation", () => {
+    assert.equal(isOrderConfirmationYes("כן כן"), true)
+    assert.equal(isOrderConfirmationYes("כן כן כן"), true)
+    assert.equal(isOrderConfirmationYes("נכון נכון"), true)
+  })
+
+  it("hands unparseable replies to the LLM instead of a לא הבנתי template", async () => {
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-slang-fallthrough",
+      whatsappPhone: "+972501234567",
+    })
+    rememberConversationOrdersLookup("conv-slang-fallthrough", "0501234567", [order])
+
+    const result = await runStructuredOrderLookupPreTurn({
+      turn: { text: "אולי", media: [] },
+      history,
+      phone: "+972501234567",
+    })
+
+    assert.equal(result.kind, "skip")
+  })
+
   it("does not treat compound confirm + unrelated ask as pure confirmation", () => {
     assert.equal(isPureOrderConfirmation("כן. מה שם ההזמנה?"), false)
     assert.equal(isOrderConfirmationYes("כן. מה שם ההזמנה?"), false)

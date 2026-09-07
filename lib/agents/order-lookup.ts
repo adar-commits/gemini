@@ -1048,8 +1048,13 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
   return null
 }
 
+/** "כן כן", "נכון נכון" — Hebrew doubles affirmations for emphasis. */
+function collapseRepeatedWords(text: string) {
+  return text.replace(/(\S+)(?:\s+\1)+/gu, "$1")
+}
+
 export function isOrderConfirmationYes(body: string) {
-  const text = body.trim()
+  const text = collapseRepeatedWords(body.trim())
   if (!text || text.length > 80) return false
   const firstLine = text.split(/\n+/)[0]?.trim() ?? text
 
@@ -1071,7 +1076,7 @@ export function isOrderConfirmationYes(body: string) {
 }
 
 export function isOrderConfirmationNo(body: string) {
-  const text = body.trim()
+  const text = collapseRepeatedWords(body.trim())
   if (!text || text.length > 80) return false
   if (isReturnPolicyQuestion(text) || isReturnFlowCorrection(text)) return false
   if (

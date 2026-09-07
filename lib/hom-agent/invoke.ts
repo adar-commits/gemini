@@ -327,9 +327,9 @@ function parseFallbackOutput(text: string): HomAgentOutput {
   return { reply: text.trim(), action: "reply" }
 }
 
-/** Canned failure apologies from tools (API down, lookup failed). */
+/** Canned failure/confusion templates from tools — never outrank a composed model answer. */
 function isToolFailureTemplateReply(reply: string) {
-  return /תקלה זמנית במערכת|לא הצלחתי ל(?:משוך|בדוק) את/i.test(reply)
+  return /תקלה זמנית במערכת|לא הצלחתי ל(?:משוך|בדוק) את|לא הבנתי/i.test(reply)
 }
 
 type ToolStep = { toolResults?: ReadonlyArray<{ output?: unknown }> }

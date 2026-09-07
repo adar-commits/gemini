@@ -175,6 +175,13 @@ export async function runStructuredOrderLookupPreTurn(input: {
     history: input.history,
   })
 
+  // The state machine didn't understand the reply ("כן כן", slang, typos).
+  // Hand the turn to the LLM instead of sending a robotic "לא הבנתי" — the
+  // model parses colloquial Hebrew and knows the pending-question binding rules.
+  if (/לא הבנתי/.test(reply)) {
+    return { kind: "skip", response: null }
+  }
+
   const action: HomAgentAction =
     /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply) &&
     /האם להעביר לנציג שירות/i.test(reply)
