@@ -96,11 +96,25 @@ export async function isHumanThreadActive(
   assignedAgentId?: number | null
 ) {
   const state = await getHumanTakeoverState(conversationId)
-  return shouldDeferToHumanAgent({
+  const defer = shouldDeferToHumanAgent({
     assignedAgentId,
     humanAgentLastAt: state?.human_agent_last_at ?? null,
     lastUserAt: state?.last_user_at ?? null,
   })
+
+  if (
+    defer &&
+    state?.human_agent_last_at &&
+    !isAssignedToHumanAgent(assignedAgentId ?? null) &&
+    assignedAgentId != null &&
+    assignedAgentId > 0 &&
+    isLandbotApiAgentId(assignedAgentId)
+  ) {
+    await releaseHumanThread(conversationId)
+    return false
+  }
+
+  return defer
 }
 
 export async function recordHumanAgentActivity(conversationId: string) {

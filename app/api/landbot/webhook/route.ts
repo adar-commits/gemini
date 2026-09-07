@@ -25,8 +25,9 @@ import {
   parseLandbotHookMessage,
 } from "@/lib/landbot/parse-webhook"
 import {
+  isAssignedToHumanAgent,
   isHumanThreadActive,
-  isLiveHumanLandbotAgent,
+  isLandbotApiAgent,
   recordHumanAgentActivity,
   releaseHumanThread,
   shouldRecordHumanAgentActivity,
@@ -96,11 +97,13 @@ export async function POST(request: Request) {
   }
 
   if (isLandbotEvent(hook)) {
-    if (
-      hook.action === "assign" &&
-      isLiveHumanLandbotAgent({ agentId: hook.agentId })
-    ) {
-      await recordHumanAgentActivity(hook.conversationId)
+    if (hook.action === "assign") {
+      if (isAssignedToHumanAgent(hook.agentId)) {
+        await recordHumanAgentActivity(hook.conversationId)
+      } else if (isLandbotApiAgent({ agentId: hook.agentId })) {
+        // Bot self-assign after send_text — must not silence future customer turns.
+        await releaseHumanThread(hook.conversationId)
+      }
     } else if (hook.action === "unassign") {
       await releaseHumanThread(hook.conversationId)
     }

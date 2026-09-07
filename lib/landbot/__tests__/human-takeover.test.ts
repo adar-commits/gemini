@@ -185,4 +185,50 @@ describe("parseLandbotHookMessage", () => {
       assert.equal(parsed.agentId, 40684)
     }
   })
+
+  it("assign to configured human rep should defer bot", () => {
+    const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
+    process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "40684"
+    try {
+      assert.equal(isAssignedToHumanAgent(40684), true)
+    } finally {
+      process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
+    }
+  })
+
+  it("assign to API bot agent must not count as live human rep", () => {
+    const prevApi = process.env.LANDBOT_API_AGENT_IDS
+    process.env.LANDBOT_API_AGENT_IDS = "99999"
+    try {
+      assert.equal(isAssignedToHumanAgent(99999), false)
+      assert.equal(isLiveHumanLandbotAgent({ agentId: 99999 }), false)
+      assert.equal(isLandbotApiAgent({ agentId: 99999 }), true)
+    } finally {
+      process.env.LANDBOT_API_AGENT_IDS = prevApi
+    }
+  })
+
+  it("unknown assign id without API list does not defer (avoids bot self-assign silence)", () => {
+    const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
+    const prevService = process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS
+    const prevApi = process.env.LANDBOT_API_AGENT_IDS
+    process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "111"
+    process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = "222"
+    delete process.env.LANDBOT_API_AGENT_IDS
+    try {
+      assert.equal(isAssignedToHumanAgent(51234), false)
+      assert.equal(
+        shouldDeferToHumanAgent({
+          assignedAgentId: 51234,
+          humanAgentLastAt: null,
+          lastUserAt: null,
+        }),
+        false
+      )
+    } finally {
+      process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
+      process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = prevService
+      process.env.LANDBOT_API_AGENT_IDS = prevApi
+    }
+  })
 })
