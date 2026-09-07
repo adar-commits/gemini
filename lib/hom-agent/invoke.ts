@@ -206,7 +206,15 @@ function finalizeStructuredOutput(
   ctx: InvokeContext,
   llmCalls: number
 ) {
-  const raw = structured.output ?? parseFallbackOutput(structured.text)
+  // The .output getter can throw on unparseable JSON — fall back to text parsing
+  // instead of failing the whole (already billed) call.
+  let parsed: Partial<HomAgentOutput> | null = null
+  try {
+    parsed = structured.output ?? null
+  } catch {
+    parsed = null
+  }
+  const raw = parsed ?? parseFallbackOutput(structured.text)
   const normalized: HomAgentOutput = {
     reply: raw.reply ?? "",
     action: normalizeHomAgentAction(raw.action ?? "reply"),
