@@ -1,8 +1,10 @@
 import { runCustomerConversation } from "@/lib/agents/conversation"
 import { formatOutboundMessages } from "@/lib/agents/greeting"
+import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
-import { isPendingHandoffCustomerReply } from "@/lib/agents/off-topic"
+import { shouldBypassHumanThreadSilence } from "@/lib/agents/off-topic"
+import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
@@ -42,7 +44,7 @@ import {
 } from "@/lib/landbot/inactivity-watcher"
 import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
 import { after } from "next/server"
-import type { AgentResponse } from "@/lib/agents/types"
+import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
 import { buildNeverStuckReply, buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
@@ -79,7 +81,14 @@ function outboundReply(result: AgentResponse) {
   return ""
 }
 
-function stuckOrSalvagedReply(body: string) {
+function stuckOrSalvagedReply(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
+  if (isThanksAcknowledgment(body)) {
+    const history = input?.history ?? []
+    if (isPostHumanHandoff(null, history)) {
+      return buildThanksAckReply(input?.customerName, { postHandoff: true })
+    }
+    return buildThanksAckReply(input?.customerName)
+  }
   return salvageReturnPickupAwaitingReply(body) ?? buildProcessingStuckReply()
 }
 
@@ -110,7 +119,7 @@ export async function handleLandbotInbound(
     (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
   ) {
     const history = await getHistory(conversationId)
-    if (!isPendingHandoffCustomerReply(turnSummary, history)) {
+    if (!shouldBypassHumanThreadSilence(turnSummary, history)) {
       return {
         ok: true,
         agent: "master",
@@ -247,10 +256,15 @@ export async function handleLandbotInbound(
 
   let result: AgentResponse
   let headerAlreadySent = options?.headerAlreadySent ?? false
+  const conversationHistory = await getHistory(conversationId)
+  const stuckContext = {
+    customerName: customerName || undefined,
+    history: conversationHistory,
+  }
   const watchdog = startProcessingWatchdog({
     replyEnabled,
     onStuck: async () => {
-      const stuckReply = stuckOrSalvagedReply(body)
+      const stuckReply = stuckOrSalvagedReply(body, stuckContext)
       await appendTurn({
         conversationId,
         agent: "faq",
@@ -324,7 +338,7 @@ export async function handleLandbotInbound(
     !result.duplicateSuppressed &&
     (result.action === "reply" || result.action === "shipping")
   ) {
-    draftReply = stuckOrSalvagedReply(body)
+    draftReply = stuckOrSalvagedReply(body, stuckContext)
     result = { ...result, reply: draftReply }
   }
 
@@ -334,7 +348,7 @@ export async function handleLandbotInbound(
     result.duplicateSuppressed &&
     (result.action === "reply" || result.action === "shipping")
   ) {
-    draftReply = stuckOrSalvagedReply(body)
+    draftReply = stuckOrSalvagedReply(body, stuckContext)
     result = { ...result, reply: draftReply, duplicateSuppressed: false }
   }
 
@@ -350,7 +364,7 @@ export async function handleLandbotInbound(
       (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
     ) {
       const history = await getHistory(conversationId)
-      if (!isPendingHandoffCustomerReply(body, history)) {
+      if (!shouldBypassHumanThreadSilence(body, history)) {
         return {
           ok: true,
           agent: "master",

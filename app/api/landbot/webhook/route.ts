@@ -33,7 +33,7 @@ import {
   shouldRecordHumanAgentActivity,
 } from "@/lib/landbot/human-takeover"
 import { getHistory } from "@/lib/agents/memory"
-import { isPendingHandoffCustomerReply } from "@/lib/agents/off-topic"
+import { shouldBypassHumanThreadSilence } from "@/lib/agents/off-topic"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
 
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId))
   ) {
     const history = await getHistory(inbound.conversationId)
-    if (!isPendingHandoffCustomerReply(inboundBody, history)) {
+    if (!shouldBypassHumanThreadSilence(inboundBody, history)) {
       return NextResponse.json({ ok: true, skipped: "human_thread_active" })
     }
     await releaseHumanThread(inbound.conversationId)
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
             ))
           ) {
             const history = await getHistory(inbound.conversationId)
-            if (!isPendingHandoffCustomerReply(turnBody, history)) {
+            if (!shouldBypassHumanThreadSilence(turnBody, history)) {
               lastResult = {
                 ok: true,
                 agent: "master",

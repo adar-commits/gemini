@@ -15,6 +15,7 @@ import {
   isHumanHandoffDecline,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
+import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import {
   extractOrderNumber,
   isChannelPhoneSelfReference,
@@ -99,6 +100,14 @@ export function runPreTurnGuards(input: {
         reply: buildThanksAckReply(input.customerName, { handoffPending: true }),
         action: "reply",
       }
+    }
+  }
+
+  if (isThanksAcknowledgment(body) && isPostHumanHandoff(null, input.history)) {
+    return {
+      kind: "handled",
+      reply: buildThanksAckReply(input.customerName, { postHandoff: true }),
+      action: "reply",
     }
   }
 

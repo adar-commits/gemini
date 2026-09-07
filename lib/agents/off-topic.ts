@@ -1,4 +1,5 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
+import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { hasImmediateBusinessAsk, isCasualGreeting } from "@/lib/agents/greeting"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isPureHandoffAffirmation, isPureHandoffDecline } from "@/lib/agents/compound-reply"
@@ -83,9 +84,16 @@ export function isPendingHandoffCustomerReply(body: string, history: HistoryMess
   return isHumanHandoffAffirmation(body) || isHumanHandoffDecline(body)
 }
 
+/** Customer courtesy replies that must never be silenced or stuck-fallbacked. */
+export function shouldBypassHumanThreadSilence(body: string, history: HistoryMessage[]) {
+  if (isThanksAcknowledgment(body)) return true
+  return isPendingHandoffCustomerReply(body, history)
+}
+
 export function isHumanHandoffAffirmation(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
+  if (/תודה/u.test(text)) return false
   return /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|מעולה|ok|yes|👍|אוקיי|אוקי|okay)(?:[\s,.!?]|$)/i.test(
     text
   )

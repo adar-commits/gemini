@@ -89,6 +89,49 @@ describe("pre-turn human handoff", () => {
     assert.doesNotMatch(result.reply, /העברתי/)
   })
 
+  it("does not treat בסדר תודה as handoff confirm when handoff is pending", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nלפני שאני מעביר — האם להעביר את הפנייה לנציג שירות עכשיו?",
+      },
+    ]
+
+    const result = runPreTurnGuards({
+      turn: { text: "בסדר תודה", media: [] },
+      history,
+    })
+
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "reply")
+    assert.match(result.reply, /בשמחה/)
+    assert.doesNotMatch(result.reply, /העברתי/)
+  })
+
+  it("thanks warmly after handoff was already confirmed", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: "מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם.",
+        action: "human_service",
+      },
+    ]
+
+    const result = runPreTurnGuards({
+      turn: { text: "בסדר תודה", media: [] },
+      history,
+    })
+
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "reply")
+    assert.match(result.reply, /בשמחה/)
+    assert.match(result.reply, /הנציג כבר קיבל/)
+    assert.doesNotMatch(result.reply, /עדיין מעבד/)
+  })
+
   it("keeps conversation open on bare תודה without handoff pending", () => {
     const history: HistoryMessage[] = [
       {
