@@ -25,7 +25,6 @@ import {
   parseLandbotHookMessage,
 } from "@/lib/landbot/parse-webhook"
 import {
-  isAssignedToHumanAgent,
   isHumanThreadActive,
   isLandbotApiAgent,
   recordHumanAgentActivity,
@@ -33,7 +32,7 @@ import {
   shouldRecordHumanAgentActivity,
 } from "@/lib/landbot/human-takeover"
 import { getHistory } from "@/lib/agents/memory"
-import { shouldBypassHumanThreadSilence } from "@/lib/agents/off-topic"
+import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
 
@@ -100,11 +99,10 @@ export async function POST(request: Request) {
 
   if (isLandbotEvent(hook)) {
     if (hook.action === "assign") {
-      if (isAssignedToHumanAgent(hook.agentId)) {
-        await recordHumanAgentActivity(hook.conversationId)
-      } else if (isLandbotApiAgent({ agentId: hook.agentId })) {
-        // Bot self-assign after send_text — must not silence future customer turns.
+      if (isLandbotApiAgent({ agentId: hook.agentId })) {
         await releaseHumanThread(hook.conversationId)
+      } else if (hook.agentId && hook.agentId > 0) {
+        await recordHumanAgentActivity(hook.conversationId)
       }
     } else if (hook.action === "unassign") {
       await releaseHumanThread(hook.conversationId)
@@ -153,7 +151,9 @@ export async function POST(request: Request) {
     if (!shouldBypassHumanThreadSilence(inboundBody, history)) {
       return NextResponse.json({ ok: true, skipped: "human_thread_active" })
     }
-    await releaseHumanThread(inbound.conversationId)
+    if (shouldClearHumanThreadOnBypass(inboundBody, history)) {
+      await releaseHumanThread(inbound.conversationId)
+    }
   }
 
   const replyEnabled = shouldReplyPhone(phone)
@@ -213,7 +213,9 @@ export async function POST(request: Request) {
               }
               return
             }
-            await releaseHumanThread(inbound.conversationId)
+            if (shouldClearHumanThreadOnBypass(turnBody, history)) {
+              await releaseHumanThread(inbound.conversationId)
+            }
           }
 
           lastResult = await handleLandbotInbound(

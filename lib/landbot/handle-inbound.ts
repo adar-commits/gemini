@@ -3,7 +3,7 @@ import { formatOutboundMessages } from "@/lib/agents/greeting"
 import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
-import { shouldBypassHumanThreadSilence } from "@/lib/agents/off-topic"
+import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
@@ -130,7 +130,9 @@ export async function handleLandbotInbound(
         skipped: "human_thread_active",
       }
     }
-    await releaseHumanThread(conversationId)
+    if (shouldClearHumanThreadOnBypass(turnSummary, history)) {
+      await releaseHumanThread(conversationId)
+    }
   }
 
   let customerName = options?.customerName?.trim() || ""
@@ -375,7 +377,9 @@ export async function handleLandbotInbound(
           skipped: "human_thread_active",
         }
       }
-      await releaseHumanThread(conversationId)
+      if (shouldClearHumanThreadOnBypass(body, history)) {
+        await releaseHumanThread(conversationId)
+      }
     }
 
     for (const text of outboundMessages) {

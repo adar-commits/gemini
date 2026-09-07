@@ -4,6 +4,7 @@ import {
   type AgentId,
   type HistoryMessage,
 } from "@/lib/agents/types"
+import { isLandbotApiAgentId } from "@/lib/landbot/api-agent-ids"
 
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 
@@ -167,7 +168,10 @@ async function loadStoredMessages(conversationId: string, resetAt: string | null
     }))
 }
 
-async function loadLandbotMessages(conversationId: string, resetAt: string | null) {
+const LANDBOT_ASSIGN_EVENT_BODY = /^\d{5,}$/
+
+async function resolveMessageSessionIds(conversationId: string) {
+  conversationId = safeId(conversationId)
   const supabase = getAgentSupabase()
   const { data: sessions } = await supabase
     .from("conversations")
@@ -177,14 +181,48 @@ async function loadLandbotMessages(conversationId: string, resetAt: string | nul
     )
     .limit(5)
 
-  const sessionIds = Array.from(
+  return Array.from(
     new Set([conversationId, ...(sessions ?? []).map((row) => asText(row.session_id))])
   ).filter(Boolean)
+}
+
+/** Last CRM outbound was from a live Landbot rep (any id except the API bot). */
+export async function isLiveHumanLastOutbound(conversationId: string) {
+  const sessionIds = await resolveMessageSessionIds(conversationId)
+  if (!sessionIds.length) return false
+
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("messages")
+    .select("sender_id, body")
+    .in("session_id", sessionIds)
+    .eq("direction", "outgoing")
+    .eq("sender_type", "agent")
+    .not("body", "is", null)
+    .order("sent_at", { ascending: false })
+    .limit(12)
+
+  if (error || !data?.length) return false
+
+  for (const row of data) {
+    const body = asText(row.body)
+    if (!body || LANDBOT_ASSIGN_EVENT_BODY.test(body)) continue
+    const agentId = Number(asText(row.sender_id))
+    if (!Number.isFinite(agentId) || agentId <= 0) continue
+    return !isLandbotApiAgentId(agentId)
+  }
+
+  return false
+}
+
+async function loadLandbotMessages(conversationId: string, resetAt: string | null) {
+  const supabase = getAgentSupabase()
+  const sessionIds = await resolveMessageSessionIds(conversationId)
 
   let query = supabase
     .from("messages")
     .select("body, sender_type, direction, sent_at")
-    .in("session_id", sessionIds)
+    .in("session_id", sessionIds.length ? sessionIds : [conversationId])
     .not("body", "is", null)
     .order("sent_at", { ascending: true })
     .limit(40)

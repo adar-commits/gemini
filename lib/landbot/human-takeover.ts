@@ -1,6 +1,7 @@
 import {
   clearHumanAgentActivity,
   getHumanTakeoverState,
+  isLiveHumanLastOutbound,
   markHumanAgentActivity,
 } from "@/lib/agents/memory"
 import { isLandbotApiAgentId, landbotApiAgentIds } from "@/lib/landbot/api-agent-ids"
@@ -91,7 +92,7 @@ export async function isHumanThreadActive(
   assignedAgentId?: number | null
 ) {
   const state = await getHumanTakeoverState(conversationId)
-  const defer = shouldDeferToHumanAgent({
+  let defer = shouldDeferToHumanAgent({
     assignedAgentId,
     humanAgentLastAt: state?.human_agent_last_at ?? null,
     lastUserAt: state?.last_user_at ?? null,
@@ -106,10 +107,21 @@ export async function isHumanThreadActive(
     isLandbotApiAgentId(assignedAgentId)
   ) {
     await releaseHumanThread(conversationId)
-    return false
+    defer = false
   }
 
-  return defer
+  if (defer) return true
+
+  if (await isLiveHumanLastOutbound(conversationId)) {
+    try {
+      await recordHumanAgentActivity(conversationId)
+    } catch {
+      // CRM fallback still silences the bot even if session upsert fails.
+    }
+    return true
+  }
+
+  return false
 }
 
 export async function recordHumanAgentActivity(conversationId: string) {

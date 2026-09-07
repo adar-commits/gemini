@@ -1,5 +1,6 @@
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
+import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import { hasImmediateBusinessAsk, isCasualGreeting } from "@/lib/agents/greeting"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isPureHandoffAffirmation, isPureHandoffDecline } from "@/lib/agents/compound-reply"
@@ -84,9 +85,20 @@ export function isPendingHandoffCustomerReply(body: string, history: HistoryMess
   return isHumanHandoffAffirmation(body) || isHumanHandoffDecline(body)
 }
 
-/** Customer courtesy replies that must never be silenced or stuck-fallbacked. */
+/**
+ * Customer replies that may proceed while a human owns the thread.
+ * Thanks only bypasses after the *bot* confirmed handoff — not when a live rep already spoke.
+ */
 export function shouldBypassHumanThreadSilence(body: string, history: HistoryMessage[]) {
-  if (isThanksAcknowledgment(body)) return true
+  if (isPendingHandoffCustomerReply(body, history)) return true
+  if (isThanksAcknowledgment(body)) {
+    return isPostHumanHandoff(null, history)
+  }
+  return false
+}
+
+/** Stale takeover flags — clear before handoff confirm, not before post-handoff thanks. */
+export function shouldClearHumanThreadOnBypass(body: string, history: HistoryMessage[]) {
   return isPendingHandoffCustomerReply(body, history)
 }
 
