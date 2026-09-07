@@ -18,6 +18,7 @@ export type LandbotAgentMessage = {
   conversationId: string
   messageKey: string
   agentId: number | null
+  agentName: string
 }
 
 export type LandbotEventMessage = {
@@ -163,6 +164,7 @@ export function parseLandbotHookMessage(
       conversationId,
       messageKey: baseMessageKey(first, raw, sentryTrace, `agent:${agentId ?? "unknown"}`),
       agentId,
+      agentName: asText(sender?.name),
     }
   }
 

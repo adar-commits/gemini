@@ -3,7 +3,10 @@ import { describe, it } from "node:test"
 import {
   isAssignedToHumanAgent,
   isConfiguredHumanAgentId,
+  isLandbotApiAgent,
+  isLiveHumanLandbotAgent,
   shouldDeferToHumanAgent,
+  shouldRecordHumanAgentActivity,
 } from "@/lib/landbot/human-takeover"
 import {
   isAgentChat,
@@ -49,11 +52,13 @@ describe("shouldDeferToHumanAgent", () => {
     )
   })
 
-  it("does not treat unknown agent ids as human reps", () => {
+  it("does not defer on unknown assignment without human activity", () => {
     const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
     const prevService = process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS
+    const prevApi = process.env.LANDBOT_API_AGENT_IDS
     process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "111"
     process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = "222"
+    delete process.env.LANDBOT_API_AGENT_IDS
     try {
       assert.equal(isAssignedToHumanAgent(333), false)
       assert.equal(
@@ -63,7 +68,32 @@ describe("shouldDeferToHumanAgent", () => {
     } finally {
       process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
       process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = prevService
+      process.env.LANDBOT_API_AGENT_IDS = prevApi
     }
+  })
+})
+
+describe("live human agent detection", () => {
+  it("records activity for any named human rep, not only configured ids", () => {
+    assert.equal(
+      shouldRecordHumanAgentActivity({
+        agentId: 51234,
+        agentName: "Noa Babajani",
+      }),
+      true
+    )
+    assert.equal(isLiveHumanLandbotAgent({ agentId: 51234, agentName: "Noa Babajani" }), true)
+  })
+
+  it("ignores API automation outbound", () => {
+    assert.equal(
+      shouldRecordHumanAgentActivity({
+        agentId: 99999,
+        agentName: "API",
+      }),
+      false
+    )
+    assert.equal(isLandbotApiAgent({ agentId: 99999, agentName: "API" }), true)
   })
 })
 
@@ -91,57 +121,46 @@ describe("parseLandbotHookMessage", () => {
   })
 
   it("parses human agent messages", () => {
-    const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
-    process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "40684"
-    try {
-      const parsed = parseLandbotHookMessage(
-        {
-          messages: [
-            {
-              type: "text",
-              timestamp: 2,
-              data: { body: "היי, אני נציג" },
-              sender: { id: 40684, name: "Pau", type: "agent" },
-              customer: { id: 65462634 },
-            },
-          ],
-        },
-        null
-      )
-      assert.equal(isAgentChat(parsed!), true)
-      if (parsed && isAgentChat(parsed)) {
-        assert.equal(parsed.agentId, 40684)
-        assert.equal(isConfiguredHumanAgentId(parsed.agentId), true)
-      }
-    } finally {
-      process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
+    const parsed = parseLandbotHookMessage(
+      {
+        messages: [
+          {
+            type: "text",
+            timestamp: 2,
+            data: { body: "היי, אני נציג" },
+            sender: { id: 40684, name: "Pau", type: "agent" },
+            customer: { id: 65462634 },
+          },
+        ],
+      },
+      null
+    )
+    assert.equal(isAgentChat(parsed!), true)
+    if (parsed && isAgentChat(parsed)) {
+      assert.equal(parsed.agentId, 40684)
+      assert.equal(parsed.agentName, "Pau")
+      assert.equal(shouldRecordHumanAgentActivity(parsed), true)
     }
   })
 
-  it("does not treat API bot outbound as a configured human rep", () => {
-    const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
-    process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "40684"
-    try {
-      const parsed = parseLandbotHookMessage(
-        {
-          messages: [
-            {
-              type: "text",
-              timestamp: 3,
-              data: { body: "*הום בוט :)*\nהשיחה אופסה." },
-              sender: { id: 99999, name: "API", type: "agent" },
-              customer: { id: 65462634 },
-            },
-          ],
-        },
-        null
-      )
-      assert.equal(isAgentChat(parsed!), true)
-      if (parsed && isAgentChat(parsed)) {
-        assert.equal(isConfiguredHumanAgentId(parsed.agentId), false)
-      }
-    } finally {
-      process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
+  it("does not treat API bot outbound as a live human rep", () => {
+    const parsed = parseLandbotHookMessage(
+      {
+        messages: [
+          {
+            type: "text",
+            timestamp: 3,
+            data: { body: "*הום בוט :)*\nהשיחה אופסה." },
+            sender: { id: 99999, name: "API", type: "agent" },
+            customer: { id: 65462634 },
+          },
+        ],
+      },
+      null
+    )
+    assert.equal(isAgentChat(parsed!), true)
+    if (parsed && isAgentChat(parsed)) {
+      assert.equal(shouldRecordHumanAgentActivity(parsed), false)
     }
   })
 

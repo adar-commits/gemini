@@ -22,14 +22,58 @@ export function configuredHumanAgentIds() {
   )
 }
 
+export function landbotApiAgentIds() {
+  return parseAgentIds(process.env.LANDBOT_API_AGENT_IDS)
+}
+
 export function isConfiguredHumanAgentId(agentId: number | null | undefined) {
   if (!agentId || !Number.isFinite(agentId) || agentId <= 0) return false
   return configuredHumanAgentIds().includes(agentId)
 }
 
+export function isLandbotApiAgentSender(agentName?: string | null) {
+  return /^API$/i.test(String(agentName ?? "").trim())
+}
+
+export function isLandbotApiAgentId(agentId: number | null | undefined) {
+  if (!agentId || !Number.isFinite(agentId) || agentId <= 0) return false
+  return landbotApiAgentIds().includes(agentId)
+}
+
+/** Outbound from Landbot API automation — not a live human rep. */
+export function isLandbotApiAgent(input: {
+  agentId?: number | null
+  agentName?: string | null
+}) {
+  if (isLandbotApiAgentSender(input.agentName)) return true
+  return isLandbotApiAgentId(input.agentId ?? null)
+}
+
+/** A live human rep sent a message or was assigned — bot must stay silent. */
+export function isLiveHumanLandbotAgent(input: {
+  agentId?: number | null
+  agentName?: string | null
+}) {
+  if (isLandbotApiAgent(input)) return false
+  if (input.agentId && input.agentId > 0) return true
+  return Boolean(input.agentName?.trim())
+}
+
+export function shouldRecordHumanAgentActivity(input: {
+  agentId?: number | null
+  agentName?: string | null
+}) {
+  return isLiveHumanLandbotAgent(input)
+}
+
 /** Landbot assigned the customer to a live rep (not the API bot). */
 export function isAssignedToHumanAgent(assignedAgentId: number | null | undefined) {
-  return isConfiguredHumanAgentId(assignedAgentId)
+  if (!assignedAgentId || assignedAgentId <= 0) return false
+  if (isConfiguredHumanAgentId(assignedAgentId)) return true
+  if (landbotApiAgentIds().length > 0) {
+    return !isLandbotApiAgentId(assignedAgentId)
+  }
+  return false
 }
 
 /**

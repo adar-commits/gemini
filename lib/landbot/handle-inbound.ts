@@ -48,7 +48,6 @@ import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
 import {
   isHumanThreadActive,
   recordHumanAgentActivity,
-  releaseHumanThread,
 } from "@/lib/landbot/human-takeover"
 import {
   handleTrainerProfileCommand,
@@ -340,6 +339,21 @@ export async function handleLandbotInbound(
     formatOutboundMessages(rawOutbound, { headerAlreadySent })
 
   if (replyEnabled && !watchdog.stuckAlreadySent()) {
+    if (
+      !trainerResetBypass &&
+      (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
+    ) {
+      return {
+        ok: true,
+        agent: "master",
+        action: "reply",
+        reply: "",
+        duplicateSuppressed: true,
+        mode,
+        skipped: "human_thread_active",
+      }
+    }
+
     for (const text of outboundMessages) {
       await sendCustomerText(customerId, text)
     }
@@ -354,7 +368,6 @@ export async function handleLandbotInbound(
       else await unassignCustomer(customerId)
       await recordHumanAgentActivity(conversationId)
     } else if (outboundMessages.length > 0) {
-      await releaseHumanThread(conversationId)
       const lastOutbound = outboundMessages[outboundMessages.length - 1] ?? ""
       if (
         shouldSkipInactivityForHumanWait({

@@ -25,10 +25,11 @@ import {
   parseLandbotHookMessage,
 } from "@/lib/landbot/parse-webhook"
 import {
-  isConfiguredHumanAgentId,
   isHumanThreadActive,
+  isLiveHumanLandbotAgent,
   recordHumanAgentActivity,
   releaseHumanThread,
+  shouldRecordHumanAgentActivity,
 } from "@/lib/landbot/human-takeover"
 import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
 import { summarizeTurn } from "@/lib/agents/user-turn"
@@ -88,14 +89,17 @@ export async function POST(request: Request) {
   }
 
   if (isAgentChat(hook)) {
-    if (isConfiguredHumanAgentId(hook.agentId)) {
+    if (shouldRecordHumanAgentActivity(hook)) {
       await recordHumanAgentActivity(hook.conversationId)
     }
     return NextResponse.json({ ok: true, skipped: "human_agent_message" })
   }
 
   if (isLandbotEvent(hook)) {
-    if (hook.action === "assign" && isConfiguredHumanAgentId(hook.agentId)) {
+    if (
+      hook.action === "assign" &&
+      isLiveHumanLandbotAgent({ agentId: hook.agentId })
+    ) {
       await recordHumanAgentActivity(hook.conversationId)
     } else if (hook.action === "unassign") {
       await releaseHumanThread(hook.conversationId)
@@ -178,6 +182,25 @@ export async function POST(request: Request) {
       await drainConversationBuffer({
         conversationId: inbound.conversationId,
         handler: async (turn) => {
+          if (
+            !trainerResetBypass &&
+            (await isHumanThreadActive(
+              inbound.conversationId,
+              inbound.assignedAgentId
+            ))
+          ) {
+            lastResult = {
+              ok: true,
+              agent: "master",
+              action: "reply",
+              reply: "",
+              duplicateSuppressed: true,
+              mode: replyEnabled ? "reply" : "shadow",
+              skipped: "human_thread_active",
+            }
+            return
+          }
+
           lastResult = await handleLandbotInbound(
             inbound.customerId,
             inbound.conversationId,
