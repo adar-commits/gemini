@@ -102,9 +102,9 @@ export function buildNeverStuckReply() {
 אפשר לנסח שוב, או שאעביר לנציג שירות שימשיך מכאן?`
 }
 
-/** Offer service handoff when the pipeline did not finish in time — not "didn't understand". */
+/** Friendly hold message when the pipeline needs more time — keep processing, no handoff ask. */
 export function buildProcessingStuckReply() {
   return `${CUSTOMER_HEADER}
-עדיין מעבד את ההודעה 🙏 זה לוקח קצת יותר מהרגיל.
-אני ממשיך לעבד עכשיו ואעדכן כאן ברגע שיש תשובה מלאה.`
+אני על זה, כמה רגעים בבקשה 🙏
+עובר על השאלות שלכם`
 }

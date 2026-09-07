@@ -6,8 +6,8 @@ import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
 describe("processing watchdog", () => {
   it("buildProcessingStuckReply keeps processing without handoff ask", () => {
     const reply = buildProcessingStuckReply()
-    assert.match(reply, /עדיין מעבד/)
-    assert.match(reply, /ממשיך לעבד/)
+    assert.match(reply, /אני על זה, כמה רגעים בבקשה/)
+    assert.match(reply, /עובר על השאלות/)
     assert.doesNotMatch(reply, /להעביר לנציג שירות/)
     assert.doesNotMatch(reply, /לא הצלחתי להבין/)
   })

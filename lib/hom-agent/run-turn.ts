@@ -37,6 +37,8 @@ import {
   looksLikeMultipleQuestions,
   splitOrderedQuestions,
 } from "@/lib/agents/multi-question"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
+import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
   if (action === "human_sales" || action === "human_service") return action
@@ -199,7 +201,13 @@ export async function runHomAgentTurn(
     !isReturnPickupAwaitingThread(history, body)
   ) {
     const questions = await splitOrderedQuestions(body, conversationId).catch(() => [body])
-    if (questions.length >= 3) {
+    // 2+ questions take the fast combined path (single light LLM call, no tool
+    // loop) — unless one of them needs live order/document data.
+    const needsLiveTools = questions.some(
+      (question) =>
+        isShippingStatusQuestion(question) || isDigitalDocumentRequest(question)
+    )
+    if (questions.length >= 2 && !needsLiveTools) {
       const combinedReply = await answerCombinedQuestions(questions, {
         conversationId,
         history,
