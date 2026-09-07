@@ -3,6 +3,7 @@ import {
   getHumanTakeoverState,
   markHumanAgentActivity,
 } from "@/lib/agents/memory"
+import { isLandbotApiAgentId, landbotApiAgentIds } from "@/lib/landbot/api-agent-ids"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 
 function parseAgentIds(raw: string | undefined) {
@@ -13,6 +14,9 @@ function parseAgentIds(raw: string | undefined) {
     .filter((id) => Number.isFinite(id) && id > 0)
 }
 
+export { BUILTIN_LANDBOT_API_AGENT_IDS } from "@/lib/landbot/api-agent-ids"
+export { landbotApiAgentIds, isLandbotApiAgentId } from "@/lib/landbot/api-agent-ids"
+
 export function configuredHumanAgentIds() {
   return Array.from(
     new Set([
@@ -22,10 +26,6 @@ export function configuredHumanAgentIds() {
   )
 }
 
-export function landbotApiAgentIds() {
-  return parseAgentIds(process.env.LANDBOT_API_AGENT_IDS)
-}
-
 export function isConfiguredHumanAgentId(agentId: number | null | undefined) {
   if (!agentId || !Number.isFinite(agentId) || agentId <= 0) return false
   return configuredHumanAgentIds().includes(agentId)
@@ -33,11 +33,6 @@ export function isConfiguredHumanAgentId(agentId: number | null | undefined) {
 
 export function isLandbotApiAgentSender(agentName?: string | null) {
   return /^API$/i.test(String(agentName ?? "").trim())
-}
-
-export function isLandbotApiAgentId(agentId: number | null | undefined) {
-  if (!agentId || !Number.isFinite(agentId) || agentId <= 0) return false
-  return landbotApiAgentIds().includes(agentId)
 }
 
 /** Outbound from Landbot API automation — not a live human rep. */

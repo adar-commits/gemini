@@ -52,23 +52,28 @@ describe("shouldDeferToHumanAgent", () => {
     )
   })
 
-  it("does not defer on unknown assignment without human activity", () => {
+  it("does not defer when assigned to builtin HoM API agent 279136", () => {
+    assert.equal(isAssignedToHumanAgent(279136), false)
+    assert.equal(
+      shouldDeferToHumanAgent({ assignedAgentId: 279136, humanAgentLastAt: null, lastUserAt: null }),
+      false
+    )
+  })
+
+  it("defers on non-API assignment when builtin API agent ids exist", () => {
     const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
     const prevService = process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS
-    const prevApi = process.env.LANDBOT_API_AGENT_IDS
     process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "111"
     process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = "222"
-    delete process.env.LANDBOT_API_AGENT_IDS
     try {
-      assert.equal(isAssignedToHumanAgent(333), false)
+      assert.equal(isAssignedToHumanAgent(333), true)
       assert.equal(
         shouldDeferToHumanAgent({ assignedAgentId: 333, humanAgentLastAt: null, lastUserAt: null }),
-        false
+        true
       )
     } finally {
       process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
       process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = prevService
-      process.env.LANDBOT_API_AGENT_IDS = prevApi
     }
   })
 })
@@ -198,37 +203,37 @@ describe("parseLandbotHookMessage", () => {
 
   it("assign to API bot agent must not count as live human rep", () => {
     const prevApi = process.env.LANDBOT_API_AGENT_IDS
-    process.env.LANDBOT_API_AGENT_IDS = "99999"
+    delete process.env.LANDBOT_API_AGENT_IDS
     try {
-      assert.equal(isAssignedToHumanAgent(99999), false)
-      assert.equal(isLiveHumanLandbotAgent({ agentId: 99999 }), false)
-      assert.equal(isLandbotApiAgent({ agentId: 99999 }), true)
+      assert.equal(isAssignedToHumanAgent(279136), false)
+      assert.equal(isLiveHumanLandbotAgent({ agentId: 279136 }), false)
+      assert.equal(isLandbotApiAgent({ agentId: 279136 }), true)
     } finally {
       process.env.LANDBOT_API_AGENT_IDS = prevApi
     }
   })
 
-  it("unknown assign id without API list does not defer (avoids bot self-assign silence)", () => {
-    const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
-    const prevService = process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS
+  it("builtin API agent 279136 is recognized without env", () => {
     const prevApi = process.env.LANDBOT_API_AGENT_IDS
-    process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = "111"
-    process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = "222"
     delete process.env.LANDBOT_API_AGENT_IDS
     try {
-      assert.equal(isAssignedToHumanAgent(51234), false)
-      assert.equal(
-        shouldDeferToHumanAgent({
-          assignedAgentId: 51234,
-          humanAgentLastAt: null,
-          lastUserAt: null,
-        }),
-        false
-      )
+      assert.equal(isLandbotApiAgent({ agentId: 279136 }), true)
+      assert.equal(shouldRecordHumanAgentActivity({ agentId: 279136, agentName: "HoM Bot" }), false)
+      assert.equal(isAssignedToHumanAgent(279136), false)
     } finally {
-      process.env.LANDBOT_HUMAN_AGENT_SALES_IDS = prevSales
-      process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS = prevService
       process.env.LANDBOT_API_AGENT_IDS = prevApi
     }
+  })
+
+  it("non-API assign id defers once builtin API agent is known", () => {
+    assert.equal(isAssignedToHumanAgent(51234), true)
+    assert.equal(
+      shouldDeferToHumanAgent({
+        assignedAgentId: 51234,
+        humanAgentLastAt: null,
+        lastUserAt: null,
+      }),
+      true
+    )
   })
 })

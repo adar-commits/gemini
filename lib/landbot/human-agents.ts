@@ -1,3 +1,5 @@
+import { isLandbotApiAgentId } from "@/lib/landbot/api-agent-ids"
+
 function parseAgentIds(raw: string | undefined) {
   if (!raw?.trim()) return []
   return raw
@@ -16,7 +18,7 @@ export function pickHumanAgentId(
       ? process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
       : process.env.LANDBOT_HUMAN_AGENT_SERVICE_IDS
 
-  const ids = parseAgentIds(envKey)
+  const ids = parseAgentIds(envKey).filter((id) => !isLandbotApiAgentId(id))
   if (!ids.length) return null
   return ids[Math.abs(customerId) % ids.length]!
 }

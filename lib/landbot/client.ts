@@ -1,3 +1,5 @@
+import { landbotApiAgentIds } from "@/lib/landbot/api-agent-ids"
+
 const LANDBOT_API = "https://api.landbot.io/v1"
 
 function authHeader() {
@@ -75,13 +77,18 @@ export async function createMessageHook(
 }
 
 export async function assignToApiAgent(customerId: number) {
+  const apiAgentId = landbotApiAgentIds()[0] ?? null
+  const assignPath = apiAgentId
+    ? `/customers/${customerId}/assign/${apiAgentId}/`
+    : `/customers/${customerId}/assign/`
+
   try {
-    await landbotFetch(`/customers/${customerId}/assign/`, { method: "PUT" })
+    await landbotFetch(assignPath, { method: "PUT" })
   } catch (error) {
     const status = (error as Error & { status?: number }).status
     if (status !== 412) throw error
     await landbotFetch(`/customers/${customerId}/unassign/`, { method: "PUT" })
-    await landbotFetch(`/customers/${customerId}/assign/`, { method: "PUT" })
+    await landbotFetch(assignPath, { method: "PUT" })
   }
 }
 
