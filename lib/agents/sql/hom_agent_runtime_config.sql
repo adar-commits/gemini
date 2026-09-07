@@ -5,7 +5,7 @@ create table if not exists public.hom_agent_runtime_config (
   profile_json jsonb not null default '{}'::jsonb,
   routing_mode text not null default 'hybrid',
   debounce_ms int not null default 3000,
-  history_limit int not null default 18,
+  history_limit int not null default 12,
   orchestra_mode text not null default 'off',
   updated_at timestamptz not null default now(),
   updated_by text
@@ -16,14 +16,14 @@ values (
   'production',
   'quality',
   '{
-    "router": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.1, "maxOutputTokens": 96},
-    "faq": {"model": "anthropic/claude-opus-4.6", "temperature": 0.18, "maxOutputTokens": 800},
-    "sales": {"model": "anthropic/claude-opus-4.6", "temperature": 0.25, "maxOutputTokens": 800},
-    "service": {"model": "anthropic/claude-opus-4.6", "temperature": 0.15, "maxOutputTokens": 800}
+    "router": {"model": "openai/gpt-5.5", "temperature": 0.1, "maxOutputTokens": 96},
+    "faq": {"model": "openai/gpt-5.5", "temperature": 0.18, "maxOutputTokens": 800},
+    "sales": {"model": "openai/gpt-5.5", "temperature": 0.25, "maxOutputTokens": 800},
+    "service": {"model": "openai/gpt-5.5", "temperature": 0.15, "maxOutputTokens": 800}
   }'::jsonb,
   'hybrid',
   3000,
-  18,
+  12,
   'off',
   'migration'
 )

@@ -8,7 +8,7 @@ import { isLandbotApiAgentId } from "@/lib/landbot/api-agent-ids"
 
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 
-const DEFAULT_HISTORY_LIMIT = 40
+const DEFAULT_HISTORY_LIMIT = 12
 
 async function historyLimit() {
   try {
@@ -64,7 +64,7 @@ export async function getConversationContext(
   const inactivityClosedAt = asText(session?.inactivity_closed_at) || null
   const conversationSummary = asText(session?.conversation_summary) || null
   const limit = await historyLimit()
-  const stored = await loadStoredMessages(conversationId, resetAt)
+  const stored = await loadStoredMessages(conversationId, resetAt, limit)
   const lastStored = [...stored].reverse().find((row) => row.action || row.agent)
   const lastAgent =
     asAgentId(lastStored?.agent) ?? asAgentId(session?.last_agent)
@@ -96,7 +96,7 @@ export async function getConversationContext(
     }
   }
 
-  const landbot = await loadLandbotMessages(conversationId, resetAt)
+  const landbot = await loadLandbotMessages(conversationId, resetAt, limit)
   return {
     history: dedupeHistory([...landbot, ...storedHistory]).slice(-limit),
     lastAgent,
@@ -144,14 +144,18 @@ function dedupeHistory(items: HistoryMessage[]) {
   return unique
 }
 
-async function loadStoredMessages(conversationId: string, resetAt: string | null) {
+async function loadStoredMessages(
+  conversationId: string,
+  resetAt: string | null,
+  limit: number
+) {
   const supabase = getAgentSupabase()
   let query = supabase
     .from("hom_agent_messages")
     .select("role, content, created_at, agent, action")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
-    .limit(40)
+    .limit(limit)
 
   if (resetAt) query = query.gt("created_at", resetAt)
 
@@ -215,7 +219,11 @@ export async function isLiveHumanLastOutbound(conversationId: string) {
   return false
 }
 
-async function loadLandbotMessages(conversationId: string, resetAt: string | null) {
+async function loadLandbotMessages(
+  conversationId: string,
+  resetAt: string | null,
+  limit: number
+) {
   const supabase = getAgentSupabase()
   const sessionIds = await resolveMessageSessionIds(conversationId)
 
@@ -225,7 +233,7 @@ async function loadLandbotMessages(conversationId: string, resetAt: string | nul
     .in("session_id", sessionIds.length ? sessionIds : [conversationId])
     .not("body", "is", null)
     .order("sent_at", { ascending: true })
-    .limit(40)
+    .limit(limit)
 
   if (resetAt) query = query.gt("sent_at", resetAt)
 

@@ -129,7 +129,7 @@ function codeDefaultConfig(): RuntimeConfig {
     },
     routingMode,
     debounceMs,
-    historyLimit: 40,
+    historyLimit: 12,
     orchestraMode: "off",
     updatedAt: null,
     updatedBy: null,
@@ -173,7 +173,7 @@ export function rowToConfig(row: RuntimeRow): RuntimeConfig {
           ? Number(process.env.LANDBOT_DEBOUNCE_MS)
           : 3000,
     historyLimit:
-      typeof row.history_limit === "number" && row.history_limit > 0 ? row.history_limit : 40,
+      typeof row.history_limit === "number" && row.history_limit > 0 ? row.history_limit : 12,
     orchestraMode,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,

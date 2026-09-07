@@ -16,7 +16,7 @@ import { createHomAgentTools } from "@/lib/hom-agent/tools"
 import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 const MAX_TOOL_ROUNDS = 2
-const INVOKE_FALLBACK_MODEL = MODEL_PROFILES.balanced.faq.model
+const INVOKE_FALLBACK_MODEL = MODEL_PROFILES.quality.faq.model
 
 type InvokeContext = {
   conversationId: string

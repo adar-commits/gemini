@@ -19,17 +19,18 @@ export type ModelProfile = {
 
 const SONNET = "anthropic/claude-sonnet-4.6"
 const OPUS = "anthropic/claude-opus-4.6"
+const GPT_55 = "openai/gpt-5.5"
 const FLASH = "google/gemini-2.5-flash"
 const FLASH_LITE = "google/gemini-2.5-flash-lite"
 
 export const MODEL_PROFILES: Record<Exclude<ProfileName, "custom">, ModelProfile> = {
   quality: {
     name: "quality",
-    label: "Maximum quality (Opus specialists)",
-    router: { model: SONNET, temperature: 0.1, maxOutputTokens: 96 },
-    faq: { model: OPUS, temperature: 0.18, maxOutputTokens: 800 },
-    sales: { model: OPUS, temperature: 0.25, maxOutputTokens: 800 },
-    service: { model: OPUS, temperature: 0.15, maxOutputTokens: 800 },
+    label: "Quality (OpenAI GPT-5.5)",
+    router: { model: GPT_55, temperature: 0.1, maxOutputTokens: 96 },
+    faq: { model: GPT_55, temperature: 0.18, maxOutputTokens: 800 },
+    sales: { model: GPT_55, temperature: 0.25, maxOutputTokens: 800 },
+    service: { model: GPT_55, temperature: 0.15, maxOutputTokens: 800 },
   },
   balanced: {
     name: "balanced",
