@@ -9,6 +9,7 @@ import {
   shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
 import { getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
@@ -310,6 +311,9 @@ async function expireStaleIdleSessions(limit = 200) {
     .in("conversation_id", ids)
 
   if (updateError) throw updateError
+  for (const id of ids) {
+    scheduleGokuTrainer(id, "stale_expire")
+  }
   return ids.length
 }
 
@@ -426,6 +430,7 @@ async function attemptInactivityClose(row: CloseCandidate) {
       error: error instanceof Error ? error.message : error,
     })
   )
+  scheduleGokuTrainer(row.conversation_id, "inactivity_close")
   return "closed" as const
 }
 

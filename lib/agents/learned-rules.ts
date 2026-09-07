@@ -223,6 +223,8 @@ function normalizeLearnedRuleAgent(agent?: string | null) {
 
 export async function insertLearnedRule(input: {
   shadowReviewId?: string | null
+  gokuReportId?: string | null
+  source?: string | null
   ruleKind: LearnedRuleKind
   agent?: string | null
   pattern?: string | null
@@ -251,6 +253,8 @@ export async function insertLearnedRule(input: {
     .from("hom_agent_learned_rules")
     .insert({
       shadow_review_id: input.shadowReviewId ?? null,
+      goku_report_id: input.gokuReportId ?? null,
+      source: input.source?.trim() || null,
       rule_kind: input.ruleKind,
       agent: normalizeLearnedRuleAgent(input.agent),
       pattern: input.pattern ?? null,

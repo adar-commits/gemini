@@ -16,6 +16,7 @@ import {
   setTurnTier,
 } from "@/lib/agent-core/turn-metrics"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
+import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
@@ -42,6 +43,14 @@ function mapHomAgent(action: HomAgentAction): AgentResponse["agent"] {
   if (action === "human_sales") return "sales"
   if (action === "human_service") return "service"
   return "faq"
+}
+
+function maybeScheduleGokuTrainer(
+  conversationId: string,
+  action: ConversationalAction
+) {
+  if (action === "reset") scheduleGokuTrainer(conversationId, "reset")
+  else if (action === "end") scheduleGokuTrainer(conversationId, "end")
 }
 
 async function rebuildReturnPickupServiceReplyIfNeeded(input: {
@@ -123,6 +132,7 @@ export async function runHomAgentTurn(
 
   if (preTurn.kind === "handled") {
     const action = mapHomAction(preTurn.action)
+    maybeScheduleGokuTrainer(conversationId, action)
     if (persistTurn) {
       await appendTurn({
         conversationId,
@@ -255,6 +265,7 @@ export async function runHomAgentTurn(
   })
 
   if (persistTurn) {
+    maybeScheduleGokuTrainer(conversationId, action)
     await appendTurn({
       conversationId,
       agent,

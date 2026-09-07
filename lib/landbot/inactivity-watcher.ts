@@ -14,6 +14,7 @@ import {
   recordProactiveAssistantMessage,
   touchSessionMeta,
 } from "@/lib/agents/memory"
+import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
@@ -360,6 +361,7 @@ async function runClosePhase(payload: InactivityWatchPayload) {
       error: error instanceof Error ? error.message : error,
     })
   )
+  scheduleGokuTrainer(payload.conversationId, "inactivity_close")
 
   return { ok: true, sent: "close" as const }
 }
