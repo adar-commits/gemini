@@ -31,6 +31,7 @@ import {
   isCarpetRentalQuestion,
   isReturnExchangePolicyFaqQuestion,
 } from "@/lib/agents/policy-subjects"
+import { isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
 import {
   isActiveInventoryThread,
   isInventoryRecheckRequest,
@@ -66,6 +67,18 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'OPENING GREETING: mirror their hello warmly on your first line (e.g. "היי שלום" → "היי שלום! 😊") — even when you continue to order lookup or policy. Use 1–2 emojis (😊 ☺️ 👋). Never jump straight to "קודם אמצא את ההזמנה" without greeting first.'
+    )
+  }
+
+  if (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body)) {
+    lines.push(
+      'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
+    )
+  }
+
+  if (historyShowsHomInvoiceBillingName(history)) {
+    lines.push(
+      "Thread includes HoM purchase invoice to a business billing name — the person chatting may be that business's contact. This IS the correct HoM WhatsApp for their carpet order. Never redirect to another company unless they explicitly say they meant someone else."
     )
   }
 
@@ -236,4 +249,12 @@ export function buildConversationHints(input: {
   }
 
   return lines.length > 0 ? lines.map((line) => `- ${line}`).join("\n") : null
+}
+
+function historyShowsHomInvoiceBillingName(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.content.includes("תודה על רכישתך בשטיח האדום") &&
+      message.content.includes("documents.carpetshop.co.il")
+  )
 }

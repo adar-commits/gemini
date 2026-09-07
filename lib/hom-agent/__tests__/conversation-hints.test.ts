@@ -71,4 +71,27 @@ describe("buildConversationHints", () => {
     assert.match(hints, /OPENING GREETING/i)
     assert.match(hints, /Never jump straight to "קודם אמצא/)
   })
+
+  it("guides ?? as a wait ping, not wrong-company redirect", () => {
+    const hints = buildConversationHints({
+      history: [
+        {
+          role: "assistant",
+          content:
+            "שלום אפצי הפקות 👋,\nתודה על רכישתך בשטיח האדום, להלן קישור לחשבונית:\nhttps://documents.carpetshop.co.il/documents/888a0c92",
+        },
+        {
+          role: "user",
+          content:
+            "תודה שיצרת קשר עם אפצ׳י הפקות!\nעד שאתפנה אשמח לדעת קצת פרטים",
+        },
+      ],
+      body: "??",
+    })
+    assert.ok(hints)
+    assert.match(hints, /WAIT PING/i)
+    assert.match(hints, /Do NOT say they reached the wrong company/)
+    assert.match(hints, /business billing name/i)
+    assert.match(hints, /HoM purchase invoice/i)
+  })
 })
