@@ -61,7 +61,7 @@ function autofixModel() {
     process.env.SHADOW_AUTOFIX_MODEL?.trim() ||
     process.env.SHADOW_REVIEW_MODEL?.trim() ||
     process.env.AGENT_ROUTER_MODEL?.trim() ||
-    "google/gemini-2.5-flash-lite"
+    "anthropic/claude-haiku-4.5"
   )
 }
 

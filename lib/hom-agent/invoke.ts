@@ -1,6 +1,5 @@
 import { generateText, stepCountIs } from "ai"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
-import { MODEL_PROFILES } from "@/lib/agent-core/model-profiles"
 import { homAgentLearnedRulesSection } from "@/lib/agents/learned-rules"
 import { recordTokenUsage } from "@/lib/agent-core/token-usage"
 import { setRoutingPath } from "@/lib/agent-core/turn-metrics"
@@ -18,7 +17,7 @@ import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 const MAX_TOOL_ROUNDS = 2
 /** Error fallback must be cheaper than the primary model, never more expensive. */
-const INVOKE_FALLBACK_MODEL = MODEL_PROFILES.economy.faq.model
+const INVOKE_FALLBACK_MODEL = "anthropic/claude-haiku-4.5"
 
 type InvokeContext = {
   conversationId: string

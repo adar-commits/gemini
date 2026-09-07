@@ -11,17 +11,17 @@ create table if not exists public.hom_agent_runtime_config (
   updated_by text
 );
 
--- Production stack (2026-09-07 audit): Sonnet 4.6 single agent, Flash-Lite for
+-- Production stack (2026-09-07 audit): Sonnet 5 single agent, Haiku 4.5 for
 -- summaries (router role). See lib/agents/sql/hom_agent_runtime_production_stack.sql.
 insert into public.hom_agent_runtime_config (id, active_profile, profile_json, routing_mode, debounce_ms, history_limit, orchestra_mode, updated_by)
 values (
   'production',
   'custom',
   '{
-    "router": {"model": "google/gemini-2.5-flash-lite", "temperature": 0.1, "maxOutputTokens": 256},
-    "faq": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.18, "maxOutputTokens": 800},
-    "sales": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.25, "maxOutputTokens": 800},
-    "service": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.15, "maxOutputTokens": 800}
+    "router": {"model": "anthropic/claude-haiku-4.5", "temperature": 0.1, "maxOutputTokens": 256},
+    "faq": {"model": "anthropic/claude-sonnet-5", "temperature": 0.18, "maxOutputTokens": 800},
+    "sales": {"model": "anthropic/claude-sonnet-5", "temperature": 0.25, "maxOutputTokens": 800},
+    "service": {"model": "anthropic/claude-sonnet-5", "temperature": 0.15, "maxOutputTokens": 800}
   }'::jsonb,
   'hybrid',
   5000,

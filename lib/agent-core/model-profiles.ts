@@ -17,7 +17,8 @@ export type ModelProfile = {
   service: RoleModelConfig
 }
 
-const SONNET = "anthropic/claude-sonnet-4.6"
+const SONNET = "anthropic/claude-sonnet-5"
+const HAIKU = "anthropic/claude-haiku-4.5"
 const GPT_55 = "openai/gpt-5.5"
 const FLASH = "google/gemini-2.5-flash"
 const FLASH_LITE = "google/gemini-2.5-flash-lite"
@@ -33,8 +34,8 @@ export const MODEL_PROFILES: Record<Exclude<ProfileName, "custom">, ModelProfile
   },
   balanced: {
     name: "balanced",
-    label: "Balanced (Sonnet router & specialists)",
-    router: { model: SONNET, temperature: 0.1, maxOutputTokens: 96 },
+    label: "Balanced (Sonnet 5 agent, Haiku 4.5 summaries)",
+    router: { model: HAIKU, temperature: 0.1, maxOutputTokens: 256 },
     faq: { model: SONNET, temperature: 0.18, maxOutputTokens: 700 },
     sales: { model: SONNET, temperature: 0.25, maxOutputTokens: 700 },
     service: { model: SONNET, temperature: 0.15, maxOutputTokens: 700 },

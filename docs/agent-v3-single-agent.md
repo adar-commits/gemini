@@ -11,7 +11,7 @@ One Sonnet-powered agent (`hom-bot.md` + selective FAQ KB + capped trainer rules
 ```
 Customer message
   → pre-turn guards (autoresponder, inactivity ack, close)
-  → HoM Bot LLM — single call (custom profile / Sonnet 4.6)
+  → HoM Bot LLM — single call (custom profile / Sonnet 5)
       tools (max 2 rounds) + structured { reply, action } in one pass
   → validate-reply (header, gender, never-stuck)
   → Landbot outbound (always visible Hebrew)
@@ -21,9 +21,10 @@ Customer message
 
 | Role | Model | Used for |
 |------|-------|----------|
-| faq (main agent) | `anthropic/claude-sonnet-4.6` | Every substantive reply |
-| router | `google/gemini-2.5-flash-lite` | Conversation summaries only |
-| error fallback | economy profile (Gemini Flash) | kb-only pass after tool invoke failure |
+| faq (main agent) | `anthropic/claude-sonnet-5` ($2/$10 MTok) | Every substantive reply |
+| router | `anthropic/claude-haiku-4.5` ($1/$5 MTok) | Conversation summaries only |
+| error fallback | `anthropic/claude-haiku-4.5` | kb-only pass after tool invoke failure |
+| trainer/shadow helpers | `anthropic/claude-haiku-4.5` | Correction parsing, shadow review, autofix |
 
 Supabase `active_profile` = `custom` (see `lib/agents/sql/hom_agent_runtime_production_stack.sql`). Per-role `temperature` from the profile is honored by `invoke.ts`.
 
