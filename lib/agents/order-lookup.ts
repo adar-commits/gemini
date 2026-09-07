@@ -225,12 +225,15 @@ export function describeShipmentStatus(order: OrderShipmentStatus) {
   const coordinateDate = formatHebrewDate(order.raw.ZPIT_COORDATE)
 
   if (hasDeliveryStatusData(order)) {
-    return buildDeliveryStatusMessage({
+    const deliveryMessage = buildDeliveryStatusMessage({
       deliveryStatusId: order.statusCode,
       deliveryStatusDesc: order.statusLabel || "לא ידוע",
       deliveryDate,
       coordinateDate,
     })
+    if (!isUnknownDeliveryStatusMessage(deliveryMessage)) {
+      return deliveryMessage
+    }
   }
 
   const orderStatusMessage = buildOrderStatusMessage(order.orderStatus)
@@ -240,19 +243,7 @@ export function describeShipmentStatus(order: OrderShipmentStatus) {
 }
 
 export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
-  if (hasDeliveryStatusData(order)) {
-    const deliveryMessage = buildDeliveryStatusMessage({
-      deliveryStatusId: order.statusCode,
-      deliveryStatusDesc: order.statusLabel || "לא ידוע",
-      deliveryDate:
-        formatHebrewDate(order.raw.ZPIT_DELDATE) ??
-        formatHebrewDate(order.raw.ZPIT_UDATE),
-      coordinateDate: formatHebrewDate(order.raw.ZPIT_COORDATE),
-    })
-    return isUnknownDeliveryStatusMessage(deliveryMessage)
-  }
-
-  return !buildOrderStatusMessage(order.orderStatus)
+  return isUnknownDeliveryStatusMessage(describeShipmentStatus(order))
 }
 
 function statusAsOfDate(order: OrderShipmentStatus) {

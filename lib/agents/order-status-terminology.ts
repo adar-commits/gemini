@@ -11,7 +11,7 @@ const ORDER_STATUS_COPY: Array<{ pattern: RegExp; message: string }> = [
   },
   {
     pattern: /לוקט/i,
-    message: "ההזמנה נארזה וכעת ממתינה לאיסוף על ידי חברת השליחויות.",
+    message: "ההזמנה נארזה וכעת ממתינה לאיסוף ע׳׳י חברת השליחויות.",
   },
   {
     pattern: /מאושר\s+לביצוע/i,

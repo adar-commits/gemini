@@ -117,4 +117,19 @@ describe("delivery status terminology", () => {
     assert.doesNotMatch(reply, /לגבי הזמנה/)
     assert.doesNotMatch(reply, /סטטוס:/)
   })
+
+  it("builds checked status reply from order status when delivery code is unmapped", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26019842",
+      ZPIT_DELSTATUSCODE: "15",
+      ZPIT_DELSTATUSDES: "משלוח נוצר",
+      ORDSTATUSDES: "מאושר לביצוע",
+      ZPIT_UDATE: "2026-08-30T14:00:00+03:00",
+    })
+    const reply = buildOrderStatusReply(order)
+    assert.match(reply, /בדקתי,/)
+    assert.match(reply, /בתהליכי אריזה/)
+    assert.doesNotMatch(reply, /מאושר לביצוע/)
+    assert.doesNotMatch(reply, /לא ניתן להציג/)
+  })
 })
