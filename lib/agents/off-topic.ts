@@ -44,6 +44,7 @@ export function isHumanHandoffOfferText(text: string) {
     /האם להעביר לנציג שירות/.test(last) ||
     /האם להעביר (?:את )?(?:ה)?פנייה/.test(last) ||
     /האם להעביר ליועץ מכירות/.test(last) ||
+    /(?:אפשר|האם)\s+להעביר\s+(?:את\s+השיחה\s+)?ל(?:יועץ\s+מכירות|נציג)/.test(last) ||
     /(?:להעביר|שאעביר).{0,40}נציג.{0,40}\?/.test(last) ||
     /לא לגמרי הבנתי.*(?:להעביר|נציג)/.test(last) ||
     /שאעביר את השיחה לנציג שירות/.test(last)
@@ -106,6 +107,13 @@ export function isHumanHandoffAffirmation(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
   if (/תודה/u.test(text)) return false
+  if (
+    /^(?:תעביר(?:ו|י)?|העבר(?:ו|י)?)(?:\s+(?:אותי|אותנו))?(?:\s+ל(?:נציג|יועץ)[^\n]{0,30})?[\s,.!?]*$/iu.test(
+      text
+    )
+  ) {
+    return true
+  }
   return /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|מעולה|ok|yes|👍|אוקיי|אוקי|okay)(?:[\s,.!?]|$)/i.test(
     text
   )
@@ -146,6 +154,10 @@ export function inferHumanHandoffAction(
   const last = lastAssistantText(history)
 
   if (/האם להעביר את הפנייה כעת ליועץ מכירות/.test(last)) {
+    return "human_sales"
+  }
+
+  if (/להעביר\s+(?:את\s+השיחה\s+)?ליועץ\s+מכירות/.test(last)) {
     return "human_sales"
   }
 

@@ -8,7 +8,11 @@ import {
   sanitizeCreditRedemptionWording,
   sanitizeRefundPolicyWording,
 } from "@/lib/agents/policy-subjects"
-import { sanitizeRedundantHandoffConfirm } from "@/lib/agents/off-topic"
+import {
+  inferHumanHandoffAction,
+  sanitizeRedundantHandoffConfirm,
+} from "@/lib/agents/off-topic"
+import { normalizeMessageText } from "@/lib/agents/memory"
 import {
   dedupeGreetingBotName,
   ensureSingleCustomerHeader,
@@ -57,7 +61,39 @@ export function validateHomAgentReply(
 
   reply = ensureSingleCustomerHeader(reply)
 
+  const antiRepeat = replaceRepeatedReply(reply, output, history)
+  if (antiRepeat) return antiRepeat
+
   return { ...output, reply }
+}
+
+/**
+ * Never send the exact same reply twice in a row — a repeat means the previous
+ * answer did not help. Apologize and offer a human instead (owner rule).
+ */
+function replaceRepeatedReply(
+  reply: string,
+  output: HomAgentOutput,
+  history: HistoryMessage[]
+): HomAgentOutput | null {
+  if (output.action !== "reply" || !reply.trim()) return null
+
+  const lastAssistant = [...history]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.content.trim())
+  if (!lastAssistant) return null
+  if (normalizeMessageText(lastAssistant.content) !== normalizeMessageText(reply)) {
+    return null
+  }
+
+  const target = inferHumanHandoffAction(history, null)
+  const targetLabel = target === "human_sales" ? "יועץ מכירות" : "נציג שירות"
+  return {
+    action: "reply",
+    reply: `${CUSTOMER_HEADER}
+סליחה, נראה שלא הצלחתי להבין אתכם נכון 🙏
+האם להעביר את השיחה ל${targetLabel} שימשיך מכאן?`,
+  }
 }
 
 const HALLUCINATED_PORTAL_RE = /https?:\/\/(?:www\.)?my\.hom-?group\.co\.il\/?/gi
