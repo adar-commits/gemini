@@ -177,10 +177,10 @@ async function invokeWithTools(ctx: InvokeContext) {
     }
   }
 
-  if (hasLookupMisrouteSignal(result.steps) && !deterministicReply) {
+  if (hasToolRecoverySignal(result.steps) && !deterministicReply) {
     const recovery = await generateText({
       model: ctx.model,
-      system: `${system}\n\nA previous tool call was rejected as misrouted for this turn. Re-evaluate the user's intent semantically and answer directly without calling tools unless explicit order/shipping intent exists.`,
+      system: `${system}\n\nA previous tool call was rejected as misrouted or non-definitive for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool.`,
       messages: [
         ...messages,
         {
@@ -201,7 +201,7 @@ async function invokeWithTools(ctx: InvokeContext) {
       model: ctx.model,
       usage: recovery.usage,
     })
-    setRoutingPath(ctx.conversationId, "v3_lookup_misroute_recover")
+    setRoutingPath(ctx.conversationId, "v3_tool_recover")
 
     const recovered = extractUsableOutput(recovery)
     if (recovered) {
@@ -393,16 +393,26 @@ function extractDeterministicToolReply(
   return null
 }
 
-function hasLookupMisrouteSignal(steps: readonly ToolStep[] | undefined) {
+function hasToolRecoverySignal(steps: readonly ToolStep[] | undefined) {
   for (const step of steps ?? []) {
     for (const result of step.toolResults ?? []) {
       const output = result.output as
         | { ok?: boolean; errorCode?: string; error?: string }
         | undefined
-      if (output?.ok === false && output.errorCode?.startsWith("lookup_")) {
+      if (!output || output.ok !== false) continue
+      if (isRecoverableToolErrorCode(output.errorCode)) {
         return true
       }
     }
   }
   return false
+}
+
+function isRecoverableToolErrorCode(errorCode?: string) {
+  if (!errorCode) return false
+  return (
+    errorCode.startsWith("lookup_") ||
+    errorCode.startsWith("inventory_") ||
+    errorCode.startsWith("document_")
+  )
 }

@@ -9,6 +9,7 @@ describe("inventory tool browsing guard", () => {
       history: [],
     })
     assert.equal(result.ok, false)
+    assert.equal((result as { errorCode?: string }).errorCode, "inventory_misroute")
     assert.match((result as { error: string }).error, /מק״ט/)
   })
 
@@ -19,5 +20,6 @@ describe("inventory tool browsing guard", () => {
       history: [],
     })
     assert.equal(result.ok, false)
+    assert.equal((result as { errorCode?: string }).errorCode, "inventory_misroute")
   })
 })
