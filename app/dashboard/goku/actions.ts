@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache"
 import { approveGokuSuggestion } from "@/lib/agents/goku-trainer"
+import {
+  answerGokuQuestion,
+  dismissGokuQuestion,
+} from "@/lib/agents/goku-questions"
 
 export async function approveGokuSuggestionAction(input: {
   reportId: string
@@ -13,4 +17,21 @@ export async function approveGokuSuggestionAction(input: {
   })
   revalidatePath("/dashboard/goku")
   return result
+}
+
+export async function answerGokuQuestionAction(formData: FormData) {
+  const questionId = String(formData.get("questionId") ?? "").trim()
+  const answer = String(formData.get("answer") ?? "").trim()
+  if (!questionId || !answer) return
+
+  await answerGokuQuestion({ questionId, answer })
+  revalidatePath("/dashboard/goku")
+}
+
+export async function dismissGokuQuestionAction(formData: FormData) {
+  const questionId = String(formData.get("questionId") ?? "").trim()
+  if (!questionId) return
+
+  await dismissGokuQuestion(questionId)
+  revalidatePath("/dashboard/goku")
 }

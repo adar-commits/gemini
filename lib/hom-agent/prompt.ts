@@ -21,11 +21,17 @@ export function buildHomAgentSystemPrompt(input?: {
   history?: HistoryMessage[]
   /** Pre-rendered trainer rules section (see homAgentLearnedRulesSection). */
   learnedRules?: string | null
+  /** Pre-rendered owner Q&A section (see ownerAnswersSection). */
+  ownerAnswers?: string | null
 }) {
   const parts = [readHomBotPrompt()]
 
   parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
   parts.push(selectFaqKb(input?.userText?.trim() ?? ""))
+
+  if (input?.ownerAnswers?.trim()) {
+    parts.push(`\n\n${input.ownerAnswers.trim()}`)
+  }
 
   if (input?.learnedRules?.trim()) {
     parts.push(`\n\n${input.learnedRules.trim()}`)

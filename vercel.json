@@ -13,10 +13,6 @@
       "schedule": "30 5,17 * * *"
     },
     {
-      "path": "/api/cron/goku-review",
-      "schedule": "*/15 * * * *"
-    },
-    {
       "path": "/api/cron/goku-trainer",
       "schedule": "0 * * * *"
     }

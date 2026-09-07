@@ -51,6 +51,10 @@ function maybeScheduleGokuTrainer(
 ) {
   if (action === "reset") scheduleGokuTrainer(conversationId, "reset")
   else if (action === "end") scheduleGokuTrainer(conversationId, "end")
+  else if (action === "human_sales" || action === "human_service") {
+    // "Referred to human" counts as a conversation ending for GOKU review.
+    scheduleGokuTrainer(conversationId, "handoff")
+  }
 }
 
 async function rebuildReturnPickupServiceReplyIfNeeded(input: {

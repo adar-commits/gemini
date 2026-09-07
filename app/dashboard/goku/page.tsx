@@ -10,6 +10,8 @@ import {
   GokuReportFeed,
   GokuStatsBar,
 } from "@/components/goku/goku-report-feed"
+import { GokuQuestionsInbox } from "@/components/goku/goku-questions-inbox"
+import { listGokuQuestions, type GokuQuestionRow } from "@/lib/agents/goku-questions"
 
 export const dynamic = "force-dynamic"
 
@@ -27,11 +29,15 @@ export default async function GokuDashboardPage({
   let reports: GokuReportRow[] = []
   let total = 0
   let error: string | null = null
+  let openQuestions: GokuQuestionRow[] = []
+  let answeredQuestions: GokuQuestionRow[] = []
 
   try {
-    ;[reports, total] = await Promise.all([
+    ;[reports, total, openQuestions, answeredQuestions] = await Promise.all([
       listGokuReports({ limit: PAGE_SIZE, offset }),
       countGokuReports(),
+      listGokuQuestions("open"),
+      listGokuQuestions("answered"),
     ])
   } catch (err) {
     error =
@@ -84,6 +90,7 @@ export default async function GokuDashboardPage({
             avgGrade100={avgGrade100}
             pendingApprovals={pendingApprovals}
           />
+          <GokuQuestionsInbox open={openQuestions} answered={answeredQuestions} />
           <GokuReportFeed reports={reports} />
           {total > PAGE_SIZE ? (
             <GokuPagination page={page} totalPages={totalPages} />

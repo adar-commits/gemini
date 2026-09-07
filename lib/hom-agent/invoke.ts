@@ -1,6 +1,7 @@
 import { generateText, stepCountIs } from "ai"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
 import { homAgentLearnedRulesSection } from "@/lib/agents/learned-rules"
+import { ownerAnswersSection } from "@/lib/agents/goku-questions"
 import { recordTokenUsage } from "@/lib/agent-core/token-usage"
 import { setRoutingPath } from "@/lib/agent-core/turn-metrics"
 import { buildModelMessages } from "@/lib/agents/multimodal"
@@ -19,6 +20,13 @@ const MAX_TOOL_ROUNDS = 2
 /** Error fallback must be cheaper than the primary model, never more expensive. */
 const INVOKE_FALLBACK_MODEL = "anthropic/claude-haiku-4.5"
 
+/**
+ * Gateway-managed prompt caching: adds Anthropic cache markers automatically
+ * (5-min TTL). The big system prompt is re-billed at ~10% on cache hits —
+ * multi-step tool turns and active conversations benefit most.
+ */
+const GATEWAY_PROVIDER_OPTIONS = { gateway: { caching: "auto" as const } }
+
 type InvokeContext = {
   conversationId: string
   turn: UserTurn
@@ -27,6 +35,7 @@ type InvokeContext = {
   phone?: string
   sessionSummary?: string | null
   learnedRules?: string | null
+  ownerAnswers?: string | null
   model: string
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }
@@ -55,6 +64,7 @@ function buildInvokeContext(input: {
   phone?: string
   sessionSummary?: string | null
   learnedRules?: string | null
+  ownerAnswers?: string | null
   modelOverride?: string
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }): InvokeContext {
@@ -66,6 +76,7 @@ function buildInvokeContext(input: {
     phone: input.phone,
     sessionSummary: input.sessionSummary,
     learnedRules: input.learnedRules,
+    ownerAnswers: input.ownerAnswers,
     model: homAgentModel(input.runtime, input.modelOverride),
     runtime: input.runtime,
   }
@@ -82,8 +93,11 @@ export async function invokeHomAgent(input: {
   modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
   const runtime = await bindRuntimeConfig()
-  const learnedRules = await homAgentLearnedRulesSection()
-  const ctx = buildInvokeContext({ ...input, runtime, learnedRules })
+  const [learnedRules, ownerAnswers] = await Promise.all([
+    homAgentLearnedRulesSection(),
+    ownerAnswersSection(),
+  ])
+  const ctx = buildInvokeContext({ ...input, runtime, learnedRules, ownerAnswers })
 
   try {
     return await invokeWithTools(ctx)
@@ -110,6 +124,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     userText: ctx.body,
     history: ctx.history,
     learnedRules: ctx.learnedRules,
+    ownerAnswers: ctx.ownerAnswers,
   })
   const tools = createHomAgentTools({
     body: ctx.body,
@@ -131,6 +146,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     temperature: homAgentTemperature(ctx.runtime),
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
+    providerOptions: GATEWAY_PROVIDER_OPTIONS,
   })
 
   recordTokenUsage({
@@ -188,6 +204,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     temperature: homAgentTemperature(ctx.runtime),
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
+    providerOptions: GATEWAY_PROVIDER_OPTIONS,
   })
 
   recordTokenUsage({
@@ -209,6 +226,7 @@ async function invokeKbOnly(ctx: InvokeContext) {
     userText: ctx.body,
     history: ctx.history,
     learnedRules: ctx.learnedRules,
+    ownerAnswers: ctx.ownerAnswers,
   })
   const messages = buildModelMessages(ctx.history, ctx.turn)
 
@@ -225,6 +243,7 @@ async function invokeKbOnly(ctx: InvokeContext) {
     temperature: homAgentTemperature(ctx.runtime),
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
+    providerOptions: GATEWAY_PROVIDER_OPTIONS,
   })
 
   recordTokenUsage({

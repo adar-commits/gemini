@@ -26,18 +26,18 @@ function restoreEnv(snapshot: Record<string, string | undefined>) {
 }
 
 describe("isGokuTrainerEnabled", () => {
-  it("is off by default", () => {
+  it("is ON by default (owner decision — GOKU inspects every conversation)", () => {
     const snapshot = saveEnv()
     delete process.env.GOKU_TRAINER_ENABLED
-    assert.equal(isGokuTrainerEnabled(), false)
+    assert.equal(isGokuTrainerEnabled(), true)
     restoreEnv(snapshot)
   })
 
-  it("accepts common truthy values", () => {
+  it("can be paused with falsy values", () => {
     const snapshot = saveEnv()
-    for (const value of ["1", "true", "on", "TRUE"]) {
+    for (const value of ["0", "false", "off"]) {
       process.env.GOKU_TRAINER_ENABLED = value
-      assert.equal(isGokuTrainerEnabled(), true, value)
+      assert.equal(isGokuTrainerEnabled(), false, value)
     }
     restoreEnv(snapshot)
   })
@@ -107,9 +107,9 @@ describe("isValidLearnedRuleSuggestion", () => {
 })
 
 describe("runGokuTrainer", () => {
-  it("skips when disabled", async () => {
+  it("skips when explicitly disabled", async () => {
     const snapshot = saveEnv()
-    delete process.env.GOKU_TRAINER_ENABLED
+    process.env.GOKU_TRAINER_ENABLED = "0"
     const result = await runGokuTrainer("12345", "inactivity_close")
     assert.deepEqual(result, { ok: true, skipped: "disabled" })
     restoreEnv(snapshot)

@@ -6,12 +6,15 @@ import {
   type LearnedRuleKind,
 } from "@/lib/agents/learned-rules"
 import { getAgentSupabase } from "@/lib/agents/supabase"
+import { recordTokenUsage } from "@/lib/agent-core/token-usage"
+import { insertGokuQuestions } from "@/lib/agents/goku-questions"
 
 export const GOKU_CLOSE_REASONS = [
   "inactivity_close",
   "reset",
   "end",
   "stale_expire",
+  "handoff",
 ] as const
 
 export type GokuCloseReason = (typeof GOKU_CLOSE_REASONS)[number]
@@ -154,17 +157,14 @@ function safeConversationId(value: string) {
   return value.replace(/[,()]/g, "").slice(0, 200)
 }
 
+/** On by default — set GOKU_TRAINER_ENABLED=0 to pause. */
 export function isGokuTrainerEnabled() {
   const raw = process.env.GOKU_TRAINER_ENABLED?.trim().toLowerCase()
-  return raw === "1" || raw === "true" || raw === "on"
+  return raw !== "0" && raw !== "false" && raw !== "off"
 }
 
 export function gokuTrainerModel() {
-  return (
-    process.env.GOKU_TRAINER_MODEL?.trim() ||
-    process.env.AGENT_MODEL?.trim() ||
-    "anthropic/claude-opus-4.5"
-  )
+  return process.env.GOKU_TRAINER_MODEL?.trim() || "anthropic/claude-fable-5.1"
 }
 
 export function gokuAutoApplyConfidence() {
@@ -476,6 +476,14 @@ export async function analyzeConversationWithGoku(input: {
     output: gokuOutputSchema(),
   })
 
+  recordTokenUsage({
+    conversationId: input.conversationId,
+    purpose: "goku",
+    agent: "master",
+    model,
+    usage: result.usage,
+  })
+
   const output = result.output as GokuLlmOutput
   const grade = Math.min(10, Math.max(1, Math.round(output.grade)))
   return {
@@ -573,6 +581,20 @@ export async function runGokuTrainer(
   })
 
   if (error) throw error
+
+  // Knowledge gaps become open questions for the owner on /dashboard/goku.
+  if (analysis.analysis.kb_gaps?.length) {
+    await insertGokuQuestions({
+      questions: analysis.analysis.kb_gaps,
+      sourceConversationId: conversationId,
+      sourceReportId: reportId,
+    }).catch((gapError) =>
+      console.warn("[goku-trainer] question insert failed", {
+        conversationId,
+        error: gapError instanceof Error ? gapError.message : gapError,
+      })
+    )
+  }
 
   console.log("[goku-trainer] report saved", {
     conversationId,
