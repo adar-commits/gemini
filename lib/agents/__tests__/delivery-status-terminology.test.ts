@@ -6,6 +6,7 @@ import {
 import {
   buildOrderStatusReply,
   mapPriorityOrderRow,
+  orderStatusDatePhrase,
 } from "@/lib/agents/order-lookup"
 
 describe("delivery status terminology", () => {
@@ -131,5 +132,42 @@ describe("delivery status terminology", () => {
     assert.match(reply, /בתהליכי אריזה/)
     assert.doesNotMatch(reply, /מאושר לביצוע/)
     assert.doesNotMatch(reply, /לא ניתן להציג/)
+  })
+
+  it("uses ZPIT_UDATE as last-update date on status replies", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26075921",
+      ORDSTATUSDES: "הושלם",
+      ZPIT_UDATE: "2026-09-07T10:00:00+03:00",
+    })
+    assert.match(orderStatusDatePhrase(order), /נכון לתאריך/)
+    const reply = buildOrderStatusReply(order)
+    assert.match(reply, /נמסרה ליעדה/)
+    assert.match(reply, /נכון לתאריך 7\.9\.2026/)
+  })
+
+  it("uses ZPIT_DELDATE for delivered delivery status 6", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26075921",
+      ZPIT_DELSTATUSCODE: "6",
+      ZPIT_DELSTATUSDES: "נמסר",
+      ZPIT_DELDATE: "2026-09-05T00:00:00+03:00",
+      ZPIT_UDATE: "2026-09-07T10:00:00+03:00",
+    })
+    assert.match(orderStatusDatePhrase(order), /נמסר בתאריך 5\.9\.2026/)
+    const reply = buildOrderStatusReply(order)
+    assert.match(reply, /נמסר באמצעות שליח/)
+    assert.doesNotMatch(reply, /נכון לתאריך/)
+  })
+
+  it("falls back to ZPIT_DELDATE when completed order status lacks UDATE", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26075921",
+      ORDSTATUSDES: "הושלם",
+      ZPIT_DELDATE: "2026-09-05T00:00:00+03:00",
+    })
+    const reply = buildOrderStatusReply(order)
+    assert.match(reply, /נמסרה ליעדה/)
+    assert.match(reply, /נמסר בתאריך 5\.9\.2026/)
   })
 })

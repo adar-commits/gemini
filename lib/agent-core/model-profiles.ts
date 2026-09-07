@@ -18,7 +18,6 @@ export type ModelProfile = {
 }
 
 const SONNET = "anthropic/claude-sonnet-4.6"
-const OPUS = "anthropic/claude-opus-4.6"
 const GPT_55 = "openai/gpt-5.5"
 const FLASH = "google/gemini-2.5-flash"
 const FLASH_LITE = "google/gemini-2.5-flash-lite"

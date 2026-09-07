@@ -290,8 +290,24 @@ export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
   return isUnknownDeliveryStatusMessage(describeShipmentStatus(order))
 }
 
-function statusAsOfDate(order: OrderShipmentStatus) {
-  return formatHebrewDate(order.raw.ZPIT_UDATE) ?? formatHebrewDateTime(order.raw.ZPIT_UDATE)
+/** Customer-facing as-of date for status replies — UDATE by default, DELDATE when delivered (6). */
+export function orderStatusDatePhrase(order: OrderShipmentStatus) {
+  const statusId = String(order.statusCode ?? "").trim()
+  if (statusId === "6") {
+    const deliveryDate = formatHebrewDate(order.raw.ZPIT_DELDATE)
+    if (deliveryDate) return ` נמסר בתאריך ${deliveryDate}`
+  }
+
+  const lastUpdate =
+    formatHebrewDate(order.raw.ZPIT_UDATE) ?? formatHebrewDateTime(order.raw.ZPIT_UDATE)
+  if (lastUpdate) return ` נכון לתאריך ${lastUpdate}`
+
+  if (/הושלם|נמסר/i.test(order.orderStatus ?? "")) {
+    const deliveryDate = formatHebrewDate(order.raw.ZPIT_DELDATE)
+    if (deliveryDate) return ` נמסר בתאריך ${deliveryDate}`
+  }
+
+  return ""
 }
 
 const WEBSITE_BRANCH_NAME = "3000"
@@ -1087,8 +1103,8 @@ export function buildOrderConfirmationClarifyPrompt() {
 export function buildOrderStatusReply(order: OrderShipmentStatus) {
   const body = order.statusDescription?.trim()
   if (!body) return buildApiFailureReply()
-  const asOf = statusAsOfDate(order)
-  const datePhrase = asOf ? ` נכון לתאריך ${asOf}` : ""
+  const dateAlreadyInBody = /(?:נכון לתאריך|נמסר בתאריך|בתאריך \d)/i.test(body)
+  const datePhrase = dateAlreadyInBody ? "" : orderStatusDatePhrase(order)
   return `${CUSTOMER_HEADER}
 בדקתי, ${body}${datePhrase}`
 }
