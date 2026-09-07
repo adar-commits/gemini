@@ -1310,7 +1310,32 @@ function isPhoneLookupConfirmAssistantMessage(content: string) {
 }
 
 function isAlternatePhoneAssistantMessage(content: string) {
-  return /מה מספר הטלפון שבוצעה עליו ההזמנה/i.test(content)
+  return (
+    /מה מספר הטלפון ש(?:בו|בוצעה עליו)\s+(?:בוצעה|ההזמנה)/i.test(content) ||
+    /לא הצלחתי לזהות את מספר הטלפון שממנו מתכתבים/i.test(content)
+  )
+}
+
+function isNoOrdersFoundAssistantMessage(content: string) {
+  return /לא מצאתי הזמנות פעילות לפי הטלפון/i.test(content)
+}
+
+export function isNoOrdersFoundReplyPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return isNoOrdersFoundAssistantMessage(message.content)
+  }
+  return false
+}
+
+export function isOrderLookupPhoneReplyPending(history: HistoryMessage[]) {
+  return (
+    isPhoneLookupConfirmPending(history) ||
+    isAlternatePhoneRequestPending(history) ||
+    isNoOrdersFoundReplyPending(history)
+  )
 }
 
 /**
@@ -1349,6 +1374,16 @@ export function authorizedLookupPhoneFromHistory(
         const typed = userProvidedPhone(reply.content)
         if (typed) authorized = typed
         break
+      }
+    }
+
+    if (isNoOrdersFoundAssistantMessage(message.content)) {
+      for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
+        const reply = history[replyIndex]
+        if (reply.role === "assistant") break
+        if (reply.role !== "user") continue
+        const typed = userProvidedPhone(reply.content)
+        if (typed) authorized = typed
       }
     }
   }
@@ -1514,6 +1549,20 @@ export function buildPhoneLookupConfirmPrompt(whatsappPhone: string) {
 אם לא, אשמח לקבל אותו.`
 }
 
+export function buildInvalidChannelPhonePrompt() {
+  return `${CUSTOMER_HEADER}
+לא הצלחתי לזהות את מספר הטלפון שממנו מתכתבים.
+מה מספר הטלפון שבוצעה עליו ההזמנה? (למשל 050-1234567)`
+}
+
+/** Skip channel confirm when WhatsApp/Landbot phone is not a valid Israeli mobile. */
+export function buildInitialPhoneLookupPrompt(whatsappPhone?: string | null) {
+  if (whatsappPhone?.trim() && channelPhone(whatsappPhone)) {
+    return buildPhoneLookupConfirmPrompt(whatsappPhone)
+  }
+  return buildInvalidChannelPhonePrompt()
+}
+
 export function buildPhoneLookupDeclinedReply() {
   return `${CUSTOMER_HEADER}
 אוקיי במקרה כזה אצטרך להעביר אתכם לנציג שירות אנושי,בסדר?`
@@ -1560,7 +1609,7 @@ export function isAlternatePhoneRequestPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return /מה מספר הטלפון שבוצעה עליו ההזמנה/i.test(message.content)
+    return isAlternatePhoneAssistantMessage(message.content)
   }
   return false
 }
@@ -1857,6 +1906,15 @@ export async function resolveOrderShippingReply(input: {
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
 
+  const typedPhone = userProvidedPhone(body)
+  if (
+    typedPhone &&
+    orderLookupEnabled() &&
+    isOrderLookupPhoneReplyPending(history)
+  ) {
+    return lookupAndStartOrderConfirm(typedPhone, empathize, { history, body })
+  }
+
   if (isOrderStatusDeliveredInThread(history)) {
     if (isOrderOutOfScopeMetadataQuestion(body)) {
       return buildUncertainHandoffReply(body)
@@ -1900,10 +1958,10 @@ export async function resolveOrderShippingReply(input: {
 
     const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
     if (!lookupPhone) {
-      if (whatsappPhone) {
+      if (whatsappPhone && channelPhone(whatsappPhone)) {
         return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
       }
-      return buildPhoneLookupDeclinedReply()
+      return empathize(buildInvalidChannelPhonePrompt())
     }
     return resolveOrderConfirmationFlow({ body, lookupPhone, history })
   }
@@ -1935,7 +1993,9 @@ export async function resolveOrderShippingReply(input: {
 
     if (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body)) {
       const confirmed = channelPhone(whatsappPhone)
-      if (!confirmed) return buildPhoneLookupDeclinedReply()
+      if (!confirmed) {
+        return empathize(buildInvalidChannelPhonePrompt())
+      }
       return lookupAndStartOrderConfirm(confirmed, empathize, { history, body })
     }
 
@@ -1958,8 +2018,10 @@ export async function resolveOrderShippingReply(input: {
 
   if (isOrderNumberRequestPending(history)) {
     if (isOrderNumberUnknownAnswer(body)) {
-      if (whatsappPhone) return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
-      return buildAlternatePhoneRequestPrompt()
+      if (whatsappPhone && channelPhone(whatsappPhone)) {
+        return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+      }
+      return empathize(buildInvalidChannelPhonePrompt())
     }
 
     if (isChannelPhoneSelfReference(body)) {
@@ -1981,7 +2043,7 @@ export async function resolveOrderShippingReply(input: {
     }
 
     if (whatsappPhone) {
-      return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+      return empathize(buildInitialPhoneLookupPrompt(whatsappPhone))
     }
     return buildPhoneLookupDeclinedReply()
   }
@@ -2003,7 +2065,7 @@ export async function resolveOrderShippingReply(input: {
   }
 
   if (whatsappPhone) {
-    return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
+    return empathize(buildInitialPhoneLookupPrompt(whatsappPhone))
   }
   return buildPhoneLookupDeclinedReply()
 }

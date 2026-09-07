@@ -17,11 +17,10 @@ import {
 } from "@/lib/agents/off-topic"
 import {
   extractOrderNumber,
-  isAlternatePhoneRequestPending,
   isChannelPhoneSelfReference,
   isOrderConfirmationNo,
   isOrderConfirmationPending,
-  isPhoneLookupConfirmPending,
+  isOrderLookupPhoneReplyPending,
   isPureOrderConfirmation,
   resolveOrderShippingReply,
   userProvidedPhone,
@@ -135,15 +134,19 @@ export async function runStructuredOrderLookupPreTurn(input: {
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
   const orderConfirmPending = isOrderConfirmationPending(input.history)
-  const phoneLookupPending =
-    isPhoneLookupConfirmPending(input.history) ||
-    isAlternatePhoneRequestPending(input.history)
+  const phoneLookupPending = isOrderLookupPhoneReplyPending(input.history)
+  const typedPhone = userProvidedPhone(body)
 
-  if (!orderConfirmPending && !phoneLookupPending) {
+  if (!orderConfirmPending && !phoneLookupPending && !typedPhone) {
     return { kind: "skip", response: null }
   }
 
-  if (orderConfirmPending && !orderLookupStructuredBinding(body)) {
+  if (
+    orderConfirmPending &&
+    !typedPhone &&
+    !phoneLookupPending &&
+    !orderLookupStructuredBinding(body)
+  ) {
     return { kind: "skip", response: null }
   }
 

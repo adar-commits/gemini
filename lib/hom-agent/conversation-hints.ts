@@ -1,14 +1,17 @@
 import {
+  channelPhone,
   isChannelPhoneSelfReference,
   customerOrderNumberStyleFromHistory,
   isDeliveryEstimateQuestion,
   isOrderConfirmationPending,
   isOrderDeliveryStatusQuestion,
+  isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
   classifyPostPurchaseCase,
   isCreditCodeOnlineRedemptionRequest,
@@ -147,6 +150,22 @@ export function buildConversationHints(input: {
   if (isOrderConfirmationPending(history) && userProvidedPhone(body)) {
     lines.push(
       "Customer sent a phone number during order confirmation — call lookup_order_status with that number immediately; do not repeat the rejected order card."
+    )
+  }
+
+  if (isOrderLookupPhoneReplyPending(history) && userProvidedPhone(body)) {
+    lines.push(
+      "Customer sent the correct/alternate phone for order lookup — call lookup_order_status immediately with that number; do not re-ask channel phone."
+    )
+  }
+
+  if (
+    input.whatsappPhone &&
+    !channelPhone(input.whatsappPhone) &&
+    isShippingStatusQuestion(body)
+  ) {
+    lines.push(
+      "WhatsApp channel phone is not a valid Israeli mobile — ask for the order phone or accept the number the customer typed; never treat the channel id as lookup phone."
     )
   }
 
