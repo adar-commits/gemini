@@ -23,6 +23,7 @@ import {
   resetTrainerConversation,
   splitTrainerResetBody,
 } from "@/lib/landbot/trainer-reset"
+import { scheduleGokuTrainerBeforeTrainerReset } from "@/lib/agents/goku-trainer"
 import {
   isTrainerCorrectionCommand,
   isTrainerQuestionCommand,
@@ -165,6 +166,7 @@ export async function handleLandbotInbound(
   if (isTrainerPhone(options?.phone)) {
     const resetSplit = splitTrainerResetBody(body)
     if (resetSplit.isReset) {
+      await scheduleGokuTrainerBeforeTrainerReset(conversationId)
       await resetTrainerConversation(conversationId)
       const resetReply = buildTrainerResetReply()
       await appendTurn({

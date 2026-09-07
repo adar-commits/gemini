@@ -580,7 +580,14 @@ async function hybridApplySuggestions(
 
 export async function runGokuTrainer(
   conversationId: string,
-  closeReason: GokuCloseReason
+  closeReason: GokuCloseReason,
+  options?: {
+    preloadedTranscript?: TranscriptTurn[]
+    preloadedSessionSummary?: string | null
+    preloadedShadowContext?: ShadowContextRow[]
+    /** Replace an existing report (trainer איפוס re-runs QA on the same conversation id). */
+    forceReplace?: boolean
+  }
 ) {
   if (!isGokuTrainerEnabled()) {
     return { ok: true, skipped: "disabled" as const }
@@ -591,14 +598,19 @@ export async function runGokuTrainer(
     return { ok: false, error: "missing_conversation_id" as const }
   }
 
-  if (await reportExists(conversationId)) {
+  const exists = await reportExists(conversationId)
+  if (exists && !options?.forceReplace) {
     return { ok: true, skipped: "already_reported" as const }
   }
 
   const [transcript, session, shadowContext] = await Promise.all([
-    loadFullConversationTranscript(conversationId),
+    options?.preloadedTranscript
+      ? Promise.resolve(options.preloadedTranscript)
+      : loadFullConversationTranscript(conversationId),
     loadSessionMeta(conversationId),
-    loadShadowContext(conversationId),
+    options?.preloadedShadowContext
+      ? Promise.resolve(options.preloadedShadowContext)
+      : loadShadowContext(conversationId),
   ])
 
   if (transcript.length < 2) {
@@ -609,7 +621,9 @@ export async function runGokuTrainer(
     conversationId,
     closeReason,
     transcript,
-    sessionSummary: asText(session?.conversation_summary) || null,
+    sessionSummary:
+      options?.preloadedSessionSummary ??
+      (asText(session?.conversation_summary) || null),
     shadowContext,
   })
 
@@ -621,6 +635,14 @@ export async function runGokuTrainer(
   )
 
   const supabase = getAgentSupabase()
+  if (exists && options?.forceReplace) {
+    const { error: deleteError } = await supabase
+      .from("hom_agent_goku_reports")
+      .delete()
+      .eq("conversation_id", conversationId)
+    if (deleteError) throw deleteError
+  }
+
   const { error } = await supabase.from("hom_agent_goku_reports").insert({
     id: reportId,
     conversation_id: conversationId,
@@ -669,16 +691,58 @@ export async function runGokuTrainer(
 /** Fire-and-forget — never blocks the reply path. */
 export function scheduleGokuTrainer(
   conversationId: string,
-  closeReason: GokuCloseReason
+  closeReason: GokuCloseReason,
+  options?: {
+    forceReplace?: boolean
+  }
 ) {
   if (!isGokuTrainerEnabled()) return
-  void runGokuTrainer(conversationId, closeReason).catch((error) => {
+  void runGokuTrainer(conversationId, closeReason, options).catch((error) => {
     console.error("[goku-trainer] failed", {
       conversationId,
       closeReason,
       error: error instanceof Error ? error.message : error,
     })
   })
+}
+
+/**
+ * Trainer איפוס deletes message history — snapshot transcript first, then analyze async.
+ */
+export async function scheduleGokuTrainerBeforeTrainerReset(
+  conversationId: string
+) {
+  if (!isGokuTrainerEnabled()) return
+
+  conversationId = safeConversationId(conversationId)
+  if (!conversationId) return
+
+  try {
+    const [transcript, session, shadowContext] = await Promise.all([
+      loadFullConversationTranscript(conversationId),
+      loadSessionMeta(conversationId),
+      loadShadowContext(conversationId),
+    ])
+
+    if (transcript.length < 2) return
+
+    void runGokuTrainer(conversationId, "reset", {
+      preloadedTranscript: transcript,
+      preloadedSessionSummary: asText(session?.conversation_summary) || null,
+      preloadedShadowContext: shadowContext,
+      forceReplace: true,
+    }).catch((error) => {
+      console.error("[goku-trainer] trainer reset failed", {
+        conversationId,
+        error: error instanceof Error ? error.message : error,
+      })
+    })
+  } catch (error) {
+    console.error("[goku-trainer] trainer reset snapshot failed", {
+      conversationId,
+      error: error instanceof Error ? error.message : error,
+    })
+  }
 }
 
 export function gokuGradeTo100(grade: number) {

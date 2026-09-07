@@ -180,6 +180,16 @@ Updated 09.11.25
 - Roomvo: https://www.roomvo.com/my/carpetshop/rooms/
 - Returns portal: https://returns.carpetshop.co.il/
 
+## Additional site-intel coverage (2026-09 crawl)
+
+- Extended crawl-backed intent map is maintained in `lib/agents/kb/carpetshop-site-intel.md`.
+- The map covers major content hubs and aliases used by customers, including:
+- Blog hubs (`/blogs/news`, `/blogs/carpetshop-business-blog`, `/blogs/pozitive-blog`) and common design/care/moving phrasing.
+- Utility pages (`/pages/visualization-page`, `/pages/quiz`, `/pages/pick-your-style`, `/pages/rug-sizes`, `/pages/search-results-page`).
+- Business/designer context (`/pages/b2b`, `/pages/designers`, `/pages/projects`, architect/designer workflow page).
+- OOAK/premium collection landings (`/pages/ooak`, `/pages/דף-לובי-ooak`, Ariana/Kazak/Super-Zigler intros).
+- Time-bound campaign regulations (`/pages/תקנון-*`, `/pages/הטבת-*`) as high-churn references only.
+
 ## Dated promotions — prefer live API via `getCampaigns`
 - Call `get_campaigns` when customer asks about מבצעים, validity, or whether a campaign is still active.
 - Static KB examples below are **fallback only** if the API is unavailable:

@@ -6,6 +6,7 @@ import {
   isValidLearnedRuleSuggestion,
   parseReportSuggestions,
   runGokuTrainer,
+  scheduleGokuTrainerBeforeTrainerReset,
   type GokuSuggestion,
 } from "@/lib/agents/goku-trainer"
 
@@ -122,6 +123,15 @@ describe("parseReportSuggestions", () => {
     ])
     assert.equal(parsed[0]?.rule_text, "כששואלים על החזר — FAQ")
     assert.equal(isValidLearnedRuleSuggestion(parsed[0]!), true)
+  })
+})
+
+describe("scheduleGokuTrainerBeforeTrainerReset", () => {
+  it("no-ops when disabled", async () => {
+    const snapshot = saveEnv()
+    process.env.GOKU_TRAINER_ENABLED = "0"
+    await scheduleGokuTrainerBeforeTrainerReset("12345")
+    restoreEnv(snapshot)
   })
 })
 
