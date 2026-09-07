@@ -155,7 +155,51 @@ async function invokeWithTools(ctx: InvokeContext) {
     }
   }
 
-  return finalizeStructuredOutput(result, ctx, 1)
+  const usable = extractUsableOutput(result)
+  if (usable) {
+    return {
+      output: validateHomAgentReply(usable, ctx.body, ctx.phone, ctx.history),
+      llmCalls: 1,
+      model: ctx.model,
+    }
+  }
+
+  // Guaranteed final word: the step budget was exhausted while the last step was
+  // still a tool call, so there is no sendable text. Run one tool-free
+  // composition pass instead of falling back to the never-stuck template.
+  const toolSummaries = (result.steps ?? [])
+    .flatMap((step) => step.toolResults ?? [])
+    .map((toolResult) => JSON.stringify(toolResult.output))
+    .filter(Boolean)
+
+  const finalWord = await generateText({
+    model: ctx.model,
+    system,
+    messages: [
+      ...messages,
+      {
+        role: "user",
+        content:
+          toolSummaries.length > 0
+            ? `[Tool results — use exactly, do not invent:\n${toolSummaries.join("\n")}\n]\nCompose the final customer reply for: ${ctx.body}`
+            : `[Compose the final customer reply for: ${ctx.body}]`,
+      },
+    ],
+    temperature: homAgentTemperature(ctx.runtime),
+    maxOutputTokens: homAgentMaxTokens(ctx.runtime),
+    output: homAgentOutputSchema(),
+  })
+
+  recordTokenUsage({
+    conversationId: ctx.conversationId,
+    purpose: "faq",
+    agent: "faq",
+    model: ctx.model,
+    usage: finalWord.usage,
+  })
+  setRoutingPath(ctx.conversationId, "v3_final_word")
+
+  return finalizeStructuredOutput(finalWord, ctx, 2)
 }
 
 async function invokeKbOnly(ctx: InvokeContext) {
@@ -199,6 +243,22 @@ async function invokeKbOnly(ctx: InvokeContext) {
 type StructuredResultLike = {
   output?: Partial<HomAgentOutput> | null
   text: string
+}
+
+/** Parsed output with a sendable reply — null means "nothing to say" (needs recovery). */
+function extractUsableOutput(structured: StructuredResultLike): HomAgentOutput | null {
+  let parsed: Partial<HomAgentOutput> | null = null
+  try {
+    parsed = structured.output ?? null
+  } catch {
+    parsed = null
+  }
+  const raw = parsed ?? parseFallbackOutput(structured.text)
+  const reply = raw.reply?.trim() ?? ""
+  const action = normalizeHomAgentAction(raw.action ?? "reply")
+  // Non-reply actions (end/reset/handoffs) are meaningful even without text.
+  if (!reply && action === "reply") return null
+  return { reply, action }
 }
 
 function finalizeStructuredOutput(

@@ -38,7 +38,8 @@ describe("never-stuck mechanism — proof suite", () => {
   it("Layer 1: buildNeverStuckReply is always non-empty and offers a path forward", () => {
     const reply = buildNeverStuckReply()
     assert.match(reply, /^\*הום בוט :\)\*/)
-    assert.match(reply, /אני כאן/)
+    assert.match(reply, /סליחה/)
+    assert.match(reply, /לא הצלחתי להבין/)
     assert.match(reply, /נציג שירות/)
   })
 

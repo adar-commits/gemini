@@ -98,8 +98,8 @@ export function buildLlmFailureReply(options?: { gatewayBudgetExceeded?: boolean
 /** Last-resort customer text when the pipeline produced nothing sendable. */
 export function buildNeverStuckReply() {
   return `${CUSTOMER_HEADER}
-אני כאן — נראה שההודעה לא עברה כמו שצריך.
-אפשר לנסות שוב, או שאעביר לנציג שירות?`
+סליחה, לא הצלחתי להבין את ההודעה 🙏
+אפשר לנסח שוב, או שאעביר לנציג שירות שימשיך מכאן?`
 }
 
 /** Offer service handoff when the pipeline did not finish in time — not "didn't understand". */
