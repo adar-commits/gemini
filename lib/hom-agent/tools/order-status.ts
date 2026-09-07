@@ -14,6 +14,7 @@ import {
   enrichReturnPickupIntake,
   isOrderConfirmationPending,
   isOrderLookupPhoneReplyPending,
+  requiresOrderIdentification,
   resolveOrderShippingReply,
 } from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -37,6 +38,7 @@ export async function executeLookupOrderStatus(input: {
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
+  const needsOrderLookup = requiresOrderIdentification(body, history)
 
   if (
     isPurchaseCompletionStatement(body) &&
@@ -66,6 +68,15 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
+  if (!needsOrderLookup && !returnPickupContextInThread(history, body)) {
+    return {
+      ok: false as const,
+      errorCode: "lookup_misroute",
+      error:
+        "Likely wrong tool call for this turn (no clear order/shipping intent). Do not ask for order/phone. Re-read the customer intent and answer directly from context/KB.",
+    }
+  }
+
   if (returnPickupContextInThread(history, body)) {
     let intake = extractServiceIntake(history, body)
     intake.issueKind = "return_pickup_pending"
@@ -89,6 +100,14 @@ export async function executeLookupOrderStatus(input: {
       history: input.history ?? [],
     })
     const trimmed = reply.trim()
+    if (isNonDefinitiveLookupReply(trimmed)) {
+      return {
+        ok: false as const,
+        errorCode: "lookup_non_definitive",
+        error:
+          "Order lookup returned a non-definitive follow-up for this turn. Treat this as likely misrouted/uncertain tool usage, answer the user directly, and only ask order details if the customer explicitly asks about a specific order status.",
+      }
+    }
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
       ? ("human_service" as const)
       : ("reply" as const)
@@ -100,4 +119,13 @@ export async function executeLookupOrderStatus(input: {
       error: error instanceof Error ? error.message : "Order lookup failed",
     }
   }
+}
+
+function isNonDefinitiveLookupReply(reply: string) {
+  return (
+    /לא הבנתי/i.test(reply) ||
+    /לא זיהיתי מספר טלפון/i.test(reply) ||
+    /האם היא רשומה על המספר/i.test(reply) ||
+    /מה מספר ההזמנה/i.test(reply)
+  )
 }

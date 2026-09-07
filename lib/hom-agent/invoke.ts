@@ -177,6 +177,43 @@ async function invokeWithTools(ctx: InvokeContext) {
     }
   }
 
+  if (hasLookupMisrouteSignal(result.steps) && !deterministicReply) {
+    const recovery = await generateText({
+      model: ctx.model,
+      system: `${system}\n\nA previous tool call was rejected as misrouted for this turn. Re-evaluate the user's intent semantically and answer directly without calling tools unless explicit order/shipping intent exists.`,
+      messages: [
+        ...messages,
+        {
+          role: "user",
+          content: `[Tool call was rejected as misrouted/uncertain. Compose the best direct customer reply for: ${ctx.body}]`,
+        },
+      ],
+      temperature: homAgentTemperature(ctx.runtime),
+      maxOutputTokens: homAgentMaxTokens(ctx.runtime),
+      output: homAgentOutputSchema(),
+      providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    })
+
+    recordTokenUsage({
+      conversationId: ctx.conversationId,
+      purpose: "faq",
+      agent: "faq",
+      model: ctx.model,
+      usage: recovery.usage,
+    })
+    setRoutingPath(ctx.conversationId, "v3_lookup_misroute_recover")
+
+    const recovered = extractUsableOutput(recovery)
+    if (recovered) {
+      return {
+        output: validateHomAgentReply(recovered, ctx.body, ctx.phone, ctx.history),
+        llmCalls: 2,
+        model: ctx.model,
+      }
+    }
+    return finalizeStructuredOutput(recovery, ctx, 2)
+  }
+
   const usable = usableEarly ?? extractUsableOutput(result)
   if (usable) {
     return {
@@ -332,7 +369,9 @@ function isToolFailureTemplateReply(reply: string) {
   return /תקלה זמנית במערכת|לא הצלחתי ל(?:משוך|בדוק) את|לא הבנתי/i.test(reply)
 }
 
-type ToolStep = { toolResults?: ReadonlyArray<{ output?: unknown }> }
+type ToolStep = {
+  toolResults?: ReadonlyArray<{ output?: unknown; toolName?: string }>
+}
 
 /** Operational tools return final customer copy — skip the LLM's own composition, which may contradict live data. */
 function extractDeterministicToolReply(
@@ -352,4 +391,18 @@ function extractDeterministicToolReply(
     }
   }
   return null
+}
+
+function hasLookupMisrouteSignal(steps: readonly ToolStep[] | undefined) {
+  for (const step of steps ?? []) {
+    for (const result of step.toolResults ?? []) {
+      const output = result.output as
+        | { ok?: boolean; errorCode?: string; error?: string }
+        | undefined
+      if (output?.ok === false && output.errorCode?.startsWith("lookup_")) {
+        return true
+      }
+    }
+  }
+  return false
 }
