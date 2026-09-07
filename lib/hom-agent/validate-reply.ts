@@ -74,6 +74,11 @@ function sanitizeLeakedStructuredJson(reply: string) {
   if (!text) return reply
 
   const unfenced = stripJsonFence(text)
+  const candidateFromReplyField = extractReplyField(unfenced)
+  if (candidateFromReplyField) {
+    return normalizeReplyParagraphs(candidateFromReplyField)
+  }
+
   const jsonCandidates = [unfenced, wrapBareJsonKeyValue(unfenced)].filter(Boolean) as string[]
 
   for (const candidate of jsonCandidates) {
@@ -85,13 +90,6 @@ function sanitizeLeakedStructuredJson(reply: string) {
     } catch {
       // keep trying other candidate shapes
     }
-  }
-
-  const leakedKeyMatch = unfenced.match(
-    /^"?reply"?\s*:\s*"([\s\S]+)"\s*(?:,\s*"?action"?\s*:\s*"[^"]*")?\s*$/i
-  )
-  if (leakedKeyMatch?.[1]) {
-    return normalizeReplyParagraphs(unescapeJsonString(leakedKeyMatch[1]))
   }
 
   return normalizeReplyParagraphs(reply)
@@ -107,6 +105,24 @@ function stripJsonFence(text: string) {
 function wrapBareJsonKeyValue(text: string) {
   if (!/^"?reply"?\s*:/.test(text)) return null
   return `{${text}}`
+}
+
+function extractReplyField(text: string) {
+  const replyWithAction = text.match(
+    /"?reply"?\s*:\s*"([\s\S]*?)"\s*,\s*"?action"?\s*:\s*"[^"]*"/i
+  )
+  if (replyWithAction?.[1]) return unescapeJsonString(replyWithAction[1])
+
+  const replyUntilBrace = text.match(/"?reply"?\s*:\s*"([\s\S]*?)"\s*}\s*$/i)
+  if (replyUntilBrace?.[1]) return unescapeJsonString(replyUntilBrace[1])
+
+  const loosePrefix = text.match(/"?reply"?\s*:\s*"([\s\S]*)$/i)
+  if (!loosePrefix?.[1]) return null
+  const normalized = loosePrefix[1]
+    .replace(/"\s*,\s*"?action"?\s*:\s*"[^"]*"[\s\S]*$/i, "")
+    .replace(/"\s*}\s*$/i, "")
+    .trim()
+  return normalized ? unescapeJsonString(normalized) : null
 }
 
 function unescapeJsonString(text: string) {

@@ -94,4 +94,20 @@ describe("anti-repeat guard", () => {
     assert.equal(result.reply.includes('"reply"'), false)
     assert.match(result.reply, /זו פסקה ראשונה\n\nזו פסקה שנייה/)
   })
+
+  it("unwraps leaked reply payload even with header prefix", () => {
+    const result = validateHomAgentReply(
+      {
+        reply:
+          '*הום בוט :)*\n{"reply":"\\nבסדר, אני כאן וממשיך בשבילכם\\n\\n1. תשובה לשאלה הראשונה\\n2. תשובה לשאלה השנייה","action":"reply"}',
+        action: "reply",
+      },
+      "שאלה",
+      undefined,
+      []
+    )
+    assert.equal(result.reply.includes('{"reply"'), false)
+    assert.match(result.reply, /תשובה לשאלה הראשונה/)
+    assert.match(result.reply, /\n\n1\./)
+  })
 })

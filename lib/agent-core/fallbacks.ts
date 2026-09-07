@@ -106,5 +106,5 @@ export function buildNeverStuckReply() {
 export function buildProcessingStuckReply() {
   return `${CUSTOMER_HEADER}
 עדיין מעבד את ההודעה 🙏 זה לוקח קצת יותר מהרגיל.
-להמתין עוד כמה רגעים, או להעביר לנציג שירות?`
+אני ממשיך לעבד עכשיו ואעדכן כאן ברגע שיש תשובה מלאה.`
 }

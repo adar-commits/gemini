@@ -11,7 +11,7 @@ export function priorityPreMessageDelayMs() {
 
 /** Max wait for Priority/n8n tool responses — empty reply after this triggers fallbacks. */
 export const PRIORITY_API_TIMEOUT_MS = Number(
-  process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "15000"
+  process.env.ORDER_LOOKUP_TIMEOUT_MS ?? "8000"
 )
 
 /** Matches legacy and current Priority wait bubbles in thread history. */
