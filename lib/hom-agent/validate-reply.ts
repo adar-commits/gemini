@@ -61,6 +61,7 @@ export function validateHomAgentReply(
   }
 
   reply = ensureSingleCustomerHeader(reply)
+  reply = normalizeReplyParagraphs(reply)
 
   const antiRepeat = replaceRepeatedReply(reply, output, history)
   if (antiRepeat) return antiRepeat
@@ -70,16 +71,61 @@ export function validateHomAgentReply(
 
 function sanitizeLeakedStructuredJson(reply: string) {
   const text = reply.trim()
-  if (!text.startsWith("{")) return reply
-  try {
-    const parsed = JSON.parse(text) as { reply?: unknown }
-    if (typeof parsed.reply === "string" && parsed.reply.trim()) {
-      return parsed.reply.trim()
+  if (!text) return reply
+
+  const unfenced = stripJsonFence(text)
+  const jsonCandidates = [unfenced, wrapBareJsonKeyValue(unfenced)].filter(Boolean) as string[]
+
+  for (const candidate of jsonCandidates) {
+    try {
+      const parsed = JSON.parse(candidate) as { reply?: unknown }
+      if (typeof parsed.reply === "string" && parsed.reply.trim()) {
+        return normalizeReplyParagraphs(parsed.reply)
+      }
+    } catch {
+      // keep trying other candidate shapes
     }
-  } catch {
-    // keep original text when not valid JSON
   }
-  return reply
+
+  const leakedKeyMatch = unfenced.match(
+    /^"?reply"?\s*:\s*"([\s\S]+)"\s*(?:,\s*"?action"?\s*:\s*"[^"]*")?\s*$/i
+  )
+  if (leakedKeyMatch?.[1]) {
+    return normalizeReplyParagraphs(unescapeJsonString(leakedKeyMatch[1]))
+  }
+
+  return normalizeReplyParagraphs(reply)
+}
+
+function stripJsonFence(text: string) {
+  return text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim()
+}
+
+function wrapBareJsonKeyValue(text: string) {
+  if (!/^"?reply"?\s*:/.test(text)) return null
+  return `{${text}}`
+}
+
+function unescapeJsonString(text: string) {
+  return text
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, " ")
+    .trim()
+}
+
+function normalizeReplyParagraphs(text: string) {
+  return text
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, " ")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
 }
 
 /**

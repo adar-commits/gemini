@@ -79,4 +79,19 @@ describe("anti-repeat guard", () => {
     assert.equal(result.reply.includes('{"reply"'), false)
     assert.match(result.reply, /הנה תשובה תקינה/)
   })
+
+  it("unwraps bare reply key leaks and restores paragraph newlines", () => {
+    const result = validateHomAgentReply(
+      {
+        reply:
+          '"reply":"זו פסקה ראשונה\\n\\nזו פסקה שנייה","action":"reply"',
+        action: "reply",
+      },
+      "שאלה",
+      undefined,
+      []
+    )
+    assert.equal(result.reply.includes('"reply"'), false)
+    assert.match(result.reply, /זו פסקה ראשונה\n\nזו פסקה שנייה/)
+  })
 })
