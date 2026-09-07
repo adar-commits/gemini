@@ -48,6 +48,30 @@ export function isHumanHandoffOfferText(text: string) {
   )
 }
 
+/** Bot already committed to transfer — do not also ask "האם להעביר?". */
+export function hasDeclarativeHandoffTransfer(text: string) {
+  return /(?:אני|אנחנו)\s+מעביר(?:ים|ה|א)?\s+את(?:כם|)/i.test(text)
+}
+
+export function sanitizeRedundantHandoffConfirm(reply: string) {
+  if (!hasDeclarativeHandoffTransfer(reply)) return reply
+
+  let text = reply
+  text = text.replace(
+    /\n?\s*לפני\s+ש(?:אני|אנחנו)\s+מעביר[^\n]*(?:האם\s+להעביר[^\n]*)?\??\s*$/gi,
+    ""
+  )
+  text = text.replace(
+    /\n?\s*האם\s+להעביר(?:\s+את)?(?:\s+(?:ה)?)?(?:פנייה|השיחה)?[^\n]*(?:עכשיו|כעת)?\??\s*$/gi,
+    ""
+  )
+  text = text.replace(
+    /\n?\s*להעביר\s+(?:את\s+(?:ה)?(?:פנייה|השיחה)\s+)?ל(?:נציג|יועץ)[^\n]*\??\s*$/gi,
+    ""
+  )
+  return text.replace(/\n{3,}/g, "\n\n").trim()
+}
+
 export function isHumanHandoffPending(history: HistoryMessage[]) {
   return isHumanHandoffOfferText(lastAssistantText(history))
 }

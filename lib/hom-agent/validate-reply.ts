@@ -8,7 +8,7 @@ import {
   sanitizeCreditRedemptionWording,
   sanitizeRefundPolicyWording,
 } from "@/lib/agents/policy-subjects"
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { sanitizeRedundantHandoffConfirm } from "@/lib/agents/off-topic"
 import {
   dedupeGreetingBotName,
   ensureSingleCustomerHeader,
@@ -18,6 +18,7 @@ import {
   sanitizeCustomerAddress,
 } from "@/lib/agents/greeting"
 import type { HistoryMessage } from "@/lib/agents/types"
+import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HomAgentOutput } from "@/lib/hom-agent/output-schema"
 
 export function validateHomAgentReply(
@@ -36,6 +37,7 @@ export function validateHomAgentReply(
   reply = sanitizeDissatisfactionRescueReply(reply)
   reply = sanitizeRefundPolicyWording(reply)
   reply = sanitizeCreditRedemptionWording(reply)
+  reply = sanitizeRedundantHandoffConfirm(reply)
   reply = stripAppendedDeliveryPolicyFromOrderStatus(reply)
   reply = sanitizeHallucinatedPortalUrls(reply, whatsappPhone)
   reply = personalizeReturnsPortalUrls(reply, whatsappPhone)

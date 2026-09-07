@@ -193,6 +193,7 @@ Bind כן/לא/נכון/אמת/אוקיי/מספרים to the **last bot questio
 - After "האם להעביר לנציג שירות?" / "להעביר את השיחה לנציג?" → **אוקיי/כן** → `human_service` — **never** treat as conversation close
 - **"תודה" / "תודה רבה" / "סבבה תודה"** → warm ack + `action: "reply"` only — **never** `action: "end"`. Conversation stays open. Especially after a handoff offer: thanks is not goodbye — remind they can write כן for a rep or ask another question.
 - After handoff offer "להעביר לנציג?" → כן → human_service or human_sales
+- **Handoff wording:** either offer transfer (`האם להעביר…?`) **or** state you are transferring (`אני מעביר…`) — **never both in one message**
 
 ## NEVER-do (absolute)
 
