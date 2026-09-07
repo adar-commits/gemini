@@ -905,7 +905,21 @@ export function isDeliveryEstimateQuestion(body: string) {
     /(?:מה|יש|כמה)\s*(?:ה)?(?:צפי|צפוי(?:ה|ים|ות)?)/i.test(text) ||
     /(?:לוח\s+)?(?:ז)?(?:מנים|מנים)\s+(?:ל)?(?:אספקה|משלוח|קבלה|הגעה)/i.test(text) ||
     /(?:מתי|ממתי)\s+(?:צפוי(?:ה|ים|ות)?|נקבל|ת(?:קב|ג)?יע|מ(?:גיע|סופק))/i.test(text) ||
-    /(?:צפוי(?:ה|ים|ות)?)\s+(?:ל)?(?:הגיע|ל(?:הגיע|אספק)|קבלה)/i.test(text)
+    /(?:צפוי(?:ה|ים|ות)?)\s+(?:ל)?(?:הגיע|ל(?:הגיע|אספק)|קבלה)/i.test(text) ||
+    /(?:מתי|ממתי)\s+(?:היא|הוא|זה)\s+(?:ת)?(?:היה|יהיה|מוכנ)/i.test(text) ||
+    /(?:מתי|ממתי)\s+(?:אפשר|אוכל|יכול(?:ה)?)\s*(?:ל)?(?:אסוף|להגיע|לקחת)/i.test(text)
+  )
+}
+
+/** Customer asks when self-pickup will be possible — no exact date in our data. */
+export function isSelfPickupTimingQuestion(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  if (isDeliveryEstimateQuestion(text)) return true
+  return (
+    /(?:מתי|ממתי).*(?:איסוף\s+עצמי|לאסוף|ל(?:אסוף|קחת)|להגיע\s+ל(?:אסוף|קחת))/i.test(text) ||
+    /(?:מתי|ממתי)\s+(?:היא|הוא|זה)\s+.*(?:מוכנ)/i.test(text) ||
+    /(?:מתי|ממתי)\s+(?:אפשר|אוכל)\s+(?:ל)?(?:אסוף|להגיע)/i.test(text)
   )
 }
 
@@ -1079,6 +1093,79 @@ export function buildOrderStatusReply(order: OrderShipmentStatus) {
 בדקתי, ${body}${datePhrase}`
 }
 
+export function isOrderStatusAlreadySharedInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      !isInactivityAssistantMessage(message.content) &&
+      /בדקתי,/i.test(message.content)
+  )
+}
+
+function normalizedOrderStatusBody(order: OrderShipmentStatus) {
+  return order.statusDescription?.trim() ?? ""
+}
+
+function lastSharedOrderStatusBodyInThread(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (!/בדקתי,/i.test(message.content)) continue
+    const match = message.content.match(/בדקתי,\s*(.+?)(?:\s+נכון לתאריך|$)/is)
+    if (match?.[1]) return match[1].trim()
+  }
+  return ""
+}
+
+function isSelfPickupNotReadyOrder(order: OrderShipmentStatus) {
+  const statusId = String(order.statusCode ?? "").trim()
+  if (statusId === "21") return true
+  return /טרם מוכנה לאיסוף עצמי/i.test(normalizedOrderStatusBody(order))
+}
+
+export function buildSelfPickupTimingUnavailableReply(statusLine?: string) {
+  const prefix = statusLine?.trim()
+    ? `לפי הסטטוס — ${statusLine.trim()}\n`
+    : ""
+  return `${CUSTOMER_HEADER}
+${prefix}אין לי כרגע מידע על מועד מדויק לאיסוף עצמי מהמחסן.
+האם להעביר לנציג שירות שיבדוק ויתעדכן?`
+}
+
+export function resolveOrderStatusFollowUpReply(
+  order: OrderShipmentStatus,
+  body: string,
+  history: HistoryMessage[]
+) {
+  const timingQuestion =
+    isDeliveryEstimateQuestion(body) || isSelfPickupTimingQuestion(body)
+  const statusBody = normalizedOrderStatusBody(order)
+  const statusAlreadyShared = isOrderStatusAlreadySharedInThread(history)
+
+  if (timingQuestion && isSelfPickupNotReadyOrder(order)) {
+    if (statusAlreadyShared) {
+      return buildSelfPickupTimingUnavailableReply()
+    }
+    return buildSelfPickupTimingUnavailableReply(statusBody)
+  }
+
+  if (timingQuestion) {
+    return buildDeliveryEstimatePolicyReply(order)
+  }
+
+  if (statusAlreadyShared) {
+    const priorBody = lastSharedOrderStatusBodyInThread(history)
+    if (priorBody && statusBody && priorBody === statusBody) {
+      if (isSelfPickupNotReadyOrder(order)) {
+        return buildSelfPickupTimingUnavailableReply()
+      }
+      return buildOrderStatusClarificationReply(history)
+    }
+  }
+
+  return buildOrderStatusReply(order)
+}
+
 export function isBotHelpJustDelivered(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
@@ -1099,10 +1186,12 @@ export function isOrderStatusDeliveredInThread(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    if (/בדקתי,/i.test(message.content) && /נכון לתאריך/i.test(message.content)) {
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    if (/בדקתי,/i.test(message.content)) {
       return true
     }
     if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return false
+    if (/נדמה לי שמצאתי את ההזמנה/i.test(message.content)) continue
     if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return false
     break
   }
@@ -1199,7 +1288,7 @@ function lastOrderStatusAssistantText(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    if (/בדקתי,/i.test(message.content) && /נכון לתאריך/i.test(message.content)) {
+    if (/בדקתי,/i.test(message.content)) {
       return message.content
     }
     if (/לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(message.content)) {
@@ -1829,6 +1918,13 @@ async function resolveOrderConfirmationFlow(input: {
   if (pendingOrder && isOrderDeliveryStatusQuestion(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
     if (matched) {
+      if (
+        isSelfPickupTimingQuestion(input.body) ||
+        isDeliveryEstimateQuestion(input.body) ||
+        isOrderStatusAlreadySharedInThread(input.history)
+      ) {
+        return resolveOrderStatusFollowUpReply(matched, input.body, input.history)
+      }
       return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
     }
     return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body)
@@ -2008,7 +2104,7 @@ export async function resolveOrderShippingReply(input: {
         whatsappPhone,
         body,
       })
-      if (order) return buildDeliveryEstimatePolicyReply(order)
+      if (order) return resolveOrderStatusFollowUpReply(order, body, history)
       return buildOrderStatusClarificationReply(history)
     }
 
@@ -2023,11 +2119,7 @@ export async function resolveOrderShippingReply(input: {
         body,
       })
       if (order) {
-        const priorStatus = lastOrderStatusAssistantText(history)
-        if (priorStatus && /בדקתי,/i.test(priorStatus)) {
-          return buildOrderStatusClarificationReply(history)
-        }
-        return buildOrderStatusReply(order)
+        return resolveOrderStatusFollowUpReply(order, body, history)
       }
     }
   }
