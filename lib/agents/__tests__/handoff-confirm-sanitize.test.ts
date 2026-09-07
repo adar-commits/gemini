@@ -2,8 +2,12 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   hasDeclarativeHandoffTransfer,
+  isHumanHandoffPending,
+  isPendingHandoffCustomerReply,
   sanitizeRedundantHandoffConfirm,
 } from "@/lib/agents/off-topic"
+import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
+import type { HistoryMessage } from "@/lib/agents/types"
 import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 describe("sanitizeRedundantHandoffConfirm", () => {
@@ -47,5 +51,37 @@ describe("sanitizeRedundantHandoffConfirm", () => {
       "קוד זיכוי"
     )
     assert.doesNotMatch(output.reply, /האם להעביר/)
+  })
+})
+
+describe("handoff pending after declarative transfer", () => {
+  it("treats declarative transfer as pending handoff", () => {
+    const history = [
+      {
+        role: "assistant" as const,
+        content:
+          "בנושא קוד הזיכוי, אני מעביר אתכם לנציג שירות שיוכל לבדוק את הסטטוס.",
+      },
+    ]
+    assert.equal(isHumanHandoffPending(history), true)
+    assert.equal(isPendingHandoffCustomerReply("כן", history), true)
+  })
+
+  it("pre-turn assigns human_service when customer confirms declarative transfer", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "בנושא קוד הזיכוי, אני מעביר אתכם לנציג שירות שיוכל לבדוק את הסטטוס.",
+      },
+    ]
+    const result = runPreTurnGuards({
+      turn: { text: "כן", media: [] },
+      history,
+    })
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "human_service")
+    assert.match(result.reply, /העברתי/)
   })
 })

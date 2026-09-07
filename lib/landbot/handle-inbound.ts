@@ -2,6 +2,7 @@ import { runCustomerConversation } from "@/lib/agents/conversation"
 import { formatOutboundMessages } from "@/lib/agents/greeting"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { isPendingHandoffCustomerReply } from "@/lib/agents/off-topic"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import {
@@ -48,6 +49,7 @@ import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
 import {
   isHumanThreadActive,
   recordHumanAgentActivity,
+  releaseHumanThread,
 } from "@/lib/landbot/human-takeover"
 import {
   handleTrainerProfileCommand,
@@ -107,15 +109,19 @@ export async function handleLandbotInbound(
     !trainerResetBypass &&
     (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
   ) {
-    return {
-      ok: true,
-      agent: "master",
-      action: "reply",
-      reply: "",
-      duplicateSuppressed: true,
-      mode,
-      skipped: "human_thread_active",
+    const history = await getHistory(conversationId)
+    if (!isPendingHandoffCustomerReply(turnSummary, history)) {
+      return {
+        ok: true,
+        agent: "master",
+        action: "reply",
+        reply: "",
+        duplicateSuppressed: true,
+        mode,
+        skipped: "human_thread_active",
+      }
     }
+    await releaseHumanThread(conversationId)
   }
 
   let customerName = options?.customerName?.trim() || ""
@@ -343,15 +349,19 @@ export async function handleLandbotInbound(
       !trainerResetBypass &&
       (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
     ) {
-      return {
-        ok: true,
-        agent: "master",
-        action: "reply",
-        reply: "",
-        duplicateSuppressed: true,
-        mode,
-        skipped: "human_thread_active",
+      const history = await getHistory(conversationId)
+      if (!isPendingHandoffCustomerReply(body, history)) {
+        return {
+          ok: true,
+          agent: "master",
+          action: "reply",
+          reply: "",
+          duplicateSuppressed: true,
+          mode,
+          skipped: "human_thread_active",
+        }
       }
+      await releaseHumanThread(conversationId)
     }
 
     for (const text of outboundMessages) {

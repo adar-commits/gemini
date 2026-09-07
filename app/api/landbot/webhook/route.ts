@@ -32,8 +32,10 @@ import {
   releaseHumanThread,
   shouldRecordHumanAgentActivity,
 } from "@/lib/landbot/human-takeover"
-import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
+import { getHistory } from "@/lib/agents/memory"
+import { isPendingHandoffCustomerReply } from "@/lib/agents/off-topic"
 import { summarizeTurn } from "@/lib/agents/user-turn"
+import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
 
 export const maxDuration = 300
 export const runtime = "nodejs"
@@ -142,11 +144,16 @@ export async function POST(request: Request) {
     phone,
     summarizeTurn(inbound.turn)
   )
+  const inboundBody = summarizeTurn(inbound.turn)
   if (
     !trainerResetBypass &&
     (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId))
   ) {
-    return NextResponse.json({ ok: true, skipped: "human_thread_active" })
+    const history = await getHistory(inbound.conversationId)
+    if (!isPendingHandoffCustomerReply(inboundBody, history)) {
+      return NextResponse.json({ ok: true, skipped: "human_thread_active" })
+    }
+    await releaseHumanThread(inbound.conversationId)
   }
 
   const replyEnabled = shouldReplyPhone(phone)
@@ -185,6 +192,7 @@ export async function POST(request: Request) {
       await drainConversationBuffer({
         conversationId: inbound.conversationId,
         handler: async (turn) => {
+          const turnBody = summarizeTurn(turn)
           if (
             !trainerResetBypass &&
             (await isHumanThreadActive(
@@ -192,16 +200,20 @@ export async function POST(request: Request) {
               inbound.assignedAgentId
             ))
           ) {
-            lastResult = {
-              ok: true,
-              agent: "master",
-              action: "reply",
-              reply: "",
-              duplicateSuppressed: true,
-              mode: replyEnabled ? "reply" : "shadow",
-              skipped: "human_thread_active",
+            const history = await getHistory(inbound.conversationId)
+            if (!isPendingHandoffCustomerReply(turnBody, history)) {
+              lastResult = {
+                ok: true,
+                agent: "master",
+                action: "reply",
+                reply: "",
+                duplicateSuppressed: true,
+                mode: replyEnabled ? "reply" : "shadow",
+                skipped: "human_thread_active",
+              }
+              return
             }
-            return
+            await releaseHumanThread(inbound.conversationId)
           }
 
           lastResult = await handleLandbotInbound(

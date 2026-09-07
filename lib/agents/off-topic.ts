@@ -73,7 +73,14 @@ export function sanitizeRedundantHandoffConfirm(reply: string) {
 }
 
 export function isHumanHandoffPending(history: HistoryMessage[]) {
-  return isHumanHandoffOfferText(lastAssistantText(history))
+  const last = lastAssistantText(history)
+  return isHumanHandoffOfferText(last) || hasDeclarativeHandoffTransfer(last)
+}
+
+/** Customer answering a pending handoff — must not be silenced by stale takeover flags. */
+export function isPendingHandoffCustomerReply(body: string, history: HistoryMessage[]) {
+  if (!isHumanHandoffPending(history)) return false
+  return isHumanHandoffAffirmation(body) || isHumanHandoffDecline(body)
 }
 
 export function isHumanHandoffAffirmation(body: string) {
