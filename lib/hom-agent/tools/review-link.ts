@@ -5,6 +5,12 @@ export function executeGetBranchReviewLink(input: {
   body: string
   history?: HistoryMessage[]
 }) {
-  const reply = buildBranchReviewLinkReply(input.body, input.history ?? [])
-  return { ok: true as const, reply: reply.trim() }
+  const info = buildBranchReviewLinkReply(input.body, input.history ?? [])
+  // Data-mode: give the model the verified review URL to weave into its own
+  // reply instead of overriding it with a canned message.
+  return {
+    ok: true as const,
+    reviewLinkInfo: info.trim(),
+    note: "Verified Google review link data. Compose the reply yourself — copy the URL EXACTLY, never invent or alter review links.",
+  }
 }
