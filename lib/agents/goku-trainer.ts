@@ -20,12 +20,14 @@ export const GOKU_CLOSE_REASONS = [
 export type GokuCloseReason = (typeof GOKU_CLOSE_REASONS)[number]
 
 export type GokuSuggestionType = "learned_rule" | "kb_edit" | "prompt_edit"
+export type GokuPolicyBucket = "prompt_tweak" | "kb_gap" | "wrong_tool_usage"
 
 export type GokuSuggestionStatus = "proposed" | "applied" | "rejected"
 
 export type GokuSuggestion = {
   id: string
   type: GokuSuggestionType
+  bucket: GokuPolicyBucket
   confidence: number
   title: string
   description: string
@@ -92,6 +94,7 @@ type GokuLlmOutput = {
   analysis: GokuAnalysis
   suggestions: Array<{
     type: GokuSuggestionType
+    bucket?: GokuPolicyBucket
     confidence: number
     title: string
     description: string
@@ -138,6 +141,10 @@ Your job: review a COMPLETE closed conversation and produce actionable retrainin
   Prefer minimal anchored patterns; forbid .* or .+
 - kb_edit: markdown addition/fix for lib/agents/kb/*.md (describe exactly what to add)
 - prompt_edit: change to hom-bot.md system prompt (describe exactly what to change)
+- Every suggestion must include a bucket:
+  - prompt_tweak = prompt/system behavior wording
+  - kb_gap = missing factual knowledge
+  - wrong_tool_usage = wrong tool/timing or LLM-tool boundary issue
 
 grade: 1-10 overall conversation quality (10 = flawless).
 summary: 2-3 Hebrew sentences for the operator.
@@ -170,6 +177,17 @@ export function gokuTrainerModel() {
 export function gokuAutoApplyConfidence() {
   const raw = Number(process.env.GOKU_AUTO_APPLY_CONFIDENCE ?? "0.85")
   if (!Number.isFinite(raw)) return 0.85
+  return Math.min(1, Math.max(0, raw))
+}
+
+export function gokuAutoApplyMode() {
+  const raw = process.env.GOKU_AUTO_APPLY_MODE?.trim().toLowerCase()
+  return raw === "realtime" ? "realtime" : "weekly"
+}
+
+export function gokuWeeklyApplyConfidence() {
+  const raw = Number(process.env.GOKU_WEEKLY_APPLY_CONFIDENCE ?? "0.92")
+  if (!Number.isFinite(raw)) return 0.92
   return Math.min(1, Math.max(0, raw))
 }
 
@@ -229,6 +247,10 @@ function gokuOutputSchema() {
               type: {
                 type: "string",
                 enum: ["learned_rule", "kb_edit", "prompt_edit"],
+              },
+              bucket: {
+                type: "string",
+                enum: ["prompt_tweak", "kb_gap", "wrong_tool_usage"],
               },
               confidence: { type: "number", minimum: 0, maximum: 1 },
               title: { type: "string" },
@@ -388,6 +410,26 @@ function formatShadowForPrompt(rows: ShadowContextRow[]) {
     .join("\n\n")
 }
 
+function resolveSuggestionBucket(input: {
+  bucket?: GokuPolicyBucket
+  type?: GokuSuggestionType
+  title?: string
+  description?: string
+}) {
+  if (input.bucket) return input.bucket
+  if (input.type === "kb_edit") return "kb_gap"
+  if (input.type === "prompt_edit") return "prompt_tweak"
+  const corpus = `${input.title ?? ""} ${input.description ?? ""}`.toLowerCase()
+  if (
+    /tool|lookup|misroute|wrong tool|inventory|document|order status|phone confirm|hijack/.test(
+      corpus
+    )
+  ) {
+    return "wrong_tool_usage"
+  }
+  return "prompt_tweak"
+}
+
 function normalizeSuggestions(
   raw: GokuLlmOutput["suggestions"]
 ): GokuSuggestion[] {
@@ -400,6 +442,7 @@ function normalizeSuggestions(
     return {
       id: randomUUID(),
       type: item.type,
+      bucket: resolveSuggestionBucket(item),
       confidence: Math.min(1, Math.max(0, item.confidence)),
       title: item.title.trim(),
       description: item.description.trim(),
@@ -428,6 +471,12 @@ export function parseReportSuggestions(value: unknown): GokuSuggestion[] {
     return {
       id: String(row.id ?? randomUUID()),
       type,
+      bucket: resolveSuggestionBucket({
+        bucket: row.bucket,
+        type,
+        title: row.title,
+        description: row.description,
+      }),
       confidence: Math.min(1, Math.max(0, Number(row.confidence ?? 0))),
       title: String(row.title ?? "").trim(),
       description: String(row.description ?? "").trim(),
@@ -553,6 +602,10 @@ async function hybridApplySuggestions(
   suggestions: GokuSuggestion[],
   transcript: TranscriptTurn[]
 ) {
+  if (gokuAutoApplyMode() !== "realtime") {
+    return { suggestions, appliedRuleIds: [] as string[] }
+  }
+
   const threshold = gokuAutoApplyConfidence()
   const appliedRuleIds: string[] = []
   const lastUserText =
@@ -905,6 +958,123 @@ async function persistGokuReportSuggestions(
     .eq("id", reportId)
 
   if (error) throw error
+}
+
+export type WeeklyPolicyBuckets = {
+  windowDays: number
+  since: string
+  totals: {
+    prompt_tweak: number
+    kb_gap: number
+    wrong_tool_usage: number
+    ready_high_confidence: number
+  }
+  top: Record<GokuPolicyBucket, Array<{ title: string; confidence: number; reportId: string }>>
+}
+
+export async function listWeeklyPolicyBuckets(windowDays = 7): Promise<WeeklyPolicyBuckets> {
+  const days = Math.max(1, Math.min(windowDays, 30))
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_goku_reports")
+    .select("id, suggestions, created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1000)
+  if (error) throw error
+
+  const threshold = gokuWeeklyApplyConfidence()
+  const suggestions = (data ?? []).flatMap((row) =>
+    parseReportSuggestions(row.suggestions).map((item) => ({
+      ...item,
+      reportId: String(row.id),
+    }))
+  )
+  const proposed = suggestions.filter((item) => item.status === "proposed")
+  const top = {
+    prompt_tweak: [] as Array<{ title: string; confidence: number; reportId: string }>,
+    kb_gap: [] as Array<{ title: string; confidence: number; reportId: string }>,
+    wrong_tool_usage: [] as Array<{ title: string; confidence: number; reportId: string }>,
+  }
+  for (const item of proposed) {
+    top[item.bucket].push({
+      title: item.title,
+      confidence: item.confidence,
+      reportId: item.reportId,
+    })
+  }
+  for (const key of Object.keys(top) as GokuPolicyBucket[]) {
+    top[key] = top[key].sort((a, b) => b.confidence - a.confidence).slice(0, 6)
+  }
+
+  return {
+    windowDays: days,
+    since,
+    totals: {
+      prompt_tweak: proposed.filter((item) => item.bucket === "prompt_tweak").length,
+      kb_gap: proposed.filter((item) => item.bucket === "kb_gap").length,
+      wrong_tool_usage: proposed.filter((item) => item.bucket === "wrong_tool_usage").length,
+      ready_high_confidence: proposed.filter(
+        (item) => item.type === "learned_rule" && item.confidence >= threshold
+      ).length,
+    },
+    top,
+  }
+}
+
+export async function applyWeeklyHighConfidenceSuggestions(windowDays = 7) {
+  const days = Math.max(1, Math.min(windowDays, 30))
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+  const threshold = gokuWeeklyApplyConfidence()
+  const supabase = getAgentSupabase()
+
+  const { data, error } = await supabase
+    .from("hom_agent_goku_reports")
+    .select("*")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(400)
+  if (error) throw error
+
+  let applied = 0
+  let scanned = 0
+  for (const rawRow of (data ?? []) as GokuReportRow[]) {
+    const report = hydrateReportRow(rawRow)
+    const suggestions = [...report.suggestions]
+    const transcript = await loadFullConversationTranscript(report.conversation_id)
+    const lastUserText =
+      [...transcript].reverse().find((turn) => turn.role === "user")?.content ?? undefined
+
+    let changed = false
+    for (let index = 0; index < suggestions.length; index += 1) {
+      const suggestion = suggestions[index]
+      if (suggestion.status !== "proposed") continue
+      if (suggestion.type !== "learned_rule") continue
+      scanned += 1
+      if (suggestion.confidence < threshold) continue
+      const ruleId = await applyLearnedSuggestion(report.id, suggestion, lastUserText).catch(
+        () => null
+      )
+      if (!ruleId) continue
+      suggestions[index] = {
+        ...suggestion,
+        status: "applied",
+        applied_rule_id: ruleId,
+      }
+      report.applied_rule_ids = Array.from(
+        new Set([...(report.applied_rule_ids ?? []), ruleId])
+      )
+      changed = true
+      applied += 1
+    }
+
+    if (changed) {
+      await persistGokuReportSuggestions(report.id, suggestions, report.applied_rule_ids)
+    }
+  }
+
+  return { ok: true as const, window_days: days, threshold, scanned, applied }
 }
 
 export async function findConversationsNeedingGoku(limit = SWEEP_BATCH_SIZE) {

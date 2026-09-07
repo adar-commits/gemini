@@ -22,6 +22,12 @@ export default function DashboardLayout({
             >
               מוצרים
             </Link>
+            <Link
+              href="/dashboard/reliability"
+              className="rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground"
+            >
+              אמינות
+            </Link>
           </nav>
           <span className="hidden text-xs text-muted-foreground sm:block">
             HoM · בקרת שיחות

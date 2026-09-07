@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
 import { isCronAuthorized } from "@/lib/agents/cron-auth"
-import { runGokuTrainerSweep } from "@/lib/agents/goku-trainer"
+import {
+  gokuAutoApplyMode,
+  gokuTrainerModel,
+  gokuWeeklyApplyConfidence,
+  runGokuTrainerSweep,
+} from "@/lib/agents/goku-trainer"
 
 export const maxDuration = 300
 export const runtime = "nodejs"
@@ -14,9 +19,11 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     enabled: process.env.GOKU_TRAINER_ENABLED?.trim() ?? "",
-    model: process.env.GOKU_TRAINER_MODEL?.trim() || "anthropic/claude-opus-4.5",
+    model: gokuTrainerModel(),
+    auto_apply_mode: gokuAutoApplyMode(),
     auto_apply_confidence:
       process.env.GOKU_AUTO_APPLY_CONFIDENCE?.trim() || "0.85",
+    weekly_apply_confidence: gokuWeeklyApplyConfidence(),
     run: "POST /api/cron/goku-trainer with Authorization: Bearer $CRON_SECRET or AGENT_API_KEY",
   })
 }

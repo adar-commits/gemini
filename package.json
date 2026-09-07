@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run test:gold",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:fixtures": "npx tsx --test lib/agents/__tests__/council-fixtures.test.ts lib/landbot/__tests__/allowlist.test.ts"
+    "test:fixtures": "npx tsx --test lib/agents/__tests__/council-fixtures.test.ts lib/landbot/__tests__/allowlist.test.ts",
+    "test:gold": "npx tsx --test lib/agents/__tests__/gold-conversations.test.ts",
+    "test:predeploy": "npm run test:gold && npx tsx --test lib/hom-agent/__tests__/*.test.ts lib/agents/__tests__/*.test.ts lib/agent-core/__tests__/*.test.ts && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

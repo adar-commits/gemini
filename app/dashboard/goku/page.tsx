@@ -2,6 +2,7 @@ import {
   countGokuReports,
   gokuGradeTo100,
   isGokuTrainerEnabled,
+  listWeeklyPolicyBuckets,
   listGokuReports,
   type GokuReportRow,
 } from "@/lib/agents/goku-trainer"
@@ -12,6 +13,7 @@ import {
 } from "@/components/goku/goku-report-feed"
 import { GokuQuestionsInbox } from "@/components/goku/goku-questions-inbox"
 import { listGokuQuestions, type GokuQuestionRow } from "@/lib/agents/goku-questions"
+import { applyWeeklyPolicyAction } from "@/app/dashboard/goku/actions"
 
 export const dynamic = "force-dynamic"
 
@@ -31,13 +33,15 @@ export default async function GokuDashboardPage({
   let error: string | null = null
   let openQuestions: GokuQuestionRow[] = []
   let answeredQuestions: GokuQuestionRow[] = []
+  let weeklyBuckets: Awaited<ReturnType<typeof listWeeklyPolicyBuckets>> | null = null
 
   try {
-    ;[reports, total, openQuestions, answeredQuestions] = await Promise.all([
+    ;[reports, total, openQuestions, answeredQuestions, weeklyBuckets] = await Promise.all([
       listGokuReports({ limit: PAGE_SIZE, offset }),
       countGokuReports(),
       listGokuQuestions("open"),
       listGokuQuestions("answered"),
+      listWeeklyPolicyBuckets(7),
     ])
   } catch (err) {
     error =
@@ -104,6 +108,50 @@ export default async function GokuDashboardPage({
 
           {openQuestions.length > 0 || answeredQuestions.length > 0 ? (
             <GokuQuestionsInbox open={openQuestions} answered={answeredQuestions} />
+          ) : null}
+
+          {weeklyBuckets ? (
+            <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-foreground">
+                  עדכון מדיניות שבועי
+                </h2>
+                <form action={applyWeeklyPolicyAction}>
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white"
+                  >
+                    החל כללים בביטחון גבוה
+                  </button>
+                </form>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl bg-zinc-50 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="text-lg font-bold text-foreground">
+                    {weeklyBuckets.totals.wrong_tool_usage}
+                  </p>
+                  בעיות שימוש בכלים
+                </div>
+                <div className="rounded-xl bg-zinc-50 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="text-lg font-bold text-foreground">
+                    {weeklyBuckets.totals.kb_gap}
+                  </p>
+                  פערי ידע
+                </div>
+                <div className="rounded-xl bg-zinc-50 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="text-lg font-bold text-foreground">
+                    {weeklyBuckets.totals.prompt_tweak}
+                  </p>
+                  שיפורי פרומפט
+                </div>
+                <div className="rounded-xl bg-zinc-50 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="text-lg font-bold text-foreground">
+                    {weeklyBuckets.totals.ready_high_confidence}
+                  </p>
+                  מוכנים להפעלה
+                </div>
+              </div>
+            </section>
           ) : null}
 
           <section className="space-y-4">

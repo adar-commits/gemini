@@ -19,6 +19,17 @@ function typeLabel(type: GokuSuggestion["type"]) {
   }
 }
 
+function bucketLabel(bucket: GokuSuggestion["bucket"]) {
+  switch (bucket) {
+    case "wrong_tool_usage":
+      return "כלים"
+    case "kb_gap":
+      return "ידע"
+    default:
+      return "פרומפט"
+  }
+}
+
 function StatusPill({ status }: { status: GokuSuggestion["status"] }) {
   const config =
     status === "applied"
@@ -52,12 +63,15 @@ function SuggestionRow({
     suggestion.status === "proposed" && suggestion.type === "learned_rule"
 
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl bg-zinc-50/80 px-3.5 py-3 ring-1 ring-black/[0.04]">
+    <div className="flex items-start justify-between gap-3 rounded-xl bg-zinc-50/80 px-3.5 py-3 ring-1 ring-black/4">
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm font-medium leading-snug">{suggestion.title}</p>
-          <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-black/[0.06]">
+          <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-black/6">
             {typeLabel(suggestion.type)}
+          </span>
+          <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-black/6">
+            {bucketLabel(suggestion.bucket)}
           </span>
         </div>
         {suggestion.status === "proposed" ? (

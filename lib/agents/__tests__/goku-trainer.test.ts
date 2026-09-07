@@ -2,6 +2,8 @@ import assert from "node:assert/strict"
 import { afterEach, describe, it } from "node:test"
 import {
   gokuAutoApplyConfidence,
+  gokuAutoApplyMode,
+  gokuWeeklyApplyConfidence,
   isGokuTrainerEnabled,
   isValidLearnedRuleSuggestion,
   parseReportSuggestions,
@@ -13,6 +15,8 @@ import {
 const ENV_KEYS = [
   "GOKU_TRAINER_ENABLED",
   "GOKU_AUTO_APPLY_CONFIDENCE",
+  "GOKU_AUTO_APPLY_MODE",
+  "GOKU_WEEKLY_APPLY_CONFIDENCE",
 ] as const
 
 function saveEnv() {
@@ -63,10 +67,29 @@ describe("gokuAutoApplyConfidence", () => {
   })
 })
 
+describe("goku apply modes", () => {
+  it("defaults to weekly mode with 0.92 threshold", () => {
+    const snapshot = saveEnv()
+    delete process.env.GOKU_AUTO_APPLY_MODE
+    delete process.env.GOKU_WEEKLY_APPLY_CONFIDENCE
+    assert.equal(gokuAutoApplyMode(), "weekly")
+    assert.equal(gokuWeeklyApplyConfidence(), 0.92)
+    restoreEnv(snapshot)
+  })
+
+  it("supports realtime auto apply mode", () => {
+    const snapshot = saveEnv()
+    process.env.GOKU_AUTO_APPLY_MODE = "realtime"
+    assert.equal(gokuAutoApplyMode(), "realtime")
+    restoreEnv(snapshot)
+  })
+})
+
 describe("isValidLearnedRuleSuggestion", () => {
   const base: GokuSuggestion = {
     id: "s1",
     type: "learned_rule",
+    bucket: "prompt_tweak",
     confidence: 0.9,
     title: "route refund timeline",
     description: "route refund questions to FAQ policy",
@@ -114,6 +137,7 @@ describe("parseReportSuggestions", () => {
       {
         id: "s1",
         type: "learned_rule",
+        bucket: "prompt_tweak",
         confidence: 0.9,
         title: "ניתוב",
         description: "כששואלים על החזר — FAQ",
@@ -122,6 +146,7 @@ describe("parseReportSuggestions", () => {
       },
     ])
     assert.equal(parsed[0]?.rule_text, "כששואלים על החזר — FAQ")
+    assert.equal(parsed[0]?.bucket, "prompt_tweak")
     assert.equal(isValidLearnedRuleSuggestion(parsed[0]!), true)
   })
 })

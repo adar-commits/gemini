@@ -1,7 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { approveGokuSuggestion } from "@/lib/agents/goku-trainer"
+import {
+  approveGokuSuggestion,
+  applyWeeklyHighConfidenceSuggestions,
+} from "@/lib/agents/goku-trainer"
 import {
   answerGokuQuestion,
   dismissGokuQuestion,
@@ -41,5 +44,14 @@ export async function dismissGokuQuestionAction(formData: FormData) {
     revalidatePath("/dashboard/goku")
   } catch (error) {
     console.error("[goku-questions] dismiss failed", error)
+  }
+}
+
+export async function applyWeeklyPolicyAction() {
+  try {
+    await applyWeeklyHighConfidenceSuggestions(7)
+    revalidatePath("/dashboard/goku")
+  } catch (error) {
+    console.error("[goku-weekly] apply failed", error)
   }
 }
