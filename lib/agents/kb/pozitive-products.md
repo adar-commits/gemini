@@ -12,6 +12,13 @@ Use these facts for **Pozitive / פוף / bean bag** questions — pre-purchase 
 For **order/shipment status of a specific order** → use order lookup tool, not this section.
 For **returns policy** → main KB (Pozitive: network stores only, no shipment return).
 For **general shipping costs** → main KB shipping policy; FAQ below adds Pozitive-specific delivery-time wording.
+For URL/intent aliases and stale-link handling on Pozitive pages, use `lib/agents/kb/pozitiveshop-site-intel.md`.
+
+## Pozitive URL alias signal (crawl-backed)
+
+- Provided `pozitiveshop.co.il/articles/*` links in the 2026-09 crawl returned `404`.
+- When customers paste these old/shared article links, infer intent from the slug (design tips, cleaning, moving, etc.) and answer from KB if known.
+- Prefer live hubs for follow-up links: `https://www.pozitiveshop.co.il/blogs/news`, `https://www.pozitiveshop.co.il/blogs/pozitive-blog`, and relevant `pages/*` or `policies/*` URLs.
 
 ## When to answer vs when to link tutorials
 
