@@ -4,7 +4,7 @@ create table if not exists public.hom_agent_runtime_config (
   active_profile text not null default 'quality',
   profile_json jsonb not null default '{}'::jsonb,
   routing_mode text not null default 'hybrid',
-  debounce_ms int not null default 3000,
+  debounce_ms int not null default 5000,
   history_limit int not null default 12,
   orchestra_mode text not null default 'off',
   updated_at timestamptz not null default now(),
@@ -22,7 +22,7 @@ values (
     "service": {"model": "openai/gpt-5.5", "temperature": 0.15, "maxOutputTokens": 800}
   }'::jsonb,
   'hybrid',
-  3000,
+  5000,
   12,
   'off',
   'migration'
@@ -30,8 +30,8 @@ values (
 on conflict (id) do nothing;
 
 update public.hom_agent_runtime_config
-set debounce_ms = 3000, updated_at = now(), updated_by = 'migration'
-where id = 'production' and debounce_ms <> 3000;
+set debounce_ms = 5000, updated_at = now(), updated_by = 'migration'
+where id = 'production' and debounce_ms < 5000;
 
 alter table public.hom_agent_runtime_config enable row level security;
 revoke all on table public.hom_agent_runtime_config from anon, authenticated, public;

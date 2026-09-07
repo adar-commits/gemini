@@ -5,8 +5,8 @@ import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { mergeTurns, summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
-const DEFAULT_DEBOUNCE_MS = 3000
-const DEFAULT_FIRST_TURN_DEBOUNCE_MS = 3000
+const DEFAULT_DEBOUNCE_MS = 5000
+const DEFAULT_FIRST_TURN_DEBOUNCE_MS = 10000
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -21,7 +21,7 @@ function configuredDebounceMs() {
 function configuredFirstTurnDebounceMs() {
   const env = Number(process.env.LANDBOT_FIRST_TURN_DEBOUNCE_MS ?? "")
   if (Number.isFinite(env) && env > 0) return env
-  return configuredDebounceMs() ?? DEFAULT_FIRST_TURN_DEBOUNCE_MS
+  return DEFAULT_FIRST_TURN_DEBOUNCE_MS
 }
 
 /** Extra soak for lone short lines — half the quiet window, not a second full wait. */
@@ -41,23 +41,35 @@ async function baseDebounceMs() {
   }
 }
 
+/** Pick quiet-window length from conversation phase — exported for tests. */
+export function pickDebounceWindowMs(input: {
+  extendedOpening: boolean
+  orderConfirmPending: boolean
+  normalMs: number
+  openingMs: number
+}) {
+  if (input.extendedOpening || input.orderConfirmPending) return input.openingMs
+  return input.normalMs
+}
+
 /** Opening customer turn waits longer so rapid first messages merge before routing. */
 export async function debounceWindowMs(conversationId?: string) {
-  if (conversationId) {
-    try {
-      const context = await getConversationContext(conversationId)
-      if (isExtendedOpeningDebounce(context)) {
-        return configuredFirstTurnDebounceMs()
-      }
-      if (isOrderConfirmationPending(context.history)) {
-        return configuredFirstTurnDebounceMs()
-      }
-    } catch {
-      // fall through to default debounce
-    }
-  }
+  const normalMs = await baseDebounceMs()
+  const openingMs = configuredFirstTurnDebounceMs()
 
-  return baseDebounceMs()
+  if (!conversationId) return normalMs
+
+  try {
+    const context = await getConversationContext(conversationId)
+    return pickDebounceWindowMs({
+      extendedOpening: isExtendedOpeningDebounce(context),
+      orderConfirmPending: isOrderConfirmationPending(context.history),
+      normalMs,
+      openingMs,
+    })
+  } catch {
+    return normalMs
+  }
 }
 
 /** Short single-line bursts (e.g. "נכון") often precede a follow-up — soak before handling. */
