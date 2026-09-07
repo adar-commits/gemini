@@ -57,6 +57,7 @@ export function GokuQuestionsInbox({
                   {formatDate(question.created_at)}
                 </time>
               </div>
+
               <form action={answerGokuQuestionAction} className="space-y-2.5">
                 <input type="hidden" name="questionId" value={question.id} />
                 <textarea
@@ -67,21 +68,24 @@ export function GokuQuestionsInbox({
                   placeholder="התשובה העסקית המדויקת…"
                   className="w-full resize-none rounded-xl border-0 bg-zinc-50 px-3.5 py-2.5 text-sm ring-1 ring-black/[0.06] placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
                 />
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     type="submit"
                     className="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
                   >
                     שמור
                   </button>
-                  <button
-                    type="submit"
-                    formAction={dismissGokuQuestionAction}
-                    className="rounded-lg px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-zinc-100"
-                  >
-                    לא רלוונטי
-                  </button>
                 </div>
+              </form>
+
+              <form action={dismissGokuQuestionAction} className="mt-2">
+                <input type="hidden" name="questionId" value={question.id} />
+                <button
+                  type="submit"
+                  className="rounded-lg px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-foreground"
+                >
+                  לא רלוונטי — הסר שאלה
+                </button>
               </form>
             </li>
           ))}

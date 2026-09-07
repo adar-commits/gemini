@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { approveGokuSuggestionAction } from "@/app/dashboard/goku/actions"
 import { Button } from "@/components/ui/button"
 import type { GokuSuggestion } from "@/lib/agents/goku-trainer"
@@ -47,6 +47,7 @@ function SuggestionRow({
   suggestion: GokuSuggestion
 }) {
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
   const canApprove =
     suggestion.status === "proposed" && suggestion.type === "learned_rule"
 
@@ -64,6 +65,9 @@ function SuggestionRow({
             {suggestion.description}
           </p>
         ) : null}
+        {error ? (
+          <p className="text-xs text-red-600">{error}</p>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5">
         <StatusPill status={suggestion.status} />
@@ -73,11 +77,15 @@ function SuggestionRow({
             disabled={pending}
             className="h-7 px-3 text-xs"
             onClick={() => {
+              setError(null)
               startTransition(async () => {
-                await approveGokuSuggestionAction({
+                const result = await approveGokuSuggestionAction({
                   reportId,
                   suggestionId: suggestion.id,
                 })
+                if (!result.ok) {
+                  setError(result.error ?? "האישור נכשל")
+                }
               })
             }}
           >

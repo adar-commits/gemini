@@ -4,6 +4,7 @@ import {
   gokuAutoApplyConfidence,
   isGokuTrainerEnabled,
   isValidLearnedRuleSuggestion,
+  parseReportSuggestions,
   runGokuTrainer,
   type GokuSuggestion,
 } from "@/lib/agents/goku-trainer"
@@ -103,6 +104,24 @@ describe("isValidLearnedRuleSuggestion", () => {
       }),
       true
     )
+  })
+})
+
+describe("parseReportSuggestions", () => {
+  it("fills missing rule_text from description for learned_rule", () => {
+    const parsed = parseReportSuggestions([
+      {
+        id: "s1",
+        type: "learned_rule",
+        confidence: 0.9,
+        title: "ניתוב",
+        description: "כששואלים על החזר — FAQ",
+        rule_kind: "prompt_rule",
+        status: "proposed",
+      },
+    ])
+    assert.equal(parsed[0]?.rule_text, "כששואלים על החזר — FAQ")
+    assert.equal(isValidLearnedRuleSuggestion(parsed[0]!), true)
   })
 })
 

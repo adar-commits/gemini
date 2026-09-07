@@ -391,20 +391,65 @@ function formatShadowForPrompt(rows: ShadowContextRow[]) {
 function normalizeSuggestions(
   raw: GokuLlmOutput["suggestions"]
 ): GokuSuggestion[] {
-  return raw.map((item) => ({
-    id: randomUUID(),
-    type: item.type,
-    confidence: Math.min(1, Math.max(0, item.confidence)),
-    title: item.title.trim(),
-    description: item.description.trim(),
-    rule_kind: item.rule_kind,
-    agent: item.agent?.trim(),
-    pattern: item.pattern?.trim(),
-    route_action: item.route_action?.trim(),
-    rule_text: item.rule_text?.trim(),
-    status: "proposed" as const,
-    applied_rule_id: null,
-  }))
+  return raw.map((item) => {
+    const ruleText =
+      item.rule_text?.trim() ||
+      (item.type === "learned_rule" ? item.description?.trim() : "") ||
+      undefined
+
+    return {
+      id: randomUUID(),
+      type: item.type,
+      confidence: Math.min(1, Math.max(0, item.confidence)),
+      title: item.title.trim(),
+      description: item.description.trim(),
+      rule_kind: item.rule_kind,
+      agent: item.agent?.trim(),
+      pattern: item.pattern?.trim(),
+      route_action: item.route_action?.trim(),
+      rule_text: ruleText,
+      status: "proposed" as const,
+      applied_rule_id: null,
+    }
+  })
+}
+
+export function parseReportSuggestions(value: unknown): GokuSuggestion[] {
+  if (!value) return []
+  const raw = Array.isArray(value) ? value : []
+  return raw.map((item) => {
+    const row = item as Partial<GokuSuggestion>
+    const type = row.type ?? "learned_rule"
+    const ruleText =
+      row.rule_text?.trim() ||
+      (type === "learned_rule" ? row.description?.trim() : "") ||
+      undefined
+
+    return {
+      id: String(row.id ?? randomUUID()),
+      type,
+      confidence: Math.min(1, Math.max(0, Number(row.confidence ?? 0))),
+      title: String(row.title ?? "").trim(),
+      description: String(row.description ?? "").trim(),
+      rule_kind: row.rule_kind,
+      agent: row.agent?.trim(),
+      pattern: row.pattern?.trim(),
+      route_action: row.route_action?.trim(),
+      rule_text: ruleText,
+      status: row.status ?? "proposed",
+      applied_rule_id: row.applied_rule_id ?? null,
+    } satisfies GokuSuggestion
+  })
+}
+
+function hydrateReportRow(row: GokuReportRow): GokuReportRow {
+  return {
+    ...row,
+    suggestions: parseReportSuggestions(row.suggestions),
+    applied_rule_ids: Array.isArray(row.applied_rule_ids)
+      ? row.applied_rule_ids
+      : [],
+  }
 }
 
 export function isValidLearnedRuleSuggestion(suggestion: GokuSuggestion) {
@@ -433,18 +478,26 @@ async function applyLearnedSuggestion(
   suggestion: GokuSuggestion,
   sourceUserText?: string
 ) {
-  if (!isValidLearnedRuleSuggestion(suggestion) || !suggestion.rule_kind) {
+  const resolved: GokuSuggestion = {
+    ...suggestion,
+    rule_text:
+      suggestion.rule_text?.trim() ||
+      suggestion.description?.trim() ||
+      suggestion.title?.trim(),
+  }
+
+  if (!isValidLearnedRuleSuggestion(resolved) || !resolved.rule_kind) {
     return null
   }
 
   return insertLearnedRule({
     gokuReportId: reportId,
     source: "goku_trainer",
-    ruleKind: suggestion.rule_kind,
-    agent: suggestion.agent ?? "all",
-    pattern: suggestion.pattern ?? null,
-    routeAction: suggestion.route_action ?? null,
-    ruleText: suggestion.rule_text!.trim(),
+    ruleKind: resolved.rule_kind,
+    agent: resolved.agent ?? "all",
+    pattern: resolved.pattern ?? null,
+    routeAction: resolved.route_action ?? null,
+    ruleText: resolved.rule_text!.trim(),
     sourceUserText: sourceUserText ?? null,
   })
 }
@@ -672,7 +725,7 @@ export async function listGokuReports(input?: {
 
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as GokuReportRow[]
+  return ((data ?? []) as GokuReportRow[]).map(hydrateReportRow)
 }
 
 export async function getGokuReport(reportId: string) {
@@ -684,57 +737,100 @@ export async function getGokuReport(reportId: string) {
     .maybeSingle()
 
   if (error) throw error
-  return (data as GokuReportRow | null) ?? null
+  return data ? hydrateReportRow(data as GokuReportRow) : null
 }
 
 export async function approveGokuSuggestion(input: {
   reportId: string
   suggestionId: string
 }) {
-  const report = await getGokuReport(input.reportId)
-  if (!report) throw new Error("Report not found")
+  try {
+    const report = await getGokuReport(input.reportId)
+    if (!report) {
+      return { ok: false as const, error: "דוח לא נמצא" }
+    }
 
-  const suggestions = [...report.suggestions]
-  const index = suggestions.findIndex((item) => item.id === input.suggestionId)
-  if (index < 0) throw new Error("Suggestion not found")
+    const suggestions = [...report.suggestions]
+    const index = suggestions.findIndex((item) => item.id === input.suggestionId)
+    if (index < 0) {
+      return { ok: false as const, error: "הצעה לא נמצאה" }
+    }
 
-  const suggestion = suggestions[index]
-  if (suggestion.status === "applied" && suggestion.applied_rule_id) {
+    const suggestion = suggestions[index]
+    if (suggestion.status === "applied") {
+      return {
+        ok: true as const,
+        already_applied: true,
+        rule_id: suggestion.applied_rule_id ?? undefined,
+      }
+    }
+
+    if (suggestion.type !== "learned_rule") {
+      return {
+        ok: false as const,
+        error: "רק הצעות מסוג כלל ניתנות לאישור — עריכות KB/פרומPT ידניות",
+      }
+    }
+
+    const transcript = await loadFullConversationTranscript(report.conversation_id)
+    const lastUserText =
+      [...transcript].reverse().find((turn) => turn.role === "user")?.content ?? null
+
+    const ruleId = await applyLearnedSuggestion(
+      report.id,
+      suggestion,
+      lastUserText ?? undefined
+    )
+
+    if (!ruleId) {
+      if (!isValidLearnedRuleSuggestion({
+        ...suggestion,
+        rule_text:
+          suggestion.rule_text?.trim() ||
+          suggestion.description?.trim() ||
+          suggestion.title?.trim(),
+      })) {
+        suggestions[index] = { ...suggestion, status: "rejected" }
+        await persistGokuReportSuggestions(report.id, suggestions, report.applied_rule_ids)
+        return {
+          ok: false as const,
+          error: "ההצעה לא עברה ולידציה (pattern לא תקין או חסר מידע)",
+        }
+      }
+
+      // Semantic dedup — rule already live with same text.
+      suggestions[index] = { ...suggestion, status: "applied" }
+      await persistGokuReportSuggestions(report.id, suggestions, report.applied_rule_ids)
+      return { ok: true as const, already_applied: true }
+    }
+
+    suggestions[index] = {
+      ...suggestion,
+      status: "applied",
+      applied_rule_id: ruleId,
+    }
+
+    const appliedRuleIds = Array.from(
+      new Set([...(report.applied_rule_ids ?? []), ruleId])
+    )
+
+    await persistGokuReportSuggestions(report.id, suggestions, appliedRuleIds)
+
+    return { ok: true as const, rule_id: ruleId, report_id: report.id }
+  } catch (error) {
+    console.error("[goku-trainer] approve failed", error)
     return {
-      ok: true,
-      already_applied: true,
-      rule_id: suggestion.applied_rule_id,
+      ok: false as const,
+      error: error instanceof Error ? error.message : "אישור ההצעה נכשל",
     }
   }
+}
 
-  if (suggestion.type !== "learned_rule") {
-    throw new Error("Only learned_rule suggestions can be approved into runtime rules")
-  }
-
-  const transcript = await loadFullConversationTranscript(report.conversation_id)
-  const lastUserText =
-    [...transcript].reverse().find((turn) => turn.role === "user")?.content ?? null
-
-  const ruleId = await applyLearnedSuggestion(
-    report.id,
-    suggestion,
-    lastUserText ?? undefined
-  )
-
-  if (!ruleId) {
-    throw new Error("Suggestion failed validation — cannot apply as learned rule")
-  }
-
-  suggestions[index] = {
-    ...suggestion,
-    status: "applied",
-    applied_rule_id: ruleId,
-  }
-
-  const appliedRuleIds = Array.from(
-    new Set([...(report.applied_rule_ids ?? []), ruleId])
-  )
-
+async function persistGokuReportSuggestions(
+  reportId: string,
+  suggestions: GokuSuggestion[],
+  appliedRuleIds: string[]
+) {
   const supabase = getAgentSupabase()
   const { error } = await supabase
     .from("hom_agent_goku_reports")
@@ -742,11 +838,9 @@ export async function approveGokuSuggestion(input: {
       suggestions,
       applied_rule_ids: appliedRuleIds,
     })
-    .eq("id", report.id)
+    .eq("id", reportId)
 
   if (error) throw error
-
-  return { ok: true, rule_id: ruleId, report_id: report.id }
 }
 
 export async function findConversationsNeedingGoku(limit = SWEEP_BATCH_SIZE) {

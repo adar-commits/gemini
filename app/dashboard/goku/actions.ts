@@ -24,14 +24,22 @@ export async function answerGokuQuestionAction(formData: FormData) {
   const answer = String(formData.get("answer") ?? "").trim()
   if (!questionId || !answer) return
 
-  await answerGokuQuestion({ questionId, answer })
-  revalidatePath("/dashboard/goku")
+  try {
+    await answerGokuQuestion({ questionId, answer })
+    revalidatePath("/dashboard/goku")
+  } catch (error) {
+    console.error("[goku-questions] answer failed", error)
+  }
 }
 
 export async function dismissGokuQuestionAction(formData: FormData) {
   const questionId = String(formData.get("questionId") ?? "").trim()
   if (!questionId) return
 
-  await dismissGokuQuestion(questionId)
-  revalidatePath("/dashboard/goku")
+  try {
+    await dismissGokuQuestion(questionId)
+    revalidatePath("/dashboard/goku")
+  } catch (error) {
+    console.error("[goku-questions] dismiss failed", error)
+  }
 }
