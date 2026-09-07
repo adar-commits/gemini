@@ -6,10 +6,12 @@ const kbPath = join(process.cwd(), "lib/agents/kb/faq.md")
 const pozitiveKbPath = join(process.cwd(), "lib/agents/kb/pozitive-products.md")
 const carpetFaqPath = join(process.cwd(), "lib/agents/kb/carpet-products-faq.md")
 const carpetTermsPath = join(process.cwd(), "lib/agents/kb/carpet-terminology.md")
+const carpetSizeGuidePath = join(process.cwd(), "lib/agents/kb/carpet-size-guide.md")
 let cachedKb = ""
 let cachedPozitiveKb = ""
 let cachedCarpetFaqKb = ""
 let cachedCarpetTermsKb = ""
+let cachedCarpetSizeGuideKb = ""
 
 function rawKb() {
   if (!cachedKb) cachedKb = readFileSync(kbPath, "utf8")
@@ -29,6 +31,13 @@ function rawCarpetFaqKb() {
 function rawCarpetTermsKb() {
   if (!cachedCarpetTermsKb) cachedCarpetTermsKb = readFileSync(carpetTermsPath, "utf8")
   return cachedCarpetTermsKb
+}
+
+function rawCarpetSizeGuideKb() {
+  if (!cachedCarpetSizeGuideKb) {
+    cachedCarpetSizeGuideKb = readFileSync(carpetSizeGuidePath, "utf8")
+  }
+  return cachedCarpetSizeGuideKb
 }
 
 /** Pozitive bean-bag product FAQ + assembly/care tutorials. */
@@ -60,6 +69,14 @@ export function shouldIncludeCarpetTerminologyKb(userText = "") {
   return CARPET_TERMINOLOGY_RE.test(userText.trim())
 }
 
+/** Room-by-room size placement guide from carpetshop.co.il/pages/rug-sizes */
+export const CARPET_SIZE_GUIDE_RE =
+  /איז(?:ה|ו)\s*(?:גודל|מידה)|מיד(?:ה|ות)\s*(?:מתאימ|של|ל)|גודל\s*(?:שטיח|מתאים)|(?:שטיח|ראנר).{0,40}(?:לסלון|לחדר|לפינת\s*אוכל|למסדרון|למרפסת|לגינה|לכניסה)|\b\d{2,3}\s*[x×*על]\s*\d{2,3}\b|ספה\s*פינתית|כמה\s*ס"?מ/i
+
+export function shouldIncludeCarpetSizeGuideKb(userText = "") {
+  return CARPET_SIZE_GUIDE_RE.test(userText.trim())
+}
+
 function withCarpetKb(base: string, userText: string, force = false) {
   let next = base
   if (force || shouldIncludeCarpetFaqKb(userText)) {
@@ -67,6 +84,9 @@ function withCarpetKb(base: string, userText: string, force = false) {
   }
   if (force || shouldIncludeCarpetTerminologyKb(userText)) {
     next = `${next.trim()}\n\n${rawCarpetTermsKb()}`
+  }
+  if (force || shouldIncludeCarpetSizeGuideKb(userText)) {
+    next = `${next.trim()}\n\n${rawCarpetSizeGuideKb()}`
   }
   return next
 }

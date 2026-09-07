@@ -606,18 +606,43 @@ export function scheduleGokuTrainer(
   })
 }
 
+export function gokuGradeTo100(grade: number) {
+  const normalized = Math.min(10, Math.max(1, Math.round(grade)))
+  return normalized * 10
+}
+
+export function gokuGradeTone(score100: number) {
+  if (score100 >= 80) return "good" as const
+  if (score100 >= 60) return "ok" as const
+  return "poor" as const
+}
+
+export async function countGokuReports() {
+  const supabase = getAgentSupabase()
+  const { count, error } = await supabase
+    .from("hom_agent_goku_reports")
+    .select("id", { count: "exact", head: true })
+
+  if (error) throw error
+  return count ?? 0
+}
+
 export async function listGokuReports(input?: {
   limit?: number
+  offset?: number
   conversationId?: string
 }) {
   const supabase = getAgentSupabase()
   const limit = Math.min(Math.max(input?.limit ?? 20, 1), 100)
+  const offset = Math.max(input?.offset ?? 0, 0)
+  const from = offset
+  const to = offset + limit - 1
 
   let query = supabase
     .from("hom_agent_goku_reports")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(limit)
+    .range(from, to)
 
   if (input?.conversationId) {
     query = query.eq("conversation_id", safeConversationId(input.conversationId))
