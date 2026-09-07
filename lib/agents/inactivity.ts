@@ -16,7 +16,7 @@ export function buildInactivityPingReply(customerName?: string) {
 }
 
 export function buildInactivityCloseReply() {
-  return `${CUSTOMER_HEADER}\nהפנייה נסגרה עקב אי מענה, ניתן לשלוח הודעה חוזרת לפנייה חדשה`
+  return `${CUSTOMER_HEADER}\nהפנייה נסגרה עקב חוסר פעילות 🙏\nאפשר לשלוח הודעה בכל עת — ואשמח לעזור.`
 }
 
 export function isInactivityPingPending(history: HistoryMessage[]) {
@@ -110,12 +110,13 @@ export function shouldSuppressInactivityWatch(history: HistoryMessage[]) {
   return lastUserIndex < deferAckIndex
 }
 
-/** Ping / close notices — not the bot's real pending question. */
+/** Ping / close notices — not the bot's real pending question. Matches current and legacy wording. */
 export function isInactivityAssistantMessage(content: string) {
   return (
     /עדיין\s+(?:שם|כאן)/.test(content) ||
-    /נסגרה עקב אי מענה/.test(content) ||
+    /נסגרה עקב (?:אי מענה|חוסר פעילות)/.test(content) ||
     /ניתן לשלוח הודעה חוזרת/.test(content) ||
+    /אפשר לשלוח הודעה בכל עת/.test(content) ||
     isInactivityDeferAckMessage(content)
   )
 }
@@ -134,7 +135,7 @@ export function wasClosedForInactivity(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
-    return /נסגרה עקב אי מענה/.test(message.content)
+    return /נסגרה עקב (?:אי מענה|חוסר פעילות)/.test(message.content)
   }
   return false
 }
