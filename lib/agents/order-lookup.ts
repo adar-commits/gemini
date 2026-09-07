@@ -213,9 +213,53 @@ export function countOrderConfirmationPrompts(history: HistoryMessage[]) {
   for (const message of history) {
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
     if (/נדמה לי שמצאתי את ההזמנה/i.test(message.content)) count += 1
   }
   return count
+}
+
+/** Customer says the order card is wrong but another exists on the same phone. */
+export function mentionsAnotherOrderSamePhone(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 120) return false
+  return (
+    /יש\s+עוד\s+(?:אח(?:ת|ד)|הזמנה|מס(?:'|׳|פר)?\s*הזמנה)/i.test(text) ||
+    /(?:מס(?:'|׳|פר)?\s*הזמנה|הזמנה)\s+(?:נוספ(?:ת|ה)|אחר(?:ת)?)/i.test(text) ||
+    /(?:יש|ישנה)\s+(?:ל(?:י|נו)\s+)?(?:עוד\s+)?(?:הזמנה|מס(?:'|׳|פר)?\s*הזמנה)/i.test(text)
+  )
+}
+
+function shownOrderNumbersFromHistory(history: HistoryMessage[]) {
+  const numbers: string[] = []
+  for (const message of history) {
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    const order = extractOrderNumberFromConfirmationPrompt(message.content)
+    if (order) numbers.push(order)
+  }
+  return numbers
+}
+
+function pickNextOrderCandidate(
+  sorted: OrderShipmentStatus[],
+  history: HistoryMessage[]
+) {
+  const shownNumbers = shownOrderNumbersFromHistory(history)
+  if (shownNumbers.length >= MAX_ORDER_PICK_ATTEMPTS) return null
+  for (const order of sorted) {
+    if (!shownNumbers.some((shown) => findOrderByNumber([order], shown))) {
+      return order
+    }
+  }
+  return null
+}
+
+export function buildOrderPickExhaustedHandoffPrompt() {
+  return `${CUSTOMER_HEADER}
+לא הצלחתי לזהות את ההזמנה הנכונה מתוך הרשימה.
+האם להעביר לנציג שירות שיבדוק עבורכם?`
 }
 
 export function describeShipmentStatus(order: OrderShipmentStatus) {
@@ -903,6 +947,9 @@ export function isChannelPhoneSelfReference(body: string) {
       text
     ) ||
     /^מ(?:מנ)?ו\s+(?:אני\s+)?(?:מתכתב|מדבר)/iu.test(text) ||
+    /^(?:אות(?:ו|ה)|אותו)\s+(?:מס(?:'|׳|פר)?(?:\s+טלפון)?|טלפון)(?:[\s,.!?]|$)/iu.test(
+      text
+    ) ||
     isPurePhoneLookupConfirmYes(text)
   )
 }
@@ -1616,7 +1663,18 @@ export function isPhoneLookupConfirmNo(body: string) {
 }
 
 function mentionsAlternatePhoneIntent(body: string) {
-  return /טלפון|מס(?:'|׳|פר)?|אחר|אחות|אח(?:י|ות)?|בעל|אשה|של/i.test(body)
+  if (mentionsAnotherOrderSamePhone(body)) return false
+  const text = body.trim()
+  if (!text) return false
+  return (
+    /טלפון\s*(?:אחר|ש(?:ל|ב)(?:\s|$)|(?:ש(?:ל|ב)\s+(?:אש(?:ת)?י|בעלי|אח(?:י|ות)?י)))/i.test(
+      text
+    ) ||
+    /(?:ע(?:ל|ם)|ב)\s*מס(?:'|׳|פר)?\s*(?:טלפון\s*)?אחר/i.test(text) ||
+    /(?:^|[\s,.!?])(?:אח(?:י|ות)|בעל(?:י)?|אש(?:ת)?י)\s+(?:ש(?:ל|ב)|ע(?:ל|ם))\s*(?:מס(?:'|׳|פר)?|טלפון)/i.test(
+      text
+    )
+  )
 }
 
 export function isAlternatePhoneRequestPending(history: HistoryMessage[]) {
@@ -1716,11 +1774,18 @@ async function lookupAndStartOrderConfirm(
   const orders = await lookupOrdersForPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply(phone)
-  const reply = buildOrderConfirmationPrompt(
-    orders[0]!,
-    context?.history ?? [],
-    context?.body
-  )
+  const conversationId = getPriorityApiLogContext()?.conversationId
+  const priorPhone = conversationId ? recallConversationLookupPhone(conversationId) : null
+  const phoneKey = phoneForOrderApi(phone)
+  const phoneChanged = Boolean(priorPhone && phoneKey && priorPhone !== phoneKey)
+  const history = phoneChanged ? [] : (context?.history ?? [])
+  const sorted = sortOrdersNewestFirst(orders)
+  const next = pickNextOrderCandidate(sorted, history) ?? sorted[0]
+  if (!next) {
+    const reply = buildOrderPickExhaustedHandoffPrompt()
+    return empathize ? empathize(reply) : reply
+  }
+  const reply = buildOrderConfirmationPrompt(next, history, context?.body)
   return empathize ? empathize(reply) : reply
 }
 
@@ -1743,7 +1808,7 @@ async function resolveOrderConfirmationFlow(input: {
   if (orders == null) return buildOrderLookupApiFailureReply()
   if (orders.length === 0) return buildNoOrdersFoundReply(threadLookupPhone)
 
-  const sorted = orders
+  const sorted = sortOrdersNewestFirst(orders)
   const explicitOrder = extractOrderNumber(input.body)
 
   if (explicitOrder) {
@@ -1769,7 +1834,10 @@ async function resolveOrderConfirmationFlow(input: {
     return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body)
   }
 
-  if (pendingOrder && isOrderConfirmationNo(input.body)) {
+  if (
+    pendingOrder &&
+    (isOrderConfirmationNo(input.body) || mentionsAnotherOrderSamePhone(input.body))
+  ) {
     if (userProvidedPhone(input.body)) {
       return lookupAndStartOrderConfirm(userProvidedPhone(input.body)!, undefined, {
         history: input.history,
@@ -1779,13 +1847,12 @@ async function resolveOrderConfirmationFlow(input: {
     if (mentionsAlternatePhoneIntent(input.body)) {
       return buildAlternatePhoneRequestPrompt()
     }
-    const shown = countOrderConfirmationPrompts(input.history)
-    if (shown >= MAX_ORDER_PICK_ATTEMPTS) {
-      return buildAlternatePhoneRequestPrompt()
-    }
-    const nextOrder = sorted[shown]
+    const nextOrder = pickNextOrderCandidate(sorted, input.history)
     if (nextOrder) {
       return buildOrderConfirmationPrompt(nextOrder, input.history, input.body)
+    }
+    if (countOrderConfirmationPrompts(input.history) >= MAX_ORDER_PICK_ATTEMPTS) {
+      return buildOrderPickExhaustedHandoffPrompt()
     }
     return buildAlternatePhoneRequestPrompt()
   }
@@ -1995,6 +2062,20 @@ export async function resolveOrderShippingReply(input: {
     const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) {
       return lookupAndStartOrderConfirm(alternatePhone, empathize, { history, body })
+    }
+    if (isChannelPhoneSelfReference(body) || isPurePhoneLookupConfirmYes(body)) {
+      const confirmed = channelPhone(whatsappPhone)
+      if (confirmed) {
+        return lookupAndStartOrderConfirm(confirmed, empathize, { history, body })
+      }
+    }
+    if (mentionsAnotherOrderSamePhone(body) && isOrderConfirmationPending(history)) {
+      const lookupPhone =
+        resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+        channelPhone(whatsappPhone)
+      if (lookupPhone) {
+        return resolveOrderConfirmationFlow({ body, lookupPhone, history })
+      }
     }
     return `${CUSTOMER_HEADER}
 לא זיהיתי מספר טלפון — שלחו את המספר (למשל 050-1234567).`
