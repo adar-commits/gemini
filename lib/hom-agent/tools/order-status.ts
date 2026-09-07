@@ -7,10 +7,13 @@ import {
 import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
+  isPurchaseCompletionStatement,
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
   enrichReturnPickupIntake,
+  isOrderConfirmationPending,
+  isOrderLookupPhoneReplyPending,
   resolveOrderShippingReply,
 } from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -34,6 +37,18 @@ export async function executeLookupOrderStatus(input: {
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
+
+  if (
+    isPurchaseCompletionStatement(body) &&
+    !isOrderConfirmationPending(history) &&
+    !isOrderLookupPhoneReplyPending(history)
+  ) {
+    return {
+      ok: false as const,
+      error:
+        "Customer only stated they already completed a purchase — no question or problem. Do NOT start an order lookup. Reply warmly yourself: congratulate (e.g. תתחדשו! 😊) and offer further help.",
+    }
+  }
 
   if (isReturnEligibilityQuestion(body, history)) {
     return {

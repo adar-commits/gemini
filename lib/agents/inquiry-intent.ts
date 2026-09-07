@@ -592,6 +592,28 @@ export function isPostPurchaseDissatisfaction(body: string) {
   return classifyPostPurchaseCase(body) === "dissatisfaction"
 }
 
+const PURCHASE_DONE_RE =
+  /(?:כבר\s+)?(?:הזמנתי|רכשתי|קניתי|ביצעתי\s+(?:את\s+)?(?:ה)?הזמנה|עשיתי\s+(?:את\s+)?(?:ה)?הזמנה|סגרתי(?:\s+(?:את\s+)?(?:ה)?הזמנה)?)/i
+
+const PURCHASE_STATEMENT_QUESTION_RE =
+  /[?؟]|(?:^|\s)(?:מתי|איפה|למה|מדוע|כמה|האם|מה\s|איך|סטטוס|צפי)/i
+
+const PURCHASE_STATEMENT_PROBLEM_RE =
+  /(?:לא\s+(?:הגיע|קיבל|מגיע)|עדיין\s+לא|טרם|מתעכב|איחור|בעיה|פגום|פגם|קרוע|לבטל|ביטול|להחזיר|החזרה|החלפה|החזר|זיכוי)/i
+
+/**
+ * Customer states they already completed a purchase (e.g. "עשיתי את ההזמנה דרך הנציג")
+ * with no question or complaint. Deserves a warm acknowledgment — not an order lookup.
+ */
+export function isPurchaseCompletionStatement(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  if (!PURCHASE_DONE_RE.test(text)) return false
+  if (PURCHASE_STATEMENT_QUESTION_RE.test(text)) return false
+  if (PURCHASE_STATEMENT_PROBLEM_RE.test(text)) return false
+  return true
+}
+
 export function isProductDefectComplaint(body: string) {
   return classifyPostPurchaseCase(body) === "defect"
 }
