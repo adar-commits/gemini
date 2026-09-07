@@ -12,6 +12,7 @@ export type TokenPurpose =
   | "split"
   | "summary"
   | "retry"
+  | "goku"
 
 type LanguageModelUsage = {
   inputTokens?: number
