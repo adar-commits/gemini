@@ -4,10 +4,10 @@ set
   active_profile = 'balanced',
   history_limit = 18,
   profile_json = '{
-    "router": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.1, "maxOutputTokens": 96},
-    "faq": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.18, "maxOutputTokens": 700},
-    "sales": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.25, "maxOutputTokens": 700},
-    "service": {"model": "anthropic/claude-sonnet-4.6", "temperature": 0.15, "maxOutputTokens": 700}
+    "router": {"model": "anthropic/claude-haiku-4.5", "temperature": 0.1, "maxOutputTokens": 256},
+    "faq": {"model": "anthropic/claude-sonnet-5", "temperature": 0.18, "maxOutputTokens": 700},
+    "sales": {"model": "anthropic/claude-sonnet-5", "temperature": 0.25, "maxOutputTokens": 700},
+    "service": {"model": "anthropic/claude-sonnet-5", "temperature": 0.15, "maxOutputTokens": 700}
   }'::jsonb,
   updated_at = now(),
   updated_by = 'agent-config-sonnet'

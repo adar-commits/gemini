@@ -8,8 +8,8 @@ import {
 import { getRuntimeConfig, runtimeConfigSnapshot } from "@/lib/agent-core/runtime-config"
 
 const CODE_DEFAULTS = {
-  router: "anthropic/claude-sonnet-4.6",
-  specialist: "anthropic/claude-opus-4.6",
+  router: "anthropic/claude-haiku-4.5",
+  specialist: "anthropic/claude-sonnet-5",
 }
 
 export type InferenceProbeResult = {

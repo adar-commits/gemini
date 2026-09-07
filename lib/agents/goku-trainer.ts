@@ -171,7 +171,7 @@ export function isGokuTrainerEnabled() {
 }
 
 export function gokuTrainerModel() {
-  return process.env.GOKU_TRAINER_MODEL?.trim() || "anthropic/claude-fable-5.1"
+  return process.env.GOKU_TRAINER_MODEL?.trim() || "anthropic/claude-fable-5"
 }
 
 export function gokuAutoApplyConfidence() {
