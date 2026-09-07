@@ -163,7 +163,13 @@ async function invokeWithTools(ctx: InvokeContext) {
   )
 
   const deterministicReply = extractDeterministicToolReply(result.steps)
-  if (deterministicReply) {
+  const usableEarly = deterministicReply ? extractUsableOutput(result) : null
+  if (
+    deterministicReply &&
+    // A tool's canned "temporary system failure" apology must never outrank a
+    // real answer the model composed after seeing that failure.
+    !(usableEarly && isToolFailureTemplateReply(deterministicReply.reply))
+  ) {
     return {
       output: validateHomAgentReply(deterministicReply, ctx.body, ctx.phone, ctx.history),
       llmCalls: 1,
@@ -171,7 +177,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     }
   }
 
-  const usable = extractUsableOutput(result)
+  const usable = usableEarly ?? extractUsableOutput(result)
   if (usable) {
     return {
       output: validateHomAgentReply(usable, ctx.body, ctx.phone, ctx.history),
@@ -319,6 +325,11 @@ function parseFallbackOutput(text: string): HomAgentOutput {
     // fall through
   }
   return { reply: text.trim(), action: "reply" }
+}
+
+/** Canned failure apologies from tools (API down, lookup failed). */
+function isToolFailureTemplateReply(reply: string) {
+  return /תקלה זמנית במערכת|לא הצלחתי ל(?:משוך|בדוק) את/i.test(reply)
 }
 
 type ToolStep = { toolResults?: ReadonlyArray<{ output?: unknown }> }
