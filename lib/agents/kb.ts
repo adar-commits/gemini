@@ -63,7 +63,7 @@ export function shouldIncludeCarpetFaqKb(userText = "") {
 
 /** Glossary + site catalog taxonomy — explain terms and existing categories; not purchase advice. */
 export const CARPET_TERMINOLOGY_RE =
-  /שאגי|shaggy|קילים|kilim|פרסי|persian|אבסטרקט|abstract|מרוק|moroccan|נורד|scandin|קלאסי|classic|עבוד(?:ת|ה)\s*יד|hand\s*made|handmade|מכונה|machine\s*made|צמר|wool|היטסט|hytex|ראנר|runner|מילון|מונח|terminology|סופר\s*זיגלר|ziegler|אפגנ|afghan|אוזבק|uzbek|סומק|maroc|חבל|jute|rope|וינטג|vintage|בוהו|boho|OOAK|יחיד\s*מסוג|סוג(?:י|ים)?\s*(?:של\s*)?שטיח|קטגורי|קולקצי|איז(?:ה|ו)\s*שטיחים|כביס|ג(?:'|׳)וטה|טלאים|בהזמנה\s*אישית|שייפס|אתני|כפרי|אורבני|שבטי|רטרו|קטיפה/i
+  /שאגי|shaggy|קילים|kilim|פרסי|persian|אבסטרקט|abstract|מרוק|moroccan|נורד|scandin|קלאסי|classic|עבוד(?:ת|ה)\s*יד|hand\s*made|handmade|מכונה|machine\s*made|צמר|wool|היטסט|hytex|ראנר|runner|מילון|מונח|terminology|סופר\s*זיגלר|ziegler|אפגנ|afghan|אוזבק|uzbek|סומק|maroc|חבל|jute|rope|וינטג|vintage|בוהו|boho|OOAK|יחיד\s*מסוג|סוג(?:י|ים)?\s*(?:של\s*)?שטיח|קטגורי|קולקצי|איז(?:ה|ו)\s*שטיחים|כביס|ג(?:'|׳)וטה|טלאים|בהזמנה\s*אישית|שייפס|אתני|כפרי|אורבני|שבטי|רטרו|קטיפה|כלב|חתול|בעל(?:י)?\s*חיים|חיות\s*מחמד|קל\s*לניקוי|רחיץ|נעים\s*למגע|סינתטי|מחליק|אנטי\s*סליפ|יוטה|פוליאסטר|פוליפרופילן|ויסקוזה|פוליאמיד|במבוק/i
 
 export function shouldIncludeCarpetTerminologyKb(userText = "") {
   return CARPET_TERMINOLOGY_RE.test(userText.trim())
