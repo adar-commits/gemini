@@ -42,7 +42,7 @@ import {
   isPostPurchaseIntentDeclined,
 } from "@/lib/agents/intent-confirmation"
 import {
-  buildServiceRepHandoffNote,
+  buildServiceRepGoalNote,
   extractServiceIntake,
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
@@ -86,7 +86,7 @@ export function buildConversationHints(input: {
     if (isServiceHandoffSummaryConfirmed(body)) {
       const intake = extractServiceIntake(history, body)
       lines.push(
-        `Service summary was confirmed. Reply briefly, set action \`human_service\`, include rep note: ${buildServiceRepHandoffNote(intake)}`
+        `Service summary was already approved. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence, set action \`human_service\`, and include only this compact rep note: ${buildServiceRepGoalNote(intake)}`
       )
     } else {
       lines.push(

@@ -340,6 +340,13 @@ export function buildServiceRepHandoffNote(intake: ServiceIntake) {
   return `[שירות] ${buildServiceHandoffSummary(intake)}`
 }
 
+/** Compact handoff note for customer-visible transfer replies after confirm. */
+export function buildServiceRepGoalNote(intake: ServiceIntake) {
+  const goal = intake.customerGoal?.trim()
+  if (goal) return `[שירות] מבקשים: ${goal}`
+  return "[שירות] מבקשים: המשך טיפול שירות"
+}
+
 export function isPostPurchaseServiceFlow(history: HistoryMessage[]) {
   return (
     isPostPurchaseIntentConfirmPending(history) ||

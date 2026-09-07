@@ -94,4 +94,21 @@ describe("buildConversationHints", () => {
     assert.match(hints, /business billing name/i)
     assert.match(hints, /HoM purchase invoice/i)
   })
+
+  it("avoids repeating approved recap and keeps only compact מבקשים note", () => {
+    const hints = buildConversationHints({
+      history: [
+        {
+          role: "assistant",
+          content:
+            "*הום בוט :)*\nהבנתי שכבר פתחתם בקשת החזרה...\n\nאז מסכם את הפנייה שלכם עבור נציג שירות הלקוחות שלנו:\n• מס׳ הזמנה: #76501\n• נוצרה בקשת איסוף לחברת השליחויות\n• הלקוח פנה לברר סטטוס איסוף / לזרז את האיסוף\n\nאני צודק?",
+        },
+      ],
+      body: "נכון",
+    })
+    assert.ok(hints)
+    assert.match(hints, /Do NOT repeat the previous recap\/bullets/i)
+    assert.match(hints, /\[שירות\]\s+מבקשים:/)
+    assert.doesNotMatch(hints, /בקשת החזרה כבר הוגשה/)
+  })
 })
