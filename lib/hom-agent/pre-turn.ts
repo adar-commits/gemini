@@ -8,21 +8,14 @@ import {
   isInactivityUnavailableReply,
 } from "@/lib/agents/inactivity"
 import {
-  buildHumanHandoffConfirmedReply,
-  buildHumanHandoffDeclinedReply,
-  inferHumanHandoffAction,
-  isHumanHandoffAffirmation,
-  isHumanHandoffDecline,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import {
   extractOrderNumber,
   isChannelPhoneSelfReference,
-  isOrderConfirmationNo,
   isOrderConfirmationPending,
   isOrderLookupPhoneReplyPending,
-  isPureOrderConfirmation,
   requiresOrderIdentification,
   resolveOrderShippingReply,
   userProvidedPhone,
@@ -50,6 +43,7 @@ export function runPreTurnGuards(input: {
   customerName?: string
 }): PreTurnResult {
   const body = summarizeTurn(input.turn)
+  const explicitThanks = isExplicitThanks(body)
 
   if (turnHasVoiceMessage(input.turn)) {
     return {
@@ -80,22 +74,7 @@ export function runPreTurnGuards(input: {
   }
 
   if (isHumanHandoffPending(input.history)) {
-    if (isHumanHandoffAffirmation(body)) {
-      const action = inferHumanHandoffAction(input.history, null)
-      return {
-        kind: "handled",
-        reply: buildHumanHandoffConfirmedReply(action),
-        action,
-      }
-    }
-    if (isHumanHandoffDecline(body)) {
-      return {
-        kind: "handled",
-        reply: buildHumanHandoffDeclinedReply(),
-        action: "reply",
-      }
-    }
-    if (isThanksAcknowledgment(body)) {
+    if (isThanksAcknowledgment(body) && explicitThanks) {
       return {
         kind: "handled",
         reply: buildThanksAckReply(input.customerName, { handoffPending: true }),
@@ -104,7 +83,11 @@ export function runPreTurnGuards(input: {
     }
   }
 
-  if (isThanksAcknowledgment(body) && isPostHumanHandoff(null, input.history)) {
+  if (
+    isThanksAcknowledgment(body) &&
+    explicitThanks &&
+    isPostHumanHandoff(null, input.history)
+  ) {
     return {
       kind: "handled",
       reply: buildThanksAckReply(input.customerName, { postHandoff: true }),
@@ -114,6 +97,7 @@ export function runPreTurnGuards(input: {
 
   if (
     isThanksAcknowledgment(body) &&
+    explicitThanks &&
     !isOrderConfirmationPending(input.history)
   ) {
     return {
@@ -126,17 +110,21 @@ export function runPreTurnGuards(input: {
   return { kind: "skip", response: null }
 }
 
+function isExplicitThanks(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  return /תוד(?:ה|ים)/iu.test(text) || /\bthanks?\b/i.test(text)
+}
+
 function orderLookupStructuredBinding(body: string) {
   return (
-    isPureOrderConfirmation(body) ||
-    isOrderConfirmationNo(body) ||
     userProvidedPhone(body) != null ||
     isChannelPhoneSelfReference(body) ||
     extractOrderNumber(body) != null
   )
 }
 
-/** Structured mid-flow — bind כן/לא/phone before LLM can paraphrase or miss intent. */
+/** Structured mid-flow — bind explicit identifiers before the LLM call. */
 export async function runStructuredOrderLookupPreTurn(input: {
   turn: UserTurn
   history: HistoryMessage[]
@@ -160,12 +148,7 @@ export async function runStructuredOrderLookupPreTurn(input: {
     return { kind: "skip", response: null }
   }
 
-  if (
-    orderConfirmPending &&
-    !typedPhone &&
-    !phoneLookupPending &&
-    !orderLookupStructuredBinding(body)
-  ) {
+  if (!typedPhone && !orderLookupStructuredBinding(body)) {
     return { kind: "skip", response: null }
   }
 

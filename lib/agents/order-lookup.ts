@@ -989,14 +989,11 @@ export function isChannelPhoneSelfReference(body: string) {
     /^(?:זה|זהו)(?:\s+(?:ה)?(?:מספר(?:\s+(?:ה)?טלפון)?|טלפון))?\s*(?:שלי|שלנו)?(?:[\s,.!?]|$)/iu.test(
       text
     ) ||
-    /^(?:כן\s+)?(?:זה|זהו)\s+(?:ה)?(?:מספר(?:\s+(?:ה)?טלפון)?|טלפון)\s+שלי(?:[\s,.!?]|$)/iu.test(
+    /^(?:זה|זהו)\s+(?:ה)?(?:מספר(?:\s+(?:ה)?טלפון)?|טלפון)\s+שלי(?:[\s,.!?]|$)/iu.test(
       text
     ) ||
     /^מ(?:מנ)?ו\s+(?:אני\s+)?(?:מתכתב|מדבר)/iu.test(text) ||
-    /^(?:אות(?:ו|ה)|אותו)\s+(?:מס(?:'|׳|פר)?(?:\s+טלפון)?|טלפון)(?:[\s,.!?]|$)/iu.test(
-      text
-    ) ||
-    isPurePhoneLookupConfirmYes(text)
+    /^(?:אות(?:ו|ה)|אותו)\s+(?:מס(?:'|׳|פר)?(?:\s+טלפון)?|טלפון)(?:[\s,.!?]|$)/iu.test(text)
   )
 }
 export function isOrderConfirmationPending(history: HistoryMessage[]) {

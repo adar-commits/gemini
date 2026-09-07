@@ -67,7 +67,7 @@ describe("handoff pending after declarative transfer", () => {
     assert.equal(isPendingHandoffCustomerReply("כן", history), true)
   })
 
-  it("pre-turn assigns human_service when customer confirms declarative transfer", () => {
+  it("pre-turn does not consume yes-confirmation on declarative transfer", () => {
     const history: HistoryMessage[] = [
       {
         role: "assistant",
@@ -79,9 +79,6 @@ describe("handoff pending after declarative transfer", () => {
       turn: { text: "כן", media: [] },
       history,
     })
-    assert.equal(result.kind, "handled")
-    if (result.kind !== "handled") return
-    assert.equal(result.action, "human_service")
-    assert.match(result.reply, /העברתי/)
+    assert.equal(result.kind, "skip")
   })
 })

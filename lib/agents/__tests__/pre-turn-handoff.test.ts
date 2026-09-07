@@ -29,7 +29,7 @@ describe("pre-turn voice message", () => {
 })
 
 describe("pre-turn human handoff", () => {
-  it("assigns human_service when customer says אוקיי after order-not-found handoff offer", () => {
+  it("does not consume אוקיי confirmations; LLM owns handoff confirmation semantics", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "איפה ההזמנה שלי?" },
       {
@@ -43,13 +43,10 @@ describe("pre-turn human handoff", () => {
       history,
     })
 
-    assert.equal(result.kind, "handled")
-    if (result.kind !== "handled") return
-    assert.equal(result.action, "human_service")
-    assert.match(result.reply, /העברתי/)
+    assert.equal(result.kind, "skip")
   })
 
-  it("does not close conversation on bare אוקיי when handoff is pending", () => {
+  it("does not consume bare אוקיי when handoff is pending", () => {
     const history: HistoryMessage[] = [
       {
         role: "assistant",
@@ -62,9 +59,7 @@ describe("pre-turn human handoff", () => {
       history,
     })
 
-    assert.equal(result.kind, "handled")
-    if (result.kind !== "handled") return
-    assert.equal(result.action, "human_service")
+    assert.equal(result.kind, "skip")
   })
 
   it("does not close conversation on תודה when handoff is pending", () => {

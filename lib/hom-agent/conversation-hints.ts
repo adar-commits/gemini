@@ -90,7 +90,7 @@ export function buildConversationHints(input: {
       )
     } else {
       lines.push(
-        "Waiting for customer to confirm service summary (אני צודק?). If they correct details, update summary and ask again. If they confirm (כן/נכון), action human_service."
+        "Waiting for customer to confirm service summary (אני צודק?). Treat confirmation semantically (including slang/short affirmations), not as exact keywords. If they correct details, update summary and ask again; if they confirm, action human_service."
       )
     }
   }
@@ -123,7 +123,7 @@ export function buildConversationHints(input: {
       }
     } else {
       lines.push(
-        "You asked 'אני צודק?' on post-purchase intent. Wait for כן/לא; on כן continue the matching playbook."
+        "You asked 'אני צודק?' on post-purchase intent. Treat affirmation/decline semantically (slang and short replies count). On affirmation continue the matching playbook."
       )
     }
   }
@@ -156,7 +156,7 @@ export function buildConversationHints(input: {
 
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
     lines.push(
-      "Order/shipment lookup in progress — bind short replies (כן/כן זה/נכון/המספר שלי) to the pending lookup, not a new topic. Never repeat the order card — the tool handles confirm."
+      "Order/shipment lookup in progress — bind short confirmations or corrections semantically to the pending lookup, not a new topic. Never repeat the order card."
     )
   }
 

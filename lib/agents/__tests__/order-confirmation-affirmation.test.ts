@@ -103,7 +103,7 @@ describe("order confirmation natural affirmations", () => {
     assert.doesNotMatch(reply, /2,791/)
   })
 
-  it("pre-turn binding delivers status on כן זה without LLM paraphrase", async () => {
+  it("pre-turn does not consume כן זה confirmations; LLM owns confirm semantics", async () => {
     resetPriorityApiTurnState()
     bindPriorityApiLogContext({
       conversationId: "conv-noa-kenze",
@@ -117,11 +117,7 @@ describe("order confirmation natural affirmations", () => {
       phone: "+972501234567",
     })
 
-    assert.equal(result.kind, "handled")
-    if (result.kind !== "handled") return
-    assert.match(result.reply, /בדקתי,/)
-    assert.doesNotMatch(result.reply, /לא הבנתי/)
-    assert.doesNotMatch(result.reply, /נדמה לי שמצאתי/)
+    assert.equal(result.kind, "skip")
   })
 
   it("resolveOrderShippingReply does not repeat order card on clarify edge case", async () => {

@@ -58,6 +58,14 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
+  if (isPostPurchaseServiceFlow(history)) {
+    return {
+      ok: false as const,
+      error:
+        "Service handoff in progress — continue summary confirm, not shipping lookup.",
+    }
+  }
+
   if (returnPickupContextInThread(history, body)) {
     let intake = extractServiceIntake(history, body)
     intake.issueKind = "return_pickup_pending"
@@ -71,14 +79,6 @@ export async function executeLookupOrderStatus(input: {
       ok: true as const,
       reply: buildReturnPickupAwaitingServiceReply(intake, body, history),
       action: "reply" as const,
-    }
-  }
-
-  if (isPostPurchaseServiceFlow(history)) {
-    return {
-      ok: false as const,
-      error:
-        "Service handoff in progress — continue summary confirm, not shipping lookup.",
     }
   }
 
