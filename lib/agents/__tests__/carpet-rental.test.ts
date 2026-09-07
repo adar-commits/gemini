@@ -15,8 +15,9 @@ describe("carpet rental policy", () => {
 
   it("answers from KB policy without claiming no information", () => {
     const reply = buildCarpetRentalPolicyReply()
-    assert.match(reply, /לא שירות קבועה/)
+    assert.match(reply, /זה אינו שירות קבוע שמוצע לכל לקוח/)
     assert.match(reply, /שני עיצובים|שני דגמים/i)
+    assert.match(reply, /השאלת שטיח לתקופת ניסיון/)
     assert.match(reply, /יועץ מכירות/)
     assert.doesNotMatch(reply, /אין לי מידע/)
   })

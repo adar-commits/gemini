@@ -21,7 +21,7 @@ Friday: 09:00-14:00.
 Source: https://www.carpetshop.co.il/pages/%D7%A1%D7%A0%D7%99%D7%A4%D7%99%D7%9D-%D7%94%D7%A9%D7%98%D7%99%D7%97-%D7%94%D7%90%D7%93%D7%95%D7%9D
 
 ## Branches — השטיח האדום / shared network
-- באר שבע — הפתיחה בקרוב. המשק 1, מתחם ביג באר שבע. 053-3787354. Hours: א'-ה' 09:30-19:30, ו' 09:00-14:00.
+- באר שבע — המשק 1, מתחם ביג באר שבע. 053-3787354. א'-ה' 09:30-19:30, ו' 09:00-14:00.
 - ראשון לציון — לישנסקי 10. 054-7109910. א'-ה' 09:30-19:30, ו' 09:00-14:00.
 - נתניה — מפי 1. 054-7109808. א'-ה' 09:30-19:30, ו' 09:00-14:00.
 - בני ברק — לח"י 9. 054-7109909. א'-ה' 09:30-19:30, ו' 09:00-14:00.
@@ -52,7 +52,7 @@ Hever: one benefit per transaction. Cannot combine with another benefit.
 Source: https://www.carpetshop.co.il/policies/shipping-policy
 Updated 29.07.26
 - Free home delivery for rugs on purchases over 199 ILS. Under 199 ILS: 29.90 ILS.
-- Free home delivery for self-assembly poufs on purchases over 199 ILS. Under 199 ILS: 29.90 ILS.
+- Free home delivery for poufs בהרכבה עצמית on purchases over 199 ILS. Under 199 ILS: 29.90 ILS.
 - Ready poufs: 100 ILS home delivery.
 - Free self-pickup for certain products from company warehouse, as stated below.
 - Delivery up to 3rd floor without elevator at no extra charge (pilotis counts as a floor). Extra charge from the 4th floor.
@@ -61,7 +61,7 @@ Updated 29.07.26
 - Customer may choose home delivery or self-pickup during checkout.
 - Green tax invoice is sent by SMS when products are packed for shipment.
 - Company supplies only a product paid in full by credit card.
-- Delivery times for rugs and self-assembly poufs: up to 4 business days.
+- Delivery times for rugs and poufs בהרכבה עצמית: up to 4 business days.
 - Delivery times for ready poufs: up to 14 business days.
 - Times counted from credit-card / payment approval, the later of the two, business days only, or another date stated on the order.
 - Friday, Saturday, holiday eves, holidays and Israeli memorial days are not business days.
@@ -78,7 +78,7 @@ Updated 29.07.26
 - Products in a store and not in the warehouse may take up to 14 business days.
 Self-pickup:
 - Free for website customers only.
-- Available only for certain products (rugs that are not OOAK, and self-assembly poufs).
+- Available only for certain products (rugs that are not OOAK, and poufs בהרכבה עצמית).
 - Pickup only after SMS/email/WhatsApp ready notice.
 - Customer must show the pickup notice and invoice.
 - Rugs must be collected within 5 business days of ready notice. If not, the company may cancel without charging for the products. Repeat more than 3 times: company may block future website purchases.
@@ -129,10 +129,10 @@ Source: https://www.carpetshop.co.il/pages/faq
 - Shedding/fluff on a new natural-fiber rug is normal and should lessen over months with regular vacuuming.
 - Custom anti-slip underlay and made-to-order rugs cannot be cancelled.
 
-## Carpet rental / try-before-buy
-- Standard carpet rental is not offered to every customer.
-- In some cases, when a customer is deciding between two designs, a sales advisor may approve paying for the cheaper option and using it temporarily as rental — case by case only, at sales advisor discretion.
-- For rental or try-before-buy eligibility, the customer should speak with a sales advisor.
+## Carpet rental / temporary trial
+- זה אינו שירות קבוע שמוצע לכל לקוח.
+- במקרים מסוימים, כשלקוח מתלבט בין שני דגמים, יועץ המכירות יכול לאשר שימוש זמני לפי שיקול דעתו (לעיתים לפי הדגם הזול מבין השניים) — מקרה-מקרה בלבד.
+- לבדיקת זכאות להשאלת שטיח לתקופת ניסיון יש להפנות ליועץ מכירות.
 
 ## Online consulting terms
 Source: https://www.carpetshop.co.il/pages/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%99%D7%99%D7%A2%D7%95%D7%A5-%D7%90%D7%95%D7%A0%D7%9C%D7%99%D7%99%D7%9F-%D7%91%D7%90%D7%AA%D7%A8

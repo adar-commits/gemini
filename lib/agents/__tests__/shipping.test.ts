@@ -71,7 +71,7 @@ describe("stripAppendedDeliveryPolicyFromOrderStatus", () => {
   })
 
   it("leaves general shipping policy FAQ untouched", () => {
-    const policy = "לשטיחים ולפופים ל-self assembly: עד 4 ימי עסקים"
+    const policy = "לשטיחים ולפופים בהרכבה עצמית: עד 4 ימי עסקים"
     assert.equal(stripAppendedDeliveryPolicyFromOrderStatus(policy), policy)
   })
 })

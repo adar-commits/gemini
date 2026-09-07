@@ -10,7 +10,7 @@ function hasDeliveryStatusData(order: OrderShipmentStatus) {
 }
 
 const SELF_ASSEMBLY_SLA =
-  "לשטיחים ולפופים ל-self assembly: עד 4 ימי עסקים ממועד אישור התשלום (לא כולל שישי, שבת וחגים)."
+  "לשטיחים ולפופים בהרכבה עצמית: עד 4 ימי עסקים ממועד אישור התשלום (לא כולל שישי, שבת וחגים)."
 const READY_POOF_SLA = "לפופים מוכנים: עד 14 ימי עסקים."
 const COURIER_COORDINATES =
   "השליח יתאם איתכם טלפונית את מועד האספקה — לא ניתן לקבוע תאריך מדויק מראש."

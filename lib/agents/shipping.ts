@@ -134,9 +134,9 @@ export function isShippingStatusQuestion(body: string) {
 
 export function buildShippingPolicyReply() {
   return `${CUSTOMER_HEADER}
-לשטיחים ולפופים ל-self assembly: עד 4 ימי עסקים ממועד אישור התשלום (לא כולל שישי, שבת וחגים). הזמנות אחרי 12:00 נספרות מהיום העסקים הבא.
+לשטיחים ולפופים בהרכבה עצמית: עד 4 ימי עסקים ממועד אישור התשלום (לא כולל שישי, שבת וחגים). הזמנות אחרי 12:00 נספרות מהיום העסקים הבא.
 לפופים מוכנים: עד 14 ימי עסקים.
-משלוח בית חינם לשטיחים ולפופים ל-self assembly בקנייה מעל 199 ₪; מתחת ל-199 ₪ — 29.90 ₪. פופ מוכן — 100 ₪.
+משלוח בית חינם לשטיחים ולפופים בהרכבה עצמית בקנייה מעל 199 ₪; מתחת ל-199 ₪ — 29.90 ₪. פופ מוכן — 100 ₪.
 השירות בין קרית גת לזכרון יעקב; ייתכן עיכוב ביישובים מרוחקים.
 השליח יתאם איתכם טלפונית את מועד האספקה.`
 }
@@ -170,6 +170,7 @@ export function stripAppendedDeliveryPolicyFromOrderStatus(text: string) {
     if (/עד \d+ ימי עסקים.*(?:אישור התשלום|ממועד אישור)/i.test(trimmed)) return false
     if (/פירוק.{0,16}הרכבה.*ימי עסקים/i.test(trimmed)) return false
     if (/self assembly/i.test(trimmed) && /ימי עסקים/i.test(trimmed)) return false
+    if (/בהרכבה עצמית/i.test(trimmed) && /ימי עסקים/i.test(trimmed)) return false
     return true
   })
 
