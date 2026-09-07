@@ -96,6 +96,18 @@ export async function unassignCustomer(customerId: number) {
   await landbotFetch(`/customers/${customerId}/unassign/`, { method: "PUT" })
 }
 
+/** Close the chat in the Landbot dashboard (412 = assigned to another agent → reassign first). */
+export async function archiveCustomer(customerId: number) {
+  try {
+    await landbotFetch(`/customers/${customerId}/archive/`, { method: "PUT" })
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status
+    if (status !== 412) throw error
+    await assignToApiAgent(customerId)
+    await landbotFetch(`/customers/${customerId}/archive/`, { method: "PUT" })
+  }
+}
+
 export async function assignToHuman(customerId: number, agentId: number) {
   await landbotFetch(`/customers/${customerId}/assign/${agentId}/`, { method: "PUT" })
 }

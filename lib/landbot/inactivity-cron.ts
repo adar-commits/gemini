@@ -11,7 +11,7 @@ import {
 import { getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
-import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 
@@ -262,8 +262,16 @@ async function hydrateSessionRows(
   }))
 }
 
+/** Sessions idle longer than this silently expire — pinging them would be spam anyway. */
+const IDLE_SCAN_MAX_AGE_MS = 48 * 60 * 60 * 1000
+
 async function loadIdleSessions(limit = IDLE_SCAN_LIMIT) {
   const supabase = getAgentSupabase()
+  const recencyFloor = new Date(Date.now() - IDLE_SCAN_MAX_AGE_MS).toISOString()
+
+  // Oldest-first + limit with no recency floor starves the scan: hundreds of
+  // permanently-skipped sessions (human handoffs, blocked phones) occupy the
+  // window forever and fresh conversations never get pinged or closed.
   const { data, error } = await supabase
     .from("hom_agent_sessions")
     .select(
@@ -271,11 +279,38 @@ async function loadIdleSessions(limit = IDLE_SCAN_LIMIT) {
     )
     .is("inactivity_closed_at", null)
     .not("last_assistant_at", "is", null)
+    .gte("last_assistant_at", recencyFloor)
     .order("last_assistant_at", { ascending: true })
     .limit(limit)
 
   if (error) throw error
   return hydrateSessionRows((data ?? []) as Omit<IdleSessionRow, "last_action">[])
+}
+
+/** Retire sessions past the scan window so the pool self-cleans — no message sent. */
+async function expireStaleIdleSessions(limit = 200) {
+  const supabase = getAgentSupabase()
+  const cutoff = new Date(Date.now() - IDLE_SCAN_MAX_AGE_MS).toISOString()
+
+  const { data: stale, error: selectError } = await supabase
+    .from("hom_agent_sessions")
+    .select("conversation_id")
+    .is("inactivity_closed_at", null)
+    .not("last_assistant_at", "is", null)
+    .lt("last_assistant_at", cutoff)
+    .limit(limit)
+
+  if (selectError) throw selectError
+  const ids = (stale ?? []).map((row) => asText(row.conversation_id)).filter(Boolean)
+  if (!ids.length) return 0
+
+  const { error: updateError } = await supabase
+    .from("hom_agent_sessions")
+    .update({ inactivity_closed_at: new Date().toISOString() })
+    .in("conversation_id", ids)
+
+  if (updateError) throw updateError
+  return ids.length
 }
 
 /** Sessions past the post-ping close deadline — scanned first so recent pings are not starved. */
@@ -384,15 +419,24 @@ async function attemptInactivityClose(row: CloseCandidate) {
     assistantText: reply,
     action: "inactivity_close",
   })
+  // Close the chat in the Landbot dashboard too — best-effort.
+  await archiveCustomer(customerId).catch((error) =>
+    console.warn("[inactivity-cron] landbot archive failed", {
+      conversationId: row.conversation_id,
+      error: error instanceof Error ? error.message : error,
+    })
+  )
   return "closed" as const
 }
 
 export async function processInactivityTimeouts() {
   const backfilled = await backfillSessionActivityTimestamps()
+  const expired = await expireStaleIdleSessions().catch(() => 0)
   const dueForClose = await loadSessionsDueForClose()
   const sessions = await loadIdleSessions()
   const results = {
     backfilled,
+    expired,
     closeCandidates: dueForClose.length,
     scanned: sessions.length,
     pinged: 0,

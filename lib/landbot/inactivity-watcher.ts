@@ -18,7 +18,7 @@ import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
-import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 import { inactivityWatchUrl } from "@/lib/landbot/sync-hook"
 
 /** Chunk close waits so serverless (maxDuration ~300s) can chain to 15+ min. */
@@ -353,6 +353,13 @@ async function runClosePhase(payload: InactivityWatchPayload) {
     assistantText: reply,
     action: "inactivity_close",
   })
+  // Close the chat in the Landbot dashboard too — best-effort.
+  await archiveCustomer(payload.customerId).catch((error) =>
+    console.warn("[inactivity-watch] landbot archive failed", {
+      conversationId: payload.conversationId,
+      error: error instanceof Error ? error.message : error,
+    })
+  )
 
   return { ok: true, sent: "close" as const }
 }
