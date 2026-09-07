@@ -30,6 +30,7 @@ export async function executeLookupOrderStatus(input: {
   body: string
   phone?: string
   history?: HistoryMessage[]
+  lookupHint?: string
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
@@ -46,13 +47,14 @@ export async function executeLookupOrderStatus(input: {
     let intake = extractServiceIntake(history, body)
     intake.issueKind = "return_pickup_pending"
     intake = await enrichReturnPickupIntake(intake, {
-      body: input.body,
+      body,
       phone: input.phone,
       history,
+      lookupHint: input.lookupHint,
     })
     return {
       ok: true as const,
-      reply: buildReturnPickupAwaitingServiceReply(intake, body),
+      reply: buildReturnPickupAwaitingServiceReply(intake, body, history),
       action: "reply" as const,
     }
   }

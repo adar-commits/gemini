@@ -11,16 +11,60 @@ import {
   isPostPurchaseIntentConfirmPending,
 } from "@/lib/agents/intent-confirmation"
 import {
+  customerOrderNumberStyleFromHistory,
   extractOrderNumber,
+  formatCustomerOrderNumber,
   formatCustomerOrderNumberForThread,
+  isWebsiteOrderRow,
+  ltrIsolateOrderNumber,
   ORDER_NUMBER_ASK_EXAMPLES,
+  type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
 
 export type ServiceIntake = {
   issueKind: PostPurchaseCaseKind | null
+  /** Set only after Priority API match — never from LLM hints alone. */
   orderNumber?: string
+  matchedOrder?: OrderShipmentStatus
   waitDuration?: string
   customerGoal?: string
+}
+
+function formatServiceReportOrderLabel(
+  intake: ServiceIntake,
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!intake.orderNumber || !intake.matchedOrder) return null
+
+  const style = customerOrderNumberStyleFromHistory(history, body)
+  if (style) {
+    return formatCustomerOrderNumberForThread(
+      intake.orderNumber,
+      history,
+      body,
+      intake.matchedOrder
+    )
+  }
+
+  if (isWebsiteOrderRow(intake.matchedOrder.raw)) {
+    return ltrIsolateOrderNumber(
+      formatCustomerOrderNumber({
+        orderNumber: intake.orderNumber,
+        style: "hash",
+        order: intake.matchedOrder,
+        history,
+        body,
+      })
+    )
+  }
+
+  return formatCustomerOrderNumberForThread(
+    intake.orderNumber,
+    history,
+    body,
+    intake.matchedOrder
+  )
 }
 
 const SERVICE_SUMMARY_PENDING_RE =
@@ -181,12 +225,8 @@ export function buildServiceHandoffReportBlock(
   const lines: string[] = []
   const product = pickupProductLabel(body)
 
-  if (intake.orderNumber) {
-    const orderLabel = formatCustomerOrderNumberForThread(
-      intake.orderNumber,
-      history,
-      body
-    )
+  const orderLabel = formatServiceReportOrderLabel(intake, history, body)
+  if (orderLabel) {
     lines.push(`מס׳ הזמנה: ${orderLabel}`)
   }
 
@@ -247,13 +287,9 @@ export function buildServiceHandoffSummary(
 ) {
   const parts: string[] = []
 
-  if (intake.orderNumber) {
-    const orderLabel = formatCustomerOrderNumberForThread(
-      intake.orderNumber,
-      history,
-      body
-    )
-    parts.push(`הזamנה ${orderLabel}`)
+  const orderLabel = formatServiceReportOrderLabel(intake, history, body)
+  if (orderLabel) {
+    parts.push(`הזמנה ${orderLabel}`)
   }
 
   if (intake.issueKind) {

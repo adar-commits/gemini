@@ -19,12 +19,18 @@ import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
-import type { AgentResponse, ConversationalAction } from "@/lib/agents/types"
+import type { AgentResponse, ConversationalAction, HistoryMessage } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import { runPreTurnGuards, runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
+import {
+  buildReturnPickupAwaitingServiceReply,
+  extractServiceIntake,
+  isReturnPickupAwaitingThread,
+} from "@/lib/agents/service-intake"
+import { enrichReturnPickupIntake } from "@/lib/agents/order-lookup"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
   if (action === "human_sales" || action === "human_service") return action
@@ -36,6 +42,29 @@ function mapHomAgent(action: HomAgentAction): AgentResponse["agent"] {
   if (action === "human_sales") return "sales"
   if (action === "human_service") return "service"
   return "faq"
+}
+
+async function rebuildReturnPickupServiceReplyIfNeeded(input: {
+  reply: string
+  body: string
+  phone?: string
+  history: HistoryMessage[]
+}) {
+  if (!isReturnPickupAwaitingThread(input.history, input.body)) return input.reply
+  if (!/מסכם את הפנייה/i.test(input.reply)) return input.reply
+
+  let intake = extractServiceIntake(input.history, input.body)
+  intake.issueKind = "return_pickup_pending"
+  intake = await enrichReturnPickupIntake(intake, {
+    body: input.body,
+    phone: input.phone,
+    history: input.history,
+  })
+  return buildReturnPickupAwaitingServiceReply(
+    intake,
+    input.body,
+    input.history
+  )
 }
 
 export async function runHomAgentTurn(
@@ -218,13 +247,19 @@ export async function runHomAgentTurn(
       ? mapHomAction("reply")
       : mapHomAction(output.action)
   const agent = mapHomAgent(output.action)
+  const reply = await rebuildReturnPickupServiceReplyIfNeeded({
+    reply: output.reply,
+    body,
+    phone: phone || undefined,
+    history,
+  })
 
   if (persistTurn) {
     await appendTurn({
       conversationId,
       agent,
       userText: body,
-      assistantText: output.reply,
+      assistantText: reply,
       action,
       preview,
     })
@@ -233,7 +268,7 @@ export async function runHomAgentTurn(
   return finish({
     ok: true,
     agent,
-    reply: output.reply,
+    reply,
     action,
     route: [agent],
     metrics: {

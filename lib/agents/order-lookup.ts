@@ -1749,14 +1749,26 @@ async function resolveOrderConfirmationFlow(input: {
   return buildNoOrdersFoundReply(threadLookupPhone)
 }
 
-/** Identify order number for return-pickup service report — no shipping status to customer. */
-export async function enrichReturnPickupIntake(
-  intake: ServiceIntake,
-  input: { body: string; phone?: string; history: HistoryMessage[] }
-): Promise<ServiceIntake> {
-  if (intake.orderNumber) return intake
+function resolveReturnPickupLookupPhone(
+  history: HistoryMessage[],
+  whatsappPhone?: string,
+  body?: string
+) {
+  return (
+    resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+    channelPhone(whatsappPhone)
+  )
+}
 
-  const corpus = [
+/** Pick the order for a return-pickup service report — API rows only, never LLM-only hints. */
+export function selectReturnPickupOrder(
+  orders: OrderShipmentStatus[],
+  input: { body: string; history: HistoryMessage[]; lookupHint?: string }
+): OrderShipmentStatus | null {
+  if (!orders.length) return null
+
+  const sorted = sortOrdersNewestFirst(orders)
+  const userCorpus = [
     input.body,
     ...input.history
       .filter((message) => message.role === "user")
@@ -1764,15 +1776,42 @@ export async function enrichReturnPickupIntake(
       .map((message) => message.content),
   ].join("\n")
 
-  const fromText = extractOrderNumber(input.body) ?? extractOrderNumber(corpus)
-  if (fromText) return { ...intake, orderNumber: fromText }
+  const candidates = [
+    extractOrderReference(input.body, input.history),
+    extractOrderReference(userCorpus, input.history),
+    input.lookupHint?.trim()
+      ? extractOrderReference(input.lookupHint, input.history)
+      : null,
+    extractOrderNumber(input.body),
+    extractOrderNumber(userCorpus),
+  ].filter(Boolean) as string[]
 
-  const lookupPhone = resolveLookupPhoneFromHistory(
+  for (const candidate of candidates) {
+    const matched = findOrderByNumber(sorted, candidate)
+    if (matched) return matched
+  }
+
+  return sorted[0] ?? null
+}
+
+/** Identify order number for return-pickup service report — no shipping status to customer. */
+export async function enrichReturnPickupIntake(
+  intake: ServiceIntake,
+  input: {
+    body: string
+    phone?: string
+    history: HistoryMessage[]
+    lookupHint?: string
+  }
+): Promise<ServiceIntake> {
+  const lookupPhone = resolveReturnPickupLookupPhone(
     input.history,
     input.phone,
     input.body
   )
-  if (!lookupPhone) return intake
+  if (!lookupPhone) {
+    return { ...intake, orderNumber: undefined, matchedOrder: undefined }
+  }
 
   const logContext = getPriorityApiLogContext()
   const conversationId = logContext?.conversationId
@@ -1782,7 +1821,9 @@ export async function enrichReturnPickupIntake(
       : null) ?? recallOrdersLookup(lookupPhone)
 
   const orders = cached ?? (await lookupOrdersByPhone(lookupPhone))
-  if (!orders?.length) return intake
+  if (!orders?.length) {
+    return { ...intake, orderNumber: undefined, matchedOrder: undefined }
+  }
 
   if (conversationId) {
     rememberConversationOrdersLookup(conversationId, lookupPhone, orders)
@@ -1790,7 +1831,16 @@ export async function enrichReturnPickupIntake(
     rememberOrdersLookup(lookupPhone, orders)
   }
 
-  return { ...intake, orderNumber: orders[0]!.orderNumber }
+  const matched = selectReturnPickupOrder(orders, input)
+  if (!matched) {
+    return { ...intake, orderNumber: undefined, matchedOrder: undefined }
+  }
+
+  return {
+    ...intake,
+    orderNumber: matched.orderNumber,
+    matchedOrder: matched,
+  }
 }
 
 export async function resolveOrderShippingReply(input: {

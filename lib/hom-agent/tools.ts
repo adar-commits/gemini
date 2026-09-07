@@ -25,16 +25,13 @@ export function createHomAgentTools(context: HomAgentToolContext) {
           .optional()
           .describe("Optional order number or extra context from the customer message"),
       }),
-      execute: async ({ lookupHint }) => {
-        const body = lookupHint?.trim()
-          ? `${context.body}\n${lookupHint}`.trim()
-          : context.body
-        return executeLookupOrderStatus({
-          body,
+      execute: async ({ lookupHint }) =>
+        executeLookupOrderStatus({
+          body: context.body,
           phone: context.phone,
           history: context.history,
-        })
-      },
+          lookupHint: lookupHint?.trim() || undefined,
+        }),
     }),
     lookup_inventory: tool({
       description:
