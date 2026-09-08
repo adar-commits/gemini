@@ -945,6 +945,41 @@ function sofaSizeQuestion(intake: SalesIntake) {
   return SOFA_SIZE_Q
 }
 
+function captureVoluntaryStyle(intake: SalesIntake, history: HistoryMessage[], body: string) {
+  if (intake.style) return
+  const text = allUserText(history, body)
+  if (!hasStylePreferenceSignal(text) && !extractFavoredColor(text)) return
+
+  const candidates = [
+    ...history.filter((message) => message.role === "user").map((message) => message.content.trim()),
+    body.trim(),
+  ].filter(Boolean)
+
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const message = candidates[index]
+    if (hasStylePreferenceSignal(message) || extractFavoredColor(message)) {
+      applyStyleAnswer(intake, [message])
+      return
+    }
+  }
+}
+
+function voluntaryStyleAcknowledgment(intake: SalesIntake, body: string) {
+  const trimmed = body.trim()
+  if (!trimmed) return ""
+  if (!hasStylePreferenceSignal(trimmed) && !extractFavoredColor(trimmed)) return ""
+  if (!intake.style && !intake.favoredColor) return ""
+
+  const styleSummary = formatStyleForSummary(intake)
+  if (styleSummary && styleSummary !== "בכל סגנון") {
+    return `מעולה, ${styleSummary}.\n`
+  }
+  if (intake.favoredColor) {
+    return `מעולה, צבע ${intake.favoredColor} — רשמתי.\n`
+  }
+  return ""
+}
+
 function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   const combined = answers.join(" ")
   if (!combined) return
@@ -1449,6 +1484,8 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
 
   ensureImplicitStyle(intake)
 
+  captureVoluntaryStyle(intake, history, body)
+
   if (hasRoomPhotoInHistory(history) || /\[media:image:/i.test(body)) {
     intake.roomPhotoReceived = true
   }
@@ -1506,7 +1543,6 @@ function nextIntakeQuestion(
   if (needsSpaceSizeQuestion(intake)) return spaceSizeQuestion(intake)
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
   if (!stylePhotoResolved(intake, history)) return STYLE_PHOTO_Q
-  if (!stylePreferenceComplete(intake, history)) return STYLE_Q
   if (!intake.practicalNeeds) return PRACTICAL_Q
   return null
 }
@@ -1758,8 +1794,11 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
   const recoveryPrefix =
     doubleReplyJustHandled && !isIntakeCorrection(body) ? "אוקיי, קיבלתי.\n" : ""
   const answerAckPrefix =
-    !recoveryPrefix && !correctionPrefix && lastKind && next && !next.startsWith("אוקיי")
-      ? intakeAnswerAcknowledgment(lastKind, body)
+    !recoveryPrefix && !correctionPrefix
+      ? voluntaryStyleAcknowledgment(intake, body) ||
+        (lastKind && next && !next.startsWith("אוקיי")
+          ? intakeAnswerAcknowledgment(lastKind, body)
+          : "")
       : ""
 
   if (!next) {

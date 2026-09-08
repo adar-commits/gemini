@@ -39,7 +39,7 @@ describe("buildConfirmationSummary", () => {
     assert.doesNotMatch(summary, /עניין בדגם/)
   })
 
-  it("does not ask budget — asks special requirements after style in full intake", () => {
+  it("does not ask budget — asks special requirements after photo decline without style prompt", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "אני רוצה לקנות שטיח לסלון", agent: null },
       {
@@ -61,16 +61,10 @@ describe("buildConfirmationSummary", () => {
           "*הום בוט :)*\nאפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב.",
         agent: "sales",
       },
-      { role: "user", content: "אין לי תמונה", agent: null },
-      {
-        role: "assistant",
-        content:
-          "*הום בוט :)*\nאיזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?",
-        agent: "sales",
-      },
     ]
-    const reply = buildSalesIntakeReply(history, "מעדיף ייעוץ")
+    const reply = buildSalesIntakeReply(history, "אין לי תמונה")
     assert.doesNotMatch(reply, /תקציב/)
+    assert.doesNotMatch(reply, /מודרני.*בוהו/)
     assert.match(reply, /דרישות מיוחדות|קל לניקוי|בעלי חיים/)
   })
 
@@ -95,7 +89,7 @@ describe("buildConfirmationSummary", () => {
     assert.doesNotMatch(reply, /מודרני.*בוהו/)
   })
 
-  it("shows style fallback when customer has no photo", () => {
+  it("asks practical requirements when customer has no photo — not style", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "שטיח לסלון", agent: null },
       {
@@ -117,8 +111,9 @@ describe("buildConfirmationSummary", () => {
       },
     ]
     const reply = buildSalesIntakeReply(history, "אין לי תמונה")
-    assert.match(reply, /מודרני.*בוהו.*מינימליסטי/)
-    assert.match(reply, /יועץ להחליט/)
+    assert.match(reply, /דרישות מיוחדות|קל לניקוי|בעלי חיים/)
+    assert.doesNotMatch(reply, /מודרני.*בוהו.*מינימליסטי/)
+    assert.doesNotMatch(reply, /יועץ להחליט/)
   })
 
   it("asks sofa size before pets when living room is known", () => {
@@ -127,7 +122,7 @@ describe("buildConfirmationSummary", () => {
     assert.doesNotMatch(reply, /בעלי חיים/)
   })
 
-  it("does not put placeholder unknown size in confirmation summary", () => {
+  it("acknowledges volunteered style or color without asking a style question", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "מחפש שטיח לסלון", agent: null },
       {
@@ -135,24 +130,23 @@ describe("buildConfirmationSummary", () => {
         content: "*הום בוט :)*\nמה מידת הספה או הגודל הכללי של הסלון?",
         agent: "sales",
       },
-      { role: "user", content: "כן", agent: null },
+      { role: "user", content: "2 על 3", agent: null },
       {
         role: "assistant",
         content: "*הום בוט :)*\nהאם אמור להתאים לבעלי חיים?",
         agent: "sales",
       },
-      { role: "user", content: "כן", agent: null },
+      { role: "user", content: "לא", agent: null },
       {
         role: "assistant",
-        content:
-          "*הום בוט :)*\nאיזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?",
+        content: "*הום בוט :)*\nאפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב.",
         agent: "sales",
       },
     ]
 
     const reply = buildSalesIntakeReply(history, "בז' או קרם, לא יודע מודרני")
+    assert.match(reply, /בז|קרם/)
+    assert.doesNotMatch(reply, /איזה סגנון/)
     assert.doesNotMatch(reply, /לא ידוע/)
-    assert.doesNotMatch(reply, /יועץ יבדוק/)
-    assert.match(reply, /בז/)
   })
 })
