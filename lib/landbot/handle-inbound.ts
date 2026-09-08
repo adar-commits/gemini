@@ -46,7 +46,7 @@ import {
 import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
 import { after } from "next/server"
 import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
-import { buildNeverStuckReply, buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
+import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
 import {
@@ -58,8 +58,6 @@ import {
   handleTrainerProfileCommand,
   isTrainerProfileCommand,
 } from "@/lib/landbot/trainer-runtime"
-import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
-
 export type InboundMode = "reply" | "shadow"
 
 export type LandbotInboundResult = AgentResponse & {
@@ -91,11 +89,6 @@ function salvagedReply(body: string, input?: { customerName?: string; history?: 
     return buildThanksAckReply(input?.customerName)
   }
   return salvageReturnPickupAwaitingReply(body)
-}
-
-/** Watchdog hold bubble — the real answer still follows when compute finishes. */
-function holdOrSalvagedReply(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
-  return salvagedReply(body, input) ?? buildProcessingStuckReply()
 }
 
 /** Final fallback when the pipeline produced no sendable reply — never a bare hold message. */
@@ -275,22 +268,8 @@ export async function handleLandbotInbound(
     customerName: customerName || undefined,
     history: conversationHistory,
   }
-  const watchdog = startProcessingWatchdog({
-    replyEnabled,
-    onStuck: async () => {
-      // Hold bubble only — the real answer is still computed and sent below.
-      const holdReply = holdOrSalvagedReply(body, stuckContext)
-      await sendCustomerText(customerId, holdReply)
-      await recordProactiveAssistantMessage({
-        conversationId,
-        assistantText: holdReply,
-        action: "reply",
-      }).catch((error) => {
-        console.warn("[handle-inbound] failed to persist hold bubble", error)
-      })
-    },
-  })
-
+  // No generic processing watchdog: the hold bubble ("אני על זה…") is sent only
+  // by the Priority pre-message path while a live lookup is actually running.
   try {
     result = await runCustomerConversation(conversationId, activeTurn, {
       customerName: customerName || undefined,
@@ -308,7 +287,6 @@ export async function handleLandbotInbound(
               console.warn("[handle-inbound] failed to persist priority pre-message", error)
             })
             headerAlreadySent = true
-            watchdog.markReplySent()
           }
         : undefined,
     })
@@ -405,9 +383,6 @@ export async function handleLandbotInbound(
 
     for (const text of outboundMessages) {
       await sendCustomerText(customerId, text)
-    }
-    if (outboundMessages.length > 0) {
-      watchdog.markReplySent()
     }
 
     if (result.action === "human_sales" || result.action === "human_service") {
