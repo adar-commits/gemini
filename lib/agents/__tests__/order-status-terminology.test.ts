@@ -25,7 +25,7 @@ describe("order status terminology", () => {
     assert.match(buildOrderStatusMessage("הושלם"), /נמסרה/)
   })
 
-  it("falls back to order status when delivery status is empty", () => {
+  it("does not invent delivery copy from order status when delivery code is empty", () => {
     const order = mapPriorityOrderRow({
       ORDNAME: "SO26018793",
       ZPIT_DELSTATUSCODE: "",
@@ -33,21 +33,22 @@ describe("order status terminology", () => {
       ORDSTATUSDES: "לוקטה",
       ZPIT_UDATE: "2026-08-18T00:00:00+03:00",
     })
-    assert.match(order.statusDescription, /ממתינה לאיסוף/)
-    assert.equal(requiresOrderStatusServiceHandoff(order), false)
+    assert.match(order.statusDescription, /לא ניתן להציג כרגע סטטוס משלוח/)
+    assert.equal(requiresOrderStatusServiceHandoff(order), true)
   })
 
-  it("falls back to mapped order status when delivery code is unmapped", () => {
+  it("does not call a frozen/unmapped code delivered even if order status is הושלם", () => {
     const order = mapPriorityOrderRow({
       ORDNAME: "SO26018793",
       ZPIT_DELSTATUSCODE: "15",
-      ZPIT_DELSTATUSDES: "לא ידוע",
+      ZPIT_DELSTATUSDES: "הוקפא זמנית",
       ORDSTATUSDES: "הושלם",
       ZPIT_UDATE: "2026-08-18T00:00:00+03:00",
     })
-    assert.match(order.statusDescription, /נמסרה ליעדה/)
-    assert.doesNotMatch(order.statusDescription, /לא ניתן להציג כרגע סטטוס משלוח/)
-    assert.equal(requiresOrderStatusServiceHandoff(order), false)
+    assert.match(order.statusDescription, /לא ניתן להציג כרגע סטטוס משלוח/)
+    assert.match(order.statusDescription, /הפנייה תועבר להמשך טיפול/)
+    assert.doesNotMatch(order.statusDescription, /נמסר/)
+    assert.equal(requiresOrderStatusServiceHandoff(order), true)
   })
 
   it("requires service handoff when both delivery and order status are unknown", () => {

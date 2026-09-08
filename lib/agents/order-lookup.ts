@@ -44,10 +44,9 @@ import {
 } from "@/lib/agents/order-lookup-cache"
 import {
   buildDeliveryStatusMessage,
+  isMappedDeliveryStatusId,
   isUnknownDeliveryStatusMessage,
-  UNKNOWN_DELIVERY_STATUS_MESSAGE,
 } from "@/lib/agents/delivery-status-terminology"
-import { buildOrderStatusMessage } from "@/lib/agents/order-status-terminology"
 import { buildDeliveryEstimatePolicyReply } from "@/lib/agents/delivery-estimate-policy"
 import {
   isValidIsraeliMobilePhone,
@@ -282,22 +281,11 @@ export function describeShipmentStatus(order: OrderShipmentStatus) {
     formatHebrewDate(order.raw.ZPIT_UDATE)
   const coordinateDate = formatHebrewDate(order.raw.ZPIT_COORDATE)
 
-  if (hasDeliveryStatusData(order)) {
-    const deliveryMessage = buildDeliveryStatusMessage({
-      deliveryStatusId: order.statusCode,
-      deliveryStatusDesc: order.statusLabel || "לא ידוע",
-      deliveryDate,
-      coordinateDate,
-    })
-    if (!isUnknownDeliveryStatusMessage(deliveryMessage)) {
-      return deliveryMessage
-    }
-  }
-
-  const orderStatusMessage = buildOrderStatusMessage(order.orderStatus)
-  if (orderStatusMessage) return orderStatusMessage
-
-  return UNKNOWN_DELIVERY_STATUS_MESSAGE
+  return buildDeliveryStatusMessage({
+    deliveryStatusId: order.statusCode,
+    deliveryDate,
+    coordinateDate,
+  })
 }
 
 export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
@@ -307,6 +295,8 @@ export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
 /** Customer-facing as-of date for status replies — UDATE by default, DELDATE when delivered (6). */
 export function orderStatusDatePhrase(order: OrderShipmentStatus) {
   const statusId = String(order.statusCode ?? "").trim()
+  if (!isMappedDeliveryStatusId(statusId)) return ""
+
   if (statusId === "6") {
     const deliveryDate = formatHebrewDate(order.raw.ZPIT_DELDATE)
     if (deliveryDate) return ` נמסר בתאריך ${deliveryDate}`
@@ -315,11 +305,6 @@ export function orderStatusDatePhrase(order: OrderShipmentStatus) {
   const lastUpdate =
     formatHebrewDate(order.raw.ZPIT_UDATE) ?? formatHebrewDateTime(order.raw.ZPIT_UDATE)
   if (lastUpdate) return ` נכון לתאריך ${lastUpdate}`
-
-  if (/הושלם|נמסר/i.test(order.orderStatus ?? "")) {
-    const deliveryDate = formatHebrewDate(order.raw.ZPIT_DELDATE)
-    if (deliveryDate) return ` נמסר בתאריך ${deliveryDate}`
-  }
 
   return ""
 }

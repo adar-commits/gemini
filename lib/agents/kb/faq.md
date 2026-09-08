@@ -88,14 +88,10 @@ Self-pickup:
 ## Owner-verified operational clarifications (from Goku Q&A)
 - These answers were provided directly by the business owner and should be preferred when phrasing customer replies in overlapping cases.
 
-### Order status wording for customers
-- "בביצוע" / "בהמתנה": ההזמנה בטיפול חדר הזמנות אך במצב מוקפא זמנית (לעיתים בהמתנה למלאי הזמנה מוקדמת).
-- "בליקוט" / "בתהליך ליקוט": ההזמנה התקבלה ונמצאת באריזה במחסן.
-- "העברה מסניף" / "מועברת מסניף": ההזמנה בדרך מהסניף למחסן לצורך המשך משלוח.
-- "לוקטה" / "הליקוט הסתיים": ההזמנה נארזה וממתינה לאיסוף של חברת השליחויות.
-- "מאושר לביצוע": ההזמנה התקבלה ומטופלת בתהליך ההכנה.
-- "מבוטלת": ההזמנה בוטלה.
-- "הושלם" / "נמסרה": ההזמנה נמסרה בהצלחה.
+### Delivery status wording for customers
+- Customer-facing delivery comes **only** from `ZPIT_DELSTATUSCODE` (codes 1, 3, 4, 5, 6, 21, 22, 23, 80).
+- Never tell a customer the order was delivered from `ORDSTATUSDES` ("הושלם" / "נמסרה") or from a date field.
+- Unmapped codes (including 15 הוקפא זמנית) or a missing code: the order was found, but a clear delivery status cannot be shown, and the request is forwarded to the team.
 
 ### Damaged product initial flow
 - For a "product arrived damaged" report: first run order lookup, then request a product photo.

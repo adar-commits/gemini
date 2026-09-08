@@ -33,7 +33,6 @@ export function isUnknownDeliveryStatusMessage(message: string) {
 
 const MAPPED_DELIVERY_STATUS_IDS = new Set([
   "1",
-  "2",
   "3",
   "4",
   "5",
@@ -80,7 +79,6 @@ export function buildDeliveryStatusMessage(input: {
   if (statusId === "6") return deliveredByCourierMessage(input.deliveryDate)
   if (statusId === "23") return SELF_PICKUP_COLLECTED_MESSAGE
   if (statusId === "1") return PACKED_AWAITING_COURIER_MESSAGE
-  if (statusId === "2") return PACKED_AWAITING_COURIER_MESSAGE
 
   return UNKNOWN_STATUS_MESSAGE
 }

@@ -88,7 +88,7 @@ ${COURIER_COORDINATES}`
 ${COURIER_COORDINATES}`
   }
 
-  if (statusId === "1" || statusId === "2") {
+  if (statusId === "1") {
     return `${CUSTOMER_HEADER}
 לפי הסטטוס — ההזמנה נארזה וממתינה לאיסוף על ידי חברת השליחויות.
 ${COURIER_COORDINATES}`
