@@ -130,6 +130,30 @@ describe("buildConversationHints", () => {
     assert.match(hints, /at most one tool call this turn/i)
   })
 
+  it("guides post-status order rejection toward the next unused lookup", () => {
+    const hints = buildConversationHints({
+      history: [
+        {
+          role: "assistant",
+          content:
+            "*הום בוט :)*\nאוקיי נדמה לי שמצאתי את ההזמנה, בוצעה לפני 19 ימים בקרית אתא על סך 500 ש״ח נכון? (מס׳ הזמנה SO26019813)",
+        },
+        { role: "user", content: "כן" },
+        {
+          role: "assistant",
+          content:
+            "*הום בוט :)*\nבדקתי, המשלוח סומן כנמסר באמצעות שליח בתאריך 26.8.2026.",
+        },
+      ],
+      body: "אז זה לא זה",
+    })
+    assert.ok(hints)
+    assert.match(hints, /WRONG ORDER after status/i)
+    assert.match(hints, /lookup_order_status/i)
+    assert.match(hints, /next unused order/i)
+    assert.doesNotMatch(hints, /do NOT call lookup_order_status again/i)
+  })
+
   it("guides merged same-issue burst toward one coherent flow", () => {
     const hints = buildConversationHints({
       history: [],

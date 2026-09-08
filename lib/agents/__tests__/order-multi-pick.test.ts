@@ -3,7 +3,9 @@ import { describe, it } from "node:test"
 import {
   buildOrderConfirmationPrompt,
   buildOrderPickExhaustedHandoffPrompt,
+  buildOrderStatusReply,
   buildPhoneLookupConfirmPrompt,
+  isIdentifiedOrderRejection,
   mentionsAnotherOrderSamePhone,
   resolveOrderShippingReply,
 } from "@/lib/agents/order-lookup"
@@ -57,6 +59,11 @@ describe("multi-order pick after rejection", () => {
     assert.equal(mentionsAnotherOrderSamePhone("יש עוד אחת"), true)
     assert.equal(mentionsAnotherOrderSamePhone("יש מספר הזמנה נוסף"), true)
     assert.equal(mentionsAnotherOrderSamePhone("לא"), false)
+    assert.equal(isIdentifiedOrderRejection("אז זה לא זה"), true)
+    assert.equal(isIdentifiedOrderRejection("גם זה לא"), true)
+    assert.equal(isIdentifiedOrderRejection("זו לא ההזמנה"), true)
+    assert.equal(isIdentifiedOrderRejection("אם זה לא ימצא חן בעיני"), false)
+    assert.equal(isIdentifiedOrderRejection("לא הבנתי"), false)
   })
 
   it("shows the next order when customer rejects the first card", async () => {
@@ -154,6 +161,69 @@ describe("multi-order pick after rejection", () => {
 
     assert.match(reply, /76001/)
     assert.doesNotMatch(reply, /לא זיהיתי מספר/)
+  })
+
+  it("after status, 'אז זה לא זה' offers the next unused API order", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-post-status-reject",
+      whatsappPhone: "+972523960124",
+    })
+    rememberConversationOrdersLookup("conv-post-status-reject", "0523960124", [
+      order75503,
+      order76001,
+    ])
+
+    const whatsappPhone = "+972523960124"
+    const history: HistoryMessage[] = [
+      { role: "assistant", content: buildPhoneLookupConfirmPrompt(whatsappPhone) },
+      { role: "user", content: "כן" },
+      { role: "assistant", content: buildOrderConfirmationPrompt(order75503) },
+      { role: "user", content: "כן" },
+      { role: "assistant", content: buildOrderStatusReply(order75503) },
+    ]
+
+    const reply = await resolveOrderShippingReply({
+      body: "אז זה לא זה",
+      phone: whatsappPhone,
+      history,
+    })
+
+    assert.match(reply, /76001/)
+    assert.doesNotMatch(reply, /75503/)
+    assert.doesNotMatch(reply, /מה מספר ההזמנה/)
+    assert.doesNotMatch(reply, /נציג שירות/)
+  })
+
+  it("after the last unused order is also rejected, offers a human", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-post-status-exhaust",
+      whatsappPhone: "+972523960124",
+    })
+    rememberConversationOrdersLookup("conv-post-status-exhaust", "0523960124", [
+      order75503,
+      order76001,
+    ])
+
+    const whatsappPhone = "+972523960124"
+    const history: HistoryMessage[] = [
+      { role: "assistant", content: buildOrderConfirmationPrompt(order75503) },
+      { role: "user", content: "כן" },
+      { role: "assistant", content: buildOrderStatusReply(order75503) },
+      { role: "user", content: "אז זה לא זה" },
+      { role: "assistant", content: buildOrderConfirmationPrompt(order76001) },
+    ]
+
+    const reply = await resolveOrderShippingReply({
+      body: "גם זה לא",
+      phone: whatsappPhone,
+      history,
+    })
+
+    assert.equal(reply.trim(), buildOrderPickExhaustedHandoffPrompt().trim())
   })
 
   it("treats 'יש עוד אחת' as rejection and shows next order", async () => {

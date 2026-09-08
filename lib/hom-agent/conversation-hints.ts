@@ -7,6 +7,7 @@ import {
   isOrderDeliveryStatusQuestion,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
+  isIdentifiedOrderRejection,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
   userProvidedPhone,
@@ -189,7 +190,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (
+  if (isOrderStatusDeliveredInThread(history) && isIdentifiedOrderRejection(body)) {
+    lines.push(
+      "WRONG ORDER after status: the customer is saying the identified order is not the one they meant (even if they first said yes). Call lookup_order_status now so the next unused order from the same phone API list can be offered. Do not ask them to invent a new order number first. If every candidate was already rejected, offer a human."
+    )
+  } else if (
     isOrderStatusDeliveredInThread(history) &&
     (isDeliveryEstimateQuestion(body) || isOrderDeliveryStatusQuestion(body))
   ) {

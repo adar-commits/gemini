@@ -9,7 +9,10 @@ import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 import { isInventoryQuestion } from "@/lib/agents/inventory-lookup"
 import { isCasualGreeting, isCasualSmallTalk } from "@/lib/agents/greeting"
 import { isHumanHandoffAffirmation } from "@/lib/agents/off-topic"
-import { requiresOrderIdentification } from "@/lib/agents/order-lookup"
+import {
+  isIdentifiedOrderRejection,
+  requiresOrderIdentification,
+} from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 type GoldCase = {
@@ -20,9 +23,16 @@ type GoldCase = {
 
 describe("gold conversations must-pass set", () => {
   it("keeps routing and intent classification stable across real Hebrew examples", () => {
-    const eligibilityHistory: HistoryMessage[] = [
-      { role: "user", content: "השטיח הגיע היום ואני לא בבית עד מוצש" },
-    ]
+            const eligibilityHistory: HistoryMessage[] = [
+              { role: "user", content: "השטיח הגיע היום ואני לא בבית עד מוצש" },
+            ]
+            const statusDeliveredHistory: HistoryMessage[] = [
+              {
+                role: "assistant",
+                content:
+                  "*הום בוט :)*\nבדקתי, המשלוח סומן כנמסר באמצעות שליח בתאריך 26.8.2026.",
+              },
+            ]
 
     const cases: GoldCase[] = [
       // greeting / opener
@@ -150,6 +160,31 @@ describe("gold conversations must-pass set", () => {
         id: "req_lookup_6",
         actual: requiresOrderIdentification("מספר הזמנה 76342", []),
         expected: true,
+      },
+      {
+        id: "reject_order_1",
+        actual: isIdentifiedOrderRejection("אז זה לא זה"),
+        expected: true,
+      },
+      {
+        id: "reject_order_2",
+        actual: isIdentifiedOrderRejection("גם זה לא"),
+        expected: true,
+      },
+      {
+        id: "reject_order_3",
+        actual: isIdentifiedOrderRejection("אם זה לא ימצא חן בעיני"),
+        expected: false,
+      },
+      {
+        id: "req_lookup_7",
+        actual: requiresOrderIdentification("אז זה לא זה", statusDeliveredHistory),
+        expected: true,
+      },
+      {
+        id: "req_lookup_8",
+        actual: requiresOrderIdentification("אז זה לא זה", []),
+        expected: false,
       },
     ]
 

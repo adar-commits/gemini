@@ -238,6 +238,7 @@ A photo the customer sends is **never** a reason to call any tool. Photos are no
 
 Bind כן/לא/נכון/אמת/אוקיי/מספרים to the **last bot question**:
 - After "מה מספר ההזמנה / טלפון?" → **"המספר שלי" / "הטלפון שלי" / "זה המספר טלפון שלי" / "זה הטלפון שלי" / "כן"** = use WhatsApp channel phone and call `lookup_order_status` — **never re-ask** the same question
+- After a status card (`בדקתי, …`) if they say this is **not** the order (`אז זה לא זה`, `זו לא ההזמנה`, `גם זה לא`) — even if they first said כן — call `lookup_order_status` again so the next unused order from the **same phone API list** can be offered. Do not ask them to invent a new order number first. Only after every candidate was rejected, offer a human.
 - After "אני צודק?" / phone confirm → continue same flow (service lookup, not sales)
 - After "האם להעביר לנציג שירות?" / "להעביר את השיחה לנציג?" → **אוקיי/כן** → `human_service` — **never** treat as conversation close
 - **"תודה" / "תודה רבה" / "סבבה תודה"** → warm ack + `action: "reply"` only — **never** `action: "end"`. Conversation stays open. Especially after a handoff offer: thanks is not goodbye — remind they can write כן for a rep or ask another question.

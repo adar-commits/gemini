@@ -538,6 +538,13 @@ export function requiresOrderIdentification(body: string, history: HistoryMessag
     return true
   }
 
+  if (
+    isOrderStatusDeliveredInThread(history) &&
+    isIdentifiedOrderRejection(body)
+  ) {
+    return true
+  }
+
   return false
 }
 
@@ -1047,7 +1054,7 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
 
 /** "כן כן", "נכון נכון" — Hebrew doubles affirmations for emphasis. */
 function collapseRepeatedWords(text: string) {
-  return text.replace(/(\S+)(?:\s+\1)+/gu, "$1")
+  return text.replace(/(^|\s)(\S+)(?:\s+\2)+/gu, "$1$2")
 }
 
 export function isOrderConfirmationYes(body: string) {
@@ -1076,6 +1083,7 @@ export function isOrderConfirmationNo(body: string) {
   const text = collapseRepeatedWords(body.trim())
   if (!text || text.length > 80) return false
   if (isReturnPolicyQuestion(text) || isReturnFlowCorrection(text)) return false
+  if (isIdentifiedOrderRejection(text)) return true
   if (
     /^(?:לא|לא זה|לא נכון|הזמנה אחרת|אחרת|no)(?:[\s,.!?]|$)/i.test(text) ||
     /^לא[\s,]/i.test(text)
@@ -1084,6 +1092,19 @@ export function isOrderConfirmationNo(body: string) {
   }
   if (/\bלא\b/.test(text) && /(?:זה|זו|זאת|הזמנה)/.test(text)) return true
   return false
+}
+
+/** Customer rejects the shown/identified order — including after they first said yes. */
+export function isIdentifiedOrderRejection(body: string) {
+  const text = collapseRepeatedWords(body.trim())
+  if (!text || text.length > 120) return false
+  if (isReturnPolicyQuestion(text) || isReturnFlowCorrection(text)) return false
+  if (mentionsAnotherOrderSamePhone(text)) return true
+  return (
+    /(?:^|[\s,.!?])(?:אז\s+)?(?:גם\s+)?(?:זה|זו|זאת)\s+לא(?:\s+(?:זה|זו|זאת|ה(?:ה)?זמנה(?:\s+שלי)?))?(?:[\s,.!?]*)$/iu.test(
+      text
+    ) || /לא\s+(?:זו|זאת|זה)\s+(?:ה)?הזמנה/iu.test(text)
+  )
 }
 
 function formatOrderPrice(price: number | null) {
@@ -1967,7 +1988,9 @@ async function resolveOrderConfirmationFlow(input: {
 
   if (
     pendingOrder &&
-    (isOrderConfirmationNo(input.body) || mentionsAnotherOrderSamePhone(input.body))
+    (isOrderConfirmationNo(input.body) ||
+      isIdentifiedOrderRejection(input.body) ||
+      mentionsAnotherOrderSamePhone(input.body))
   ) {
     if (userProvidedPhone(input.body)) {
       return lookupAndStartOrderConfirm(userProvidedPhone(input.body)!, undefined, {
@@ -1982,7 +2005,10 @@ async function resolveOrderConfirmationFlow(input: {
     if (nextOrder) {
       return buildOrderConfirmationPrompt(nextOrder, input.history, input.body)
     }
-    if (countOrderConfirmationPrompts(input.history) >= MAX_ORDER_PICK_ATTEMPTS) {
+    if (
+      countOrderConfirmationPrompts(input.history) >= 2 ||
+      countOrderConfirmationPrompts(input.history) >= MAX_ORDER_PICK_ATTEMPTS
+    ) {
       return buildOrderPickExhaustedHandoffPrompt()
     }
     return buildAlternatePhoneRequestPrompt()
@@ -2130,6 +2156,15 @@ export async function resolveOrderShippingReply(input: {
   }
 
   if (isOrderStatusDeliveredInThread(history)) {
+    if (isIdentifiedOrderRejection(body)) {
+      const lookupPhone =
+        resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+        channelPhone(whatsappPhone)
+      if (lookupPhone) {
+        return resolveOrderConfirmationFlow({ body, lookupPhone, history })
+      }
+    }
+
     if (isOrderOutOfScopeMetadataQuestion(body)) {
       return buildUncertainHandoffReply(body)
     }
