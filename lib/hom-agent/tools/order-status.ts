@@ -100,12 +100,16 @@ export async function executeLookupOrderStatus(input: {
       history: input.history ?? [],
     })
     const trimmed = reply.trim()
+    // Only a genuine confusion reply counts as non-definitive. The flow's own
+    // clarify steps (phone confirm, order-number ask) are the lookup WORKING —
+    // they must be sent verbatim, never rejected back to the LLM (which would
+    // hallucinate order data instead of running the real flow; see 528509859).
     if (isNonDefinitiveLookupReply(trimmed)) {
       return {
         ok: false as const,
         errorCode: "lookup_non_definitive",
         error:
-          "Order lookup returned a non-definitive follow-up for this turn. Treat this as likely misrouted/uncertain tool usage, answer the user directly, and only ask order details if the customer explicitly asks about a specific order status.",
+          "Order lookup could not interpret this turn. Answer the customer directly from context/KB; only retry the tool if they explicitly ask about a specific order status.",
       }
     }
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
@@ -122,10 +126,5 @@ export async function executeLookupOrderStatus(input: {
 }
 
 function isNonDefinitiveLookupReply(reply: string) {
-  return (
-    /לא הבנתי/i.test(reply) ||
-    /לא זיהיתי מספר טלפון/i.test(reply) ||
-    /האם היא רשומה על המספר/i.test(reply) ||
-    /מה מספר ההזמנה/i.test(reply)
-  )
+  return /לא הבנתי/i.test(reply)
 }

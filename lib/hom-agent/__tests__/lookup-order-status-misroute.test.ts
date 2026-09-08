@@ -16,7 +16,22 @@ describe("lookup_order_status misuse guards", () => {
     assert.equal((result as { errorCode?: string }).errorCode, "lookup_misroute")
   })
 
-  it("rejects non-definitive clarify replies inside confirm flow", async () => {
+  it("passes the flow's own phone-confirm step through as a real reply (528509859 regression)", async () => {
+    // First shipping-status turn: the lookup flow asks phone-confirm BEFORE any
+    // API call — that is the flow WORKING, not tool misuse. Rejecting it pushed
+    // the LLM into recovery where it hallucinated "אני רואה כמה הזמנות" and
+    // promised a lookup that never happened (nothing reached n8n).
+    const result = await executeLookupOrderStatus({
+      body: "אני מבקש לדעת מתי יגיע השטיח שהזמנו",
+      history: [],
+      phone: "+972547495083",
+    })
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    assert.match(result.reply, /רשומה על המספר|מספר ההזמנה|טלפון/)
+  })
+
+  it("handles ambiguous mid-confirm replies deterministically instead of rejecting to LLM", async () => {
     const pendingConfirm = buildOrderConfirmationPrompt({
       orderNumber: "76501",
       statusCode: "",
@@ -37,11 +52,10 @@ describe("lookup_order_status misuse guards", () => {
       phone: "+972547495083",
     })
 
-    assert.equal(result.ok, false)
-    if (result.ok) return
-    assert.equal(
-      (result as { errorCode?: string }).errorCode,
-      "lookup_non_definitive"
-    )
+    // Ambiguous answers stay inside the lookup flow (re-clarify) — only a
+    // genuine "לא הבנתי" reply is handed back to the LLM as non-definitive.
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    assert.match(result.reply, /רשומה על המספר|מספר ההזמנה/)
   })
 })

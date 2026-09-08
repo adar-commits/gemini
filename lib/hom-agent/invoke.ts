@@ -180,7 +180,7 @@ async function invokeWithTools(ctx: InvokeContext) {
   if (hasToolRecoverySignal(result.steps) && !deterministicReply) {
     const recovery = await generateText({
       model: ctx.model,
-      system: `${system}\n\nA previous tool call was rejected as misrouted or non-definitive for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool.`,
+      system: `${system}\n\nA previous tool call was rejected as misrouted or non-definitive for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool. CRITICAL: you have NO lookup results — never claim you checked, found, or see orders/stock/documents, and never promise to check and come back (no "רגע אחד ואחזור", no "אבדוק ואעדכן"). Answer from context/KB or ask the customer for what you need.`,
       messages: [
         ...messages,
         {
