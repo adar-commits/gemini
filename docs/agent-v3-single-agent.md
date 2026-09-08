@@ -22,6 +22,7 @@ Customer message
 | Role | Model | Used for |
 |------|-------|----------|
 | faq (main agent) | `anthropic/claude-sonnet-5` ($2/$10 MTok) | Every substantive reply |
+| hard-case agent | `anthropic/claude-opus-5` | Dissatisfaction, policy dispute, multi-intent, complex service |
 | router | `anthropic/claude-haiku-4.5` ($1/$5 MTok) | Conversation summaries only |
 | error fallback | `anthropic/claude-haiku-4.5` | kb-only pass after tool invoke failure |
 | trainer/shadow helpers | `anthropic/claude-haiku-4.5` | Correction parsing, shadow review, autofix |

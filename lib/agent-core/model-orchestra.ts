@@ -17,7 +17,7 @@ export type OrchestraDecision = {
   skipMaster: boolean
 }
 
-const OPUS = MODEL_PROFILES.quality.faq.model
+const OPUS = process.env.HOM_AGENT_HARD_CASE_MODEL?.trim() || "anthropic/claude-opus-5"
 const SONNET = MODEL_PROFILES.balanced.faq.model
 
 function hasPolicyDispute(text: string, history: HistoryMessage[]) {

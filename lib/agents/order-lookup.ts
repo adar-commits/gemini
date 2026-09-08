@@ -1,5 +1,5 @@
 import { buildApiFailureReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
-import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
+import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE, ORDER_STATUS_HELP_OFFER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
@@ -1129,8 +1129,11 @@ export function buildOrderStatusReply(order: OrderShipmentStatus) {
   if (!body) return buildApiFailureReply()
   const dateAlreadyInBody = /(?:נכון לתאריך|נמסר בתאריך|בתאריך \d)/i.test(body)
   const datePhrase = dateAlreadyInBody ? "" : orderStatusDatePhrase(order)
+  const helpOffer = isUnknownDeliveryStatusMessage(body)
+    ? ""
+    : `\n\n${ORDER_STATUS_HELP_OFFER}`
   return `${CUSTOMER_HEADER}
-בדקתי, ${body}${datePhrase}`
+בדקתי, ${body}${datePhrase}${helpOffer}`
 }
 
 export function isOrderStatusAlreadySharedInThread(history: HistoryMessage[]) {

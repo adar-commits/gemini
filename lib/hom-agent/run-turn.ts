@@ -9,10 +9,12 @@ import {
 import { buildLlmFailureReply } from "@/lib/agent-core/fallbacks"
 import { isGatewayBudgetExceeded } from "@/lib/agent-core/gateway-errors"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
+import { pickHomAgentModel } from "@/lib/agent-core/hard-case-model"
 import {
   beginTurnMetrics,
   finishTurnMetrics,
   setFallbackLayer,
+  setRoutingPath,
   setTurnTier,
 } from "@/lib/agent-core/turn-metrics"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
@@ -119,7 +121,17 @@ export async function runHomAgentTurn(
   )
 
   beginTurnMetrics(conversationId, runtime.activeProfile, phone)
-  setTurnTier(conversationId, "T2")
+
+  const modelPick = pickHomAgentModel({
+    body,
+    turn,
+    history,
+    defaultModel: runtime.profile.faq.model,
+  })
+  setTurnTier(conversationId, modelPick.tier)
+  if (modelPick.escalated) {
+    setRoutingPath(conversationId, "v3_opus_hard_case")
+  }
 
   const finish = async (result: AgentResponse): Promise<AgentResponse> => {
     const metrics = finishTurnMetrics(conversationId)
@@ -190,8 +202,8 @@ export async function runHomAgentTurn(
 
   let output
   let llmCalls = 0
-  let model = runtime.profile.faq.model
-  let routingPath = "v3"
+  let model = modelPick.model
+  let routingPath = modelPick.escalated ? "v3_opus_hard_case" : "v3"
 
   const invokeOnce = (modelOverride?: string) =>
     invokeHomAgent({
@@ -201,7 +213,7 @@ export async function runHomAgentTurn(
       body,
       phone: phone || undefined,
       sessionSummary: conversationSummary,
-      modelOverride,
+      modelOverride: modelOverride ?? (modelPick.escalated ? modelPick.model : undefined),
     })
 
   try {

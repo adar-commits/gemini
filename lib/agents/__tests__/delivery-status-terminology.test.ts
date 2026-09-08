@@ -115,6 +115,7 @@ describe("delivery status terminology", () => {
     assert.match(reply, /בדקתי,/)
     assert.match(reply, /נארזה ומוכנה לאיסוף/)
     assert.match(reply, /נכון לתאריך/)
+    assert.match(reply, /אפשר לעזור במשהו נוסף/)
     assert.doesNotMatch(reply, /לגבי הזמנה/)
     assert.doesNotMatch(reply, /סטטוס:/)
   })
@@ -133,6 +134,7 @@ describe("delivery status terminology", () => {
     assert.match(reply, /הפנייה תועבר להמשך טיפול/)
     assert.doesNotMatch(reply, /נמסר/)
     assert.doesNotMatch(reply, /בתהליכי אריזה/)
+    assert.doesNotMatch(reply, /אפשר לעזור במשהו נוסף/)
   })
 
   it("does not treat completed order status as delivered without mapped delivery code 6", () => {
@@ -159,6 +161,7 @@ describe("delivery status terminology", () => {
     const reply = buildOrderStatusReply(order)
     assert.match(reply, /נמסר באמצעות שליח/)
     assert.doesNotMatch(reply, /נכון לתאריך/)
+    assert.match(reply, /אפשר לעזור במשהו נוסף/)
   })
 
   it("does not treat a delivery date as proof of delivery without code 6", () => {
