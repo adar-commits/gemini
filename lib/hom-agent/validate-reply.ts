@@ -92,7 +92,18 @@ function sanitizeLeakedStructuredJson(reply: string) {
     }
   }
 
-  return normalizeReplyParagraphs(reply)
+  return normalizeReplyParagraphs(stripTrailingJsonArtifacts(reply))
+}
+
+/**
+ * Truncated structured output can leave a dangling tail on otherwise-good text,
+ * e.g. `…אתם מתכתבים.\",\"action\":\"re` (output-token cap mid-JSON).
+ */
+function stripTrailingJsonArtifacts(text: string) {
+  return text
+    .replace(/\\?"\s*,\s*\\?"action\\?"\s*:\s*\\?"?[a-z_]*\\?"?\s*\}?\s*$/i, "")
+    .replace(/\\?"\s*\}\s*$/, "")
+    .trimEnd()
 }
 
 function stripJsonFence(text: string) {

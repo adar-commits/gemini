@@ -361,6 +361,20 @@ function parseFallbackOutput(text: string): HomAgentOutput {
   } catch {
     // fall through
   }
+
+  // Truncated JSON (output-token cap hit mid-object, e.g. `..."action":"re`):
+  // extract the reply string value up to its closing unescaped quote so the
+  // dangling `","action":"…` tail never reaches the customer.
+  const truncated = text.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/)
+  if (truncated?.[1]) {
+    const reply = truncated[1]
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
+      .trim()
+    if (reply) return { reply, action: "reply" }
+  }
+
   return { reply: text.trim(), action: "reply" }
 }
 

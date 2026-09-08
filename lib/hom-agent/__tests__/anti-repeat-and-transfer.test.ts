@@ -95,6 +95,37 @@ describe("anti-repeat guard", () => {
     assert.match(result.reply, /זו פסקה ראשונה\n\nזו פסקה שנייה/)
   })
 
+  it("strips plain-quote truncated action tail (972524478685 exact shape)", () => {
+    const result = validateHomAgentReply(
+      {
+        reply:
+          '*הום בוט :)*\nכדי שאוכל לבדוק את הסטטוס, אשמח למספר ההזמנה — ואם אין, אאתר לפי הטלפון שממנו אתם מתכתבים.","action":"re',
+        action: "reply",
+      },
+      "השליח לא הגיע",
+      "+972524478685",
+      []
+    )
+    assert.doesNotMatch(result.reply, /action/)
+    assert.match(result.reply, /אתם מתכתבים\.$/m)
+  })
+
+  it("strips truncated trailing action artifacts (972524478685 regression)", () => {
+    const result = validateHomAgentReply(
+      {
+        reply:
+          '*הום בוט :)*\nהיי משה מבין שהשליח היה צריך להגיע היום ועדיין לא הגיע.\n\nאשמח למספר ההזמנה — ואם אין לכם אותו כרגע, אני יכול לנסות לאתר לפי הטלפון שממנו אתם מתכתבים.\\",\\"action\\":\\"re',
+        action: "reply",
+      },
+      "השליח היה אמור להגיע היום",
+      "+972524478685",
+      []
+    )
+    assert.doesNotMatch(result.reply, /action/)
+    assert.doesNotMatch(result.reply, /\\"/)
+    assert.match(result.reply, /אתם מתכתבים\.$/m)
+  })
+
   it("unwraps leaked reply payload even with header prefix", () => {
     const result = validateHomAgentReply(
       {
