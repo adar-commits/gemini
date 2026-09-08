@@ -1,4 +1,8 @@
 import { buildApiFailureReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
+import {
+  formatHebrewCustomerDate,
+  formatHebrewCustomerDateTime,
+} from "@/lib/agents/hebrew-date-format"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE, ORDER_STATUS_HELP_OFFER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
@@ -141,36 +145,6 @@ async function callOrderWebhook(input: {
   return callPriorityWebhook(input)
 }
 
-function formatHebrewDate(iso: string | null | undefined) {
-  if (!iso?.trim()) return null
-  try {
-    return new Date(iso).toLocaleDateString("he-IL", {
-      day: "numeric",
-      month: "numeric",
-      year: "numeric",
-      timeZone: "Asia/Jerusalem",
-    })
-  } catch {
-    return null
-  }
-}
-
-function formatHebrewDateTime(iso: string | null | undefined) {
-  if (!iso?.trim()) return null
-  try {
-    return new Date(iso).toLocaleString("he-IL", {
-      day: "numeric",
-      month: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Asia/Jerusalem",
-    })
-  } catch {
-    return null
-  }
-}
-
 function orderBranchLabel(row: PriorityOrderRow) {
   return (
     row.Y_7455_0_ESH?.trim() ||
@@ -286,10 +260,8 @@ export function buildOrderPickExhaustedHandoffPrompt() {
 }
 
 export function describeShipmentStatus(order: OrderShipmentStatus) {
-  const deliveryDate =
-    formatHebrewDate(order.raw.ZPIT_DELDATE) ??
-    formatHebrewDate(order.raw.ZPIT_UDATE)
-  const coordinateDate = formatHebrewDate(order.raw.ZPIT_COORDATE)
+  const deliveryDate = formatHebrewCustomerDate(order.raw.ZPIT_DELDATE)
+  const coordinateDate = formatHebrewCustomerDateTime(order.raw.ZPIT_COORDATE)
 
   return buildDeliveryStatusMessage({
     deliveryStatusId: order.statusCode,
@@ -308,12 +280,11 @@ export function orderStatusDatePhrase(order: OrderShipmentStatus) {
   if (!isMappedDeliveryStatusId(statusId)) return ""
 
   if (statusId === "6") {
-    const deliveryDate = formatHebrewDate(order.raw.ZPIT_DELDATE)
+    const deliveryDate = formatHebrewCustomerDate(order.raw.ZPIT_DELDATE)
     if (deliveryDate) return ` נמסר בתאריך ${deliveryDate}`
   }
 
-  const lastUpdate =
-    formatHebrewDate(order.raw.ZPIT_UDATE) ?? formatHebrewDateTime(order.raw.ZPIT_UDATE)
+  const lastUpdate = formatHebrewCustomerDateTime(order.raw.ZPIT_UDATE)
   if (lastUpdate) return ` נכון לתאריך ${lastUpdate}`
 
   return ""
@@ -348,7 +319,7 @@ export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus 
   const orderNumber = resolveCustomerOrderNumber(row)
   const statusCode = String(row.ZPIT_DELSTATUSCODE ?? "").trim()
   const statusLabel = String(row.ZPIT_DELSTATUSDES ?? "").trim()
-  const delDate = formatHebrewDate(row.ZPIT_DELDATE)
+  const delDate = formatHebrewCustomerDate(row.ZPIT_DELDATE)
 
   const mapped: OrderShipmentStatus = {
     orderNumber,

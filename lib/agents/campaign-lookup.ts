@@ -1,4 +1,5 @@
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
+import { formatHebrewCustomerDate } from "@/lib/agents/hebrew-date-format"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 export type CampaignRecord = {
@@ -153,13 +154,9 @@ export async function fetchCampaigns(value = "all") {
 }
 
 function formatHebrewDate(value: string | null) {
-  const date = parseDate(value)
-  if (!date) return value
-  return date.toLocaleDateString("he-IL", {
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-  })
+  const formatted = formatHebrewCustomerDate(value ?? undefined)
+  if (formatted) return formatted
+  return value
 }
 
 function normalizeQuery(query: string) {

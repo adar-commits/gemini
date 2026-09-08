@@ -1,4 +1,5 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { formatHebrewCustomerDateTime } from "@/lib/agents/hebrew-date-format"
 import {
   isMappedDeliveryStatusId,
   isUnknownDeliveryStatusMessage,
@@ -16,11 +17,7 @@ const COURIER_COORDINATES =
   "השליח יתאם איתכם טלפונית את מועד האספקה — לא ניתן לקבוע תאריך מדויק מראש."
 
 function formatCoordinateDate(iso: string | null | undefined) {
-  if (!iso?.trim()) return null
-  const parsed = Date.parse(iso)
-  if (!Number.isFinite(parsed)) return null
-  const date = new Date(parsed)
-  return `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`
+  return formatHebrewCustomerDateTime(iso)
 }
 
 /** Policy-based delivery estimate — never invent a calendar date except API coordinate date. */

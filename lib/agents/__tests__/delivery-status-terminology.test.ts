@@ -114,7 +114,7 @@ describe("delivery status terminology", () => {
     const reply = buildOrderStatusReply(order)
     assert.match(reply, /בדקתי,/)
     assert.match(reply, /נארזה ומוכנה לאיסוף/)
-    assert.match(reply, /נכון לתאריך/)
+    assert.match(reply, /נכון לתאריך 30\/08\/2026 בשעה 14:00/)
     assert.match(reply, /אפשר לעזור במשהו נוסף/)
     assert.doesNotMatch(reply, /לגבי הזמנה/)
     assert.doesNotMatch(reply, /סטטוס:/)
@@ -157,7 +157,7 @@ describe("delivery status terminology", () => {
       ZPIT_DELDATE: "2026-09-05T00:00:00+03:00",
       ZPIT_UDATE: "2026-09-07T10:00:00+03:00",
     })
-    assert.match(orderStatusDatePhrase(order), /נמסר בתאריך 5\.9\.2026/)
+    assert.match(orderStatusDatePhrase(order), /נמסר בתאריך 05\/09\/2026/)
     const reply = buildOrderStatusReply(order)
     assert.match(reply, /נמסר באמצעות שליח/)
     assert.doesNotMatch(reply, /נכון לתאריך/)

@@ -90,7 +90,7 @@ describe("delivery estimate follow-up after status", () => {
     const reply = buildDeliveryEstimatePolicyReply(order)
     assert.match(reply, /בתהליכי אריזה|מדיניות האספקה/)
     assert.match(reply, /4 ימי עסקים/)
-    assert.doesNotMatch(reply, /\d{1,2}\.\d{1,2}\.\d{4}/)
+    assert.doesNotMatch(reply, /\d{1,2}\/\d{1,2}\/\d{4}/)
   })
 
   it("uses coordinate date for status 80 when available", () => {
@@ -101,7 +101,7 @@ describe("delivery estimate follow-up after status", () => {
       ZPIT_COORDATE: "2026-09-10T10:00:00+03:00",
     })
     const reply = buildDeliveryEstimatePolicyReply(order)
-    assert.match(reply, /10\.9\.2026/)
+    assert.match(reply, /10\/09\/2026 בשעה 10:00/)
   })
 
   it("fresh lookup still starts with phone confirm when no prior status", async () => {
