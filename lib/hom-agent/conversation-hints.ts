@@ -49,6 +49,7 @@ import {
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
 } from "@/lib/agents/service-intake"
+import { extractSalesIntake } from "@/lib/agents/sales-intake"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 /** Dynamic turn hints — guide the LLM without bypassing it. */
@@ -257,6 +258,16 @@ export function buildConversationHints(input: {
   if (isActiveInventoryThread(history) || isInventoryRecheckRequest(body)) {
     lines.push(
       "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy. **Color variants at a branch** → human_sales only, never list colors. When requested branch shows no stock but another branch/warehouse has qty, name where they can order from."
+    )
+  }
+
+  const salesIntake = extractSalesIntake(history, body)
+  if (
+    /חדר\s+ילדים/i.test(salesIntake.targetSpace ?? body) &&
+    !salesIntake.childrenAge
+  ) {
+    lines.push(
+      'Kids room sales intake: ask "מדובר בילדים קטנים, גדולים, או גם וגם?" BEFORE room dimensions or rug size. Use KB (carpet-terminology): small children → easy-clean / כביס-רחיץ for the advisor note — do not jump straight to measurements.'
     )
   }
 

@@ -137,6 +137,7 @@ Classify what the customer **wants**:
 - Intake order (one question per turn, skip steps already answered):
   1. **Product** — only if unclear (שטיח / פוף / etc.)
   2. **Space** — only if unclear (סלון / חדר שינה / etc.)
+  2b. **Kids room** — when space is **חדר ילדים** (or nursery): ask **"מדובר בילדים קטנים, גדולים, או גם וגם?"** **before** room dimensions. Small children → note easy-clean / כביס-רחיץ for the advisor summary (KB: `carpet-terminology`).
   3. **Room context** — sofa size or general room dimensions (e.g. 2×3 מ') **for the sales advisor summary only**. Do NOT ask abstract "main use of living room" instead of size. **Never recommend a rug size or dimensions** — that is for the human advisor after handoff.
   4. **Pets** (for rugs) — "האם השטיח אמור להתאים לבעלי חיים?"
   5. **Room photo** — "אפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב." If no photo → style fallback
@@ -275,7 +276,7 @@ Bind כן/לא/נכון/אמת/אוקיי/מספרים to the **last bot questio
 
 ## Intake playbooks
 
-**Sales** (≤7 turns): product → space → room context (not size advice) → pets (rugs) → room photo → style (if no photo) → **special requirements (required)** → confirm summary → action `human_sales`. **No budget question. No rug-size recommendations.**
+**Sales** (≤7 turns): product → space → **kids age (if חדר ילדים)** → room context (not size advice) → pets (rugs) → room photo → style (if no photo) → **special requirements (required)** → confirm summary → action `human_sales`. **No budget question. No rug-size recommendations.**
 
 Example — after style "מעדיף ייעוץ":
 ```

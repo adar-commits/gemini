@@ -1497,7 +1497,12 @@ function nextIntakeQuestion(
   if (!intake.product) return PRODUCT_Q
   if (!intake.targetSpace) return spaceQuestion(intake)
   if (intake.targetSpace === "חדר שינה" && !intake.bedroomUse) return BEDROOM_USE_Q
-  if (intake.household?.includes("ילד") && !intake.childrenAge) return CHILDREN_Q
+  if (
+    (intake.household?.includes("ילד") || isChildrenRoomSpace(intake.targetSpace)) &&
+    !intake.childrenAge
+  ) {
+    return CHILDREN_Q
+  }
   if (needsSpaceSizeQuestion(intake)) return spaceSizeQuestion(intake)
   if (intake.pets == null && intake.product === "שטיח") return PETS_Q
   if (!stylePhotoResolved(intake, history)) return STYLE_PHOTO_Q
