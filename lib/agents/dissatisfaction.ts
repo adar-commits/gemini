@@ -108,9 +108,8 @@ export function buildDissatisfactionRescueReply(phone?: string | null) {
 
 קיבלנו, ${DISSATISFACTION_RESCUE_MARKER}:
 
-1. *החלפה* — ניתן להחליף לשטיח אחר שיתאים יותר, אם צריכים יעוץ להתאמה ${DISSATISFACTION_SALES_OFFER_MARKER}.
-2. *החזרה וביטול* — אפשר להחזיר ב*סניפי הרשת*, או באמצעות שליח (בתשלום לפי גודל השטיח). בכל מקרה יש לפתוח בקשת החזרה/ביטול בפורטל — גם כשמחזירים בסניף; איסוף בבית דרך שליח בתשלום.
-בכל מקרה ${DISSATISFACTION_PORTAL_REFERRAL_MARKER}:
+1. *החלפה* — ניתן להחליף לשטיח אחר שיתאים יותר, אם צריכים יעוץ להתאמה ${DISSATISFACTION_SALES_OFFER_MARKER}. להחלפה אין צורך בפורטל.
+2. *החזרה וביטול* — אפשר להחזיר ב*סניפי הרשת*, או באמצעות שליח (בתשלום לפי גודל השטיח). במסלול החזרה וביטול בלבד (גם כשמחזירים בסניף) ${DISSATISFACTION_PORTAL_REFERRAL_MARKER}:
 ${portalUrl}
 
 איך תרצו להמשיך?☺️`

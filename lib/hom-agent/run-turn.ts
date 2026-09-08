@@ -32,13 +32,6 @@ import {
   isReturnPickupAwaitingThread,
 } from "@/lib/agents/service-intake"
 import { enrichReturnPickupIntake } from "@/lib/agents/order-lookup"
-import {
-  answerCombinedQuestions,
-  looksLikeMultipleQuestions,
-  splitOrderedQuestions,
-} from "@/lib/agents/multi-question"
-import { isShippingStatusQuestion } from "@/lib/agents/shipping"
-import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
   if (action === "human_sales" || action === "human_service") return action
@@ -193,53 +186,6 @@ export async function runHomAgentTurn(
         routing_path: "v3_structured_order",
       },
     })
-  }
-
-  if (
-    looksLikeMultipleQuestions(body) &&
-    !isOrderConfirmationPending(history) &&
-    !isReturnPickupAwaitingThread(history, body)
-  ) {
-    const questions = await splitOrderedQuestions(body, conversationId).catch(() => [body])
-    // 2+ questions take the fast combined path (single light LLM call, no tool
-    // loop) — unless one of them needs live order/document data.
-    const needsLiveTools = questions.some(
-      (question) =>
-        isShippingStatusQuestion(question) || isDigitalDocumentRequest(question)
-    )
-    if (questions.length >= 2 && !needsLiveTools) {
-      const combinedReply = await answerCombinedQuestions(questions, {
-        conversationId,
-        history,
-        sessionSummary: conversationSummary,
-      }).catch(() => "")
-
-      if (combinedReply.trim()) {
-        if (persistTurn) {
-          await appendTurn({
-            conversationId,
-            agent: "faq",
-            userText: body,
-            assistantText: combinedReply,
-            action: "reply",
-            preview,
-          })
-        }
-
-        return finish({
-          ok: true,
-          agent: "faq",
-          reply: combinedReply,
-          action: "reply",
-          route: ["faq"],
-          metrics: {
-            llm_calls: 1,
-            profile: runtime.activeProfile,
-            routing_path: "v3_multi_question",
-          },
-        })
-      }
-    }
   }
 
   let output

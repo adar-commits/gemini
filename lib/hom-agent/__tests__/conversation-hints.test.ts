@@ -124,9 +124,20 @@ describe("buildConversationHints", () => {
       ].join("\n"),
     })
     assert.ok(hints)
-    assert.match(hints, /MULTI-QUESTION OVERLOAD/i)
-    assert.match(hints, /answer all non-tool items first/i)
+    assert.match(hints, /MULTI-MESSAGE TURN/i)
+    assert.match(hints, /ONE issue\/flow/i)
+    assert.match(hints, /genuinely DISTINCT topics/i)
     assert.match(hints, /at most one tool call this turn/i)
-    assert.match(hints, /do not ignore topics/i)
+  })
+
+  it("guides merged same-issue burst toward one coherent flow", () => {
+    const hints = buildConversationHints({
+      history: [],
+      body: "היי קיבלתי את השטיח\nולא אהבתי אותו",
+    })
+    assert.ok(hints)
+    assert.match(hints, /MULTI-MESSAGE TURN/i)
+    assert.match(hints, /never answer each line separately/i)
+    assert.match(hints, /never add a second greeting/i)
   })
 })
