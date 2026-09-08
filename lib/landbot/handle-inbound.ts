@@ -82,7 +82,7 @@ function outboundReply(result: AgentResponse) {
   return ""
 }
 
-function stuckOrSalvagedReply(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
+function salvagedReply(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
   if (isThanksAcknowledgment(body)) {
     const history = input?.history ?? []
     if (isPostHumanHandoff(null, history)) {
@@ -90,7 +90,17 @@ function stuckOrSalvagedReply(body: string, input?: { customerName?: string; his
     }
     return buildThanksAckReply(input?.customerName)
   }
-  return salvageReturnPickupAwaitingReply(body) ?? buildProcessingStuckReply()
+  return salvageReturnPickupAwaitingReply(body)
+}
+
+/** Watchdog hold bubble — the real answer still follows when compute finishes. */
+function holdOrSalvagedReply(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
+  return salvagedReply(body, input) ?? buildProcessingStuckReply()
+}
+
+/** Final fallback when the pipeline produced no sendable reply — never a bare hold message. */
+function emptyReplyFallback(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
+  return salvagedReply(body, input) ?? buildNeverStuckReply()
 }
 
 export async function handleLandbotInbound(
@@ -268,15 +278,16 @@ export async function handleLandbotInbound(
   const watchdog = startProcessingWatchdog({
     replyEnabled,
     onStuck: async () => {
-      const stuckReply = stuckOrSalvagedReply(body, stuckContext)
-      await appendTurn({
+      // Hold bubble only — the real answer is still computed and sent below.
+      const holdReply = holdOrSalvagedReply(body, stuckContext)
+      await sendCustomerText(customerId, holdReply)
+      await recordProactiveAssistantMessage({
         conversationId,
-        agent: "faq",
-        userText: body,
-        assistantText: stuckReply,
+        assistantText: holdReply,
         action: "reply",
+      }).catch((error) => {
+        console.warn("[handle-inbound] failed to persist hold bubble", error)
       })
-      await sendCustomerText(customerId, stuckReply)
     },
   })
 
@@ -302,9 +313,14 @@ export async function handleLandbotInbound(
         : undefined,
     })
 
-    while (replyEnabled) {
+    // Cap recomputes: each merged trailing burst re-runs a full LLM pass, so an
+    // active typer could otherwise chain unbounded invokes (minutes of silence).
+    // Messages beyond the cap stay buffered and are handled as the next turn.
+    let coalesceRuns = 0
+    while (replyEnabled && coalesceRuns < 2) {
       const mergedTurn = await coalesceTrailingBufferedTurn(conversationId, activeTurn)
       if (summarizeTurn(mergedTurn) === summarizeTurn(activeTurn)) break
+      coalesceRuns += 1
       activeTurn = mergedTurn
       body = summarizeTurn(activeTurn)
       result = await runCustomerConversation(conversationId, activeTurn, {
@@ -342,7 +358,7 @@ export async function handleLandbotInbound(
     !result.duplicateSuppressed &&
     (result.action === "reply" || result.action === "shipping")
   ) {
-    draftReply = stuckOrSalvagedReply(body, stuckContext)
+    draftReply = emptyReplyFallback(body, stuckContext)
     result = { ...result, reply: draftReply }
   }
 
@@ -352,7 +368,7 @@ export async function handleLandbotInbound(
     result.duplicateSuppressed &&
     (result.action === "reply" || result.action === "shipping")
   ) {
-    draftReply = stuckOrSalvagedReply(body, stuckContext)
+    draftReply = emptyReplyFallback(body, stuckContext)
     result = { ...result, reply: draftReply, duplicateSuppressed: false }
   }
 
@@ -362,7 +378,10 @@ export async function handleLandbotInbound(
   const { messages: outboundMessages, headerSent: outboundHeaderSent } =
     formatOutboundMessages(rawOutbound, { headerAlreadySent })
 
-  if (replyEnabled && !watchdog.stuckAlreadySent()) {
+  // Always deliver the final answer — even when the hold bubble already fired
+  // (previously the computed reply was silently dropped after a hold, leaving
+  // the customer with "אני על זה…" and nothing else).
+  if (replyEnabled) {
     if (
       !trainerResetBypass &&
       (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
