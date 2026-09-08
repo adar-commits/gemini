@@ -88,6 +88,16 @@ export type PriorityOrderRow = {
   ZPIT_DELIVEREDTO?: string | null
   ZPIT_COORDATE?: string | null
   delivery_deliveredto?: string | null
+  /** Line items when n8n getOrders includes them (PARTDES / price fields). */
+  items?: OrderLineItem[] | unknown[] | null
+  ORDERITEMS?: unknown[] | null
+  lineItems?: unknown[] | null
+}
+
+/** Normalized product line from getOrders — used in order confirmation cards. */
+export type OrderLineItem = {
+  name: string
+  price: number | null
 }
 
 export type OrderShipmentStatus = {
@@ -398,7 +408,7 @@ export async function lookupOrdersByPhone(
   const data = await callOrderWebhook({ actionType: "getOrders", value })
   if (data == null) return null
 
-  const rows = parseOrdersPayload(data)
+  const rows = parseOrdersPayload(data).map(normalizePriorityOrderRow)
   return sortOrdersNewestFirst(rows.map(mapPriorityOrderRow))
 }
 
@@ -1097,6 +1107,87 @@ function formatOrderPrice(price: number | null) {
   return price.toLocaleString("he-IL", { maximumFractionDigits: 2 })
 }
 
+function coerceItemArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function parseLineItemPrice(record: Record<string, unknown>) {
+  for (const key of ["TOTPRICE", "QPRICE", "PRICE", "price", "lineTotal", "unitPrice"]) {
+    const value = record[key]
+    if (typeof value === "number" && Number.isFinite(value)) return value
+    if (typeof value === "string") {
+      const parsed = Number(value.replace(/,/g, "").trim())
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return null
+}
+
+function parseOrderLineItem(value: unknown): OrderLineItem | null {
+  if (typeof value === "string") {
+    const name = value.trim()
+    return name ? { name, price: null } : null
+  }
+  if (typeof value !== "object" || value == null) return null
+
+  const record = value as Record<string, unknown>
+  for (const key of ["PARTDES", "PDES", "name", "productName", "description", "PARTNAME"]) {
+    const name = String(record[key] ?? "").trim()
+    if (name) return { name, price: parseLineItemPrice(record) }
+  }
+  return null
+}
+
+/** Extract product lines from a getOrders row — supports common Priority / n8n field names. */
+export function extractOrderLineItems(row: PriorityOrderRow): OrderLineItem[] {
+  if (Array.isArray(row.items) && row.items.length > 0) {
+    const alreadyNormalized = row.items.every(
+      (item): item is OrderLineItem =>
+        typeof item === "object" &&
+        item != null &&
+        typeof (item as OrderLineItem).name === "string"
+    )
+    if (alreadyNormalized) return row.items as OrderLineItem[]
+  }
+
+  const candidates = [row.items, row.ORDERITEMS, row.lineItems]
+  for (const candidate of candidates) {
+    const parsed = coerceItemArray(candidate)
+      .map(parseOrderLineItem)
+      .filter((item): item is OrderLineItem => item != null)
+    if (parsed.length > 0) return parsed
+  }
+  return []
+}
+
+function formatOrderLineItemsBlock(items: OrderLineItem[]) {
+  const lines = items
+    .map((item) => {
+      const price = formatOrderPrice(item.price)
+      if (!item.name.trim()) return null
+      return price ? `${item.name.trim()} (${price} ש׳׳ח)` : item.name.trim()
+    })
+    .filter((line): line is string => Boolean(line))
+  return lines.length > 0 ? lines.join("\n") : ""
+}
+
+function normalizePriorityOrderRow(row: PriorityOrderRow): PriorityOrderRow {
+  const items = extractOrderLineItems(row)
+  if (items.length === 0) return row
+  return { ...row, items }
+}
+
 /** Ask customer to confirm a single order (branch, age, total as cues). */
 export function buildOrderConfirmationPrompt(
   order: OrderShipmentStatus,
@@ -1115,8 +1206,10 @@ export function buildOrderConfirmationPrompt(
     order
   )
 
-  return `${CUSTOMER_HEADER}
+  const summary = `${CUSTOMER_HEADER}
 אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${displayOrder})`
+  const itemLines = formatOrderLineItemsBlock(extractOrderLineItems(order.raw))
+  return itemLines ? `${summary}\n\n${itemLines}` : summary
 }
 
 export function buildOrderConfirmationClarifyPrompt() {
