@@ -68,11 +68,11 @@ describe("gokuAutoApplyConfidence", () => {
 })
 
 describe("goku apply modes", () => {
-  it("defaults to weekly mode with 0.92 threshold", () => {
+  it("defaults to realtime mode with 0.92 weekly threshold", () => {
     const snapshot = saveEnv()
     delete process.env.GOKU_AUTO_APPLY_MODE
     delete process.env.GOKU_WEEKLY_APPLY_CONFIDENCE
-    assert.equal(gokuAutoApplyMode(), "weekly")
+    assert.equal(gokuAutoApplyMode(), "realtime")
     assert.equal(gokuWeeklyApplyConfidence(), 0.92)
     restoreEnv(snapshot)
   })
@@ -81,6 +81,13 @@ describe("goku apply modes", () => {
     const snapshot = saveEnv()
     process.env.GOKU_AUTO_APPLY_MODE = "realtime"
     assert.equal(gokuAutoApplyMode(), "realtime")
+    restoreEnv(snapshot)
+  })
+
+  it("supports explicit weekly mode override", () => {
+    const snapshot = saveEnv()
+    process.env.GOKU_AUTO_APPLY_MODE = "weekly"
+    assert.equal(gokuAutoApplyMode(), "weekly")
     restoreEnv(snapshot)
   })
 })

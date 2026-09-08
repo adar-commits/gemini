@@ -23,7 +23,7 @@ export function isPriorityApiWaitMessage(content: string) {
 }
 
 export const PRIORITY_API_PREMESSAGE = `${CUSTOMER_HEADER}
-אני על זה — עוד כמה רגעים 🙏`
+אני על זה, כמה רגעים בבקשה 🙏`
 
 type PriorityApiBeforeCall = (() => void | Promise<void>) | null
 

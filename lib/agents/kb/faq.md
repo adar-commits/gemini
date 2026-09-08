@@ -71,6 +71,7 @@ Updated 29.07.26
 - Service applies to delivery areas between Kiryat Gat and Zichron Yaakov.
 - Additional delay possible for remote towns and towns beyond the Green Line, Jordan Valley, Arava and Eilat.
 - Courier coordinates the delivery time by phone.
+- A specific delivery hour cannot be pre-booked in advance; courier coordination is done on delivery day near arrival.
 - Changing the address after handover to the courier costs money. Contact WhatsApp 077-9725055 or *3076.
 - If the customer asks the courier to leave the parcel at the door, the company is not responsible for damage or loss.
 - Damage or defect must be reported within 3 days of receiving the product.
@@ -82,6 +83,27 @@ Self-pickup:
 - Pickup only after SMS/email/WhatsApp ready notice.
 - Customer must show the pickup notice and invoice.
 - Rugs must be collected within 5 business days of ready notice. If not, the company may cancel without charging for the products. Repeat more than 3 times: company may block future website purchases.
+- Warehouse pickup hours (owner-confirmed): 08:00-15:45.
+
+## Owner-verified operational clarifications (from Goku Q&A)
+- These answers were provided directly by the business owner and should be preferred when phrasing customer replies in overlapping cases.
+
+### Order status wording for customers
+- "בביצוע" / "בהמתנה": ההזמנה בטיפול חדר הזמנות אך במצב מוקפא זמנית (לעיתים בהמתנה למלאי הזמנה מוקדמת).
+- "בליקוט" / "בתהליך ליקוט": ההזמנה התקבלה ונמצאת באריזה במחסן.
+- "העברה מסניף" / "מועברת מסניף": ההזמנה בדרך מהסניף למחסן לצורך המשך משלוח.
+- "לוקטה" / "הליקוט הסתיים": ההזמנה נארזה וממתינה לאיסוף של חברת השליחויות.
+- "מאושר לביצוע": ההזמנה התקבלה ומטופלת בתהליך ההכנה.
+- "מבוטלת": ההזמנה בוטלה.
+- "הושלם" / "נמסרה": ההזמנה נמסרה בהצלחה.
+
+### Damaged product initial flow
+- For a "product arrived damaged" report: first run order lookup, then request a product photo.
+- After order identification plus photo collection, offer transfer to customer service advisor for handling.
+
+### Trade-in questions
+- There is currently no active trade-in campaign.
+- If customer asks for alternatives or active offers, route to a sales advisor.
 
 ## Refund / exchange / cancellation policy
 Source: https://www.carpetshop.co.il/policies/refund-policy

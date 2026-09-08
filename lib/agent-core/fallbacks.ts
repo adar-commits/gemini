@@ -105,6 +105,5 @@ export function buildNeverStuckReply() {
 /** Friendly hold message when the pipeline needs more time — keep processing, no handoff ask. */
 export function buildProcessingStuckReply() {
   return `${CUSTOMER_HEADER}
-אני על זה, כמה רגעים בבקשה 🙏
-עובר על השאלות שלכם`
+אני על זה, כמה רגעים בבקשה 🙏`
 }

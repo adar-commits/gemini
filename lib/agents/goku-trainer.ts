@@ -182,7 +182,7 @@ export function gokuAutoApplyConfidence() {
 
 export function gokuAutoApplyMode() {
   const raw = process.env.GOKU_AUTO_APPLY_MODE?.trim().toLowerCase()
-  return raw === "realtime" ? "realtime" : "weekly"
+  return raw === "weekly" ? "weekly" : "realtime"
 }
 
 export function gokuWeeklyApplyConfidence() {

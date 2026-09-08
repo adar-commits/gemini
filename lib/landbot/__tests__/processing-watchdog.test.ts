@@ -4,10 +4,10 @@ import { buildProcessingStuckReply } from "@/lib/agent-core/fallbacks"
 import { startProcessingWatchdog } from "@/lib/landbot/processing-watchdog"
 
 describe("processing watchdog", () => {
-  it("buildProcessingStuckReply keeps processing without handoff ask", () => {
+  it("buildProcessingStuckReply says exactly the hold sentence, no extras", () => {
     const reply = buildProcessingStuckReply()
-    assert.match(reply, /אני על זה, כמה רגעים בבקשה/)
-    assert.match(reply, /עובר על השאלות/)
+    assert.match(reply, /אני על זה, כמה רגעים בבקשה 🙏/)
+    assert.doesNotMatch(reply, /עובר על השאלות/)
     assert.doesNotMatch(reply, /להעביר לנציג שירות/)
     assert.doesNotMatch(reply, /לא הצלחתי להבין/)
   })
