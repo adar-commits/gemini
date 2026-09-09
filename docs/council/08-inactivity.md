@@ -7,7 +7,7 @@
 1. Bot sends message with a question → starts watch (`runInactivityPipeline`)
 2. **15 minutes** silence → proactive ping (`INACTIVITY_PING_MS=900000`)
 3. Customer replies `כן`/`פה` → ack + resume thread
-4. **30 minutes** after ping, still silent → **service / unknown:** close message; **active sales or inventory:** assign `human_sales` (מכירות) so the lead is not lost — never leave sales funnels orphaned after the ping
+4. **30 minutes** after ping, still silent → **service / unknown:** close message + **CRM `conversations.closed_at`** + Landbot archive; **active sales or inventory:** assign `human_sales` (מכירות) — never close sales funnels
 5. **Skip** ping/close if already `human_sales` / `human_service`
 
 ## Close scheduling (v2 fix)

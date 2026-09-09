@@ -3,7 +3,6 @@ import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_PING_MS,
-  buildInactivityCloseReply,
   buildInactivityPingReply,
   isInactivityAssistantMessage,
   shouldSuppressInactivityWatch,
@@ -12,8 +11,9 @@ import { getSessionInactivityState, recordProactiveAssistantMessage } from "@/li
 import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
-import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
+import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-close"
 import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 
@@ -422,22 +422,10 @@ async function attemptInactivityClose(row: CloseCandidate) {
     return "sales_recovery" as const
   }
 
-  const reply = buildInactivityCloseReply()
-  await assignToApiAgent(customerId)
-  await sendCustomerText(customerId, reply)
-  await recordProactiveAssistantMessage({
+  await executeInactivityServiceClose({
     conversationId: row.conversation_id,
-    assistantText: reply,
-    action: "inactivity_close",
+    customerId,
   })
-  // Close the chat in the Landbot dashboard too — best-effort.
-  await archiveCustomer(customerId).catch((error) =>
-    console.warn("[inactivity-cron] landbot archive failed", {
-      conversationId: row.conversation_id,
-      error: error instanceof Error ? error.message : error,
-    })
-  )
-  scheduleGokuTrainer(row.conversation_id, "inactivity_close")
   return "closed" as const
 }
 

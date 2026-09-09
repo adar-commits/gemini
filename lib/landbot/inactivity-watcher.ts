@@ -3,7 +3,6 @@ import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_PING_MS,
-  buildInactivityCloseReply,
   buildInactivityPingReply,
   isInactivityAssistantMessage,
   shouldSuppressInactivityWatch,
@@ -14,13 +13,13 @@ import {
   recordProactiveAssistantMessage,
   touchSessionMeta,
 } from "@/lib/agents/memory"
-import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
+import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
-import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 import { inactivityWatchUrl } from "@/lib/landbot/sync-hook"
 
 /** Chunk close waits so serverless (maxDuration ~300s) can chain to 15+ min. */
@@ -353,24 +352,10 @@ async function runClosePhase(payload: InactivityWatchPayload) {
     return { ok: true, skipped: skip }
   }
 
-  const reply = buildInactivityCloseReply()
-  await assignToApiAgent(payload.customerId)
-  await sendCustomerText(payload.customerId, reply)
-  await recordProactiveAssistantMessage({
+  return executeInactivityServiceClose({
     conversationId: payload.conversationId,
-    assistantText: reply,
-    action: "inactivity_close",
+    customerId: payload.customerId,
   })
-  // Close the chat in the Landbot dashboard too — best-effort.
-  await archiveCustomer(payload.customerId).catch((error) =>
-    console.warn("[inactivity-watch] landbot archive failed", {
-      conversationId: payload.conversationId,
-      error: error instanceof Error ? error.message : error,
-    })
-  )
-  scheduleGokuTrainer(payload.conversationId, "inactivity_close")
-
-  return { ok: true, sent: "close" as const }
 }
 
 export async function runInactivityWatch(payload: InactivityWatchPayload) {
