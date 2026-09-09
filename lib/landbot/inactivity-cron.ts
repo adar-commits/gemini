@@ -13,6 +13,7 @@ import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
 import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 
@@ -404,9 +405,7 @@ async function attemptInactivityClose(row: CloseCandidate) {
 
   const { getConversationContext } = await import("@/lib/agents/memory")
   const context = await getConversationContext(row.conversation_id)
-  if (shouldSkipInactivityClose(context.history, context.lastAgent)) {
-    return "skipped" as const
-  }
+  const salesRecovery = shouldSkipInactivityClose(context.history, context.lastAgent)
 
   const pingAt = await lastAssistantIsInactivityPing(row.conversation_id)
   if (!pingAt) return "skipped" as const
@@ -414,6 +413,14 @@ async function attemptInactivityClose(row: CloseCandidate) {
     return "skipped" as const
   }
   if (msSince(pingAt) < INACTIVITY_CLOSE_AFTER_PING_MS) return "skipped" as const
+
+  if (salesRecovery) {
+    await executeInactivitySalesRecovery({
+      conversationId: row.conversation_id,
+      customerId,
+    })
+    return "sales_recovery" as const
+  }
 
   const reply = buildInactivityCloseReply()
   await assignToApiAgent(customerId)
@@ -446,6 +453,7 @@ export async function processInactivityTimeouts() {
     scanned: sessions.length,
     pinged: 0,
     closed: 0,
+    salesRecovery: 0,
     skipped: 0,
     errors: [] as string[],
   }
@@ -454,6 +462,7 @@ export async function processInactivityTimeouts() {
     try {
       const outcome = await attemptInactivityClose(row)
       if (outcome === "closed") results.closed += 1
+      else if (outcome === "sales_recovery") results.salesRecovery += 1
       else results.skipped += 1
     } catch (error) {
       const message = error instanceof Error ? error.message : "Inactivity close failed"
@@ -474,11 +483,6 @@ export async function processInactivityTimeouts() {
         results.skipped += 1
         continue
       }
-
-      const skipCloseForSales = shouldSkipInactivityClose(
-        context.history,
-        context.lastAgent
-      )
 
       if (!(await isBotWaitingForUser(row)) || (await hasPendingBuffer(row.conversation_id))) {
         results.skipped += 1
@@ -521,6 +525,10 @@ export async function processInactivityTimeouts() {
           results.closed += 1
           continue
         }
+        if (outcome === "sales_recovery") {
+          results.salesRecovery += 1
+          continue
+        }
       }
 
       if (!pingSentAt && waitingMs >= INACTIVITY_PING_MS) {
@@ -534,7 +542,7 @@ export async function processInactivityTimeouts() {
         })
         const pingSession = await getSessionInactivityState(row.conversation_id)
         const watchPingSentAt = asText(pingSession?.inactivity_ping_sent_at)
-        if (watchPingSentAt && !skipCloseForSales) {
+        if (watchPingSentAt) {
           void scheduleInactivityCloseWatch({
             conversationId: row.conversation_id,
             customerId,

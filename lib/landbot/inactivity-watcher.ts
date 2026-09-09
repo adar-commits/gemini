@@ -15,6 +15,7 @@ import {
   touchSessionMeta,
 } from "@/lib/agents/memory"
 import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
+import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
@@ -342,6 +343,12 @@ async function runClosePhase(payload: InactivityWatchPayload) {
       })
       return { ok: true, rescheduled: true as const }
     }
+    if (skip === "sales_flow_no_close") {
+      return executeInactivitySalesRecovery({
+        conversationId: payload.conversationId,
+        customerId: payload.customerId,
+      })
+    }
     console.log("[inactivity-watch] close skipped", payload.conversationId, skip)
     return { ok: true, skipped: skip }
   }
@@ -387,17 +394,13 @@ export async function runInactivityWatch(payload: InactivityWatchPayload) {
     const session = await getSessionInactivityState(payload.conversationId)
     const watchPingSentAt = asText(session?.inactivity_ping_sent_at)
     if (watchPingSentAt) {
-      const { getConversationContext } = await import("@/lib/agents/memory")
-      const context = await getConversationContext(payload.conversationId)
-      if (!shouldSkipInactivityClose(context.history, context.lastAgent)) {
-        void scheduleInactivityCloseWatch({
-          conversationId: payload.conversationId,
-          customerId: payload.customerId,
-          customerName: payload.customerName,
-          customerPhone: payload.customerPhone,
-          watchPingSentAt,
-        })
-      }
+      void scheduleInactivityCloseWatch({
+        conversationId: payload.conversationId,
+        customerId: payload.customerId,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        watchPingSentAt,
+      })
     }
 
     return { ok: true, sent: "ping" as const }
