@@ -4,11 +4,8 @@ import {
   recordProactiveAssistantMessage,
 } from "@/lib/agents/memory"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
-import { assignToHuman, sendCustomerText, unassignCustomer } from "@/lib/landbot/client"
-import {
-  humanAgentIdForHandoff,
-  recordHumanAgentActivity,
-} from "@/lib/landbot/human-takeover"
+import { sendCustomerText } from "@/lib/landbot/client"
+import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
 
 function buildInactivitySalesRecoveryReply(now = new Date()) {
   const body = buildHumanHandoffConfirmedReply("human_sales", now)
@@ -23,11 +20,13 @@ export async function executeInactivitySalesRecovery(input: {
   conversationId: string
   customerId: number
 }) {
-  const human = humanAgentIdForHandoff("human_sales", input.customerId)
   const reply = buildInactivitySalesRecoveryReply()
 
-  if (human) await assignToHuman(input.customerId, human)
-  else await unassignCustomer(input.customerId)
+  await executeHumanHandoff({
+    conversationId: input.conversationId,
+    customerId: input.customerId,
+    action: "human_sales",
+  })
 
   await sendCustomerText(input.customerId, reply)
   await recordProactiveAssistantMessage({
@@ -36,7 +35,6 @@ export async function executeInactivitySalesRecovery(input: {
     action: "human_sales",
   })
   await clearInactivityWatchState(input.conversationId)
-  await recordHumanAgentActivity(input.conversationId)
 
   return { ok: true as const, sent: "sales_recovery" as const }
 }

@@ -8,15 +8,9 @@ import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
-import {
-  assignToApiAgent,
-  assignToHuman,
-  getCustomer,
-  sendCustomerText,
-  unassignCustomer,
-} from "@/lib/landbot/client"
+import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
 import { PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
-import { pickHumanAgentId } from "@/lib/landbot/human-agents"
+import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
   buildTrainerResetReply,
@@ -50,11 +44,7 @@ import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
 import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
-import {
-  isHumanThreadActive,
-  recordHumanAgentActivity,
-  releaseHumanThread,
-} from "@/lib/landbot/human-takeover"
+import { isHumanThreadActive, releaseHumanThread } from "@/lib/landbot/human-takeover"
 import {
   handleTrainerProfileCommand,
   isTrainerProfileCommand,
@@ -385,10 +375,11 @@ export async function handleLandbotInbound(
 
     if (result.action === "human_sales" || result.action === "human_service") {
       await clearInactivityWatchState(conversationId)
-      const human = pickHumanAgentId(result.action, customerId)
-      if (human) await assignToHuman(customerId, human)
-      else await unassignCustomer(customerId)
-      await recordHumanAgentActivity(conversationId)
+      await executeHumanHandoff({
+        conversationId,
+        customerId,
+        action: result.action,
+      })
     } else if (outboundMessages.length > 0) {
       const lastOutbound = outboundMessages[outboundMessages.length - 1] ?? ""
       if (
