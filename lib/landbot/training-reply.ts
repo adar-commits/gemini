@@ -4,6 +4,7 @@ import {
   getConversationTail,
   normalizeMessageText,
 } from "@/lib/agents/memory"
+import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
 import {
   resetAgentSession,
@@ -140,11 +141,9 @@ export async function sendTrainingReply(
 
   const replyBody =
     result.reply ||
-    (result.action === "human_service"
-      ? "*הום בוט :)*\nהפנייה הועברה לנציג שירות. ניצור קשר בהקדם."
-      : result.action === "human_sales"
-        ? "*הום בוט :)*\nהפנייה הועברה ליועץ מכירות. ניצור קשר בהקדם."
-        : "")
+    (result.action === "human_service" || result.action === "human_sales"
+      ? `*הום בוט :)*\n${buildHumanHandoffConfirmedReply(result.action)}`
+      : "")
 
   if (!replyBody) {
     throw new Error(`Agent produced no customer reply (action=${result.action})`)

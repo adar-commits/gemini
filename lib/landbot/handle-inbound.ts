@@ -1,6 +1,7 @@
 import { runCustomerConversation } from "@/lib/agents/conversation"
 import { formatOutboundMessages } from "@/lib/agents/greeting"
 import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conversation-close"
+import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
@@ -71,11 +72,8 @@ export type LandbotInboundResult = AgentResponse & {
 
 function outboundReply(result: AgentResponse) {
   if (result.reply) return result.reply
-  if (result.action === "human_service") {
-    return "*הום בוט :)*\nהפנייה הועברה לנציג שירות. ניצור קשר בהקדם."
-  }
-  if (result.action === "human_sales") {
-    return "*הום בוט :)*\nהפנייה הועברה ליועץ מכירות. ניצור קשר בהקדם."
+  if (result.action === "human_service" || result.action === "human_sales") {
+    return `*הום בוט :)*\n${buildHumanHandoffConfirmedReply(result.action)}`
   }
   return ""
 }

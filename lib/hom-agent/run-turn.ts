@@ -38,6 +38,7 @@ import {
   isReturnPickupAwaitingThread,
 } from "@/lib/agents/service-intake"
 import { enrichReturnPickupIntake } from "@/lib/agents/order-lookup"
+import { enrichHandoffReply } from "@/lib/agents/human-agent-hours"
 
 function mapHomAction(action: HomAgentAction): ConversationalAction {
   if (action === "human_sales" || action === "human_service") return action
@@ -138,10 +139,21 @@ export async function runHomAgentTurn(
   }
 
   const finish = async (result: AgentResponse): Promise<AgentResponse> => {
+    let enriched = result
+    if (
+      (result.action === "human_sales" || result.action === "human_service") &&
+      result.reply?.trim()
+    ) {
+      const reply = enrichHandoffReply(result.reply, result.action)
+      if (reply !== result.reply) {
+        enriched = { ...result, reply }
+      }
+    }
+
     const metrics = finishTurnMetrics(conversationId)
     await maybeRefreshConversationSummary({ conversationId, history }).catch(() => {})
-    if (metrics) return { ...result, metrics }
-    return result
+    if (metrics) return { ...enriched, metrics }
+    return enriched
   }
 
   const preTurn = runPreTurnGuards({

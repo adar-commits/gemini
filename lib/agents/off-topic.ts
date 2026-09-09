@@ -172,13 +172,7 @@ export function inferHumanHandoffAction(
   return "human_service"
 }
 
-export function buildHumanHandoffConfirmedReply(
-  action: "human_sales" | "human_service"
-) {
-  return action === "human_sales"
-    ? "מעולה, העברתי את השיחה ליועץ מכירות. ניצור קשר בהקדם."
-    : "מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם."
-}
+export { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 
 export function buildHumanHandoffDeclinedReply() {
   return "אין בעיה. אפשר להמשיך מכאן."
