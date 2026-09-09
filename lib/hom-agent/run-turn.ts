@@ -26,7 +26,11 @@ import type { AgentResponse, ConversationalAction, HistoryMessage } from "@/lib/
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
-import { runPreTurnGuards, runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
+import {
+  runPreTurnGuards,
+  runStructuredOrderLookupPreTurn,
+  runStructuredSalesPhotoPreTurn,
+} from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
 import {
   buildReturnPickupAwaitingServiceReply,
@@ -110,7 +114,7 @@ export async function runHomAgentTurn(
   const preview = options?.preview
   const persistTurn = options?.persistTurn !== false && !preview
   const phone = options?.phone?.trim() || ""
-  const { history, conversationSummary } = await getConversationContext(conversationId)
+  const { history, conversationSummary, lastAgent } = await getConversationContext(conversationId)
 
   bindPriorityApiPreMessageGuard(() =>
     history.some(
@@ -165,6 +169,38 @@ export async function runHomAgentTurn(
       reply: preTurn.reply,
       action,
       route: ["faq"],
+    })
+  }
+
+  const structuredSalesPhoto = runStructuredSalesPhotoPreTurn({
+    turn,
+    history,
+    lastAgent,
+  })
+
+  if (structuredSalesPhoto.kind === "handled") {
+    const action = mapHomAction(structuredSalesPhoto.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "sales",
+        userText: body,
+        assistantText: structuredSalesPhoto.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredSalesPhoto.reply,
+      action,
+      route: ["sales"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_sales_photo",
+      },
     })
   }
 

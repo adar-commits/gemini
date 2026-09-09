@@ -49,7 +49,12 @@ import {
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
 } from "@/lib/agents/service-intake"
-import { extractSalesIntake } from "@/lib/agents/sales-intake"
+import {
+  extractSalesIntake,
+  hasOngoingSalesIntake,
+  hasRoomPhotoInHistory,
+  isSalesPhotoRequestPending,
+} from "@/lib/agents/sales-intake"
 import { isInactivityPingPending } from "@/lib/agents/inactivity"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -266,6 +271,17 @@ export function buildConversationHints(input: {
   if (isActiveInventoryThread(history) || isInventoryRecheckRequest(body)) {
     lines.push(
       "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy. **Color variants at a branch** → human_sales only, never list colors. When requested branch shows no stock but another branch/warehouse has qty, name where they can order from."
+    )
+  }
+
+  if (
+    /\[media:image:/i.test(body) &&
+    (isSalesPhotoRequestPending(history) ||
+      hasOngoingSalesIntake(history) ||
+      hasRoomPhotoInHistory(history))
+  ) {
+    lines.push(
+      "SALES ROOM PHOTO: reference for the human advisor only — acknowledge receipt, do NOT describe/analyze the image (no furniture/colors/rug guesses). Ask for one clear photo when requesting; if customer sent multiple, thank once and say one is enough — continue intake without repeating."
     )
   }
 

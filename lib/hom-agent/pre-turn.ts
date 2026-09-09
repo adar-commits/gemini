@@ -20,7 +20,11 @@ import {
   replyAwaitingCustomerInput,
 } from "@/lib/agents/compound-reply"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
-import { isConfirmationPending } from "@/lib/agents/sales-intake"
+import {
+  buildSalesPhotoReceivedReply,
+  isConfirmationPending,
+  shouldAckSalesRoomPhotoWithoutVision,
+} from "@/lib/agents/sales-intake"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
   extractOrderNumber,
@@ -31,7 +35,7 @@ import {
   resolveOrderShippingReply,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
-import type { HistoryMessage } from "@/lib/agents/types"
+import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import {
@@ -173,6 +177,24 @@ function orderLookupStructuredBinding(body: string) {
     isChannelPhoneSelfReference(body) ||
     extractOrderNumber(body) != null
   )
+}
+
+/** Sales room photos — ack only, no vision analysis; continue intake. */
+export function runStructuredSalesPhotoPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  lastAgent?: AgentId | null
+}): PreTurnResult {
+  if (!shouldAckSalesRoomPhotoWithoutVision(input.history, input.turn, input.lastAgent ?? null)) {
+    return { kind: "skip", response: null }
+  }
+
+  const body = summarizeTurn(input.turn)
+  return {
+    kind: "handled",
+    reply: buildSalesPhotoReceivedReply(input.history, body, input.turn),
+    action: "reply",
+  }
 }
 
 /** Structured mid-flow — bind explicit identifiers before the LLM call. */

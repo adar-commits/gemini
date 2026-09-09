@@ -23,7 +23,9 @@ import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
 import { isConfirmationAffirmationWithExtra } from "@/lib/agents/compound-reply"
+import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
+import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
@@ -101,14 +103,14 @@ const BEDROOM_USE_Q =
 const CHILDREN_Q = "מדובר בילדים קטנים, גדולים, או גם וגם?"
 const PETS_Q = "האם אמור להתאים לבעלי חיים?"
 const STYLE_PHOTO_Q =
-  "אפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב."
+  "אפשר לשלוח תמונה אחת ברורה של החלל? זה יעזור ליועץ העיצוב."
 const STYLE_Q =
   "איזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?"
 const SOFA_SIZE_Q = "מה מידת הספה?"
 const SOFA_SIZE_Q_SALON = "מה מידת הספה או הגודל הכללי של הסלון?"
 const FURNITURE_SIZE_Q = "מה מידת המיטה או הרהיט העיקרי בחדר?"
 const SIZE_EXCHANGE_PHOTO_Q =
-  "אפשר לצרף תמונה של החלל? התמונה תעזור ליועץ לדייק את המידה המתאימה."
+  "אפשר לצרף תמונה אחת ברורה של החלל? התמונה תעזור ליועץ לדייק את המידה המתאימה."
 const BUDGET_Q = "ומה התקציב המשוער?"
 const PRACTICAL_Q =
   "יש דרישות מיוחדות שכדאי לקחת בחשבון? למשל קל לניקוי, מתאים לבעלי חיים, עמידות, או משהו אחר?"
@@ -220,10 +222,16 @@ export function isSizeExchangeIntakeContext(history: HistoryMessage[], body = ""
   return Boolean(receivedProduct && (sizeIssue || exchangeContext))
 }
 
-function hasRoomPhotoInHistory(history: HistoryMessage[]) {
+export function hasRoomPhotoInHistory(history: HistoryMessage[]) {
   return history.some(
     (message) => message.role === "user" && /\[media:image:/i.test(message.content)
   )
+}
+
+export function countCustomerImagesInTurn(turn: UserTurn) {
+  const fromMedia = turn.media.filter((part) => part.kind === "image").length
+  const fromText = (summarizeTurn(turn).match(/\[media:image:/gi) ?? []).length
+  return Math.max(fromMedia, fromText)
 }
 
 export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
@@ -774,10 +782,10 @@ const SOFT_REPROMPT: Partial<Record<string, string>> = {
   pets: "לגבי בעלי חיים — האם השטיח אמור להתאים?",
   style:
     "איזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?",
-  style_photo: "אפשר לשלוח תמונה של החלל? זה יעזור ליועץ העיצוב.",
+  style_photo: STYLE_PHOTO_Q,
   sofa: "מה מידת הספה או הגודל הכללי של הסלון?",
   furniture: "מה מידת המיטה או הרהיט העיקרי בחדר?",
-  photo: "אפשר לצרף תמונה של החלל?",
+  photo: SIZE_EXCHANGE_PHOTO_Q,
   budget: "מה התקציב המשוער?",
   practical: "יש דרישות מיוחדות — למשל קל לניקוי/כביסה או עמיד?",
 }
@@ -1560,7 +1568,7 @@ export function isVisualConsultationRequest(text: string) {
 
 function visualConsultAck(body: string) {
   if (!isVisualConsultationRequest(body)) return ""
-  return "בשמחה — אפשר לשלוח תמונה של החלל ואעביר ליועץ שיעזור להשוות בין האפשרויות.\n"
+  return "בשמחה — אפשר לשלוח תמונה אחת ברורה של החלל ואעביר ליועץ שיעזור להשוות בין האפשרויות.\n"
 }
 
 function introForFlow(text: string, history: HistoryMessage[], intake: SalesIntake) {
@@ -1841,11 +1849,92 @@ function questionOrder(kind: string) {
   return index === -1 ? 0 : index
 }
 
+function isServicePhotoAnalysisContext(history: HistoryMessage[], body: string) {
+  const transcript = allUserText(history, body)
+  if (isServiceHandoffSummaryPending(history)) return true
+  if (classifyPostPurchaseCase(body) === "defect") return true
+  if (classifyPostPurchaseCase(transcript) === "defect") return true
+  return /(?:פגם|נקר(?:ם|ה)?|קרע|חוט\s+בקצה|נפג(?:ם|מה)|damage|defect)/i.test(
+    transcript
+  )
+}
+
+function isPreHandoffSalesThread(
+  history: HistoryMessage[],
+  body: string,
+  lastAgent: AgentId | null
+) {
+  if (classifyPostPurchaseCase(allUserText(history, body))) return false
+  if (isServiceHandoffSummaryPending(history)) return false
+  if (
+    lastAgent === "sales" ||
+    hasOngoingSalesIntake(history) ||
+    isActiveSalesConsultation(history, lastAgent)
+  ) {
+    return true
+  }
+  const transcript = history.map((message) => message.content).join("\n")
+  return /יועץ\s+(?:מכירות|עיצוב)|לאיזה\s+חלל|תמונה.*(?:חלל|יועץ)|שטיח\s+ל(?:סלון|חדר)/i.test(
+    `${transcript}\n${body}`
+  )
+}
+
+/**
+ * Sales intake room photos are reference for the human advisor only —
+ * never send them to vision analysis or describe what is in the image.
+ */
+export function shouldAckSalesRoomPhotoWithoutVision(
+  history: HistoryMessage[],
+  turn: UserTurn,
+  lastAgent: AgentId | null
+) {
+  if (!turnHasCustomerImage(turn)) return false
+  const body = summarizeTurn(turn)
+  if (isServicePhotoAnalysisContext(history, body)) return false
+  if (isSalesPhotoRequestPending(history)) return true
+  if (hasOngoingSalesIntake(history)) return true
+  if (isActiveSalesConsultation(history, lastAgent)) return true
+  if (hasRoomPhotoInHistory(history) && isPreHandoffSalesThread(history, body, lastAgent)) {
+    return true
+  }
+  return isPreHandoffSalesThread(history, body, lastAgent)
+}
+
+function buildSalesPhotoAck(history: HistoryMessage[], turn: UserTurn) {
+  const imagesInTurn = countCustomerImagesInTurn(turn)
+  const alreadyHad = hasRoomPhotoInHistory(history)
+
+  if (imagesInTurn > 1) {
+    return "תודה, קיבלתי את התמונות — אעביר ליועץ העיצוב. לעתיד, תמונה אחת ברורה מספיקה 😊"
+  }
+  if (alreadyHad) {
+    return "תודה, קיבלתי. תמונה אחת ברורה מספיקה — אעביר ליועץ העיצוב."
+  }
+  return "תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב."
+}
+
+function bodyForPhotoIntakeContinuation(body: string, turn?: UserTurn) {
+  if (!turn || countCustomerImagesInTurn(turn) === 0) return body
+  const textOnly = body.replace(/\[media:image:[^\]]+\]/gi, "").trim()
+  // Short captions like "לא מתאים" with a photo are not size-exchange pivots —
+  // the image itself is the answer; avoid mis-routing intake.
+  if (!textOnly || textOnly.length <= 24) {
+    return summarizeTurn(turn)
+  }
+  return body
+}
+
 /** Customer attached a room photo during the sales quiz — never trigger order lookup. */
-export function buildSalesPhotoReceivedReply(history: HistoryMessage[], body: string) {
-  const ack = "תודה, קיבלתי את התמונה.\n"
-  const continued = buildSalesIntakeReply(history, body)
-  if (continued.includes("קיבלתי את התמונה")) return continued
+export function buildSalesPhotoReceivedReply(
+  history: HistoryMessage[],
+  body: string,
+  turn?: UserTurn
+) {
+  const ack = `${buildSalesPhotoAck(history, turn ?? { text: body, media: [] })}\n`
+  const continued = buildSalesIntakeReply(history, bodyForPhotoIntakeContinuation(body, turn))
+  if (continued.includes("קיבלתי את התמונה") || continued.includes("קיבלתי —")) {
+    return continued
+  }
   if (continued.startsWith("*הום בוט :)")) {
     const header = "*הום בוט :)*\n"
     return `${header}${ack}${continued.slice(header.length).replace(/^\n+/, "")}`
