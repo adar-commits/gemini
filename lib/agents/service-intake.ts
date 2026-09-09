@@ -10,6 +10,7 @@ import {
   activeIntentConfirmKind,
   isPostPurchaseIntentConfirmPending,
 } from "@/lib/agents/intent-confirmation"
+import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   customerOrderNumberStyleFromHistory,
   extractOrderNumber,
@@ -326,6 +327,7 @@ export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
     return SERVICE_SUMMARY_PENDING_RE.test(message.content)
   }
   return false

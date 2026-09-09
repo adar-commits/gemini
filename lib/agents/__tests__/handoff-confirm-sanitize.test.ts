@@ -67,6 +67,32 @@ describe("handoff pending after declarative transfer", () => {
     assert.equal(isPendingHandoffCustomerReply("כן", history), true)
   })
 
+  it("confirms sales handoff after inactivity ping when customer says כן", () => {
+    const ping = "*הום בוט :)*\nעדיין כאן?"
+    const history: HistoryMessage[] = [
+      {
+        role: "user",
+        content: "אני מחפש שטיח לסלון",
+      },
+      {
+        role: "assistant",
+        content: `*הום בוט :)*
+אז לסיכום: שטיח לסלון, 4×3 מטר.
+האם להעביר את הפנייה ליועץ מכירות?`,
+      },
+      { role: "assistant", content: ping },
+    ]
+    const result = runPreTurnGuards({
+      turn: { text: "כן", media: [] },
+      history,
+    })
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "human_sales")
+    assert.match(result.reply, /העברתי את השיחה ליועץ מכירות/)
+    assert.doesNotMatch(result.reply, /איך אוכל להמשיך/)
+  })
+
   it("pre-turn does not consume yes-confirmation on declarative transfer", () => {
     const history: HistoryMessage[] = [
       {

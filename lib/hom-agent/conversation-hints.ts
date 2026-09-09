@@ -50,6 +50,8 @@ import {
   isServiceHandoffSummaryPending,
 } from "@/lib/agents/service-intake"
 import { extractSalesIntake } from "@/lib/agents/sales-intake"
+import { isInactivityPingPending } from "@/lib/agents/inactivity"
+import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 /** Dynamic turn hints — guide the LLM without bypassing it. */
@@ -82,6 +84,12 @@ export function buildConversationHints(input: {
   if (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body)) {
     lines.push(
       'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
+    )
+  }
+
+  if (isInactivityPingPending(history) && (isHumanHandoffPending(history) || /^(?:כן|בטח|אשמח|yes)/i.test(body.trim()))) {
+    lines.push(
+      'INACTIVITY PING BINDING: the last bot message was "עדיין כאן?" — treat short affirmations (כן/בטח/אשמח) as answering the **prior** substantive question (handoff confirm, intake summary, order confirm), NOT as a fresh "still here" ack. On handoff confirm → set action human_sales or human_service immediately.'
     )
   }
 

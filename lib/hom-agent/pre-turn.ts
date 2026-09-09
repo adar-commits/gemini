@@ -6,11 +6,22 @@ import {
   isInactivityPingPending,
   isInactivityStillHereReply,
   isInactivityUnavailableReply,
+  lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
+import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
+  buildHumanHandoffConfirmedReply,
+  inferHumanHandoffAction,
   isHumanHandoffPending,
+  isPendingHandoffCustomerReply,
 } from "@/lib/agents/off-topic"
+import {
+  isFinalizationQuestion,
+  replyAwaitingCustomerInput,
+} from "@/lib/agents/compound-reply"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
+import { isConfirmationPending } from "@/lib/agents/sales-intake"
+import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
   extractOrderNumber,
   isChannelPhoneSelfReference,
@@ -21,6 +32,7 @@ import {
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
+import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import {
   buildVoiceMessageUnsupportedReply,
@@ -57,11 +69,27 @@ export function runPreTurnGuards(input: {
     return { kind: "handled", reply: "", action: "end" }
   }
 
-  if (isInactivityPingPending(input.history) && isInactivityStillHereReply(body)) {
+  if (
+    isInactivityPingPending(input.history) &&
+    isPendingHandoffCustomerReply(body, input.history)
+  ) {
+    const action = inferHumanHandoffAction(input.history, null)
     return {
       kind: "handled",
-      reply: buildInactivityStillHereAck(input.customerName),
-      action: "reply",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`,
+      action,
+    }
+  }
+
+  if (isInactivityPingPending(input.history) && isInactivityStillHereReply(body)) {
+    if (shouldBindInactivityReplyToPriorQuestion(input.history)) {
+      // "כן" after "עדיין כאן?" answers the substantive question before the ping — not the ping.
+    } else {
+      return {
+        kind: "handled",
+        reply: buildInactivityStillHereAck(input.customerName),
+        action: "reply",
+      }
     }
   }
 
@@ -108,6 +136,29 @@ export function runPreTurnGuards(input: {
   }
 
   return { kind: "skip", response: null }
+}
+
+/**
+ * After an inactivity ping, short affirmations bind to the bot's prior turn — not the ping.
+ * The ping is procedural; the customer is usually answering the last real question.
+ */
+function shouldBindInactivityReplyToPriorQuestion(history: HistoryMessage[]) {
+  if (!isInactivityPingPending(history)) return false
+
+  if (
+    isHumanHandoffPending(history) ||
+    isConfirmationPending(history) ||
+    isOrderConfirmationPending(history) ||
+    isServiceHandoffSummaryPending(history) ||
+    isPostPurchaseIntentConfirmPending(history) ||
+    isOrderLookupPhoneReplyPending(history)
+  ) {
+    return true
+  }
+
+  const prior = lastNonInactivityAssistantText(history)
+  if (!prior) return false
+  return isFinalizationQuestion(prior) || replyAwaitingCustomerInput(prior)
 }
 
 function isExplicitThanks(body: string) {
