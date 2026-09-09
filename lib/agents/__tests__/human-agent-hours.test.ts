@@ -4,22 +4,41 @@ import {
   buildAfterHoursHandoffPrefix,
   buildHumanHandoffConfirmedReply,
   enrichHandoffReply,
+  humanAgentTeamHoursLabel,
   isHumanAgentTeamOnline,
 } from "@/lib/agents/human-agent-hours"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 describe("human agent hours", () => {
-  it("considers service online before 15:30 Israel time", () => {
-    const at1430 = new Date("2026-09-09T11:30:00.000Z") // 14:30 IST
-    assert.equal(isHumanAgentTeamOnline("human_service", at1430), true)
+  it("defaults service hours to 08:00-16:00", () => {
+    assert.equal(humanAgentTeamHoursLabel("human_service"), "08:00-16:00")
   })
 
-  it("considers service offline from 15:30 Israel time", () => {
+  it("defaults sales hours to 09:30-18:00", () => {
+    assert.equal(humanAgentTeamHoursLabel("human_sales"), "09:30-18:00")
+  })
+
+  it("considers service offline before 08:00 Israel time", () => {
+    const at0700 = new Date("2026-09-09T04:00:00.000Z") // 07:00 IST
+    assert.equal(isHumanAgentTeamOnline("human_service", at0700), false)
+  })
+
+  it("considers service online during 08:00-16:00 Israel time", () => {
+    const at1000 = new Date("2026-09-09T07:00:00.000Z") // 10:00 IST
+    assert.equal(isHumanAgentTeamOnline("human_service", at1000), true)
+  })
+
+  it("considers service offline from 16:00 Israel time", () => {
     const at1600 = new Date("2026-09-09T13:00:00.000Z") // 16:00 IST
     assert.equal(isHumanAgentTeamOnline("human_service", at1600), false)
   })
 
-  it("considers sales online before 18:00 Israel time", () => {
+  it("considers sales offline before 09:30 Israel time", () => {
+    const at0900 = new Date("2026-09-09T06:00:00.000Z") // 09:00 IST
+    assert.equal(isHumanAgentTeamOnline("human_sales", at0900), false)
+  })
+
+  it("considers sales online during 09:30-18:00 Israel time", () => {
     const at1700 = new Date("2026-09-09T14:00:00.000Z") // 17:00 IST
     assert.equal(isHumanAgentTeamOnline("human_sales", at1700), true)
   })
@@ -33,12 +52,12 @@ describe("human agent hours", () => {
     const at1900 = new Date("2026-09-09T16:00:00.000Z")
     const reply = buildHumanHandoffConfirmedReply("human_sales", at1900)
     assert.match(reply, /אין יועצי מכירות זמינים/)
-    assert.match(reply, /18:00/)
+    assert.match(reply, /09:30-18:00/)
     assert.match(reply, /העברתי את השיחה ליועץ מכירות/)
   })
 
   it("keeps standard copy during business hours", () => {
-    const at1400 = new Date("2026-09-09T11:00:00.000Z")
+    const at1400 = new Date("2026-09-09T11:00:00.000Z") // 14:00 IST
     const reply = buildHumanHandoffConfirmedReply("human_service", at1400)
     assert.equal(reply, "מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם.")
     assert.doesNotMatch(reply, /שעות הפעילות/)
@@ -49,11 +68,11 @@ describe("human agent hours", () => {
     const raw = `${CUSTOMER_HEADER}\nמעולה, העברתי את השיחה ליועץ מכירות. ניצור קשר בהקדם.`
     const once = enrichHandoffReply(raw, "human_sales", at1900)
     const twice = enrichHandoffReply(once, "human_sales", at1900)
-    assert.match(once, /18:00/)
+    assert.match(once, /09:30-18:00/)
     assert.equal(once, twice)
   })
 
-  it("builds service after-hours prefix with 15:30 label", () => {
-    assert.match(buildAfterHoursHandoffPrefix("human_service"), /15:30/)
+  it("builds service after-hours prefix with full hours label", () => {
+    assert.match(buildAfterHoursHandoffPrefix("human_service"), /08:00-16:00/)
   })
 })

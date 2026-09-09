@@ -4,7 +4,9 @@ export type HumanHandoffAction = "human_sales" | "human_service"
 
 const DEFAULT_TZ = "Asia/Jerusalem"
 
-function parseHourMinute(raw: string | undefined, fallback: { hour: number; minute: number }) {
+type HourMinute = { hour: number; minute: number }
+
+function parseHourMinute(raw: string | undefined, fallback: HourMinute) {
   const trimmed = raw?.trim()
   if (!trimmed) return fallback
   const match = trimmed.match(/^(\d{1,2}):(\d{2})$/)
@@ -16,11 +18,25 @@ function parseHourMinute(raw: string | undefined, fallback: { hour: number; minu
   return { hour, minute }
 }
 
-function teamEndTime(action: HumanHandoffAction) {
+function toMinutes(value: HourMinute) {
+  return value.hour * 60 + value.minute
+}
+
+function formatHourMinute(value: HourMinute) {
+  return `${String(value.hour).padStart(2, "0")}:${String(value.minute).padStart(2, "0")}`
+}
+
+function teamHours(action: HumanHandoffAction): { start: HourMinute; end: HourMinute } {
   if (action === "human_sales") {
-    return parseHourMinute(process.env.LANDBOT_HUMAN_SALES_END, { hour: 18, minute: 0 })
+    return {
+      start: parseHourMinute(process.env.LANDBOT_HUMAN_SALES_START, { hour: 9, minute: 30 }),
+      end: parseHourMinute(process.env.LANDBOT_HUMAN_SALES_END, { hour: 18, minute: 0 }),
+    }
   }
-  return parseHourMinute(process.env.LANDBOT_HUMAN_SERVICE_END, { hour: 15, minute: 30 })
+  return {
+    start: parseHourMinute(process.env.LANDBOT_HUMAN_SERVICE_START, { hour: 8, minute: 0 }),
+    end: parseHourMinute(process.env.LANDBOT_HUMAN_SERVICE_END, { hour: 16, minute: 0 }),
+  }
 }
 
 function agentTimeZone() {
@@ -40,28 +56,29 @@ function wallClockMinutes(now: Date, timeZone: string) {
 }
 
 export function humanAgentTeamHoursLabel(action: HumanHandoffAction) {
-  const end = teamEndTime(action)
-  return `${String(end.hour).padStart(2, "0")}:${String(end.minute).padStart(2, "0")}`
+  const { start, end } = teamHours(action)
+  return `${formatHourMinute(start)}-${formatHourMinute(end)}`
 }
 
-/** Live rep pool is considered online before the configured end time (Israel time). */
+/** Live rep pool is online within configured hours (Israel time, start inclusive, end exclusive). */
 export function isHumanAgentTeamOnline(action: HumanHandoffAction, now = new Date()) {
-  const end = teamEndTime(action)
+  const { start, end } = teamHours(action)
   const nowMinutes = wallClockMinutes(now, agentTimeZone())
-  const endMinutes = end.hour * 60 + end.minute
-  return nowMinutes < endMinutes
+  const startMinutes = toMinutes(start)
+  const endMinutes = toMinutes(end)
+  return nowMinutes >= startMinutes && nowMinutes < endMinutes
 }
 
 export function buildAfterHoursHandoffPrefix(action: HumanHandoffAction) {
-  const until = humanAgentTeamHoursLabel(action)
+  const hours = humanAgentTeamHoursLabel(action)
   if (action === "human_sales") {
-    return `כרגע אין יועצי מכירות זמינים (שעות הפעילות עד ${until}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
+    return `כרגע אין יועצי מכירות זמינים (שעות הפעילות ${hours}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
   }
-  return `כרגע אין נציגי שירות זמינים (שעות הפעילות עד ${until}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
+  return `כרגע אין נציגי שירות זמינים (שעות הפעילות ${hours}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
 }
 
 function alreadyHasAfterHoursNotice(reply: string) {
-  return /שעות הפעילות עד \d{1,2}:\d{2}/i.test(reply)
+  return /שעות הפעילות(?: עד| \d{1,2}:\d{2}-\d{1,2}:\d{2})/i.test(reply)
 }
 
 export function buildHumanHandoffConfirmedReply(
