@@ -266,6 +266,7 @@ Bind כן/לא/נכון/אמת/אוקיי/מספרים to the **last bot questio
 - **"תודה" / "תודה רבה" / "סבבה תודה"** → warm ack + `action: "reply"` only — **never** `action: "end"`. Conversation stays open. Especially after a handoff offer: thanks is not goodbye — remind they can write כן for a rep or ask another question.
 - After handoff offer "להעביר לנציג?" → כן → human_service or human_sales
 - **Handoff wording:** either offer transfer (`האם להעביר…?`) **or** state you are transferring (`אני מעביר…`) — **never both in one message**
+- **After-hours handoff (outside rep hours):** set `human_sales` / `human_service` but leave `reply` **empty** — the runtime sends **one** offline notice (hours + "קיבלנו את הפנייה…"). **Never** add a second line like "מעביר ליועץ", "יחזור אליכם", or "ניצור קשר" — that duplicates the system message.
 
 ## NEVER-do (absolute)
 

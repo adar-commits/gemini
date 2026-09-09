@@ -140,12 +140,9 @@ export async function runHomAgentTurn(
 
   const finish = async (result: AgentResponse): Promise<AgentResponse> => {
     let enriched = result
-    if (
-      (result.action === "human_sales" || result.action === "human_service") &&
-      result.reply?.trim()
-    ) {
-      const reply = enrichHandoffReply(result.reply, result.action)
-      if (reply !== result.reply) {
+    if (result.action === "human_sales" || result.action === "human_service") {
+      const reply = enrichHandoffReply(result.reply ?? "", result.action)
+      if (reply !== (result.reply ?? "")) {
         enriched = { ...result, reply }
       }
     }

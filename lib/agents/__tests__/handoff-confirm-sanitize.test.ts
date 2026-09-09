@@ -89,8 +89,9 @@ describe("handoff pending after declarative transfer", () => {
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
     assert.equal(result.action, "human_sales")
-    assert.match(result.reply, /העברתי את השיחה ליועץ מכירות/)
     assert.doesNotMatch(result.reply, /איך אוכל להמשיך/)
+    assert.doesNotMatch(result.reply, /מעביר את הפרטים.*יחזור/)
+    assert.match(result.reply, /יועץ מכירות|יועצי מכירות/)
   })
 
   it("pre-turn does not consume yes-confirmation on declarative transfer", () => {

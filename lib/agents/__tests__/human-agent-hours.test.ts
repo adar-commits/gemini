@@ -48,12 +48,14 @@ describe("human agent hours", () => {
     assert.equal(isHumanAgentTeamOnline("human_sales", at1900), false)
   })
 
-  it("adds after-hours prefix before handoff confirmation", () => {
+  it("uses a single after-hours paragraph without duplicate transfer line", () => {
     const at1900 = new Date("2026-09-09T16:00:00.000Z")
     const reply = buildHumanHandoffConfirmedReply("human_sales", at1900)
     assert.match(reply, /אין יועצי מכירות זמינים/)
     assert.match(reply, /09:30-18:00/)
-    assert.match(reply, /העברתי את השיחה ליועץ מכירות/)
+    assert.match(reply, /קיבלנו את הפנייה/)
+    assert.doesNotMatch(reply, /העברתי את השיחה/)
+    assert.doesNotMatch(reply, /מעביר את הפרטים/)
   })
 
   it("keeps standard copy during business hours", () => {
@@ -63,13 +65,22 @@ describe("human agent hours", () => {
     assert.doesNotMatch(reply, /שעות הפעילות/)
   })
 
-  it("enriches LLM handoff copy after hours without duplicating", () => {
+  it("replaces LLM handoff fluff after hours with one canonical notice", () => {
     const at1900 = new Date("2026-09-09T16:00:00.000Z")
-    const raw = `${CUSTOMER_HEADER}\nמעולה, העברתי את השיחה ליועץ מכירות. ניצור קשר בהקדם.`
-    const once = enrichHandoffReply(raw, "human_sales", at1900)
+    const llm =
+      "מעולה, מעביר את הפרטים ליועץ מכירות שיחזור אליכם עם התאמות מתאימות"
+    const once = enrichHandoffReply(llm, "human_sales", at1900)
     const twice = enrichHandoffReply(once, "human_sales", at1900)
     assert.match(once, /09:30-18:00/)
+    assert.doesNotMatch(once, /מעביר את הפרטים/)
+    assert.doesNotMatch(once, /התאמות מתאימות/)
     assert.equal(once, twice)
+  })
+
+  it("fills empty LLM handoff reply after hours", () => {
+    const at1900 = new Date("2026-09-09T16:00:00.000Z")
+    const reply = enrichHandoffReply("", "human_sales", at1900)
+    assert.match(reply, /קיבלנו את הפנייה/)
   })
 
   it("builds service after-hours prefix with full hours label", () => {

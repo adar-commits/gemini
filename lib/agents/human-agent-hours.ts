@@ -77,38 +77,40 @@ export function buildAfterHoursHandoffPrefix(action: HumanHandoffAction) {
   return `כרגע אין נציגי שירות זמינים (שעות הפעילות ${hours}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
 }
 
-function alreadyHasAfterHoursNotice(reply: string) {
-  return /שעות הפעילות(?: עד| \d{1,2}:\d{2}-\d{1,2}:\d{2})/i.test(reply)
+function onlineHandoffCore(action: HumanHandoffAction) {
+  return action === "human_sales"
+    ? "מעולה, העברתי את השיחה ליועץ מכירות. ניצור קשר בהקדם."
+    : "מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם."
 }
 
+/** Customer-visible copy after handoff — one paragraph when reps are offline. */
 export function buildHumanHandoffConfirmedReply(
   action: HumanHandoffAction,
   now = new Date()
 ) {
-  const core =
-    action === "human_sales"
-      ? "מעולה, העברתי את השיחה ליועץ מכירות. ניצור קשר בהקדם."
-      : "מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם."
-
-  if (isHumanAgentTeamOnline(action, now)) return core
-  return `${buildAfterHoursHandoffPrefix(action)}\n\n${core}`
+  if (!isHumanAgentTeamOnline(action, now)) {
+    return buildAfterHoursHandoffPrefix(action)
+  }
+  return onlineHandoffCore(action)
 }
 
-/** Prepend after-hours notice to LLM/deterministic handoff copy when reps are offline. */
+/**
+ * Final handoff reply shown to the customer.
+ * After hours: replace with the single offline notice (no LLM transfer fluff on top).
+ */
 export function enrichHandoffReply(
   reply: string,
   action: HumanHandoffAction,
   now = new Date()
 ) {
-  const text = reply.trim()
-  if (!text || isHumanAgentTeamOnline(action, now) || alreadyHasAfterHoursNotice(text)) {
-    return reply
+  if (isHumanAgentTeamOnline(action, now)) {
+    const text = reply.trim()
+    return text || onlineHandoffCore(action)
   }
 
-  const prefix = buildAfterHoursHandoffPrefix(action)
-  if (text.startsWith(CUSTOMER_HEADER)) {
-    const body = text.slice(CUSTOMER_HEADER.length).replace(/^\n+/, "")
-    return `${CUSTOMER_HEADER}\n${prefix}\n\n${body}`
+  const canonical = buildAfterHoursHandoffPrefix(action)
+  if (reply.startsWith(CUSTOMER_HEADER)) {
+    return `${CUSTOMER_HEADER}\n${canonical}`
   }
-  return `${prefix}\n\n${text}`
+  return canonical
 }

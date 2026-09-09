@@ -56,7 +56,9 @@ import {
   isSalesPhotoRequestPending,
 } from "@/lib/agents/sales-intake"
 import { isInactivityPingPending } from "@/lib/agents/inactivity"
-import { isHumanHandoffPending } from "@/lib/agents/off-topic"
+import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
+import { inferHumanHandoffAction, isHumanHandoffPending } from "@/lib/agents/off-topic"
+import { isConfirmationPending } from "@/lib/agents/sales-intake"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 /** Dynamic turn hints — guide the LLM without bypassing it. */
@@ -96,6 +98,19 @@ export function buildConversationHints(input: {
     lines.push(
       'INACTIVITY PING BINDING: the last bot message was "עדיין כאן?" — treat short affirmations (כן/בטח/אשמח) as answering the **prior** substantive question (handoff confirm, intake summary, order confirm), NOT as a fresh "still here" ack. On handoff confirm → set action human_sales or human_service immediately.'
     )
+  }
+
+  if (
+    isHumanHandoffPending(history) ||
+    isConfirmationPending(history) ||
+    (isServiceHandoffSummaryPending(history) && isServiceHandoffSummaryConfirmed(body))
+  ) {
+    const handoffAction = inferHumanHandoffAction(history, null)
+    if (!isHumanAgentTeamOnline(handoffAction)) {
+      lines.push(
+        "AFTER-HOURS HANDOFF: reps are offline. Set action human_sales or human_service and leave reply EMPTY — the system sends one offline notice automatically. Do NOT write transfer lines (מעביר ליועץ / יחזור אליכם / ניצור קשר) — they duplicate the system message."
+      )
+    }
   }
 
   if (historyShowsHomInvoiceBillingName(history)) {
