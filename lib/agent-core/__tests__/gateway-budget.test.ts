@@ -15,4 +15,14 @@ describe("gateway budget errors", () => {
     const reply = buildLlmFailureReply({ gatewayBudgetExceeded: true })
     assert.match(reply, /מלאה כרגע/)
   })
+
+  it("detects insufficient credits wording", () => {
+    const error = new Error("Insufficient credits to complete this request.")
+    assert.equal(isGatewayBudgetExceeded(error), true)
+  })
+
+  it("detects HTTP 402 without budget keywords", () => {
+    const error = Object.assign(new Error("Payment Required"), { statusCode: 402 })
+    assert.equal(isGatewayBudgetExceeded(error), true)
+  })
 })

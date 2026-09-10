@@ -177,3 +177,41 @@ export { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 export function buildHumanHandoffDeclinedReply() {
   return "אין בעיה. אפשר להמשיך מכאן."
 }
+
+/** Bare rep request — not a yes/no answer to a prior offer. */
+export function isExplicitHumanHandoffRequest(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 120) return false
+  if (/^(?:תעביר(?:ו|י)?|העבר(?:ו|י)?)/iu.test(text) && /(?:נציג|שירות|יועץ|אנושי)/iu.test(text)) {
+    return true
+  }
+  if (/^(?:נציג(?:\s+שירות)?|שירות\s+לקוחות)(?:[\s,.!?]|$)/iu.test(text)) {
+    return true
+  }
+  return /נציג\s+אנושי/i.test(text)
+}
+
+/** When the LLM is down, still honor handoff — pending confirm or explicit rep ask. */
+export function resolveLlmUnavailableHandoff(
+  body: string,
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+): "human_sales" | "human_service" | null {
+  const text = body.trim()
+  if (!text) return null
+
+  if (isHumanHandoffPending(history) && !isHumanHandoffDecline(text)) {
+    if (isPendingHandoffCustomerReply(text, history)) {
+      return inferHumanHandoffAction(history, lastAgent)
+    }
+    if (/^(?:ש(?:ה)?(?:נציג\s+)?(?:ימשיך|ימשיכו)|(?:כן\s*)?(?:ת?)?עביר)/iu.test(text)) {
+      return inferHumanHandoffAction(history, lastAgent)
+    }
+  }
+
+  if (isExplicitHumanHandoffRequest(text)) {
+    return inferHumanHandoffAction(history, lastAgent)
+  }
+
+  return null
+}

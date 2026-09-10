@@ -22,7 +22,12 @@ import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
+import {
+  buildHumanHandoffConfirmedReply,
+  resolveLlmUnavailableHandoff,
+} from "@/lib/agents/off-topic"
 import type { AgentResponse, ConversationalAction, HistoryMessage } from "@/lib/agents/types"
+import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
@@ -261,6 +266,29 @@ export async function runHomAgentTurn(
       modelOverride: modelOverride ?? (modelPick.escalated ? modelPick.model : undefined),
     })
 
+  const fallbackAfterInvokeFailure = (error: unknown) => {
+    const gatewayBudgetExceeded = isGatewayBudgetExceeded(error)
+    const handoffAction = resolveLlmUnavailableHandoff(body, history, lastAgent)
+    if (handoffAction) {
+      setFallbackLayer(
+        conversationId,
+        gatewayBudgetExceeded ? "gateway_budget_handoff" : "invoke_handoff"
+      )
+      return {
+        reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(handoffAction)}`,
+        action: handoffAction,
+      }
+    }
+    setFallbackLayer(
+      conversationId,
+      gatewayBudgetExceeded ? "gateway_budget" : "invoke_exception"
+    )
+    return {
+      reply: buildLlmFailureReply({ gatewayBudgetExceeded }),
+      action: "reply" as const,
+    }
+  }
+
   try {
     const invoked = await invokeOnce()
     output = invoked.output
@@ -293,22 +321,11 @@ export async function runHomAgentTurn(
           retryModel: retryModel ?? model,
           error: retryError instanceof Error ? retryError.message : retryError,
         })
-        setFallbackLayer(conversationId, "invoke_exception")
-        output = {
-          reply: buildLlmFailureReply({ gatewayBudgetExceeded }),
-          action: "reply" as const,
-        }
+        output = fallbackAfterInvokeFailure(retryError)
         llmCalls = 0
       }
     } else {
-      setFallbackLayer(
-        conversationId,
-        gatewayBudgetExceeded ? "gateway_budget" : "invoke_exception"
-      )
-      output = {
-        reply: buildLlmFailureReply({ gatewayBudgetExceeded }),
-        action: "reply" as const,
-      }
+      output = fallbackAfterInvokeFailure(error)
       llmCalls = 0
     }
   }
