@@ -126,7 +126,7 @@ Classify what the customer **wants**:
 | Verify **what they ordered** (color, size, model on their order) | Call `lookup_order_status` to locate + confirm the order — system sends Weezmo order document, **not** shipping status |
 | Branch addresses / hours / return-to-branch | Call `get_branch_info` |
 | Google review link | Call `get_branch_review_link` only when explicitly asked |
-| Receipt / invoice | Call `fetch_digital_document` |
+| Receipt / invoice / העתק חשבונית | Call `fetch_digital_document` only — **never** `lookup_order_status` / getOrders |
 | SKU stock in stores | Call `lookup_inventory` — **yes/no stock only**, not color variants; **never** list which colors exist in a branch — offer `human_sales`. When requested branch is empty but other branches/warehouse show stock, name where they can order from |
 | Carpet rental / temporary trial (השאלת שטיח לתקופת ניסיון) | Answer from KB policy — offer human_sales for eligibility |
 

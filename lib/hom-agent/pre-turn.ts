@@ -37,6 +37,10 @@ import {
 } from "@/lib/agents/dissatisfaction"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
+  shouldHandleDigitalDocumentFlow,
+  resolveDigitalDocumentFlowReply,
+} from "@/lib/agents/digital-document-flow"
+import {
   extractOrderNumber,
   isChannelPhoneSelfReference,
   isOrderConfirmationPending,
@@ -268,6 +272,30 @@ export function runStructuredReturnOptionsPreTurn(input: {
   }
 }
 
+/** Receipt / invoice copy — bind phone and call getDocument, not getOrders. */
+export async function runStructuredDocumentPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  phone?: string
+}): Promise<PreTurnResult> {
+  const body = summarizeTurn(input.turn)
+  if (!shouldHandleDigitalDocumentFlow(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+
+  const reply = await resolveDigitalDocumentFlowReply({
+    body,
+    phone: input.phone,
+    history: input.history,
+  })
+
+  if (/לא הבנתי/i.test(reply)) {
+    return { kind: "skip", response: null }
+  }
+
+  return { kind: "handled", reply, action: "reply" }
+}
+
 /** Structured mid-flow — bind explicit identifiers before the LLM call. */
 export async function runStructuredOrderLookupPreTurn(input: {
   turn: UserTurn
@@ -275,6 +303,10 @@ export async function runStructuredOrderLookupPreTurn(input: {
   phone?: string
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
+  if (shouldHandleDigitalDocumentFlow(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+
   const orderConfirmPending = isOrderConfirmationPending(input.history)
   const phoneLookupPending = isOrderLookupPhoneReplyPending(input.history)
   // A phone number only binds the turn to the order flow when order context

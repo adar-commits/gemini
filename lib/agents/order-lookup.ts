@@ -27,6 +27,7 @@ import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
 import type { AgentId } from "@/lib/agents/types"
 import {
   activeOrderLineItemVerificationRequest,
+  isActiveDigitalDocumentFlow,
   isDigitalDocumentRequest,
   isOrderLineItemVerificationRequest,
 } from "@/lib/agents/digital-document-flow"
@@ -479,14 +480,13 @@ export function isOrderSpecificEligibilityQuestion(body: string) {
 }
 
 /**
- * Order lookup is only for shipping status, digital documents, explicit return execution,
- * or a question tied to a specific order (reference, timeframe, eligibility).
+ * Order/shipping lookup — not receipt/invoice copies (those use fetch_digital_document / getDocument).
  */
 export function requiresOrderIdentification(body: string, history: HistoryMessage[] = []) {
   if (isRefundStatusInquiry(body)) return false
+  if (isActiveDigitalDocumentFlow(history, body)) return false
   if (isOrderLineItemVerificationRequest(body)) return true
   if (isShippingStatusQuestion(body)) return true
-  if (isDigitalDocumentRequest(body)) return true
   if (isPreorderDelayComplaint(body)) return true
   if (isMissingOrPartialDeliveryComplaint(body)) return true
   if (isActiveReturnExchangePickupCase(body)) return true

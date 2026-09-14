@@ -37,6 +37,7 @@ import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import {
   runPreTurnGuards,
+  runStructuredDocumentPreTurn,
   runStructuredOrderLookupPreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesPhotoPreTurn,
@@ -251,6 +252,38 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_return_options",
+      },
+    })
+  }
+
+  const structuredDocument = await runStructuredDocumentPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredDocument.kind === "handled") {
+    const action = mapHomAction(structuredDocument.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: structuredDocument.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredDocument.reply,
+      action,
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_document",
       },
     })
   }

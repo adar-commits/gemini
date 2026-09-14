@@ -31,8 +31,9 @@ export type DocumentType =
 
 export type DocumentIntent = "invoice" | "receipt" | "generic"
 
+/** Document fulfillment question — must not match delivery status ("נמסר באמצעות שליח"). */
 const CHANNEL_QUESTION_MARKER =
-  /(?:סופק(?:ו)?\s+מהסניף|באמצעות\s+שליח|מלאי(?:\s+ה)?סניף|אתר(?:\s+ה)?אינטרנט(?:\s+עם\s+שליח)?)/i
+  /(?:האם\s+(?:ה)?(?:מוצרים\s+)?סופק(?:ו)?\s+מהסניף(?:\s+(?:או|,)+\s*)?(?:באמצעות\s+)?שליח|לא\s+ה(?:בנ|צל)(?:תי)?\s+—\s+האם\s+(?:ה)?(?:מוצרים\s+)?סופק(?:ו)?)/i
 const PURCHASE_LOCATION_QUESTION_MARKER =
   /האם\s+ה(?:ה)?זמנה\s+בוצעה\s+מ(?:ה)?(?:אינטרנט|הסניף)|מהאינטרנט\s+או\s+בסניף/i
 const TYPE_QUESTION_MARKER = /איזה\s+סוג\s+(?:חשבונית|מסמך)/i
@@ -99,6 +100,31 @@ function documentQuestionKind(content: string): DocumentQuestionKind | null {
   if (ALTERNATE_PHONE_QUESTION_MARKER.test(content)) return "alternate_phone"
   if (PHONE_QUESTION_MARKER.test(content)) return "phone"
   return null
+}
+
+function hasDocumentFlowSeed(history: HistoryMessage[]) {
+  if (activeDigitalDocumentRequest(history)) return true
+  for (const message of history) {
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) {
+      continue
+    }
+    const kind = documentQuestionKind(message.content)
+    if (!kind || kind === "phone" || kind === "alternate_phone") continue
+    return true
+  }
+  return false
+}
+
+/** Order lookup reuses phone prompts — only bind document steps with document context. */
+function isDocumentScopedAssistantQuestion(
+  kind: DocumentQuestionKind,
+  content: string,
+  documentContextActive: boolean
+) {
+  if (kind === "type" || kind === "purchase_location" || kind === "channel") return true
+  if (kind === "phone") return /האם\s+(?:ה)?(?:עסקה)/i.test(content)
+  if (kind === "alternate_phone") return documentContextActive
+  return false
 }
 
 function isDocumentFlowMisunderstandingReply(content: string) {
@@ -299,7 +325,12 @@ function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState 
     if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) continue
 
     const kind = documentQuestionKind(message.content)
-    if (kind) {
+    const documentContextActive =
+      state.active || activeDigitalDocumentRequest(priorHistory) || hasDocumentFlowSeed(priorHistory)
+    if (
+      kind &&
+      isDocumentScopedAssistantQuestion(kind, message.content, documentContextActive)
+    ) {
       state.active = true
       state.lastQuestionKind = kind
       state.misunderstandingSinceLastQuestion = false

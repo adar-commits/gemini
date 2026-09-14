@@ -4,6 +4,7 @@ import {
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
 } from "@/lib/agents/service-intake"
+import { isActiveDigitalDocumentFlow } from "@/lib/agents/digital-document-flow"
 import {
   getDissatisfactionRescueStage,
   shouldOfferReturnOptionsFirst,
@@ -62,6 +63,15 @@ export async function executeLookupOrderStatus(input: {
       ok: false as const,
       error:
         "Return eligibility / policy FAQ — answer from KB (14 days from receipt, portal, branch or paid courier). Do not look up order status.",
+    }
+  }
+
+  if (isActiveDigitalDocumentFlow(history, body)) {
+    return {
+      ok: false as const,
+      errorCode: "lookup_misroute",
+      error:
+        "Receipt/invoice copy thread — use fetch_digital_document (getDocument API), not lookup_order_status/getOrders.",
     }
   }
 

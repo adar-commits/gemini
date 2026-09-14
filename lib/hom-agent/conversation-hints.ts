@@ -22,6 +22,10 @@ import {
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
+import {
+  isActiveDigitalDocumentFlow,
+  isDigitalDocumentRequest,
+} from "@/lib/agents/digital-document-flow"
 import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
 import {
   isDissatisfactionRescuePending,
@@ -360,6 +364,12 @@ export function buildConversationHints(input: {
   if (isCouponCodeRequest(body)) {
     lines.push(
       "COUPON CODE: call get_campaigns now. Share coupon_code from API only for **active** campaigns (valid dates). Never invent codes. Never say 'לא הבנתי' on קוד הנחה / typos like הנלה — treat as coupon ask."
+    )
+  }
+
+  if (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) {
+    lines.push(
+      "DOCUMENT COPY (קבלה / חשבונית / העתק): fetch_digital_document only — getDocument API by phone. Never lookup_order_status or getOrders for invoice/receipt requests."
     )
   }
 

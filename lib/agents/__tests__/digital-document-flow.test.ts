@@ -1,10 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import type { HistoryMessage } from "@/lib/agents/types"
+import { buildInvalidChannelPhonePrompt } from "@/lib/agents/order-lookup"
 import {
   buildDocumentPhoneConfirmPrompt,
   buildDocumentTypeQuestion,
   inferDocumentIntent,
+  isActiveDigitalDocumentFlow,
   isDigitalDocumentRequest,
   isDocumentChannelUncertaintyAnswer,
   isOrderLineItemVerificationRequest,
@@ -128,6 +130,27 @@ describe("digital document flow — receipt copy", () => {
     const prompt = buildDocumentPhoneConfirmPrompt("+972547495083")
     assert.match(prompt, /האם\s+העסקה\s+רשומה/)
     assert.doesNotMatch(prompt, /אמצא\s+את\s+ההזמנה/)
+  })
+
+  it("does not treat courier delivery status as document channel question", () => {
+    const statusHistory: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nבדקתי, המשלוח סומן כנמסר באמצעות שליח בתאריך 26.8.2026.",
+      },
+    ]
+    assert.equal(isActiveDigitalDocumentFlow(statusHistory, "אז זה לא זה"), false)
+  })
+
+  it("does not treat order alternate-phone prompt as document flow", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildInvalidChannelPhonePrompt(),
+      },
+    ]
+    assert.equal(isActiveDigitalDocumentFlow(history, "0547653293"), false)
   })
 
   it("continues legacy channel flow when channel already set", async () => {

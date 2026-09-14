@@ -119,7 +119,7 @@ describe("gold conversations must-pass set", () => {
       {
         id: "req_lookup_2",
         actual: requiresOrderIdentification("אפשר לשלוח קבלה?", []),
-        expected: true,
+        expected: false,
       },
       {
         id: "req_lookup_3",
