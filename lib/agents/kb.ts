@@ -7,11 +7,13 @@ const pozitiveKbPath = join(process.cwd(), "lib/agents/kb/pozitive-products.md")
 const carpetFaqPath = join(process.cwd(), "lib/agents/kb/carpet-products-faq.md")
 const carpetTermsPath = join(process.cwd(), "lib/agents/kb/carpet-terminology.md")
 const carpetSizeGuidePath = join(process.cwd(), "lib/agents/kb/carpet-size-guide.md")
+const membershipPaymentsPath = join(process.cwd(), "lib/agents/kb/membership-clubs-payments.md")
 let cachedKb = ""
 let cachedPozitiveKb = ""
 let cachedCarpetFaqKb = ""
 let cachedCarpetTermsKb = ""
 let cachedCarpetSizeGuideKb = ""
+let cachedMembershipPaymentsKb = ""
 
 function rawKb() {
   if (!cachedKb) cachedKb = readFileSync(kbPath, "utf8")
@@ -38,6 +40,26 @@ function rawCarpetSizeGuideKb() {
     cachedCarpetSizeGuideKb = readFileSync(carpetSizeGuidePath, "utf8")
   }
   return cachedCarpetSizeGuideKb
+}
+
+function rawMembershipPaymentsKb() {
+  if (!cachedMembershipPaymentsKb) {
+    cachedMembershipPaymentsKb = readFileSync(membershipPaymentsPath, "utf8")
+  }
+  return cachedMembershipPaymentsKb
+}
+
+/** Membership clubs, gift cards, reloadable checkout — not generic card FAQ. */
+export const MEMBERSHIP_PAYMENT_TOPIC_RE =
+  /כרטיס\s+נטען|מועדון|גיפט|gift\s*card|buyme|buy\s*me|לאומי\s+בונוס|istudent|מגה\s+לאן|דולצ(?:'|׳|')?ה|דולצה|להשלים\s+הזמנ|לסגור\s+הזמנ|באמצעות\s+כרטיס|עובדי\s+צה(?:"|\״|')?ל|משרד\s+הביטחון/i
+
+export function shouldIncludeMembershipPaymentsKb(userText = "") {
+  return MEMBERSHIP_PAYMENT_TOPIC_RE.test(userText.trim())
+}
+
+function withMembershipKb(base: string, userText: string, force = false) {
+  if (!force && !shouldIncludeMembershipPaymentsKb(userText)) return base
+  return `${base.trim()}\n\n${rawMembershipPaymentsKb()}`
 }
 
 /** Pozitive bean-bag product FAQ + assembly/care tutorials. */
@@ -119,8 +141,8 @@ const SECTION_HINTS: Array<{ re: RegExp; titles: string[] }> = [
     titles: ["Shipping", "Delivery"],
   },
   {
-    re: /תשלום|אשראי|ביט|bit|payment/i,
-    titles: ["Payment"],
+    re: /תשלום|אשראי|ביט|bit|payment|מועדון|נטען|גיפט|buyme|חבר|פיס/i,
+    titles: ["Payment", "Payments"],
   },
   {
     re: /3076|שירות|contact|מייל|צ(?:'|׳|)אט/i,
@@ -154,7 +176,11 @@ function sectionsForText(text: string, sections: Section[]) {
 export function selectFaqKbFull() {
   const { header, sections } = parseSections(rawKb())
   const base = `${header}\n\n${sections.map((section) => section.body).join("\n\n")}`
-  return withCarpetKb(withPozitiveKb(base, "", true), "", true)
+  return withMembershipKb(
+    withCarpetKb(withPozitiveKb(base, "", true), "", true),
+    "",
+    true
+  )
 }
 
 /** Section-selective KB for T1/T2 — reduces input tokens. */
@@ -168,5 +194,8 @@ export function selectFaqKb(userText = "", tier: ModelTier | null = null) {
       ? picked.map((section) => section.body).join("\n\n")
       : sections.map((section) => section.body).join("\n\n")
 
-  return withCarpetKb(withPozitiveKb(`${header}\n\n${body}`, userText), userText)
+  return withMembershipKb(
+    withCarpetKb(withPozitiveKb(`${header}\n\n${body}`, userText), userText),
+    userText
+  )
 }

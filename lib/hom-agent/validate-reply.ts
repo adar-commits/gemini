@@ -33,6 +33,7 @@ export function validateHomAgentReply(
 ): HomAgentOutput {
   let reply = output.reply?.trim() ?? ""
   reply = sanitizeLeakedStructuredJson(reply)
+  reply = repairTruncatedBotReply(reply)
   if (!reply && output.action === "reply") {
     reply = buildNeverStuckReply()
   }
@@ -103,7 +104,41 @@ function stripTrailingJsonArtifacts(text: string) {
   return text
     .replace(/\\?"\s*,\s*\\?"action\\?"\s*:\s*\\?"?[a-z_]*\\?"?\s*\}?\s*$/i, "")
     .replace(/\\?"\s*\}\s*$/, "")
+    .replace(/\\+"\s*$/g, "")
     .trimEnd()
+}
+
+const MEMBERSHIP_CHECKOUT_HANDOFF_OFFER =
+  "השלמה עם כרטיס נטען / מועדון או גיפט קארד — נציג שירות יכול לעזור לסגור את ההזמנה. להעביר לנציג שירות?"
+
+/** Salvage visibly truncated model output (503927630 / output-token cap mid-JSON). */
+function repairTruncatedBotReply(reply: string) {
+  let text = stripTrailingJsonArtifacts(reply.trim())
+  if (!text) return reply
+
+  if (/אין לי מידע\s+מד/u.test(text)) {
+    const withoutDeadEnd = text
+      .replace(/\n?\n?לגבי כרטיס נטען[^\n]*$/iu, "")
+      .trim()
+    const base =
+      withoutDeadEnd.length >= 40
+        ? withoutDeadEnd
+        : "*הום בוט :)*\nלגבי תשלום במועדון או כרטיס נטען"
+    return `${base}\n\n${MEMBERSHIP_CHECKOUT_HANDOFF_OFFER}`
+  }
+
+  if (
+    /לגבי כרטיס נטען/i.test(text) &&
+    !/[.!?…]\s*$/.test(text) &&
+    text.length > 120
+  ) {
+    const withoutTail = text.replace(/\n?\n?לגבי כרטיס נטען[^\n]*$/iu, "").trim()
+    if (withoutTail.length >= 40) {
+      return `${withoutTail}\n\n${MEMBERSHIP_CHECKOUT_HANDOFF_OFFER}`
+    }
+  }
+
+  return text
 }
 
 function stripJsonFence(text: string) {

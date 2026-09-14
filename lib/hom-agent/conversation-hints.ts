@@ -21,6 +21,7 @@ import {
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
+import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
   isCasualGreeting,
@@ -328,6 +329,12 @@ export function buildConversationHints(input: {
   if (isRefundTimelineQuestion(body)) {
     lines.push(
       "Refund timeline: up to 7 business days from cancellation date — not from warehouse/branch receipt."
+    )
+  }
+
+  if (isMembershipClubCheckoutQuestion(body)) {
+    lines.push(
+      "MEMBERSHIP / RELOADABLE CHECKOUT: answer SHORT from membership-clubs-payments KB — if their program is listed, confirm we work with it; completing the order with that card usually needs a service rep (like קוד זיכוי). Offer human_service — never a long payment-methods dump, never 'אין לי מידע'. If they ask נציג אנושי → handoff immediately."
     )
   }
 
