@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import {
   approveGokuSuggestion,
   applyWeeklyHighConfidenceSuggestions,
+  runGokuTrainer,
 } from "@/lib/agents/goku-trainer"
 import {
   answerGokuQuestion,
@@ -53,5 +54,23 @@ export async function applyWeeklyPolicyAction() {
     revalidatePath("/dashboard/goku")
   } catch (error) {
     console.error("[goku-weekly] apply failed", error)
+  }
+}
+
+export async function runGokuTrainerManualAction(formData: FormData) {
+  const conversationId = String(formData.get("conversationId") ?? "").trim()
+  if (!conversationId) {
+    console.warn("[goku-trainer] manual run skipped — missing conversation id")
+    return
+  }
+
+  try {
+    await runGokuTrainer(conversationId, "end", { forceReplace: true })
+    revalidatePath("/dashboard/goku")
+  } catch (error) {
+    console.error(
+      "[goku-trainer] manual run failed",
+      error instanceof Error ? error.message : error
+    )
   }
 }

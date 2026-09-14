@@ -3,8 +3,11 @@ import { afterEach, describe, it } from "node:test"
 import {
   gokuAutoApplyConfidence,
   gokuAutoApplyMode,
+  gokuTrainerMode,
   gokuWeeklyApplyConfidence,
+  isGokuAutoRunEnabled,
   isGokuTrainerEnabled,
+  isGokuTrainerKillSwitchActive,
   isValidLearnedRuleSuggestion,
   parseReportSuggestions,
   runGokuTrainer,
@@ -14,6 +17,7 @@ import {
 
 const ENV_KEYS = [
   "GOKU_TRAINER_ENABLED",
+  "GOKU_TRAINER_AUTO_RUN",
   "GOKU_AUTO_APPLY_CONFIDENCE",
   "GOKU_AUTO_APPLY_MODE",
   "GOKU_WEEKLY_APPLY_CONFIDENCE",
@@ -31,20 +35,33 @@ function restoreEnv(snapshot: Record<string, string | undefined>) {
   }
 }
 
-describe("isGokuTrainerEnabled", () => {
-  it("is ON by default (owner decision — GOKU inspects every conversation)", () => {
+describe("goku trainer modes", () => {
+  it("defaults to manual-only (auto-run off)", () => {
     const snapshot = saveEnv()
     delete process.env.GOKU_TRAINER_ENABLED
-    assert.equal(isGokuTrainerEnabled(), true)
+    delete process.env.GOKU_TRAINER_AUTO_RUN
+    assert.equal(isGokuAutoRunEnabled(), false)
+    assert.equal(gokuTrainerMode(), "manual")
     restoreEnv(snapshot)
   })
 
-  it("can be paused with falsy values", () => {
+  it("enables auto-run only with GOKU_TRAINER_AUTO_RUN=1", () => {
     const snapshot = saveEnv()
-    for (const value of ["0", "false", "off"]) {
-      process.env.GOKU_TRAINER_ENABLED = value
-      assert.equal(isGokuTrainerEnabled(), false, value)
-    }
+    delete process.env.GOKU_TRAINER_ENABLED
+    process.env.GOKU_TRAINER_AUTO_RUN = "1"
+    assert.equal(isGokuAutoRunEnabled(), true)
+    assert.equal(isGokuTrainerEnabled(), true)
+    assert.equal(gokuTrainerMode(), "auto")
+    restoreEnv(snapshot)
+  })
+
+  it("kill switch blocks auto-run and manual runs", () => {
+    const snapshot = saveEnv()
+    process.env.GOKU_TRAINER_ENABLED = "0"
+    process.env.GOKU_TRAINER_AUTO_RUN = "1"
+    assert.equal(isGokuTrainerKillSwitchActive(), true)
+    assert.equal(isGokuAutoRunEnabled(), false)
+    assert.equal(gokuTrainerMode(), "off")
     restoreEnv(snapshot)
   })
 })
@@ -168,11 +185,20 @@ describe("scheduleGokuTrainerBeforeTrainerReset", () => {
 })
 
 describe("runGokuTrainer", () => {
-  it("skips when explicitly disabled", async () => {
+  it("skips when kill switch is active", async () => {
     const snapshot = saveEnv()
     process.env.GOKU_TRAINER_ENABLED = "0"
     const result = await runGokuTrainer("12345", "inactivity_close")
     assert.deepEqual(result, { ok: true, skipped: "disabled" })
+    restoreEnv(snapshot)
+  })
+
+  it("can run manually when auto-run is off", async () => {
+    const snapshot = saveEnv()
+    delete process.env.GOKU_TRAINER_ENABLED
+    delete process.env.GOKU_TRAINER_AUTO_RUN
+    assert.equal(isGokuAutoRunEnabled(), false)
+    assert.equal(isGokuTrainerKillSwitchActive(), false)
     restoreEnv(snapshot)
   })
 })

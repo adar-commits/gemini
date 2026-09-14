@@ -1,7 +1,7 @@
 import {
   countGokuReports,
   gokuGradeTo100,
-  isGokuTrainerEnabled,
+  gokuTrainerMode,
   listWeeklyPolicyBuckets,
   listGokuReports,
   type GokuReportRow,
@@ -13,7 +13,10 @@ import {
 } from "@/components/goku/goku-report-feed"
 import { GokuQuestionsInbox } from "@/components/goku/goku-questions-inbox"
 import { listGokuQuestions, type GokuQuestionRow } from "@/lib/agents/goku-questions"
-import { applyWeeklyPolicyAction } from "@/app/dashboard/goku/actions"
+import {
+  applyWeeklyPolicyAction,
+  runGokuTrainerManualAction,
+} from "@/app/dashboard/goku/actions"
 
 export const dynamic = "force-dynamic"
 
@@ -61,6 +64,28 @@ export default async function GokuDashboardPage({
       sum + report.suggestions.filter((item) => item.status === "proposed").length,
     0
   )
+  const trainerMode = gokuTrainerMode()
+  const modeBadge =
+    trainerMode === "auto"
+      ? {
+          label: "ריצה אוטומטית",
+          className:
+            "inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/15",
+          dot: "size-1.5 rounded-full bg-emerald-500",
+        }
+      : trainerMode === "manual"
+        ? {
+            label: "ידני בלבד",
+            className:
+              "inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-sky-600/15",
+            dot: "size-1.5 rounded-full bg-sky-500",
+          }
+        : {
+            label: "כבוי",
+            className:
+              "inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200",
+            dot: "size-1.5 rounded-full bg-zinc-400",
+          }
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-5 py-8">
@@ -70,28 +95,39 @@ export default async function GokuDashboardPage({
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               גוקו מאמן
             </h1>
-            <span
-              className={
-                isGokuTrainerEnabled()
-                  ? "inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/15"
-                  : "inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200"
-              }
-            >
-              <span
-                className={
-                  isGokuTrainerEnabled()
-                    ? "size-1.5 rounded-full bg-emerald-500"
-                    : "size-1.5 rounded-full bg-zinc-400"
-                }
-              />
-              {isGokuTrainerEnabled() ? "פעיל" : "כבוי"}
+            <span className={modeBadge.className}>
+              <span className={modeBadge.dot} />
+              {modeBadge.label}
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
-            סיכומי שיחות, ציוני איכות והמלצות לאימון הבוט
+            סיכומי שיחות, ציוני איכות והמלצות לאימון הבוט — ניתוח ידני לפי בקשה
           </p>
         </div>
       </header>
+
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/6">
+        <h2 className="text-sm font-semibold text-foreground">ניתוח שיחה ידני</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          הזן מזהה שיחה מ-Landbot (למשל 531984273). גוקו לא רץ אוטומטית אחרי סגירת שיחה.
+        </p>
+        <form action={runGokuTrainerManualAction} className="mt-3 flex flex-wrap gap-2">
+          <input
+            name="conversationId"
+            type="text"
+            inputMode="numeric"
+            placeholder="מזהה שיחה"
+            className="min-w-[220px] flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            required
+          />
+          <button
+            type="submit"
+            className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            נתח שיחה
+          </button>
+        </form>
+      </section>
 
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

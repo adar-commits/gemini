@@ -3,8 +3,10 @@ import { isAuthorized } from "@/lib/agents/auth"
 import { isCronAuthorized } from "@/lib/agents/cron-auth"
 import {
   gokuAutoApplyMode,
+  gokuTrainerMode,
   gokuTrainerModel,
   gokuWeeklyApplyConfidence,
+  isGokuAutoRunEnabled,
   runGokuTrainerSweep,
 } from "@/lib/agents/goku-trainer"
 
@@ -18,7 +20,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
+    mode: gokuTrainerMode(),
+    auto_run: isGokuAutoRunEnabled(),
     enabled: process.env.GOKU_TRAINER_ENABLED?.trim() ?? "",
+    auto_run_env: process.env.GOKU_TRAINER_AUTO_RUN?.trim() ?? "",
     model: gokuTrainerModel(),
     auto_apply_mode: gokuAutoApplyMode(),
     auto_apply_confidence:

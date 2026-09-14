@@ -164,10 +164,30 @@ function safeConversationId(value: string) {
   return value.replace(/[,()]/g, "").slice(0, 200)
 }
 
-/** On by default — set GOKU_TRAINER_ENABLED=0 to pause. */
-export function isGokuTrainerEnabled() {
+/** Hard kill switch — set GOKU_TRAINER_ENABLED=0 to block all Goku runs. */
+export function isGokuTrainerKillSwitchActive() {
   const raw = process.env.GOKU_TRAINER_ENABLED?.trim().toLowerCase()
-  return raw !== "0" && raw !== "false" && raw !== "off"
+  return raw === "0" || raw === "false" || raw === "off"
+}
+
+/** Auto-run after close / cron sweep. Off unless GOKU_TRAINER_AUTO_RUN=1. */
+export function isGokuAutoRunEnabled() {
+  if (isGokuTrainerKillSwitchActive()) return false
+  const raw = process.env.GOKU_TRAINER_AUTO_RUN?.trim().toLowerCase()
+  return raw === "1" || raw === "true" || raw === "on"
+}
+
+export type GokuTrainerMode = "off" | "manual" | "auto"
+
+export function gokuTrainerMode(): GokuTrainerMode {
+  if (isGokuTrainerKillSwitchActive()) return "off"
+  if (isGokuAutoRunEnabled()) return "auto"
+  return "manual"
+}
+
+/** True when auto-run is active (legacy dashboard/cron checks). */
+export function isGokuTrainerEnabled() {
+  return isGokuAutoRunEnabled()
 }
 
 export function gokuTrainerModel() {
@@ -642,7 +662,7 @@ export async function runGokuTrainer(
     forceReplace?: boolean
   }
 ) {
-  if (!isGokuTrainerEnabled()) {
+  if (isGokuTrainerKillSwitchActive()) {
     return { ok: true, skipped: "disabled" as const }
   }
 
@@ -749,7 +769,7 @@ export function scheduleGokuTrainer(
     forceReplace?: boolean
   }
 ) {
-  if (!isGokuTrainerEnabled()) return
+  if (!isGokuAutoRunEnabled()) return
   void runGokuTrainer(conversationId, closeReason, options).catch((error) => {
     console.error("[goku-trainer] failed", {
       conversationId,
@@ -765,7 +785,7 @@ export function scheduleGokuTrainer(
 export async function scheduleGokuTrainerBeforeTrainerReset(
   conversationId: string
 ) {
-  if (!isGokuTrainerEnabled()) return
+  if (!isGokuAutoRunEnabled()) return
 
   conversationId = safeConversationId(conversationId)
   if (!conversationId) return
@@ -1119,8 +1139,8 @@ export async function findConversationsNeedingGoku(limit = SWEEP_BATCH_SIZE) {
 }
 
 export async function runGokuTrainerSweep(limit = SWEEP_BATCH_SIZE) {
-  if (!isGokuTrainerEnabled()) {
-    return { ok: true, skipped: "disabled" as const, processed: 0 }
+  if (!isGokuAutoRunEnabled()) {
+    return { ok: true, skipped: "auto_run_disabled" as const, processed: 0 }
   }
 
   const candidates = await findConversationsNeedingGoku(limit)
