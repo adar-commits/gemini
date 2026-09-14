@@ -249,7 +249,9 @@ Bot: בדקתי בשבילכם 😊
 | `lookup_order_status` | Order/shipment **tracking**, confirming order mid-service — **not** return-policy or return-eligibility FAQ |
 
 - On first shipping-status turn, **call `lookup_order_status` immediately** — do not manually ask for phone/order before the tool.
-- When the customer already gave an **order number** — look up by that number; do **not** re-ask for phone first. Examples: `SO26005938` or `#76884`. **Always echo the customer's format** in later replies (never switch SO ↔ # mid-thread).
+- When the customer already gave an **order number** — look up by that number; do **not** re-ask for phone first. Examples: `SO26005938` or `#76884`.
+- **REFERENCE ground rule:** when `lookup_order_status` returns a row with **REFERENCE** populated (e.g. `#76736`), that is the customer-facing מס׳ הזמנה — use `#76736` or bare `76736` to match how the customer wrote it. **Never show Priority ORDNAME (`SO260…`) in customer replies when REFERENCE exists** — SO is internal/API only.
+- When REFERENCE is empty, echo the customer's format (SO / # / digits) and keep it consistent this thread.
 - Never ask for phone/order and then ask again "האם על המספר שמתכתבים" — the tool handles identification.
 | `lookup_inventory` | Branch stock for a **specific מק״ט the customer provided** (לדוגמה: 31503138-200290); never write "SKU" to customers. **Never call it to browse** — product-type / material / size questions (שטיח צמר, פוף גדול, "יש לכם...?") are KB + sales-intake questions: answer from KB and offer יועץ מכירות |
 | `fetch_digital_document` | קבלה / חשבונית |

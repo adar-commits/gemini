@@ -48,7 +48,30 @@ describe("customer order number format", () => {
     assert.doesNotMatch(prompt, /SO26076884/)
   })
 
-  it("keeps SO format when customer used SO", () => {
+  it("uses REFERENCE hash even when customer typed SO", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "SO26076884", agent: null },
+    ]
+    const formatted = formatCustomerOrderNumber({
+      orderNumber: "76884",
+      history,
+      order: shopifyOrder,
+    })
+    assert.equal(formatted, "#76884")
+  })
+
+  it("uses REFERENCE for non-website orders in confirmation", () => {
+    const branchOrder = mapPriorityOrderRow({
+      ORDNAME: "SO26022330",
+      REFERENCE: "#76736",
+      BRANCHNAME: "1001",
+    })
+    const prompt = buildOrderConfirmationPrompt(branchOrder)
+    assert.match(prompt, /#76736/)
+    assert.doesNotMatch(prompt, /SO26022330/)
+  })
+
+  it("keeps SO format when no REFERENCE exists", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "SO26005938", agent: null },
     ]

@@ -303,13 +303,17 @@ function priorityReferenceDigits(row: PriorityOrderRow): string | null {
   return null
 }
 
-/** Customer-facing order id — Shopify REFERENCE for website (BRANCHNAME 3000), else Priority ORDNAME. */
+/** Customer-facing order id — Priority REFERENCE when populated, else ORDNAME. */
 export function resolveCustomerOrderNumber(row: PriorityOrderRow): string {
-  if (isWebsiteOrderRow(row)) {
-    const reference = priorityReferenceDigits(row)
-    if (reference) return reference
-  }
+  const reference = priorityReferenceDigits(row)
+  if (reference) return reference
   return row.ORDNAME.trim()
+}
+
+export function priorityReferenceDigitsFromOrder(
+  order: OrderShipmentStatus
+): string | null {
+  return priorityReferenceDigits(order.raw)
 }
 
 export function priorityOrdName(order: OrderShipmentStatus) {
@@ -783,15 +787,6 @@ export function customerOrderNumberStyleFromHistory(
   return null
 }
 
-function shopifyReferenceDigits(order: OrderShipmentStatus): string | null {
-  const ref = String(order.raw.REFERENCE ?? "").replace(/\D/g, "")
-  if (ref.length >= 4 && ref.length <= 8) return ref
-  if (isWebsiteOrderRow(order.raw)) {
-    const digits = order.orderNumber.replace(/\D/g, "")
-    if (digits.length >= 4 && digits.length <= 8) return digits
-  }
-  return null
-}
 
 function customerReferenceDigitsFromHistory(
   history: HistoryMessage[],
@@ -821,6 +816,20 @@ export function formatCustomerOrderNumber(input: {
   body?: string
 }): string {
   const canonical = input.orderNumber.trim().toUpperCase()
+  const referenceDigits = input.order
+    ? priorityReferenceDigitsFromOrder(input.order)
+    : null
+
+  if (referenceDigits) {
+    const style =
+      input.style ??
+      (input.history
+        ? customerOrderNumberStyleFromHistory(input.history, input.body)
+        : null)
+    if (style === "digits") return referenceDigits
+    return `#${referenceDigits}`
+  }
+
   const style =
     input.style ??
     (input.history
@@ -829,11 +838,9 @@ export function formatCustomerOrderNumber(input: {
 
   if (!style || style === "so") return canonical
 
-  const digits =
-    (input.order ? shopifyReferenceDigits(input.order) : null) ??
-    (input.history
-      ? customerReferenceDigitsFromHistory(input.history, input.body)
-      : null)
+  const digits = input.history
+    ? customerReferenceDigitsFromHistory(input.history, input.body)
+    : null
 
   if (!digits) return canonical
   if (style === "hash") return `#${digits}`

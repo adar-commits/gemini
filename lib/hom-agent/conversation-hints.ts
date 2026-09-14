@@ -308,6 +308,10 @@ export function buildConversationHints(input: {
     )
   }
 
+  lines.push(
+    "ORDER REFERENCE GROUND RULE: when getOrders returns REFERENCE (#76736 / 76736), that is the customer order number — never show Priority ORDNAME (SO260…) in replies when REFERENCE is set."
+  )
+
   const orderStyle = customerOrderNumberStyleFromHistory(history, body)
   if (orderStyle) {
     const styleHint =
@@ -317,7 +321,7 @@ export function buildConversationHints(input: {
           ? "bare digits (76884)"
           : "SO26005938-style"
     lines.push(
-      `Customer uses ${styleHint} order IDs — keep the same format in every reply this thread (never switch to another shape).`
+      `Customer uses ${styleHint} order IDs — when Priority REFERENCE is set use REFERENCE (#76736), not SO ORDNAME; otherwise keep this format every reply.`
     )
   }
 

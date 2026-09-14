@@ -36,13 +36,24 @@ describe("order reference lookup", () => {
     assert.equal(mapPriorityOrderRow(row).orderNumber, "75488")
   })
 
-  it("keeps ORDNAME for non-website branches", () => {
+  it("uses REFERENCE for non-website branches when populated", () => {
     const row = {
       ORDNAME: "SO26075488",
       REFERENCE: "75488",
       BRANCHNAME: "1001",
     }
-    assert.equal(resolveCustomerOrderNumber(row), "SO26075488")
+    assert.equal(resolveCustomerOrderNumber(row), "75488")
+    assert.equal(mapPriorityOrderRow(row).orderNumber, "75488")
+  })
+
+  it("uses hash REFERENCE digits from Priority (#76736)", () => {
+    const row = {
+      ORDNAME: "SO26022330",
+      REFERENCE: "#76736",
+      BRANCHNAME: "1001",
+    }
+    assert.equal(resolveCustomerOrderNumber(row), "76736")
+    assert.equal(mapPriorityOrderRow(row).orderNumber, "76736")
   })
 
   it("matches bare Shopify numbers against Priority ORDNAME suffix", () => {

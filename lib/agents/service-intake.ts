@@ -16,7 +16,7 @@ import {
   extractOrderNumber,
   formatCustomerOrderNumber,
   formatCustomerOrderNumberForThread,
-  isWebsiteOrderRow,
+  priorityReferenceDigitsFromOrder,
   ltrIsolateOrderNumber,
   ORDER_NUMBER_ASK_EXAMPLES,
   type OrderShipmentStatus,
@@ -48,7 +48,7 @@ function formatServiceReportOrderLabel(
     )
   }
 
-  if (isWebsiteOrderRow(intake.matchedOrder.raw)) {
+  if (priorityReferenceDigitsFromOrder(intake.matchedOrder)) {
     return ltrIsolateOrderNumber(
       formatCustomerOrderNumber({
         orderNumber: intake.orderNumber,
