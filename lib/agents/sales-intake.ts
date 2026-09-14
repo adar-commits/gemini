@@ -26,7 +26,10 @@ import { isConfirmationAffirmationWithExtra } from "@/lib/agents/compound-reply"
 import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
-import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import {
+  isInactivityAssistantMessage,
+  lastNonInactivityAssistantText,
+} from "@/lib/agents/inactivity"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
 export type SalesIntake = {
@@ -1732,20 +1735,18 @@ function formatColorForSummary(intake: SalesIntake) {
   return `צבע מועדף ${intake.favoredColor}`
 }
 
+const SALES_SUMMARY_CONFIRM_RE =
+  /האם (?:זה |הכל )?נכון(?:\s+עד\s+כה)?|(?:^|[\n])?(?:אז\s+)?לסיכום(?:\s+עבור\s+יועץ)?/i
+
 export function isConfirmationPending(history: HistoryMessage[]) {
   if (isPostPurchaseIntentConfirmPending(history)) return false
-  const last = lastIntakeAssistantText(history)
-  return /האם זה נכון עד כה|אז לסיכום/i.test(last)
+  const last = lastNonInactivityAssistantText(history)
+  return SALES_SUMMARY_CONFIRM_RE.test(last)
 }
 
-/** Full sales recap for יועץ מכירות — not mid-intake "אני צודק?" checkpoints. */
+/** Sales intake summary confirm — bullet recap or "אז לסיכום … אני צודק?" before handoff. */
 export function isSalesFinalSummaryPending(history: HistoryMessage[]) {
-  if (isPostPurchaseIntentConfirmPending(history)) return false
-  const last = lastIntakeAssistantText(history)
-  if (!last) return false
-  if (/האם זה נכון עד כה/i.test(last)) return true
-  if (/לסיכום עבור יועץ/i.test(last)) return true
-  return false
+  return isConfirmationPending(history)
 }
 
 export function sanitizeSalesReply(reply: string, history: HistoryMessage[], body: string) {

@@ -121,9 +121,9 @@ export function buildConversationHints(input: {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
   }
 
-  if (isSalesFinalSummaryPending(history)) {
+  if (isConfirmationPending(history)) {
     lines.push(
-      "SALES FINAL SUMMARY: full recap is done — on customer confirm (כן/נכון/בדיוק) set action human_sales immediately with a short transfer line. No extra handoff question. If they stay silent, the system auto-assigns to מכירות (no inactivity ping)."
+      "SALES SUMMARY STEP: intake recap is waiting for confirm (אני צודק? / האם זה נכון עד כה?) — on customer confirm (כן/נכון/בדיוק) set action human_sales immediately with a short transfer line. No extra handoff question. If they stay silent, the system auto-assigns to מכירות (no inactivity ping)."
     )
   }
 

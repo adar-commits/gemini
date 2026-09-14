@@ -19,13 +19,26 @@ describe("sales summary inactivity", () => {
     assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "faq"), true)
   })
 
-  it("still pings during mid-intake אני צודק checkpoints", () => {
+  it("auto-assigns sales on אז לסיכום … אני צודק? summary step (no ping)", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "אין בע״ח" },
       { role: "assistant", content: MID_INTAKE },
     ]
-    assert.equal(isSalesFinalSummaryPending(history), false)
-    assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "faq"), false)
+    assert.equal(isSalesFinalSummaryPending(history), true)
+    assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "faq"), true)
+  })
+
+  it("detects bullet recap even when message is not an intake question kind", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "קל לניקוי" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nמעולה, רשמתי.\n\n• שטיח לסלון\n• ללא בעלי חיים\n\nהאם הכל נכון?",
+      },
+    ]
+    assert.equal(isSalesFinalSummaryPending(history), true)
+    assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "sales"), true)
   })
 
   it("confirms final summary with human_sales on כן", () => {

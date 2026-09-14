@@ -31,7 +31,6 @@ import {
 import {
   buildSalesPhotoReceivedReply,
   isConfirmationPending,
-  isSalesFinalSummaryPending,
   shouldAckSalesRoomPhotoWithoutVision,
 } from "@/lib/agents/sales-intake"
 import {
@@ -95,7 +94,7 @@ export function runPreTurnGuards(input: {
     return { kind: "handled", reply: "", action: "end" }
   }
 
-  if (isSalesFinalSummaryPending(input.history) && isHumanHandoffAffirmation(body)) {
+  if (isConfirmationPending(input.history) && isHumanHandoffAffirmation(body)) {
     return {
       kind: "handled",
       reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_sales")}`,

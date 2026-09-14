@@ -8,7 +8,7 @@ import {
 } from "@/lib/agents/memory"
 import { inferHumanHandoffAction } from "@/lib/agents/off-topic"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
-import { isSalesFinalSummaryPending } from "@/lib/agents/sales-intake"
+import { isConfirmationPending } from "@/lib/agents/sales-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { sendCustomerText } from "@/lib/landbot/client"
@@ -28,7 +28,7 @@ export function resolveInactivityHandoffAction(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ): HumanHandoffAction {
-  if (isSalesFinalSummaryPending(history)) return "human_sales"
+  if (isConfirmationPending(history)) return "human_sales"
   if (isPendingServiceHandoffSummary(history)) return "human_service"
   return inferHumanHandoffAction(history, lastAgent)
 }
