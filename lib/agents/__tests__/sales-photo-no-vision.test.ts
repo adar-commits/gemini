@@ -88,6 +88,51 @@ describe("sales room photo — no vision analysis", () => {
     assert.match(next, /תמונה אחת ברורה/)
   })
 
+  it("does not double-ack or re-ask photo after sales intake photo (531032031)", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "היי רציתי לדעת האם אפשר להזמין מידה ספציפית ?" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nלגבי מידה מותאמת אישית — יש שטיחים שמגיעים במידות סטנדרטיות מהקטלוג.\n\nבינתיים, כדי שנוכל לכוון נכון — לאיזה חלל השטיח מיועד?",
+      },
+      { role: "user", content: "סלון" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nמעולה, סלון\n\nכדי לעזור ליועץ העיצוב להתאים את ההצעה, אפשר לשלוח בערך את מידות הסלון או את גודל הספה?",
+      },
+      { role: "user", content: "אני צריך מידה 160/210" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nמידה 160/210 — רשמתי.\n\nהאם השטיח אמור להתאים גם לבעלי חיים בבית?",
+      },
+      { role: "user", content: "לא" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nאין בעיה\n\nאפשר לשלוח תמונה אחת ברורה של הסלון? זה עוזר ליועץ העיצוב לדייק בהמלצה.",
+      },
+    ]
+    const photoUrl =
+      "https://storage.googleapis.com/media.landbot.io/256062/customers/531032031/R4NHE9JSV9MBFNYR229ZQ0E6K4ETSVCP.jpg"
+    const photoTurn = {
+      text: `[תמונה][media:image:${photoUrl}]`,
+      media: [{ kind: "image" as const, url: photoUrl }],
+    }
+    const reply = buildSalesPhotoReceivedReply(
+      history,
+      photoTurn.text,
+      photoTurn
+    )
+    assert.match(reply, /קיבלתי את התמונ/)
+    assert.match(reply, /דרישות מיוחדות/)
+    assert.doesNotMatch(reply, /אוקיי, קיבלתי/)
+    assert.doesNotMatch(reply, /בשמחה — אפשר לשלוח תמונה/)
+    assert.doesNotMatch(reply, /אפשר לשלוח תמונה אחת ברורה/)
+  })
+
   it("notes one photo is enough when customer sends multiple images", () => {
     const history: HistoryMessage[] = [
       ...historyBeforePhoto,

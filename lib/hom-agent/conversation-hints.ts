@@ -382,7 +382,7 @@ export function buildConversationHints(input: {
       hasRoomPhotoInHistory(history))
   ) {
     lines.push(
-      "SALES ROOM PHOTO: reference for the human advisor only — acknowledge receipt, do NOT describe/analyze the image (no furniture/colors/rug guesses). Ask for one clear photo when requesting; if customer sent multiple, thank once and say one is enough — continue intake without repeating."
+      "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. Do NOT describe/analyze the image."
     )
   }
 

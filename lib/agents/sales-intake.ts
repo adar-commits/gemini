@@ -229,9 +229,15 @@ export function hasRoomPhotoInHistory(history: HistoryMessage[]) {
 }
 
 export function countCustomerImagesInTurn(turn: UserTurn) {
-  const fromMedia = turn.media.filter((part) => part.kind === "image").length
-  const fromText = (summarizeTurn(turn).match(/\[media:image:/gi) ?? []).length
-  return Math.max(fromMedia, fromText)
+  const urls = new Set<string>()
+  for (const part of turn.media) {
+    if (part.kind === "image" && part.url.trim()) urls.add(part.url.trim())
+  }
+  for (const match of turn.text.match(/\[media:image:([^\]]+)\]/gi) ?? []) {
+    const url = match.match(/\[media:image:([^\]]+)\]/i)?.[1]?.trim()
+    if (url) urls.add(url)
+  }
+  return urls.size
 }
 
 export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
@@ -1566,7 +1572,12 @@ export function isVisualConsultationRequest(text: string) {
   return VISUAL_CONSULT_RE.test(text.trim())
 }
 
+function customerAttachedImage(body: string) {
+  return /\[media:image:/i.test(body)
+}
+
 function visualConsultAck(body: string) {
+  if (customerAttachedImage(body)) return ""
   if (!isVisualConsultationRequest(body)) return ""
   return "בשמחה — אפשר לשלוח תמונה אחת ברורה של החלל ואעביר ליועץ שיעזור להשוות בין האפשרויות.\n"
 }
@@ -1837,6 +1848,8 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
 function intakeAnswerAcknowledgment(lastKind: string, body: string) {
   if (!body.trim() || isIntakeCorrection(body)) return ""
   if (lastKind === "confirm") return ""
+  if (customerAttachedImage(body)) return ""
+  if (lastKind === "style_photo" || lastKind === "photo") return ""
   return "אוקיי, קיבלתי.\n"
 }
 
@@ -1934,6 +1947,20 @@ function bodyForPhotoIntakeContinuation(body: string, turn?: UserTurn) {
   return body
 }
 
+function sanitizePhotoIntakeContinuation(continued: string) {
+  let text = continued.trimStart()
+  text = text.replace(/^אוקיי, קיבלתי\.\n+/i, "")
+  text = text.replace(
+    /^בשמחה — אפשר לשלוח תמונה אחת ברורה[^\n]*\n+/i,
+    ""
+  )
+  text = text.replace(
+    /^אפשר (?:ל)?(?:שלוח|צר(?:ף|ור))(?:\/י)?\s+תמונה[^\n]*\n+/i,
+    ""
+  )
+  return text.trimStart()
+}
+
 /** Customer attached a room photo during the sales quiz — never trigger order lookup. */
 export function buildSalesPhotoReceivedReply(
   history: HistoryMessage[],
@@ -1941,7 +1968,9 @@ export function buildSalesPhotoReceivedReply(
   turn?: UserTurn
 ) {
   const ack = `${buildSalesPhotoAck(history, turn ?? { text: body, media: [] })}\n`
-  const continued = buildSalesIntakeReply(history, bodyForPhotoIntakeContinuation(body, turn))
+  const continued = sanitizePhotoIntakeContinuation(
+    buildSalesIntakeReply(history, bodyForPhotoIntakeContinuation(body, turn))
+  )
   if (continued.includes("קיבלתי את התמונה") || continued.includes("קיבלתי —")) {
     return continued
   }
