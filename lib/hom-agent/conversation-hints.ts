@@ -136,7 +136,7 @@ export function buildConversationHints(input: {
   if (isHumanHandoffPending(history)) {
     const handoffAction = inferHumanHandoffAction(history, null)
     lines.push(
-      `HANDOFF OFFER PENDING: customer confirm includes כן/בסדר/אוקיי even with תודה (e.g. כן, תודה) — set action ${handoffAction} NOW in the same JSON turn. Never write מעביר/העברתי with action reply only. Thanks without confirm (תודה alone) is not handoff — remind they can write כן.`
+      `HANDOFF OFFER PENDING: any confirm (כן / כן אני אשמח / כן, תודה / בסדר / אוקיי) → set action ${handoffAction} NOW in the same JSON — short transfer line paired with action. Never re-ask phone or restart document intake. Never write מעביר/העברתי with action reply only. Thanks alone (no confirm) → remind they can write כן.`
     )
   }
 
@@ -402,7 +402,7 @@ export function buildConversationHints(input: {
     (isDigitalDocumentRequest(body) || activeDigitalDocumentRequest(history))
   ) {
     lines.push(
-      "ERP RECEIPT ALREADY SENT: automated Weezmo receipt/invoice template with documents.carpetshop.co.il link already delivered — do NOT re-ask phone or restart document intake. Confirm the link above; if getDocument failed but the template arrived, the receipt is fulfilled."
+      "ERP RECEIPT ALREADY SENT: automated Weezmo receipt/invoice template with documents.carpetshop.co.il link already in thread — confirm the link above; receipt is fulfilled even if getDocument failed. NEVER re-ask phone or repeat document intake questions. If you offered human handoff and customer confirms (כן / כן אני אשמח) → human_service immediately."
     )
   }
 

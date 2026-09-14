@@ -8,10 +8,7 @@ import {
 } from "@/lib/agents/digital-document-flow"
 import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
-import {
-  runPreTurnGuards,
-  runStructuredDocumentPreTurn,
-} from "@/lib/hom-agent/pre-turn"
+import { runStructuredDocumentPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 const OPENING =
@@ -51,18 +48,7 @@ describe("document ERP receipt loop (532321051 / 972505934944)", () => {
     assert.equal(outboundDocumentDeliveryInThread(history), true)
   })
 
-  it("binds כן אני אשמח to human_service after API failure handoff offer", () => {
-    const result = runPreTurnGuards({
-      turn: { text: "כן אני אשמח", media: [] },
-      history: historyThroughFailure(),
-    })
-
-    assert.equal(result.kind, "handled")
-    if (result.kind !== "handled") return
-    assert.equal(result.action, "human_service")
-  })
-
-  it("document pre-turn skips while handoff offer is pending", async () => {
+  it("document pre-turn skips so LLM binds handoff on כן אני אשמח", async () => {
     const result = await runStructuredDocumentPreTurn({
       turn: { text: "כן אני אשמח", media: [] },
       history: historyThroughFailure(),
@@ -70,6 +56,14 @@ describe("document ERP receipt loop (532321051 / 972505934944)", () => {
     })
 
     assert.equal(result.kind, "skip")
+
+    const hints = buildConversationHints({
+      history: historyThroughFailure(),
+      body: "כן אני אשמח",
+    })
+    assert.ok(hints)
+    assert.match(hints, /HANDOFF OFFER PENDING/i)
+    assert.match(hints, /כן אני אשמח/)
   })
 
   it("does not re-ask phone after ERP receipt and confirmed phone", async () => {

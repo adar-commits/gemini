@@ -14,7 +14,7 @@ import {
 } from "@/lib/agents/shipping"
 
 const HANDOFF_AFFIRMATION_PREFIX =
-  /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|מעולה|ok|yes|👍)(?:[\s,.!?]+|$)/iu
+  /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|מעולה|ok|yes|👍)(?:[\s,.!?]+)/iu
 
 const HANDOFF_DECLINE_PREFIX = /^(?:לא|לא\s+תודה|עזוב|no)(?:[\s,.!?]+)/iu
 
@@ -22,7 +22,7 @@ const INACTIVITY_ACK_PREFIX =
   /^(?:כן|כן\s+אני|פה|אני\s+פה|עדיין\s+פה|אני\s+כאן|כאן|yes|ok|👍)(?:[\s,.!?]+)/iu
 
 const PURE_AFFIRMATION_TAIL =
-  /^(?:(?:אני\s+)?(?:אשמח|בכיף)|תודה|בבקשה|pls|please|מעולה)?(?:[\s,.!?]*)$/iu
+  /^(?:תודה|בבקשה|pls|please|אשמח|מעולה)?(?:[\s,.!?]*)$/iu
 
 /** Strip a leading yes / ack word and punctuation. */
 export function remainderAfterLeadingAffirmation(text: string) {
