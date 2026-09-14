@@ -16,7 +16,10 @@ import {
 import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
 import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
-import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
+import {
+  shouldSkipInactivityClose,
+  shouldSkipInactivityPingForSalesHandoff,
+} from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
@@ -183,6 +186,12 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
 
   if (shouldSuppressInactivityWatch(history)) {
     return "customer_deferred" as const
+  }
+
+  const { getConversationContext } = await import("@/lib/agents/memory")
+  const context = await getConversationContext(payload.conversationId)
+  if (shouldSkipInactivityPingForSalesHandoff(context.history, context.lastAgent)) {
+    return "sales_summary_handoff" as const
   }
 
   return null
@@ -362,6 +371,12 @@ export async function runInactivityWatch(payload: InactivityWatchPayload) {
   if (payload.phase === "ping") {
     await sleep(INACTIVITY_PING_MS)
     const skip = await shouldSendPing(payload)
+    if (skip === "sales_summary_handoff") {
+      return executeInactivitySalesRecovery({
+        conversationId: payload.conversationId,
+        customerId: payload.customerId,
+      })
+    }
     if (skip) {
       console.log("[inactivity-watch] ping skipped", payload.conversationId, skip)
       return { ok: true, skipped: skip }

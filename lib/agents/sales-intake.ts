@@ -1727,6 +1727,16 @@ export function isConfirmationPending(history: HistoryMessage[]) {
   return /האם זה נכון עד כה|אז לסיכום/i.test(last)
 }
 
+/** Full sales recap for יועץ מכירות — not mid-intake "אני צודק?" checkpoints. */
+export function isSalesFinalSummaryPending(history: HistoryMessage[]) {
+  if (isPostPurchaseIntentConfirmPending(history)) return false
+  const last = lastIntakeAssistantText(history)
+  if (!last) return false
+  if (/האם זה נכון עד כה/i.test(last)) return true
+  if (/לסיכום עבור יועץ/i.test(last)) return true
+  return false
+}
+
 export function sanitizeSalesReply(reply: string, history: HistoryMessage[], body: string) {
   if (!FORBIDDEN_HOUSEHOLD_Q.test(reply)) return reply
   return buildSalesIntakeReply(history, body)

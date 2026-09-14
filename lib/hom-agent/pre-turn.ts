@@ -12,6 +12,7 @@ import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirma
 import {
   buildHumanHandoffConfirmedReply,
   inferHumanHandoffAction,
+  isHumanHandoffAffirmation,
   isHumanHandoffPending,
   isPendingHandoffCustomerReply,
 } from "@/lib/agents/off-topic"
@@ -23,6 +24,7 @@ import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import {
   buildSalesPhotoReceivedReply,
   isConfirmationPending,
+  isSalesFinalSummaryPending,
   shouldAckSalesRoomPhotoWithoutVision,
 } from "@/lib/agents/sales-intake"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
@@ -71,6 +73,14 @@ export function runPreTurnGuards(input: {
 
   if (isWhatsappAutoresponder(body)) {
     return { kind: "handled", reply: "", action: "end" }
+  }
+
+  if (isSalesFinalSummaryPending(input.history) && isHumanHandoffAffirmation(body)) {
+    return {
+      kind: "handled",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_sales")}`,
+      action: "human_sales",
+    }
   }
 
   if (

@@ -15,7 +15,10 @@ import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
 import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-close"
 import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
-import { shouldSkipInactivityClose } from "@/lib/agents/inactivity-policy"
+import {
+  shouldSkipInactivityClose,
+  shouldSkipInactivityPingForSalesHandoff,
+} from "@/lib/agents/inactivity-policy"
 
 type IdleSessionRow = {
   conversation_id: string
@@ -520,6 +523,20 @@ export async function processInactivityTimeouts() {
       }
 
       if (!pingSentAt && waitingMs >= INACTIVITY_PING_MS) {
+        if (
+          shouldSkipInactivityPingForSalesHandoff(
+            context.history,
+            context.lastAgent
+          )
+        ) {
+          await executeInactivitySalesRecovery({
+            conversationId: row.conversation_id,
+            customerId,
+          })
+          results.salesRecovery += 1
+          continue
+        }
+
         const reply = buildInactivityPingReply(row.customer_name ?? undefined)
         await assignToApiAgent(customerId)
         await sendCustomerText(customerId, reply)

@@ -8,6 +8,7 @@
 2. **15 minutes** silence → proactive ping (`INACTIVITY_PING_MS=900000`)
 3. Customer replies `כן`/`פה` → ack + resume thread
 4. **30 minutes** after ping, still silent → **service / unknown:** close message + **CRM `conversations.closed_at`** + Landbot archive; **active sales or inventory:** assign `human_sales` (מכירות) — never close sales funnels
+5. **Sales final summary** ("האם זה נכון עד כה?" / recap for יועץ): **no** "עדיין כאן?" ping — after the usual quiet window, assign `human_sales` directly so leads stay hot
 5. **Skip** ping/close if already `human_sales` / `human_service`
 
 ## Close scheduling (v2 fix)

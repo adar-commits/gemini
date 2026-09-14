@@ -58,7 +58,7 @@ import {
 import { isInactivityPingPending } from "@/lib/agents/inactivity"
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
 import { inferHumanHandoffAction, isHumanHandoffPending } from "@/lib/agents/off-topic"
-import { isConfirmationPending } from "@/lib/agents/sales-intake"
+import { isConfirmationPending, isSalesFinalSummaryPending } from "@/lib/agents/sales-intake"
 import {
   BOT_VOICE_NO_MIRROR_HINT,
   customerUsesFeminineSelfReference,
@@ -94,6 +94,12 @@ export function buildConversationHints(input: {
 
   if (customerUsesFeminineSelfReference(body)) {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
+  }
+
+  if (isSalesFinalSummaryPending(history)) {
+    lines.push(
+      "SALES FINAL SUMMARY: full recap is done — on customer confirm (כן/נכון/בדיוק) set action human_sales immediately with a short transfer line. No extra handoff question. If they stay silent, the system auto-assigns to מכירות (no inactivity ping)."
+    )
   }
 
   if (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body)) {

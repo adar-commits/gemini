@@ -1,5 +1,12 @@
 import { isActiveInventoryThread } from "@/lib/agents/inventory-lookup"
-import { isActiveSalesConsultation } from "@/lib/agents/sales-intake"
+import {
+  inferHumanHandoffAction,
+  isHumanHandoffPending,
+} from "@/lib/agents/off-topic"
+import {
+  isActiveSalesConsultation,
+  isSalesFinalSummaryPending,
+} from "@/lib/agents/sales-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 
 /**
@@ -15,4 +22,22 @@ export function shouldSkipInactivityClose(
     isActiveSalesConsultation(history, lastAgent) ||
     isActiveInventoryThread(history)
   )
+}
+
+/**
+ * Sales summary / handoff-offer: skip "עדיין כאן?" — assign human_sales after
+ * the normal quiet window so hot leads are not cooled down.
+ */
+export function shouldSkipInactivityPingForSalesHandoff(
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
+  if (isSalesFinalSummaryPending(history)) return true
+  if (
+    isHumanHandoffPending(history) &&
+    inferHumanHandoffAction(history, lastAgent) === "human_sales"
+  ) {
+    return true
+  }
+  return false
 }
