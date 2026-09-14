@@ -2,6 +2,10 @@ import type { SpecialistKind } from "@/lib/agent-core/config"
 import type { ModelProfile } from "@/lib/agent-core/model-profiles"
 import { MODEL_PROFILES } from "@/lib/agent-core/model-profiles"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import {
+  isPostPurchaseAlternateSizeAvailabilityQuestion,
+  isPostPurchaseAlternateSizeThread,
+} from "@/lib/agents/post-purchase-alt-size"
 import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -63,6 +67,19 @@ export function pickModelTier(input: {
       tier: "T3",
       reason: "service_with_image",
       useFullKb: false,
+      skipMaster: true,
+    }
+  }
+
+  if (
+    isPostPurchaseAlternateSizeAvailabilityQuestion(body, history) ||
+    (turn.media.some((m) => m.kind === "image") &&
+      isPostPurchaseAlternateSizeThread(history, body))
+  ) {
+    return {
+      tier: "T3",
+      reason: "post_purchase_alt_size",
+      useFullKb: true,
       skipMaster: true,
     }
   }

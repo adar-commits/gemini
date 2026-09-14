@@ -23,6 +23,11 @@ import {
 } from "@/lib/agents/compound-reply"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import {
+  buildPostPurchaseAlternateSizeAdvisorReply,
+  isPostPurchaseAlternateSizeAvailabilityQuestion,
+  isPostPurchaseAlternateSizeThread,
+} from "@/lib/agents/post-purchase-alt-size"
+import {
   buildSalesPhotoReceivedReply,
   isConfirmationPending,
   isSalesFinalSummaryPending,
@@ -215,6 +220,54 @@ function orderLookupStructuredBinding(body: string) {
     isChannelPhoneSelfReference(body) ||
     extractOrderNumber(body) != null
   )
+}
+
+/** Post-purchase alternate size — no SKU/photo vision; offer יועץ מכירות. */
+export function runStructuredPostPurchaseAltSizePreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+}): PreTurnResult {
+  const body = summarizeTurn(input.turn)
+  if (!isPostPurchaseAlternateSizeThread(input.history, body)) {
+    return { kind: "skip", response: null }
+  }
+
+  if (/\[media:image:/i.test(body)) {
+    return {
+      kind: "handled",
+      reply: buildPostPurchaseAlternateSizeAdvisorReply({ photoAck: true }),
+      action: "reply",
+    }
+  }
+
+  if (isPostPurchaseAlternateSizeAvailabilityQuestion(body, input.history)) {
+    return {
+      kind: "handled",
+      reply: buildPostPurchaseAlternateSizeAdvisorReply(),
+      action: "reply",
+    }
+  }
+
+  if (/^(?:אין לי|זה מה ש)/i.test(body.trim())) {
+    return {
+      kind: "handled",
+      reply: buildPostPurchaseAlternateSizeAdvisorReply(),
+      action: "reply",
+    }
+  }
+
+  if (
+    /(?:תראה|בהזמנה|ההזמנה שלי)/i.test(body) &&
+    isPostPurchaseAlternateSizeThread(input.history, body)
+  ) {
+    return {
+      kind: "handled",
+      reply: buildPostPurchaseAlternateSizeAdvisorReply(),
+      action: "reply",
+    }
+  }
+
+  return { kind: "skip", response: null }
 }
 
 /** Sales room photos — ack only, no vision analysis; continue intake. */

@@ -3,6 +3,7 @@ import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
+import { isPostPurchaseAlternateSizeAvailabilityQuestion } from "@/lib/agents/post-purchase-alt-size"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import { isValidInventorySku, INVENTORY_SKU_EXAMPLE_HINT } from "@/lib/agents/phone-for-api"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
@@ -290,6 +291,7 @@ export function shouldHandleBranchInventory(
   body: string,
   history: HistoryMessage[] = []
 ) {
+  if (isPostPurchaseAlternateSizeAvailabilityQuestion(body, history)) return false
   if (isSkuRequestPending(history) || isActiveInventoryThread(history)) return true
   if (hasProductUrlInText(body) && isInventoryQuestionWithContext(body, history)) {
     return true

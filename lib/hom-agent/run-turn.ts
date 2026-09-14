@@ -40,6 +40,7 @@ import {
   runStructuredDocumentPreTurn,
   runStructuredOpeningAfterDocumentDeliveryPreTurn,
   runStructuredOrderLookupPreTurn,
+  runStructuredPostPurchaseAltSizePreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesPhotoPreTurn,
 } from "@/lib/hom-agent/pre-turn"
@@ -220,6 +221,37 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_opening_after_document",
+      },
+    })
+  }
+
+  const structuredPostPurchaseAltSize = runStructuredPostPurchaseAltSizePreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredPostPurchaseAltSize.kind === "handled") {
+    const action = mapHomAction(structuredPostPurchaseAltSize.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "sales",
+        userText: body,
+        assistantText: structuredPostPurchaseAltSize.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredPostPurchaseAltSize.reply,
+      action,
+      route: ["sales"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_post_purchase_alt_size",
       },
     })
   }

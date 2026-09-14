@@ -3,6 +3,7 @@ import {
   resolveBranchInventoryReply,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
+import { isPostPurchaseAlternateSizeAvailabilityQuestion } from "@/lib/agents/post-purchase-alt-size"
 import { isValidInventorySku } from "@/lib/agents/phone-for-api"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -14,6 +15,14 @@ export async function executeLookupInventory(input: {
 }) {
   const history = input.history ?? []
   const query = [input.sku, input.branchHint, input.body].filter(Boolean).join(" ")
+  if (isPostPurchaseAlternateSizeAvailabilityQuestion(input.body, history)) {
+    return {
+      ok: false as const,
+      errorCode: "inventory_misroute",
+      error:
+        "Post-purchase alternate-size availability — customer has no מק״ט and may send photos the bot cannot read. Offer human_sales to check against their order; never loop on מק״ט or analyze photos for SKU.",
+    }
+  }
   const inventoryContext = shouldHandleBranchInventory(input.body, history)
 
   // No real מק״ט anywhere → this is product browsing, not a stock check.

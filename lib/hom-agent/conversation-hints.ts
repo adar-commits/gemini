@@ -63,6 +63,9 @@ import {
   isServiceHandoffSummaryPending,
 } from "@/lib/agents/service-intake"
 import {
+  isPostPurchaseAlternateSizeThread,
+} from "@/lib/agents/post-purchase-alt-size"
+import {
   extractSalesIntake,
   hasOngoingSalesIntake,
   hasRoomPhotoInHistory,
@@ -391,6 +394,12 @@ export function buildConversationHints(input: {
   if (isDeliverySchedulingPreferenceQuestion(body)) {
     lines.push(
       "DELIVERY SCHEDULING: ≤3 sentences — carrier calls on delivery day; cannot pre-book exact date/time; deferred requests (מיום X ואילך) are noted but not scheduled in advance — offer order # lookup or *3076. Complete message with punctuation; never cut off mid-sentence."
+    )
+  }
+
+  if (isPostPurchaseAlternateSizeThread(history, body)) {
+    lines.push(
+      "POST-PURCHASE ALT SIZE: customer wants the same model in another size after ordering/receiving — **human_sales**, not lookup_inventory. You cannot read מק״ט from photos or payment screenshots. Never loop asking for מק״ט when they reference their order (הזמנה / רכשתי היום). Brief exchange policy OK, then offer יועץ מכירות to check availability against their order."
     )
   }
 
