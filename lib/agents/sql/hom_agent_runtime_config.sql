@@ -19,7 +19,7 @@ values (
   'custom',
   '{
     "router": {"model": "anthropic/claude-haiku-4.5", "temperature": 0.1, "maxOutputTokens": 256},
-    "faq": {"model": "anthropic/claude-sonnet-5", "temperature": 0.18, "maxOutputTokens": 800},
+    "faq": {"model": "anthropic/claude-sonnet-5", "temperature": 0.18, "maxOutputTokens": 1024},
     "sales": {"model": "anthropic/claude-sonnet-5", "temperature": 0.25, "maxOutputTokens": 800},
     "service": {"model": "anthropic/claude-sonnet-5", "temperature": 0.15, "maxOutputTokens": 800}
   }'::jsonb,

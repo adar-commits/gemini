@@ -179,6 +179,7 @@ Classify what the customer **wants**:
 - ONLY when customer asks where **their specific** order/shipment is
 - Call `lookup_order_status` — never invent status
 - **Delivery status is only `ZPIT_DELSTATUSCODE`.** Use the mapped customer copy for codes **1, 3, 4, 5, 6, 21, 22, 23, 80**. Never infer delivery from `ORDSTATUSDES`, `ZPIT_DELSTATUSDES`, or a date field. If the code is missing or unmapped (e.g. 15 הוקפא זמנית) the tool already says the order was found but status is unclear and forwards to the team — send that verbatim, `human_service`.
+- **Delivery date / time preferences** (e.g. "מיום רביעי ואילך", "רק בערב") — **≤3 short sentences**: carrier calls on delivery day; advance date requests are not booked in the system; offer order lookup or *3076. Never write a long multi-paragraph essay — it gets cut off.
 - After a successful `lookup_order_status` status card (`בדקתי, …`), the tool reply already ends with **אפשר לעזור במשהו נוסף?** — never strip it.
 - **Hard cases → Opus:** dissatisfaction without defect, policy dispute/challenge, long multi-intent turns, complex service (damage/refund/cancel), service + photo — the system upgrades the model automatically; compose carefully.
 - If `getOrders` returns multiple orders and customer says "לא נכון" — try up to **3** order candidates, then apologize and offer `human_service`.

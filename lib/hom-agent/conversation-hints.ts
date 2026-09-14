@@ -338,6 +338,12 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isDeliverySchedulingPreferenceQuestion(body)) {
+    lines.push(
+      "DELIVERY SCHEDULING: ≤3 sentences — carrier calls on delivery day; cannot pre-book exact date/time; deferred requests (מיום X ואילך) are noted but not scheduled in advance — offer order # lookup or *3076. Complete message with punctuation; never cut off mid-sentence."
+    )
+  }
+
   if (isActiveInventoryThread(history) || isInventoryRecheckRequest(body)) {
     lines.push(
       "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy. **Color variants at a branch** → human_sales only, never list colors. When requested branch shows no stock but another branch/warehouse has qty, name where they can order from."
@@ -380,6 +386,19 @@ function historyShowsHomInvoiceBillingName(history: HistoryMessage[]) {
     (message) =>
       message.content.includes("תודה על רכישתך בשטיח האדום") &&
       message.content.includes("documents.carpetshop.co.il")
+  )
+}
+
+function isDeliverySchedulingPreferenceQuestion(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 200) return false
+  return (
+    /(?:מ|מ)?(?:יום|ה)?(?:יום\s+(?:ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)|(?:ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)(?:\s+ו(?:אילך|הלאה))?|ואילך|הלאה)/i.test(
+      text
+    ) ||
+    /(?:ל(?:קבוע|תאם)|ב(?:וקר|ערב)|שע(?:ה|ות)\s+מ(?:דויק|סוימ)|מועד\s+(?:משלוח|מסירה|אספקה))/i.test(
+      text
+    )
   )
 }
 

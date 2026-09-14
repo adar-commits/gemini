@@ -2,7 +2,7 @@ import { generateText, stepCountIs } from "ai"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
 import { homAgentLearnedRulesSection } from "@/lib/agents/learned-rules"
 import { ownerAnswersSection } from "@/lib/agents/goku-questions"
-import { recordTokenUsage } from "@/lib/agent-core/token-usage"
+import { extractTokenCounts, recordTokenUsage } from "@/lib/agent-core/token-usage"
 import { setRoutingPath } from "@/lib/agent-core/turn-metrics"
 import { buildModelMessages } from "@/lib/agents/multimodal"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -14,7 +14,7 @@ import {
   type HomAgentOutput,
 } from "@/lib/hom-agent/output-schema"
 import { createHomAgentTools } from "@/lib/hom-agent/tools"
-import { validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
+import { isLikelyTruncatedBotReply, validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 const MAX_TOOL_ROUNDS = 2
 /** Error fallback must be cheaper than the primary model, never more expensive. */
@@ -55,6 +55,8 @@ function homAgentTemperature(profile: Awaited<ReturnType<typeof bindRuntimeConfi
 function homAgentMaxTokens(profile: Awaited<ReturnType<typeof bindRuntimeConfig>>) {
   return profile.profile.faq.maxOutputTokens
 }
+
+const TRUNCATION_RETRY_EXTRA_TOKENS = 512
 
 function buildInvokeContext(input: {
   conversationId: string
@@ -205,22 +207,28 @@ async function invokeWithTools(ctx: InvokeContext) {
 
     const recovered = extractUsableOutput(recovery)
     if (recovered) {
-      return {
-        output: validateHomAgentReply(recovered, ctx.body, ctx.phone, ctx.history),
+      return deliverValidatedOutput({
+        raw: recovered,
+        structured: recovery,
+        ctx,
+        messages,
+        system,
         llmCalls: 2,
-        model: ctx.model,
-      }
+      })
     }
-    return finalizeStructuredOutput(recovery, ctx, 2)
+    return finalizeStructuredOutput(recovery, ctx, messages, system, 2)
   }
 
   const usable = usableEarly ?? extractUsableOutput(result)
   if (usable) {
-    return {
-      output: validateHomAgentReply(usable, ctx.body, ctx.phone, ctx.history),
+    return deliverValidatedOutput({
+      raw: usable,
+      structured: result,
+      ctx,
+      messages,
+      system,
       llmCalls: 1,
-      model: ctx.model,
-    }
+    })
   }
 
   // Guaranteed final word: the step budget was exhausted while the last step was
@@ -259,7 +267,7 @@ async function invokeWithTools(ctx: InvokeContext) {
   })
   setRoutingPath(ctx.conversationId, "v3_final_word")
 
-  return finalizeStructuredOutput(finalWord, ctx, 2)
+  return finalizeStructuredOutput(finalWord, ctx, messages, system, 2)
 }
 
 async function invokeKbOnly(ctx: InvokeContext) {
@@ -299,12 +307,83 @@ async function invokeKbOnly(ctx: InvokeContext) {
 
   setRoutingPath(ctx.conversationId, "v3_kb_only")
 
-  return finalizeStructuredOutput(structured, ctx, 1)
+  return finalizeStructuredOutput(structured, ctx, messages, system, 1)
 }
 
 type StructuredResultLike = {
   output?: Partial<HomAgentOutput> | null
   text: string
+  usage?: { inputTokens?: number; outputTokens?: number; promptTokens?: number; completionTokens?: number }
+}
+
+type ModelMessage = ReturnType<typeof buildModelMessages>[number]
+
+async function deliverValidatedOutput(input: {
+  raw: HomAgentOutput
+  structured: StructuredResultLike
+  ctx: InvokeContext
+  messages: ModelMessage[]
+  system: string
+  llmCalls: number
+  truncationRetried?: boolean
+}): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
+  const maxTokens = homAgentMaxTokens(input.ctx.runtime)
+  const { outputTokens } = extractTokenCounts(input.structured.usage)
+  const reply = input.raw.reply?.trim() ?? ""
+  const hitOutputCap = outputTokens >= maxTokens - 2
+  const shouldRetry =
+    !input.truncationRetried &&
+    input.llmCalls < 3 &&
+    input.raw.action === "reply" &&
+    reply.length > 0 &&
+    (isLikelyTruncatedBotReply(reply) || hitOutputCap)
+
+  if (shouldRetry) {
+    const retry = await generateText({
+      model: input.ctx.model,
+      system: `${input.system}\n\nYour previous customer reply was TRUNCATED before finishing (output token limit). Rewrite the COMPLETE answer in ≤4 short Hebrew paragraphs. Every paragraph must end with proper punctuation — never cut off mid-word.`,
+      messages: [
+        ...input.messages,
+        {
+          role: "user",
+          content: `[Previous reply was cut off mid-sentence:\n${reply}\n\nRewrite the FULL customer-visible reply for: ${input.ctx.body}]`,
+        },
+      ],
+      temperature: homAgentTemperature(input.ctx.runtime),
+      maxOutputTokens: maxTokens + TRUNCATION_RETRY_EXTRA_TOKENS,
+      output: homAgentOutputSchema(),
+      providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    })
+
+    recordTokenUsage({
+      conversationId: input.ctx.conversationId,
+      purpose: "retry",
+      agent: "faq",
+      model: input.ctx.model,
+      usage: retry.usage,
+    })
+    setRoutingPath(input.ctx.conversationId, "v3_truncation_retry")
+
+    const recovered = extractUsableOutput(retry)
+    if (recovered) {
+      return deliverValidatedOutput({
+        raw: recovered,
+        structured: retry,
+        ctx: input.ctx,
+        messages: input.messages,
+        system: input.system,
+        llmCalls: input.llmCalls + 1,
+        truncationRetried: true,
+      })
+    }
+    return finalizeStructuredOutput(retry, input.ctx, input.messages, input.system, input.llmCalls + 1, true)
+  }
+
+  return {
+    output: validateHomAgentReply(input.raw, input.ctx.body, input.ctx.phone, input.ctx.history),
+    llmCalls: input.llmCalls,
+    model: input.ctx.model,
+  }
 }
 
 /** Parsed output with a sendable reply — null means "nothing to say" (needs recovery). */
@@ -323,13 +402,14 @@ function extractUsableOutput(structured: StructuredResultLike): HomAgentOutput |
   return { reply, action }
 }
 
-function finalizeStructuredOutput(
+async function finalizeStructuredOutput(
   structured: StructuredResultLike,
   ctx: InvokeContext,
-  llmCalls: number
+  messages: ModelMessage[],
+  system: string,
+  llmCalls: number,
+  truncationRetried = false
 ) {
-  // The .output getter can throw on unparseable JSON — fall back to text parsing
-  // instead of failing the whole (already billed) call.
   let parsed: Partial<HomAgentOutput> | null = null
   try {
     parsed = structured.output ?? null
@@ -342,11 +422,15 @@ function finalizeStructuredOutput(
     action: normalizeHomAgentAction(raw.action ?? "reply"),
   }
 
-  return {
-    output: validateHomAgentReply(normalized, ctx.body, ctx.phone, ctx.history),
+  return deliverValidatedOutput({
+    raw: normalized,
+    structured,
+    ctx,
+    messages,
+    system,
     llmCalls,
-    model: ctx.model,
-  }
+    truncationRetried,
+  })
 }
 
 export { INVOKE_FALLBACK_MODEL }

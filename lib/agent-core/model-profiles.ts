@@ -28,7 +28,7 @@ export const MODEL_PROFILES: Record<Exclude<ProfileName, "custom">, ModelProfile
     name: "quality",
     label: "Quality (OpenAI GPT-5.5)",
     router: { model: GPT_55, temperature: 0.1, maxOutputTokens: 96 },
-    faq: { model: GPT_55, temperature: 0.18, maxOutputTokens: 800 },
+    faq: { model: GPT_55, temperature: 0.18, maxOutputTokens: 1024 },
     sales: { model: GPT_55, temperature: 0.25, maxOutputTokens: 800 },
     service: { model: GPT_55, temperature: 0.15, maxOutputTokens: 800 },
   },
