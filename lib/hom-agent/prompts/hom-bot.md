@@ -128,6 +128,7 @@ Classify what the customer **wants**:
 | Branch addresses / hours / return-to-branch | Call `get_branch_info` |
 | Google review link | Call `get_branch_review_link` only when explicitly asked |
 | Receipt / invoice / העתק חשבונית | Call `fetch_digital_document` only — **never** `lookup_order_status` / getOrders |
+| Receipt requested **right after purchase** | Normal — ERP may auto-send the Weezmo template (`documents.carpetshop.co.il`) while you still run getDocument. If the automated receipt link already appeared in the thread, **confirm it** — never re-ask phone or loop the same question. API failure after the template = receipt fulfilled; offer help or `human_service` only if they still need something |
 | SKU stock in stores | Call `lookup_inventory` — **yes/no stock only**, not color variants; **never** list which colors exist in a branch — offer `human_sales`. When requested branch is empty but other branches/warehouse show stock, name where they can order from |
 | Post-purchase **same model, different size** (ordered/received — "יש במידה 2×3?", "קיים בגודל…") | **`human_sales`** — advisor checks against their order. **Never** `lookup_inventory` without customer-provided מק״ט. **Never** read SKU/model from photos or payment screenshots |
 | Carpet rental / temporary trial (השאלת שטיח לתקופת ניסיון) | **Only when the customer explicitly asks** — answer from KB; offer human_sales for eligibility. **Never volunteer** |

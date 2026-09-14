@@ -532,6 +532,16 @@ export function isActiveDigitalDocumentFlow(
   history: HistoryMessage[] = [],
   body = ""
 ) {
+  const settledState = computeDocumentFlowState(history)
+  if (
+    settledState.phoneConfirmed &&
+    !isDigitalDocumentRequest(body) &&
+    (outboundDocumentDeliveryInThread(history) ||
+      documentLookupFailureOfferedInThread(history))
+  ) {
+    return false
+  }
+
   if (isDigitalDocumentRequest(body)) return true
   if (
     parseDocumentTypeFromText(body) &&
@@ -575,6 +585,35 @@ export function lastAssistantWasOutboundDocumentDelivery(history: HistoryMessage
     return isOutboundDocumentDeliveryMessage(message.content)
   }
   return false
+}
+
+export function outboundDocumentDeliveryInThread(history: HistoryMessage[]) {
+  for (const message of history) {
+    if (message.role !== "assistant") continue
+    if (isOutboundDocumentDeliveryMessage(message.content)) return true
+  }
+  return false
+}
+
+function documentLookupFailureOfferedInThread(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (
+      /(?:תקלה\s+זמנית|לא\s+הצלחתי\s+למשוך)/i.test(message.content) &&
+      /האם\s+להעביר\s+לנציג/i.test(message.content)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+export function buildDocumentAlreadyDeliveredReply() {
+  return `${CUSTOMER_HEADER}
+הקבלה הדיגיטלית כבר נשלחה אליכם בהודעה למעלה עם קישור למסמך.
+אם משהו לא מסתדר — אשמח לעזור, או שאעביר לנציג שירות.`
 }
 
 function phoneForOrderApi(phone: string) {
@@ -1006,6 +1045,25 @@ export async function resolveDigitalDocumentFlowReply(input: {
   }
 
   if (selectedType) {
+    if (state.phoneConfirmed) {
+      if (outboundDocumentDeliveryInThread(history)) {
+        return buildDocumentAlreadyDeliveredReply()
+      }
+      if (documentLookupFailureOfferedInThread(history)) {
+        return buildDigitalDocumentLookupFailureReply()
+      }
+      const confirmedPhone = resolveDocumentLookupPhone(body, history, whatsappPhone)
+      if (confirmedPhone) {
+        return withRecoveryPrefix(
+          recoveryPrefix,
+          await deliverDocumentsForPhone(confirmedPhone, {
+            channel: channel ?? undefined,
+            documentType: selectedType,
+          })
+        )
+      }
+    }
+
     return replyWithPhoneConfirmOrLookup({
       body,
       whatsappPhone,

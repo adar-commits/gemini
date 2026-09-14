@@ -12,7 +12,10 @@ import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirma
 import {
   buildHumanHandoffConfirmedReply,
   inferHumanHandoffAction,
+  hasDeclarativeHandoffTransfer,
   isHumanHandoffAffirmation,
+  isHumanHandoffDecline,
+  isHumanHandoffOfferText,
   isHumanHandoffPending,
   isPendingHandoffCustomerReply,
 } from "@/lib/agents/off-topic"
@@ -102,7 +105,7 @@ export function runPreTurnGuards(input: {
     }
   }
 
-  if (isHumanHandoffPending(input.history) && isPureHandoffAffirmation(body)) {
+  if (shouldBindExplicitHandoffOfferConfirm(body, input.history)) {
     const action = inferHumanHandoffAction(input.history, null)
     return {
       kind: "handled",
@@ -206,6 +209,27 @@ function shouldBindInactivityReplyToPriorQuestion(history: HistoryMessage[]) {
   const prior = lastNonInactivityAssistantText(history)
   if (!prior) return false
   return isFinalizationQuestion(prior) || replyAwaitingCustomerInput(prior)
+}
+
+function lastAssistantText(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role === "assistant") return message.content
+  }
+  return ""
+}
+
+/** Offer-style "האם להעביר…?" only — not declarative "אני מעביר" (LLM owns that). */
+function shouldBindExplicitHandoffOfferConfirm(
+  body: string,
+  history: HistoryMessage[]
+) {
+  const last = lastAssistantText(history)
+  if (!isHumanHandoffOfferText(last) || hasDeclarativeHandoffTransfer(last)) {
+    return false
+  }
+  if (isHumanHandoffDecline(body)) return false
+  return isPureHandoffAffirmation(body)
 }
 
 function isExplicitThanks(body: string) {
@@ -354,6 +378,9 @@ export async function runStructuredDocumentPreTurn(input: {
   phone?: string
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
+  if (isHumanHandoffPending(input.history)) {
+    return { kind: "skip", response: null }
+  }
   if (!shouldHandleDigitalDocumentFlow(body, input.history)) {
     return { kind: "skip", response: null }
   }

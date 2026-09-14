@@ -23,8 +23,10 @@ import {
 } from "@/lib/agents/inquiry-intent"
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import {
+  activeDigitalDocumentRequest,
   isActiveDigitalDocumentFlow,
   isDigitalDocumentRequest,
+  outboundDocumentDeliveryInThread,
   isOutboundDocumentDeliveryMessage,
   lastAssistantWasOutboundDocumentDelivery,
 } from "@/lib/agents/digital-document-flow"
@@ -392,6 +394,15 @@ export function buildConversationHints(input: {
   if (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) {
     lines.push(
       "DOCUMENT COPY (קבלה / חשבונית / העתק): fetch_digital_document only — getDocument API by phone. Never lookup_order_status or getOrders for invoice/receipt requests."
+    )
+  }
+
+  if (
+    outboundDocumentDeliveryInThread(history) &&
+    (isDigitalDocumentRequest(body) || activeDigitalDocumentRequest(history))
+  ) {
+    lines.push(
+      "ERP RECEIPT ALREADY SENT: automated Weezmo receipt/invoice template with documents.carpetshop.co.il link already delivered — do NOT re-ask phone or restart document intake. Confirm the link above; if getDocument failed but the template arrived, the receipt is fulfilled."
     )
   }
 
