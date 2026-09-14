@@ -13,6 +13,7 @@ import {
   buildHumanHandoffConfirmedReply,
   inferHumanHandoffAction,
   isHumanHandoffAffirmation,
+  isHumanHandoffOfferPending,
   isHumanHandoffPending,
   isPendingHandoffCustomerReply,
 } from "@/lib/agents/off-topic"
@@ -102,7 +103,7 @@ export function runPreTurnGuards(input: {
     }
   }
 
-  if (isHumanHandoffPending(input.history) && isPureHandoffAffirmation(body)) {
+  if (isHumanHandoffOfferPending(input.history) && isPureHandoffAffirmation(body)) {
     const action = inferHumanHandoffAction(input.history, null)
     return {
       kind: "handled",

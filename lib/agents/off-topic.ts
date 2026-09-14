@@ -80,6 +80,12 @@ export function isHumanHandoffPending(history: HistoryMessage[]) {
   return isHumanHandoffOfferText(last) || hasDeclarativeHandoffTransfer(last)
 }
 
+/** Offer still open — customer confirm should assign. Not after declarative "אני מעביר". */
+export function isHumanHandoffOfferPending(history: HistoryMessage[]) {
+  const last = lastAssistantText(history)
+  return isHumanHandoffOfferText(last)
+}
+
 /** Customer answering a pending handoff — must not be silenced by stale takeover flags. */
 export function isPendingHandoffCustomerReply(body: string, history: HistoryMessage[]) {
   if (!isHumanHandoffPending(history)) return false

@@ -135,8 +135,13 @@ export function buildConversationHints(input: {
 
   if (isHumanHandoffPending(history)) {
     const handoffAction = inferHumanHandoffAction(history, null)
+    const documentHandoff =
+      isActiveDigitalDocumentFlow(history, body) &&
+      /לא\s+מצאתי\s+מסמך\s+דיגיטלי/i.test(lastNonInactivityAssistant(history) ?? "")
     lines.push(
-      `HANDOFF OFFER PENDING: any confirm (כן / כן אני אשמח / כן, תודה / בסדר / אוקיי) → set action ${handoffAction} NOW in the same JSON — short transfer line paired with action. Never re-ask phone or restart document intake. Never write מעביר/העברתי with action reply only. Thanks alone (no confirm) → remind they can write כן.`
+      documentHandoff
+        ? `DOCUMENT HANDOFF PENDING: getDocument already ran for this phone — customer confirms rep transfer (כן / כן אני אשמח / כן, תודה / bare כן). Set action ${handoffAction} NOW — never re-ask "האם העסקה רשומה על המספר", never call fetch_digital_document or lookup_order_status again.`
+        : `HANDOFF OFFER PENDING: any confirm (כן / כן אני אשמח / כן, תודה / בסדר / אוקיי / bare כן alone) → set action ${handoffAction} NOW in the same JSON — short transfer line paired with action. Never re-ask phone or restart document intake. Never write מעביר/העברתי with action reply only. Thanks alone (no confirm) → remind they can write כן.`
     )
   }
 

@@ -14,12 +14,12 @@ import {
 } from "@/lib/agents/shipping"
 
 const HANDOFF_AFFIRMATION_PREFIX =
-  /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|מעולה|ok|yes|👍)(?:[\s,.!?]+)/iu
+  /^(?:כן|בטח|יאללה|אשמח|בבקשה|סבבה|בסדר|מעולה|ok|yes|👍)(?:[\s,.!?]+|$)/iu
 
-const HANDOFF_DECLINE_PREFIX = /^(?:לא|לא\s+תודה|עזוב|no)(?:[\s,.!?]+)/iu
+const HANDOFF_DECLINE_PREFIX = /^(?:לא|לא\s+תודה|עזוב|no)(?:[\s,.!?]+|$)/iu
 
 const INACTIVITY_ACK_PREFIX =
-  /^(?:כן|כן\s+אני|פה|אני\s+פה|עדיין\s+פה|אני\s+כאן|כאן|yes|ok|👍)(?:[\s,.!?]+)/iu
+  /^(?:כן|כן\s+אני|פה|אני\s+פה|עדיין\s+פה|אני\s+כאן|כאן|yes|ok|👍)(?:[\s,.!?]+|$)/iu
 
 const PURE_AFFIRMATION_TAIL =
   /^(?:תודה|בבקשה|pls|please|אשמח|מעולה)?(?:[\s,.!?]*)$/iu
