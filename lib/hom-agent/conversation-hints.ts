@@ -345,7 +345,7 @@ export function buildConversationHints(input: {
 
   if (isCarpetRentalQuestion(body)) {
     lines.push(
-      "Carpet rental / try-before-buy: answer from KB (case-by-case via sales advisor). Never 'אין לי מידע' or branch hours dump."
+      "Carpet rental / try-before-buy (customer asked explicitly): answer from KB (case-by-case via sales advisor). Never 'אין לי מידע' or branch hours dump. Never volunteer rental when comparing product links."
     )
   }
 

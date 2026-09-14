@@ -9,7 +9,12 @@ describe("carpet rental policy", () => {
   it("detects rental / borrow / try-before-buy questions", () => {
     assert.equal(isCarpetRentalQuestion("אפשר להשאיל שטיח לנסות?"), true)
     assert.equal(isCarpetRentalQuestion("יש אפשרות להשאלת שטיחים?"), true)
-    assert.equal(isCarpetRentalQuestion("מתלבטים בין שני דגמים"), true)
+    assert.equal(isCarpetRentalQuestion("אפשר השאלה של שטיח לתקופת ניסיון?"), true)
+    assert.equal(isCarpetRentalQuestion("מתלבטים בין שני דגמים"), false)
+    assert.equal(
+      isCarpetRentalQuestion("או שזה יותר מתאים? https://www.carpetshop.co.il/products/noa"),
+      false
+    )
     assert.equal(isCarpetRentalQuestion("מה מדיניות החזרה?"), false)
   })
 

@@ -148,6 +148,7 @@ Source: https://www.carpetshop.co.il/pages/faq
 - Custom anti-slip underlay and made-to-order rugs cannot be cancelled.
 
 ## Carpet rental / temporary trial
+- **Do not proactively offer** — mention only when the customer explicitly asks about השאלה / שכירה / להשאיל / לנסות בבית.
 - זה אינו שירות קבוע שמוצע לכל לקוח.
 - במקרים מסוימים, כשלקוח מתלבט בין שני דגמים, יועץ המכירות יכול לאשר שימוש זמני לפי שיקול דעתו (לעיתים לפי הדגם הזול מבין השניים) — מקרה-מקרה בלבד.
 - לבדיקת זכאות להשאלת שטיח לתקופת ניסיון יש להפנות ליועץ מכירות.
