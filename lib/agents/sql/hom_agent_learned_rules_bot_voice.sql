@@ -16,7 +16,7 @@ insert into public.hom_agent_learned_rules (
 ) values (
   'prompt_rule',
   'all',
-  'הום בוט — masculine self-reference only (אני שמח, מוכן, מכוון). Never feminine on yourself (מוכנה, מכוונת, שמחה). Feminine for orders/products (ההזמנה מוכנה) stays as-is.',
+  'הום בוט — masculine self-reference only (אני שמח, מוכן, מכוון). Never feminine on yourself (מוכנה, מכוונת, שמחה, מבינה). Never mirror customer gender (customer מתלבטת → bot stays מבין or impersonal "ברור שקשה לבחור"). Feminine for orders/products (ההזמנה מוכנה) stays as-is.',
   'owner:bot-voice-card',
   'active'
 );

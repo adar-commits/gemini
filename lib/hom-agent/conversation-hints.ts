@@ -59,6 +59,10 @@ import { isInactivityPingPending } from "@/lib/agents/inactivity"
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
 import { inferHumanHandoffAction, isHumanHandoffPending } from "@/lib/agents/off-topic"
 import { isConfirmationPending } from "@/lib/agents/sales-intake"
+import {
+  BOT_VOICE_NO_MIRROR_HINT,
+  customerUsesFeminineSelfReference,
+} from "@/lib/agents/bot-voice"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 /** Dynamic turn hints — guide the LLM without bypassing it. */
@@ -86,6 +90,10 @@ export function buildConversationHints(input: {
     lines.push(
       `MULTI-MESSAGE TURN (${questionParts.length} parts merged): rapid WhatsApp messages were combined into this one turn. FIRST decide: do the parts describe ONE issue/flow (very common — e.g. "קיבלתי את השטיח" + "ולא אהבתי אותו" = one dissatisfaction case)? If so, treat them as a single request and give ONE coherent reply for that flow — never answer each line separately, never add a second greeting or a generic "how can I help" block after a substantive answer. Only when the parts are genuinely DISTINCT topics: cover each answerable topic briefly in short blocks; if one needs live data (order status / inventory / document), answer the non-tool topics first, then ask one focused follow-up for that item. Prefer at most one tool call this turn.`
     )
+  }
+
+  if (customerUsesFeminineSelfReference(body)) {
+    lines.push(BOT_VOICE_NO_MIRROR_HINT)
   }
 
   if (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body)) {

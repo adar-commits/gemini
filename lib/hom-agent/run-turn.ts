@@ -26,8 +26,12 @@ import {
   buildHumanHandoffConfirmedReply,
   resolveLlmUnavailableHandoff,
 } from "@/lib/agents/off-topic"
-import type { AgentResponse, ConversationalAction, HistoryMessage } from "@/lib/agents/types"
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import {
+  CUSTOMER_HEADER,
+  type AgentResponse,
+  type ConversationalAction,
+  type HistoryMessage,
+} from "@/lib/agents/types"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 import { invokeHomAgent, INVOKE_FALLBACK_MODEL } from "@/lib/hom-agent/invoke"
 import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"

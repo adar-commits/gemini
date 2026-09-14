@@ -49,6 +49,16 @@ describe("buildConversationHints", () => {
     assert.match(hints, /054-7495083/)
   })
 
+  it("warns against mirroring customer feminine self-reference", () => {
+    const hints = buildConversationHints({
+      history: [],
+      body: "סלון 240*340 — אני מתלבטת בין כמה דגמים שאהבתי באתר",
+    })
+    assert.ok(hints)
+    assert.match(hints, /DO NOT MIRROR CUSTOMER GENDER/i)
+    assert.match(hints, /מבינה/)
+  })
+
   it("guides opening greetings warmly", () => {
     const hints = buildConversationHints({
       history: [],
