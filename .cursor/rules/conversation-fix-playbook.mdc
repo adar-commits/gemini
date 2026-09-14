@@ -1,0 +1,84 @@
+---
+description: How to fix HoM bot bugs from operator-read conversations — teach the LLM, not regex arms races
+alwaysApply: true
+---
+
+# Conversation fix playbook
+
+When the operator pastes a **real chat** (Landbot ID, phone, timeline, what went wrong), treat it as a **behavior spec**. Your job is to fix **why the LLM chose wrong**, not to patch Hebrew text after the fact.
+
+**Read this rule at the start of every conversation-fix task** before editing code.
+
+---
+
+## Step 0 — Understand before coding
+
+1. Reconstruct the thread: who said what, which `action` was returned, CRM state (department, closed, assigned).
+2. Classify each bug into **one primary layer** (see below). If multiple layers, fix in order: **runtime/policy → prompt/hints → tests** — never start with reply sanitizers.
+3. If intent/routing is ambiguous, use **AskQuestion** (≤10 MCQs) — do not guess Hebrew policy. Read `docs/intent-routing-audit.md` first.
+
+---
+
+## Fix layers (preferred order)
+
+| Layer | When | Where to edit |
+|-------|------|----------------|
+| **1. LLM teaching** | Wrong reply, wrong action, wrong flow continuation | `lib/hom-agent/prompts/hom-bot.md`, `lib/hom-agent/conversation-hints.ts` |
+| **2. Tool / flow guards** | LLM called wrong tool or tool returned wrong shape for thread state | `lib/hom-agent/tools/*.ts`, `lib/agents/order-lookup.ts`, `lib/agents/service-intake.ts` — guard on **thread state**, not customer wording |
+| **3. Pre-turn (structured only)** | Deterministic state already exists; LLM must not re-decide | `lib/hom-agent/pre-turn.ts` — only bind **known pending states** (handoff offer pending, order confirm pending, sales final summary). Reuse existing helpers (`isPureHandoffAffirmation`, `isHumanHandoffPending`, `isOrderConfirmationPending`) — **do not add new Hebrew regex on customer replies** |
+| **4. Inactivity / handoff runtime** | Ping stole confirm, thread closed instead of assign | `lib/agents/inactivity-policy.ts`, `lib/landbot/inactivity-*-recovery.ts`, `lib/crm/*` |
+| **5. Fixture tests** | Lock the pattern | `lib/agents/__tests__/`, `lib/hom-agent/__tests__/` — replay operator timeline, assert **action + no wrong pivot** |
+
+---
+
+## DO (required for conversation fixes)
+
+- **Teach the model** with explicit binding rules in `hom-bot.md`: short-reply binding, action ↔ transfer wording, flow continuation (e.g. service order confirm → rep summary → `human_service`, not shipping status).
+- **Add turn hints** in `conversation-hints.ts` when **structured detectors** already know context (`isHumanHandoffPending`, `isServiceHandoffSummaryPending`, `isOrderConfirmationPending`, `isServiceOrderIdentificationFlow`). Hints tell the LLM what to do **this turn** — they are not sanitizers.
+- **Pair transfer prose with action** in the prompt: if reply says מעביר/העברתי → `action` must be `human_service` or `human_sales` in the same JSON.
+- **Treat confirm + thanks as confirm**: `כן, תודה` / `בסדר תודה` after handoff offer = handoff confirm, not goodbye.
+- **Use pre-turn** only when an existing pending-state function is true and the correct outcome is unambiguous (mirror sales final summary → `human_sales` pattern).
+- **Add a fixture test** named after the scenario (e.g. `taltul-service-flow.test.ts`) so the bug cannot regress silently.
+- **Minimize diff** — match surrounding conventions; no drive-by refactors.
+
+---
+
+## DO NOT (hard bans)
+
+- **No reply regex sanitizers** — do not add or extend `validate-reply.ts`, `sanitize*`, or post-LLM string stripping to force actions, remove "מעביר", or rewrite customer-facing text. If the model wrote transfer words with `action: "reply"`, fix **prompt + hints + pre-turn**, not a sanitizer.
+- **No new Hebrew regex on customer messages** to detect intent, confirm, thanks, or handoff — no new `/כן.*תודה/` arms race in `off-topic.ts`, `conversation-close.ts`, or similar. Exception: **existing shared helpers** (`isPureHandoffAffirmation`, `classifyPostPurchaseCase`) may be used in pre-turn/hints; do not proliferate one-off patterns.
+- **No parsing stupidity** — do not infer handoff from bot reply text alone in new code paths; do not strip questions from replies with regex to "fix" duplicate handoff offers.
+- **No hijacking unrelated flows** — e.g. do not answer shipping status mid service intake; fix via prompt + `isServiceOrderIdentificationFlow`-style **thread state**, not keyword matching on the latest user line only.
+- **No LLM bypass for ambiguous routing** — department/intent collisions belong in T0 / `guessMasterRoute` / AskQuestion, not a new special case regex.
+- **No docs/markdown the operator did not ask for** — this rule file and tests are enough; skip extra `docs/*.md` unless requested.
+
+---
+
+## Common bug → fix map
+
+| Symptom | Fix layer |
+|---------|-----------|
+| Said "מעביר לנציג" but `action: "reply"` | Prompt (action binding) + hint when `isHumanHandoffPending`; pre-turn on confirm |
+| `כן, תודה` got thanks ack instead of handoff | Pre-turn via `isPureHandoffAffirmation` + prompt/hints — **do not** hack `isHumanHandoffAffirmation` to exclude תודה |
+| "עדיין כאן?" after handoff offer; customer `כן` → "אני כאן" | Inactivity policy skip ping + hint INACTIVITY PING BINDING; pre-turn binds confirm to prior question |
+| Order confirmed, bot sent delivery status in defect thread | Prompt (service order confirm playbook) + hint + `isServiceOrderIdentificationFlow` in order lookup |
+| Tool called when it shouldn't | Tool guard on thread state in `executeLookupOrderStatus` / order-lookup — error message teaches LLM what to do instead |
+
+---
+
+## Definition of done
+
+1. Root cause named (which layer).
+2. Prompt and/or hints updated with **binding** language the operator can review.
+3. Fixture test replays the conversation pattern.
+4. `npm run test:predeploy` passes (or targeted tests if full run is too heavy).
+5. Commit + push from workspace root on `main`.
+
+---
+
+## Architecture reminders (do not regress)
+
+- **T0** = deterministic exact answers — `runT0DeterministicPaths`
+- **guessMasterRoute** = department only, before Master LLM
+- **LLM** = ambiguous routing / synthesis; teach it, don't strip its output
+- Handoff assign runs only when `result.action` is `human_sales` / `human_service` in `handle-inbound.ts` → `executeHumanHandoff`
