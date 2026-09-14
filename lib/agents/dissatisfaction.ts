@@ -2,15 +2,30 @@ import { CUSTOMER_HEADER, type HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isExplicitHumanRequest } from "@/lib/agents/order-lookup"
 
+import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
+  isBareReturnExecutionRequest,
   isPostPurchaseDissatisfaction,
   mentionsReturnIntent,
 } from "@/lib/agents/inquiry-intent"
+import { isServiceLookupContext } from "@/lib/agents/order-lookup"
 import { buildReturnsPortalUrl } from "@/lib/agents/policy-subjects"
 
 /** Customer unhappy after delivery without defect wording — FAQ return/exchange policy first. */
 export function isDissatisfactionWithoutDefect(body: string) {
   return isPostPurchaseDissatisfaction(body)
+}
+
+/** Opening turn: exchange + return options before order lookup or service intake. */
+export function shouldOfferReturnOptionsFirst(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (isDissatisfactionRescuePending(history)) return false
+  if (isServiceLookupContext(history)) return false
+  if (isPostPurchaseIntentConfirmPending(history)) return false
+  if (isDissatisfactionWithoutDefect(body)) return true
+  return isBareReturnExecutionRequest(body)
 }
 
 export const DISSATISFACTION_SALES_OFFER_MARKER =
@@ -30,13 +45,13 @@ export function getDissatisfactionRescueStage(
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
+    if (message.content.includes(DISSATISFACTION_RESCUE_MARKER)) {
+      return "sales_offer"
+    }
     if (message.content.includes(DISSATISFACTION_PORTAL_REFERRAL_MARKER)) {
       return "portal_referred"
     }
-    if (
-      message.content.includes(DISSATISFACTION_SALES_OFFER_MARKER) ||
-      message.content.includes(DISSATISFACTION_RESCUE_MARKER)
-    ) {
+    if (message.content.includes(DISSATISFACTION_SALES_OFFER_MARKER)) {
       return "sales_offer"
     }
     return null
@@ -51,12 +66,18 @@ export function isDissatisfactionRescuePending(history: HistoryMessage[]) {
 function wantsSalesConsultation(body: string) {
   const text = body.trim()
   if (!text) return false
-  if (/^(?:כן|בטח|יאללה|אשמח|בסדר|מעולה|ok|yes|👍)(?:[\s,.!?]|$)/i.test(text)) {
+  if (insistsOnReturn(text)) return false
+  if (/^החלפה(?:[\s,.!?]|$)/i.test(text)) return true
+  if (/מכירות|יועץ|דגם\s+אחר|שטיח\s+אחר|מתאים\s+יותר|לנסות\s+דגם/i.test(text)) {
     return true
   }
-  return /מכירות|יועץ|דגם\s+אחר|שטיח\s+אחר|מתאים\s+יותר|לנסות\s+דגם|^החלפה(?:[\s,.!?]|$)/i.test(
-    text
-  )
+  if (
+    /^(?:כן|בטח|יאללה|אשמח|בסדר|מעולה|ok|yes|👍)(?:[\s,.!?]|$)/i.test(text) &&
+    /(?:החלפ|מכירות|יועץ|דגם\s+אחר)/i.test(text)
+  ) {
+    return true
+  }
+  return false
 }
 
 function insistsOnReturn(body: string) {
@@ -76,8 +97,8 @@ export function resolveDissatisfactionRescueFollowUp(
   stage: DissatisfactionRescueStage
 ): DissatisfactionRescueFollowUp | null {
   if (stage === "sales_offer") {
-    if (wantsSalesConsultation(body)) return "sales"
     if (insistsOnReturn(body)) return "portal"
+    if (wantsSalesConsultation(body)) return "sales"
     return null
   }
 

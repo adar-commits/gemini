@@ -28,6 +28,13 @@ import {
   isSalesFinalSummaryPending,
   shouldAckSalesRoomPhotoWithoutVision,
 } from "@/lib/agents/sales-intake"
+import {
+  buildDissatisfactionRescuePortalReply,
+  buildDissatisfactionRescueReply,
+  getDissatisfactionRescueStage,
+  resolveDissatisfactionRescueFollowUp,
+  shouldOfferReturnOptionsFirst,
+} from "@/lib/agents/dissatisfaction"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
   extractOrderNumber,
@@ -218,6 +225,45 @@ export function runStructuredSalesPhotoPreTurn(input: {
   return {
     kind: "handled",
     reply: buildSalesPhotoReceivedReply(input.history, body, input.turn),
+    action: "reply",
+  }
+}
+
+/** Exchange + return options before order lookup on bare return / dissatisfaction opens. */
+export function runStructuredReturnOptionsPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  phone?: string
+}): PreTurnResult {
+  const body = summarizeTurn(input.turn)
+  const rescueStage = getDissatisfactionRescueStage(input.history)
+
+  if (rescueStage) {
+    const followUp = resolveDissatisfactionRescueFollowUp(body, rescueStage)
+    if (followUp === "portal") {
+      return {
+        kind: "handled",
+        reply: buildDissatisfactionRescuePortalReply(input.phone),
+        action: "reply",
+      }
+    }
+    if (followUp === "sales") {
+      return {
+        kind: "handled",
+        reply: `${CUSTOMER_HEADER}\nמעולה! אשמח להעביר את השיחה לנציג מכירות לייעוץ 😊`,
+        action: "human_sales",
+      }
+    }
+    return { kind: "skip", response: null }
+  }
+
+  if (!shouldOfferReturnOptionsFirst(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+
+  return {
+    kind: "handled",
+    reply: buildDissatisfactionRescueReply(input.phone),
     action: "reply",
   }
 }

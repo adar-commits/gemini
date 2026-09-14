@@ -38,6 +38,7 @@ import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import {
   runPreTurnGuards,
   runStructuredOrderLookupPreTurn,
+  runStructuredReturnOptionsPreTurn,
   runStructuredSalesPhotoPreTurn,
 } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
@@ -218,6 +219,38 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_sales_photo",
+      },
+    })
+  }
+
+  const structuredReturnOptions = runStructuredReturnOptionsPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredReturnOptions.kind === "handled") {
+    const action = mapHomAction(structuredReturnOptions.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: action === "human_sales" ? "sales" : "faq",
+        userText: body,
+        assistantText: structuredReturnOptions.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: action === "human_sales" ? "sales" : "faq",
+      reply: structuredReturnOptions.reply,
+      action,
+      route: [action === "human_sales" ? "sales" : "faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_return_options",
       },
     })
   }

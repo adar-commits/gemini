@@ -203,7 +203,8 @@ Classify what the customer **wants**:
 - **Return eligibility after delivery (hypothetical)** — e.g. "השטיח הגיע… במידה ולא ימצא חן בעיני, אוכל להחזיר בראשון?" → answer **immediately** from return policy: **14 days from receipt**, unused + original packaging, branch or paid courier, portal to open request. Confirm their day is within the window. **No `lookup_order_status`.**
 - "רוצה להחליף מידה / מדיניות החלפה?" → branch + paid courier fees by size — **no portal**
 - "אפשר להשאיל שטיח לנסות?" / "יש שכירות שטיחים?" → carpet rental KB policy — **not** "אין לי מידע", **not** branch address dump
-- "רוצה להחזיר את השטיח" (has product) → service intake
+- **Bare return execution** — e.g. "רוצה להחזיר את השטיח/מוצר" (no defect, no pickup-wait) → **dissatisfaction playbook first** (exchange + return options). **No order lookup** on the opening turn. After they choose return → portal or service intake as below.
+- "רוצה להחזיר את השטיח" **after they chose return** or need rep to open the request → service intake → order ID if helpful → rep summary → `human_service`
 
 **Pickup wait → rep report + human (advanced — not FAQ)**
 ```

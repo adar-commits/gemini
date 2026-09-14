@@ -567,9 +567,6 @@ export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | n
     if (matchesExchangeRequest(text)) return "exchange_request"
   }
   for (const text of candidates) {
-    if (matchesReturnRequest(text)) return "return_request"
-  }
-  for (const text of candidates) {
     if (matchesMissingItem(text)) return "missing_item"
   }
   for (const text of candidates) {
@@ -577,6 +574,9 @@ export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | n
   }
   for (const text of candidates) {
     if (matchesDissatisfaction(text)) return "dissatisfaction"
+  }
+  for (const text of candidates) {
+    if (matchesReturnRequest(text)) return "return_request"
   }
   for (const text of candidates) {
     if (matchesPreorderDelay(text)) return "preorder_delay"
@@ -616,4 +616,17 @@ export function isPurchaseCompletionStatement(body: string) {
 
 export function isProductDefectComplaint(body: string) {
   return classifyPostPurchaseCase(body) === "defect"
+}
+
+/**
+ * Customer wants to execute a return (not policy FAQ) without defect/pickup-wait context.
+ * Offer exchange + return options before order lookup — see dissatisfaction rescue playbook.
+ */
+export function isBareReturnExecutionRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (classifyPostPurchaseCase(text) !== "return_request") return false
+  if (isReturnPolicyQuestion(text)) return false
+  if (isActiveReturnExchangePickupCase(text)) return false
+  return true
 }

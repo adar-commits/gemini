@@ -44,7 +44,10 @@ import {
   isShippingPolicyQuestion,
   isShippingStatusQuestion,
 } from "@/lib/agents/shipping"
-import { isDissatisfactionWithoutDefect, buildDissatisfactionRescueReply } from "@/lib/agents/dissatisfaction"
+import {
+  buildDissatisfactionRescueReply,
+  shouldOfferReturnOptionsFirst,
+} from "@/lib/agents/dissatisfaction"
 import { isSalesConsultationTrigger, isConfirmationPending } from "@/lib/agents/sales-intake"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -266,7 +269,7 @@ export function answerFaqQuestionDeterministic(question: string) {
   const text = question.trim()
   if (!text) return null
 
-  if (isDissatisfactionWithoutDefect(text)) {
+  if (shouldOfferReturnOptionsFirst(text)) {
     return buildDissatisfactionRescueReply()
   }
 

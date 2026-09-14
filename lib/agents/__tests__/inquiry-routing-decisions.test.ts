@@ -90,4 +90,11 @@ describe("owner routing decisions (v3 pattern layer)", () => {
     assert.doesNotMatch(reply, /מצב לא נעים/)
     assert.doesNotMatch(reply, /^מבין! אפשר להחליף/m)
   })
+
+  it("classifies dissatisfaction before return when customer mentions both", () => {
+    assert.equal(
+      classifyPostPurchaseCase("קיבלתי את השטיח ולא אהבתי, רוצה להחזיר"),
+      "dissatisfaction"
+    )
+  })
 })

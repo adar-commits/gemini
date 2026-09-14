@@ -5,6 +5,10 @@ import {
   isReturnPickupAwaitingThread,
 } from "@/lib/agents/service-intake"
 import {
+  getDissatisfactionRescueStage,
+  shouldOfferReturnOptionsFirst,
+} from "@/lib/agents/dissatisfaction"
+import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
   isPurchaseCompletionStatement,
@@ -58,6 +62,23 @@ export async function executeLookupOrderStatus(input: {
       ok: false as const,
       error:
         "Return eligibility / policy FAQ — answer from KB (14 days from receipt, portal, branch or paid courier). Do not look up order status.",
+    }
+  }
+
+  const rescueStage = getDissatisfactionRescueStage(history)
+  if (rescueStage === "sales_offer") {
+    return {
+      ok: false as const,
+      error:
+        "Customer is choosing between exchange and return — use dissatisfaction playbook (portal for return, human_sales for exchange). Do NOT start order lookup yet.",
+    }
+  }
+
+  if (shouldOfferReturnOptionsFirst(body, history)) {
+    return {
+      ok: false as const,
+      error:
+        "Bare return / dissatisfaction opening — offer exchange + return options first (יש שתי אפשרויות). Do NOT ask for order number or call lookup until they choose return execution or need pickup-wait service.",
     }
   }
 

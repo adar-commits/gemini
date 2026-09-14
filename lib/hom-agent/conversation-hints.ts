@@ -23,7 +23,11 @@ import {
 } from "@/lib/agents/inquiry-intent"
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
-import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
+import {
+  isDissatisfactionRescuePending,
+  isDissatisfactionWithoutDefect,
+  shouldOfferReturnOptionsFirst,
+} from "@/lib/agents/dissatisfaction"
 import {
   isCasualGreeting,
   isCasualSmallTalk,
@@ -295,9 +299,23 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isDissatisfactionWithoutDefect(body)) {
+  if (shouldOfferReturnOptionsFirst(body, history)) {
+    lines.push(
+      "RETURN OPTIONS FIRST: bare return or dissatisfaction without defect — open with the two-option playbook (exchange + sales advisor; return via branch/courier + returns portal). Never ask for order number on this turn. Never lookup_order_status until they choose return execution or pickup-wait service."
+    )
+  } else if (isDissatisfactionRescuePending(history)) {
+    lines.push(
+      "Dissatisfaction rescue pending: return choice → portal link; exchange/sales advisor → human_sales; explicit rep for return execution → service intake + lookup if needed."
+    )
+  } else if (isDissatisfactionWithoutDefect(body)) {
     lines.push(
       "Dissatisfaction without defect: use the two-option playbook (exchange + sales advisor offer; return via branch/courier + returns portal). Never 'מצב לא נעים' or numbered emoji bullets."
+    )
+  }
+
+  if (postPurchaseKind === "return_request" && !shouldOfferReturnOptionsFirst(body, history)) {
+    lines.push(
+      "Return execution after options: service intake — lookup_order_status only to identify מס׳ הזמנה if needed → rep summary → human_service."
     )
   }
 
