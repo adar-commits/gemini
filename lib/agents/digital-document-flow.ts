@@ -557,6 +557,26 @@ export function shouldHandleDigitalDocumentFlow(
   return isActiveDigitalDocumentFlow(history, body)
 }
 
+/** Outbound Weezmo template or bot getDocument reply — not an open intake question. */
+export function isOutboundDocumentDeliveryMessage(content: string) {
+  if (!/documents\.carpetshop\.co\.il/i.test(content)) return false
+  return (
+    /תודה על רכישתך בשטיח האדום/i.test(content) ||
+    /הנה הקישור למסמך/i.test(content) ||
+    /הנה מסמך ההזמנה \(Weezmo\)/i.test(content)
+  )
+}
+
+export function lastAssistantWasOutboundDocumentDelivery(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return isOutboundDocumentDeliveryMessage(message.content)
+  }
+  return false
+}
+
 function phoneForOrderApi(phone: string) {
   let digits = phone.replace(/\D/g, "")
   if (digits.startsWith("00")) digits = digits.slice(2)

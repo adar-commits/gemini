@@ -25,6 +25,8 @@ import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import {
   isActiveDigitalDocumentFlow,
   isDigitalDocumentRequest,
+  isOutboundDocumentDeliveryMessage,
+  lastAssistantWasOutboundDocumentDelivery,
 } from "@/lib/agents/digital-document-flow"
 import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
 import {
@@ -140,7 +142,20 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body)) {
+  const greetingAfterDocumentDelivery =
+    lastAssistantWasOutboundDocumentDelivery(history) &&
+    (isCasualGreeting(body) || isCasualSmallTalk(body))
+
+  if (greetingAfterDocumentDelivery) {
+    lines.push(
+      'FRESH START after invoice/receipt delivery: customer said hello to begin anew — mirror hello warmly (e.g. "היי! 😊") and ask how you can help. NOT a thanks wrap-up — never "בשמחה! אם יעלה עוד משהו".'
+    )
+  }
+
+  if (
+    !greetingAfterDocumentDelivery &&
+    (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body))
+  ) {
     lines.push(
       'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
     )
@@ -418,9 +433,7 @@ function splitQuestionParts(body: string) {
 
 function historyShowsHomInvoiceBillingName(history: HistoryMessage[]) {
   return history.some(
-    (message) =>
-      message.content.includes("תודה על רכישתך בשטיח האדום") &&
-      message.content.includes("documents.carpetshop.co.il")
+    (message) => isOutboundDocumentDeliveryMessage(message.content)
   )
 }
 

@@ -38,6 +38,7 @@ import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import {
   runPreTurnGuards,
   runStructuredDocumentPreTurn,
+  runStructuredOpeningAfterDocumentDeliveryPreTurn,
   runStructuredOrderLookupPreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesPhotoPreTurn,
@@ -189,6 +190,37 @@ export async function runHomAgentTurn(
       reply: preTurn.reply,
       action,
       route: ["faq"],
+    })
+  }
+
+  const structuredOpeningAfterDocument = runStructuredOpeningAfterDocumentDeliveryPreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredOpeningAfterDocument.kind === "handled") {
+    const action = mapHomAction(structuredOpeningAfterDocument.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: structuredOpeningAfterDocument.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredOpeningAfterDocument.reply,
+      action,
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_opening_after_document",
+      },
     })
   }
 

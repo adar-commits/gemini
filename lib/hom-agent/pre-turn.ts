@@ -37,9 +37,11 @@ import {
 } from "@/lib/agents/dissatisfaction"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
+  lastAssistantWasOutboundDocumentDelivery,
   shouldHandleDigitalDocumentFlow,
   resolveDigitalDocumentFlowReply,
 } from "@/lib/agents/digital-document-flow"
+import { buildGreetingReply, isCasualGreeting, isCasualSmallTalk } from "@/lib/agents/greeting"
 import {
   extractOrderNumber,
   isChannelPhoneSelfReference,
@@ -273,6 +275,26 @@ export function runStructuredReturnOptionsPreTurn(input: {
 }
 
 /** Receipt / invoice copy — bind phone and call getDocument, not getOrders. */
+/** After automated invoice/receipt delivery, bare hello starts a new help flow — not a wrap-up ack. */
+export function runStructuredOpeningAfterDocumentDeliveryPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+}): PreTurnResult {
+  const body = summarizeTurn(input.turn)
+  if (!isCasualGreeting(body) && !isCasualSmallTalk(body)) {
+    return { kind: "skip", response: null }
+  }
+  if (!lastAssistantWasOutboundDocumentDelivery(input.history)) {
+    return { kind: "skip", response: null }
+  }
+
+  return {
+    kind: "handled",
+    reply: buildGreetingReply(),
+    action: "reply",
+  }
+}
+
 export async function runStructuredDocumentPreTurn(input: {
   turn: UserTurn
   history: HistoryMessage[]
