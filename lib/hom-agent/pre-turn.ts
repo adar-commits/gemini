@@ -18,6 +18,7 @@ import {
 } from "@/lib/agents/off-topic"
 import {
   isFinalizationQuestion,
+  isPureHandoffAffirmation,
   replyAwaitingCustomerInput,
 } from "@/lib/agents/compound-reply"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
@@ -83,6 +84,15 @@ export function runPreTurnGuards(input: {
     }
   }
 
+  if (isHumanHandoffPending(input.history) && isPureHandoffAffirmation(body)) {
+    const action = inferHumanHandoffAction(input.history, null)
+    return {
+      kind: "handled",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`,
+      action,
+    }
+  }
+
   if (
     isInactivityPingPending(input.history) &&
     isPendingHandoffCustomerReply(body, input.history)
@@ -116,7 +126,11 @@ export function runPreTurnGuards(input: {
   }
 
   if (isHumanHandoffPending(input.history)) {
-    if (isThanksAcknowledgment(body) && explicitThanks) {
+    if (
+      isThanksAcknowledgment(body) &&
+      explicitThanks &&
+      !isPureHandoffAffirmation(body)
+    ) {
       return {
         kind: "handled",
         reply: buildThanksAckReply(input.customerName, { handoffPending: true }),
@@ -140,7 +154,8 @@ export function runPreTurnGuards(input: {
   if (
     isThanksAcknowledgment(body) &&
     explicitThanks &&
-    !isOrderConfirmationPending(input.history)
+    !isOrderConfirmationPending(input.history) &&
+    !isHumanHandoffPending(input.history)
   ) {
     return {
       kind: "handled",

@@ -84,7 +84,27 @@ describe("pre-turn human handoff", () => {
     assert.doesNotMatch(result.reply, /העברתי/)
   })
 
-  it("does not treat בסדר תודה as handoff confirm when handoff is pending", () => {
+  it("confirms handoff on כן, תודה when handoff is pending", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nהאם להעביר את הפנייה לנציג שירות שיבדוק ויחזור אליכם?",
+      },
+    ]
+
+    const result = runPreTurnGuards({
+      turn: { text: "כן, תודה", media: [] },
+      history,
+    })
+
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.equal(result.action, "human_service")
+    assert.match(result.reply, /נציג|שירות/)
+  })
+
+  it("confirms handoff on בסדר תודה when handoff is pending", () => {
     const history: HistoryMessage[] = [
       {
         role: "assistant",
@@ -100,9 +120,7 @@ describe("pre-turn human handoff", () => {
 
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
-    assert.equal(result.action, "reply")
-    assert.match(result.reply, /בשמחה/)
-    assert.doesNotMatch(result.reply, /העברתי/)
+    assert.equal(result.action, "human_service")
   })
 
   it("thanks warmly after handoff was already confirmed", () => {

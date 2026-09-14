@@ -520,6 +520,37 @@ const SERVICE_ASSISTANT_CONTEXT_RE =
 const SHIPPING_ASSISTANT_CONTEXT_RE =
   /(?:בדקתי,|סטטוס\s+(?:ה)?משלוח|איפה\s+(?:ה)?(?:משלוח|הזמנה)|מצאתי\s+א(?:ת\s+)?(?:ה)?הזמנה.*(?:נכון|\?))/i
 
+/**
+ * Service intake used order lookup only to identify מס׳ הזמנה — after confirm,
+ * continue rep report → human_service (not shipping status).
+ */
+export function isServiceOrderIdentificationFlow(
+  history: HistoryMessage[],
+  body = ""
+) {
+  if (isServiceLookupContext(history)) return true
+  if (
+    !isOrderConfirmationPending(history) &&
+    !isServiceOrderIdentificationPending(history)
+  ) {
+    return false
+  }
+  const userText = history
+    .filter((message) => message.role === "user")
+    .slice(-8)
+    .map((message) => message.content)
+    .concat(body.trim())
+    .join("\n")
+  if (classifyPostPurchaseCase(userText)) return true
+  if (
+    /\[media:image:/i.test(userText) &&
+    /(?:שטיח|קניתי|הזמנ|לפני\s+\d+\s+שבוע)/i.test(userText)
+  ) {
+    return true
+  }
+  return false
+}
+
 /** Post-purchase / service owns order lookup — shipping must not hijack mid-flow. */
 export function isServiceLookupContext(
   history: HistoryMessage[],
@@ -1908,9 +1939,10 @@ async function replyAfterOrderIdentified(
   if (activeOrderLineItemVerificationRequest(history)) {
     return deliverOrderVerificationDocumentReply(lookupPhone)
   }
-  if (isServiceLookupContext(history)) {
+  if (isServiceOrderIdentificationFlow(history)) {
     const intake = extractServiceIntake(history, "")
     intake.orderNumber = order.orderNumber
+    intake.matchedOrder = order
     return buildServiceHandoffConfirmReply(intake, "", history)
   }
   return buildOrderStatusReply(order)

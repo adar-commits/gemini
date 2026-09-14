@@ -10,6 +10,7 @@ import {
   isIdentifiedOrderRejection,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
+  isServiceOrderIdentificationFlow,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
@@ -55,9 +56,16 @@ import {
   hasRoomPhotoInHistory,
   isSalesPhotoRequestPending,
 } from "@/lib/agents/sales-intake"
-import { isInactivityPingPending } from "@/lib/agents/inactivity"
+import {
+  isInactivityAssistantMessage,
+  isInactivityPingPending,
+} from "@/lib/agents/inactivity"
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
-import { inferHumanHandoffAction, isHumanHandoffPending } from "@/lib/agents/off-topic"
+import {
+  hasDeclarativeHandoffTransfer,
+  inferHumanHandoffAction,
+  isHumanHandoffPending,
+} from "@/lib/agents/off-topic"
 import { isConfirmationPending, isSalesFinalSummaryPending } from "@/lib/agents/sales-intake"
 import {
   BOT_VOICE_NO_MIRROR_HINT,
@@ -99,6 +107,26 @@ export function buildConversationHints(input: {
   if (isSalesFinalSummaryPending(history)) {
     lines.push(
       "SALES FINAL SUMMARY: full recap is done — on customer confirm (כן/נכון/בדיוק) set action human_sales immediately with a short transfer line. No extra handoff question. If they stay silent, the system auto-assigns to מכירות (no inactivity ping)."
+    )
+  }
+
+  if (isServiceHandoffSummaryPending(history)) {
+    lines.push(
+      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/כן תודה) set action human_service immediately — short transfer line only. If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
+    )
+  }
+
+  if (isHumanHandoffPending(history)) {
+    const handoffAction = inferHumanHandoffAction(history, null)
+    lines.push(
+      `HANDOFF OFFER PENDING: customer confirm includes כן/בסדר/אוקיי even with תודה (e.g. כן, תודה) — set action ${handoffAction} NOW in the same JSON turn. Never write מעביר/העברתי with action reply only. Thanks without confirm (תודה alone) is not handoff — remind they can write כן.`
+    )
+  }
+
+  const lastAssistant = lastNonInactivityAssistant(history)
+  if (lastAssistant && hasDeclarativeHandoffTransfer(lastAssistant)) {
+    lines.push(
+      "You already told the customer you are transferring — if action is still reply, set human_service or human_sales immediately (same turn or next). Never repeat transfer prose without the matching action."
     )
   }
 
@@ -206,9 +234,15 @@ export function buildConversationHints(input: {
   }
 
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
-    lines.push(
-      "Order/shipment lookup in progress — bind short confirmations or corrections semantically to the pending lookup, not a new topic. Never repeat the order card."
-    )
+    if (isServiceOrderIdentificationFlow(history, body)) {
+      lines.push(
+        "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → אז מסכם את הפנייה (rep bullets) → אני צודק? → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
+      )
+    } else {
+      lines.push(
+        "Order/shipment lookup in progress — bind short confirmations or corrections semantically to the pending lookup, not a new topic. Never repeat the order card."
+      )
+    }
   }
 
   if (isOrderConfirmationPending(history) && userProvidedPhone(body)) {
@@ -340,4 +374,14 @@ function historyShowsHomInvoiceBillingName(history: HistoryMessage[]) {
       message.content.includes("תודה על רכישתך בשטיח האדום") &&
       message.content.includes("documents.carpetshop.co.il")
   )
+}
+
+function lastNonInactivityAssistant(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message.content
+  }
+  return ""
 }

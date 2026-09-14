@@ -21,7 +21,7 @@ describe("service summary confirmation guard", () => {
 
     assert.equal(result.ok, false)
     if (!result.ok) {
-      assert.match(result.error, /Service handoff in progress/i)
+      assert.match(result.error, /Service thread|Service handoff in progress/i)
     }
   })
 })

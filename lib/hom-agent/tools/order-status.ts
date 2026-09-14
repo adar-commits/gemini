@@ -14,6 +14,7 @@ import {
   enrichReturnPickupIntake,
   isOrderConfirmationPending,
   isOrderLookupPhoneReplyPending,
+  isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
   resolveOrderShippingReply,
 } from "@/lib/agents/order-lookup"
@@ -60,11 +61,11 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
-  if (isPostPurchaseServiceFlow(history)) {
+  if (isPostPurchaseServiceFlow(history) || isServiceOrderIdentificationFlow(history, body)) {
     return {
       ok: false as const,
       error:
-        "Service handoff in progress — continue summary confirm, not shipping lookup.",
+        "Service thread — order lookup is only for מס׳ הזמנה. After customer confirms the order card, continue service rep report (אז מסכם את הפנייה…) → אני צודק? → human_service. Never shipping status or משהו נוסף.",
     }
   }
 
