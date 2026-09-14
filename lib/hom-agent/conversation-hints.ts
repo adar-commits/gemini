@@ -21,6 +21,7 @@ import {
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
+import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import {
@@ -335,6 +336,12 @@ export function buildConversationHints(input: {
   if (isMembershipClubCheckoutQuestion(body)) {
     lines.push(
       "MEMBERSHIP / RELOADABLE CHECKOUT: answer SHORT from membership-clubs-payments KB — if their program is listed, confirm we work with it; completing the order with that card usually needs a service rep (like קוד זיכוי). Offer human_service — never a long payment-methods dump, never 'אין לי מידע'. If they ask נציג אנושי → handoff immediately."
+    )
+  }
+
+  if (isCouponCodeRequest(body)) {
+    lines.push(
+      "COUPON CODE: call get_campaigns now. Share coupon_code from API only for **active** campaigns (valid dates). Never invent codes. Never say 'לא הבנתי' on קוד הנחה / typos like הנלה — treat as coupon ask."
     )
   }
 

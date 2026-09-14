@@ -95,7 +95,7 @@ export function createHomAgentTools(context: HomAgentToolContext) {
     }),
     get_campaigns: tool({
       description:
-        "Live active/expired promotions from Priority. Use when customer asks about מבצעים, הנחות, קופונים, or whether a specific campaign is still valid.",
+        "Live active/expired promotions from Priority. Use when customer asks about מבצעים, הנחות, קופונים, קוד הנחה, or whether a specific campaign is still valid. Returns coupon_code when present — share only if campaign is active.",
       inputSchema: z.object({
         campaignHint: z
           .string()

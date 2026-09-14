@@ -13,5 +13,6 @@ describe("campaigns tool override gate", () => {
   it("real promotion questions are campaign questions", () => {
     assert.equal(isCampaignQuestion("יש מבצע על שטיחים?"), true)
     assert.equal(isCampaignQuestion("המבצע של 1+1 עדיין בתוקף?"), true)
+    assert.equal(isCampaignQuestion("אולי יש קוד הנחה?"), true)
   })
 })
