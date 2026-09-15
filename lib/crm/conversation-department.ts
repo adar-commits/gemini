@@ -177,6 +177,27 @@ export async function setCrmConversationDepartmentForHandoff(input: {
   })
 }
 
+/** Service inactivity ping+close applies to שירות לקוחות and unset CRM department — not מכירות. */
+export function crmDepartmentAllowsServiceInactivity(
+  department: string | null | undefined
+) {
+  const normalized =
+    typeof department === "string" ? department.trim() : ""
+  if (!normalized) return true
+  if (normalized === "מכירות") return false
+  return normalized === "שירות לקוחות"
+}
+
+export async function crmConversationAllowsServiceInactivity(
+  conversationId: string
+) {
+  const row = await findCrmConversation(conversationId)
+  if (row?.closed_at) return false
+  const department =
+    typeof row?.department === "string" ? row.department.trim() : null
+  return crmDepartmentAllowsServiceInactivity(department)
+}
+
 export async function maybeSyncCrmDepartmentFromTurn(input: {
   conversationId: string
   llmDepartment?: CrmDepartmentSlug | null

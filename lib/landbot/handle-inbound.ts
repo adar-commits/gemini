@@ -37,10 +37,10 @@ import {
 import { isTrainerPhone } from "@/lib/landbot/trainer"
 import {
   ensureSessionMetaFromInbound,
-  runInactivityPipeline,
+  scheduleInactivityPingWatch,
 } from "@/lib/landbot/inactivity-watcher"
+import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
 import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
-import { after } from "next/server"
 import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
 import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
@@ -414,27 +414,29 @@ export async function handleLandbotInbound(
         if (shouldSuppressInactivityWatch(history)) {
           await clearInactivityWatchState(conversationId)
         } else {
-        const session = await getSessionInactivityState(conversationId)
-        const watchAssistantAt = session?.last_assistant_at
-        if (watchAssistantAt) {
-          const watchInput = {
-            conversationId,
-            customerId,
-            customerName: customerName || undefined,
-            customerPhone:
-              options?.phone?.trim() ||
-              (typeof session.customer_phone === "string"
-                ? session.customer_phone.trim()
-                : undefined),
-            watchAssistantAt: String(watchAssistantAt),
+        const allowsServiceInactivity =
+          await crmConversationAllowsServiceInactivity(conversationId)
+        if (allowsServiceInactivity) {
+          const session = await getSessionInactivityState(conversationId)
+          const watchAssistantAt = session?.last_assistant_at
+          if (watchAssistantAt) {
+            void scheduleInactivityPingWatch({
+              conversationId,
+              customerId,
+              customerName: customerName || undefined,
+              customerPhone:
+                options?.phone?.trim() ||
+                (typeof session.customer_phone === "string"
+                  ? session.customer_phone.trim()
+                  : undefined),
+              watchAssistantAt: String(watchAssistantAt),
+            }).catch((error) => {
+              console.warn("[handle-inbound] inactivity ping schedule failed", {
+                conversationId,
+                error: error instanceof Error ? error.message : error,
+              })
+            })
           }
-          after(async () => {
-            try {
-              await runInactivityPipeline(watchInput)
-            } catch (error) {
-              console.error("[inactivity-watch] pipeline failed", error)
-            }
-          })
         }
         }
       }

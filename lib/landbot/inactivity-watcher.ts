@@ -1,4 +1,5 @@
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
+import { isBotWaitingForCustomerReply } from "@/lib/agents/inactivity-session"
 import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
@@ -8,6 +9,7 @@ import {
   shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
 import { resolveCronSecret } from "@/lib/agents/cron-auth"
+import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
 import {
   getSessionInactivityState,
   recordProactiveAssistantMessage,
@@ -27,6 +29,7 @@ import { inactivityWatchUrl } from "@/lib/landbot/sync-hook"
 
 /** Chunk close waits so serverless (maxDuration ~300s) can chain to 15+ min. */
 const CLOSE_WATCH_CHUNK_MS = 240_000
+const PING_WATCH_CHUNK_MS = 240_000
 
 export type InactivityWatchPhase = "ping" | "close"
 
@@ -53,17 +56,6 @@ function sameTimestamp(a: string, b: string) {
   const right = Date.parse(b)
   if (!Number.isFinite(left) || !Number.isFinite(right)) return a === b
   return Math.abs(left - right) < 5
-}
-
-function botIsWaiting(session: {
-  last_user_at?: unknown
-  last_assistant_at?: unknown
-}) {
-  const lastUser = asText(session.last_user_at)
-  const lastAssistant = asText(session.last_assistant_at)
-  if (!lastAssistant) return false
-  if (!lastUser) return true
-  return Date.parse(lastAssistant) >= Date.parse(lastUser)
 }
 
 async function lastMessageAction(conversationId: string) {
@@ -171,11 +163,17 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
   if (!sameTimestamp(asText(session.last_assistant_at), watchAssistantAt)) {
     return "assistant_timestamp_changed" as const
   }
-  if (!botIsWaiting(session)) return "bot_not_waiting" as const
+  if (!(await isBotWaitingForCustomerReply(payload.conversationId, session))) {
+    return "bot_not_waiting" as const
+  }
   if (await hasPendingBuffer(payload.conversationId)) return "pending_buffer" as const
 
   if (await isHumanWaitingConversation(payload.conversationId)) {
     return "human_handoff" as const
+  }
+
+  if (!(await crmConversationAllowsServiceInactivity(payload.conversationId))) {
+    return "sales_crm_department" as const
   }
 
   const { getHistory } = await import("@/lib/agents/memory")
@@ -247,7 +245,9 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
   if (!(await lastAssistantIsInactivityPing(payload.conversationId))) {
     return "ping_not_last_assistant" as const
   }
-  if (!botIsWaiting(session)) return "bot_not_waiting" as const
+  if (!(await isBotWaitingForCustomerReply(payload.conversationId, session))) {
+    return "bot_not_waiting" as const
+  }
   if (await hasPendingBuffer(payload.conversationId)) return "pending_buffer" as const
 
   if (await isHumanWaitingConversation(payload.conversationId)) {
@@ -260,7 +260,58 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
     return "sales_flow_no_close" as const
   }
 
+  if (!(await crmConversationAllowsServiceInactivity(payload.conversationId))) {
+    return "sales_crm_department" as const
+  }
+
   return null
+}
+
+export async function scheduleInactivityPingWatch(payload: {
+  conversationId: string
+  customerId: number
+  customerName?: string
+  customerPhone?: string
+  watchAssistantAt: string
+}) {
+  const secret = resolveCronSecret()
+  const url = inactivityWatchUrl()
+  if (!secret) {
+    console.warn(
+      "[inactivity-watch] ping schedule skipped — set CRON_SECRET for chained ping"
+    )
+    return false
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${secret}`,
+      },
+      body: JSON.stringify({
+        phase: "ping",
+        conversationId: payload.conversationId,
+        customerId: payload.customerId,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        watchAssistantAt: payload.watchAssistantAt,
+      }),
+    })
+    if (!response.ok) {
+      console.warn(
+        "[inactivity-watch] ping schedule failed",
+        payload.conversationId,
+        response.status
+      )
+      return false
+    }
+    return true
+  } catch (error) {
+    console.warn("[inactivity-watch] ping schedule error", payload.conversationId, error)
+    return false
+  }
 }
 
 export async function scheduleInactivityCloseWatch(payload: {
@@ -367,43 +418,70 @@ async function runClosePhase(payload: InactivityWatchPayload) {
   })
 }
 
+async function runPingPhase(payload: InactivityWatchPayload) {
+  const watchAssistantAt = asText(payload.watchAssistantAt)
+  if (!watchAssistantAt) {
+    return { ok: true, skipped: "missing_watch_assistant_at" as const }
+  }
+
+  const dueAt = Date.parse(watchAssistantAt) + INACTIVITY_PING_MS
+  const remaining = dueAt - Date.now()
+
+  if (remaining > PING_WATCH_CHUNK_MS) {
+    await sleep(PING_WATCH_CHUNK_MS)
+    await scheduleInactivityPingWatch({
+      conversationId: payload.conversationId,
+      customerId: payload.customerId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      watchAssistantAt,
+    })
+    return { ok: true, rescheduled: true as const }
+  }
+
+  if (remaining > 0) {
+    await sleep(remaining)
+  }
+
+  const skip = await shouldSendPing({ ...payload, watchAssistantAt })
+  if (skip === "sales_summary_handoff" || skip === "sales_crm_department") {
+    return executeInactivitySalesRecovery({
+      conversationId: payload.conversationId,
+      customerId: payload.customerId,
+    })
+  }
+  if (skip) {
+    console.log("[inactivity-watch] ping skipped", payload.conversationId, skip)
+    return { ok: true, skipped: skip }
+  }
+
+  const reply = buildInactivityPingReply(payload.customerName)
+  await assignToApiAgent(payload.customerId)
+  await sendCustomerText(payload.customerId, reply)
+  await recordProactiveAssistantMessage({
+    conversationId: payload.conversationId,
+    assistantText: reply,
+    action: "inactivity_ping",
+  })
+
+  const session = await getSessionInactivityState(payload.conversationId)
+  const watchPingSentAt = asText(session?.inactivity_ping_sent_at)
+  if (watchPingSentAt) {
+    void scheduleInactivityCloseWatch({
+      conversationId: payload.conversationId,
+      customerId: payload.customerId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      watchPingSentAt,
+    })
+  }
+
+  return { ok: true, sent: "ping" as const }
+}
+
 export async function runInactivityWatch(payload: InactivityWatchPayload) {
   if (payload.phase === "ping") {
-    await sleep(INACTIVITY_PING_MS)
-    const skip = await shouldSendPing(payload)
-    if (skip === "sales_summary_handoff") {
-      return executeInactivitySalesRecovery({
-        conversationId: payload.conversationId,
-        customerId: payload.customerId,
-      })
-    }
-    if (skip) {
-      console.log("[inactivity-watch] ping skipped", payload.conversationId, skip)
-      return { ok: true, skipped: skip }
-    }
-
-    const reply = buildInactivityPingReply(payload.customerName)
-    await assignToApiAgent(payload.customerId)
-    await sendCustomerText(payload.customerId, reply)
-    await recordProactiveAssistantMessage({
-      conversationId: payload.conversationId,
-      assistantText: reply,
-      action: "inactivity_ping",
-    })
-
-    const session = await getSessionInactivityState(payload.conversationId)
-    const watchPingSentAt = asText(session?.inactivity_ping_sent_at)
-    if (watchPingSentAt) {
-      void scheduleInactivityCloseWatch({
-        conversationId: payload.conversationId,
-        customerId: payload.customerId,
-        customerName: payload.customerName,
-        customerPhone: payload.customerPhone,
-        watchPingSentAt,
-      })
-    }
-
-    return { ok: true, sent: "ping" as const }
+    return runPingPhase(payload)
   }
 
   return runClosePhase(payload)

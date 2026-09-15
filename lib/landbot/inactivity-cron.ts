@@ -1,4 +1,5 @@
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
+import { isBotWaitingForCustomerReply } from "@/lib/agents/inactivity-session"
 import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
@@ -19,6 +20,8 @@ import {
   shouldSkipInactivityClose,
   shouldSkipInactivityPingForSalesHandoff,
 } from "@/lib/agents/inactivity-policy"
+import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
+import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 
 type IdleSessionRow = {
   conversation_id: string
@@ -33,7 +36,7 @@ type IdleSessionRow = {
 
 type CloseCandidate = IdleSessionRow & { pingAt: string }
 
-const IDLE_SCAN_LIMIT = 80
+const PING_SCAN_LIMIT = 120
 const CLOSE_SCAN_LIMIT = 80
 
 function asText(value: unknown) {
@@ -50,29 +53,6 @@ function msSince(iso: string | null | undefined) {
   const ms = Date.parse(iso)
   if (!Number.isFinite(ms)) return Number.POSITIVE_INFINITY
   return Date.now() - ms
-}
-
-function botIsWaiting(row: IdleSessionRow) {
-  const lastUser = asText(row.last_user_at)
-  const lastAssistant = asText(row.last_assistant_at)
-  if (!lastAssistant) return false
-  if (!lastUser) return true
-  return Date.parse(lastAssistant) >= Date.parse(lastUser)
-}
-
-async function lastMessageRole(conversationId: string) {
-  const supabase = getAgentSupabase()
-  const { data, error } = await supabase
-    .from("hom_agent_messages")
-    .select("role")
-    .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (error) throw error
-  if (data?.role === "user" || data?.role === "assistant") return data.role
-  return null
 }
 
 async function getLastAssistantMessage(conversationId: string) {
@@ -139,10 +119,7 @@ async function userRepliedAfterTimestamp(conversationId: string, sinceIso: strin
 }
 
 async function isBotWaitingForUser(row: IdleSessionRow) {
-  const role = await lastMessageRole(row.conversation_id)
-  if (role === "assistant") return true
-  if (role === "user") return false
-  return botIsWaiting(row)
+  return isBotWaitingForCustomerReply(row.conversation_id, row)
 }
 
 async function backfillSessionActivityTimestamps(limit = 50) {
@@ -270,20 +247,21 @@ async function hydrateSessionRows(
 /** Sessions idle longer than this silently expire — pinging them would be spam anyway. */
 const IDLE_SCAN_MAX_AGE_MS = 48 * 60 * 60 * 1000
 
-async function loadIdleSessions(limit = IDLE_SCAN_LIMIT) {
+/** Sessions past the ping deadline — scanned by due time so fresh threads are not starved. */
+async function loadSessionsDueForPing(limit = PING_SCAN_LIMIT) {
   const supabase = getAgentSupabase()
   const recencyFloor = new Date(Date.now() - IDLE_SCAN_MAX_AGE_MS).toISOString()
+  const pingCutoff = new Date(Date.now() - INACTIVITY_PING_MS).toISOString()
 
-  // Oldest-first + limit with no recency floor starves the scan: hundreds of
-  // permanently-skipped sessions (human handoffs, blocked phones) occupy the
-  // window forever and fresh conversations never get pinged or closed.
   const { data, error } = await supabase
     .from("hom_agent_sessions")
     .select(
       "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
     )
     .is("inactivity_closed_at", null)
+    .is("inactivity_ping_sent_at", null)
     .not("last_assistant_at", "is", null)
+    .lte("last_assistant_at", pingCutoff)
     .gte("last_assistant_at", recencyFloor)
     .order("last_assistant_at", { ascending: true })
     .limit(limit)
@@ -397,6 +375,65 @@ async function loadSessionsDueForClose(limit = CLOSE_SCAN_LIMIT): Promise<CloseC
   return due
 }
 
+async function attemptInactivityPing(row: IdleSessionRow) {
+  if (await shouldSkipIdleForHumanWait(row)) return "skipped" as const
+  if (await hasPendingBuffer(row.conversation_id)) return "skipped" as const
+  if (!(await isBotWaitingForUser(row))) return "skipped" as const
+
+  const customerId = parseCustomerId(row.conversation_id)
+  if (!customerId) return "skipped" as const
+  if (!shouldReplyPhone(row.customer_phone)) return "skipped" as const
+  if (await lastAssistantIsInactivityPing(row.conversation_id)) return "skipped" as const
+
+  const { getConversationContext, getHistory } = await import("@/lib/agents/memory")
+  const [context, history] = await Promise.all([
+    getConversationContext(row.conversation_id),
+    getHistory(row.conversation_id),
+  ])
+
+  if (shouldSuppressInactivityWatch(history)) return "skipped" as const
+  if (isOrderConfirmationPending(history)) return "skipped" as const
+
+  if (
+    shouldSkipInactivityPingForSalesHandoff(context.history, context.lastAgent)
+  ) {
+    await executeInactivitySalesRecovery({
+      conversationId: row.conversation_id,
+      customerId,
+    })
+    return "sales_recovery" as const
+  }
+
+  if (!(await crmConversationAllowsServiceInactivity(row.conversation_id))) {
+    await executeInactivitySalesRecovery({
+      conversationId: row.conversation_id,
+      customerId,
+    })
+    return "sales_recovery" as const
+  }
+
+  const reply = buildInactivityPingReply(row.customer_name ?? undefined)
+  await assignToApiAgent(customerId)
+  await sendCustomerText(customerId, reply)
+  await recordProactiveAssistantMessage({
+    conversationId: row.conversation_id,
+    assistantText: reply,
+    action: "inactivity_ping",
+  })
+  const pingSession = await getSessionInactivityState(row.conversation_id)
+  const watchPingSentAt = asText(pingSession?.inactivity_ping_sent_at)
+  if (watchPingSentAt) {
+    void scheduleInactivityCloseWatch({
+      conversationId: row.conversation_id,
+      customerId,
+      customerName: row.customer_name ?? undefined,
+      customerPhone: row.customer_phone ?? undefined,
+      watchPingSentAt,
+    })
+  }
+  return "pinged" as const
+}
+
 async function attemptInactivityClose(row: CloseCandidate) {
   if (await shouldSkipIdleForHumanWait(row)) return "skipped" as const
   if (await hasPendingBuffer(row.conversation_id)) return "skipped" as const
@@ -436,12 +473,12 @@ export async function processInactivityTimeouts() {
   const backfilled = await backfillSessionActivityTimestamps()
   const expired = await expireStaleIdleSessions().catch(() => 0)
   const dueForClose = await loadSessionsDueForClose()
-  const sessions = await loadIdleSessions()
+  const dueForPing = await loadSessionsDueForPing()
   const results = {
     backfilled,
     expired,
     closeCandidates: dueForClose.length,
-    scanned: sessions.length,
+    pingCandidates: dueForPing.length,
     pinged: 0,
     closed: 0,
     salesRecovery: 0,
@@ -461,108 +498,14 @@ export async function processInactivityTimeouts() {
     }
   }
 
-  for (const row of sessions) {
+  for (const row of dueForPing) {
     try {
-      if (await shouldSkipIdleForHumanWait(row)) {
-        results.skipped += 1
-        continue
-      }
-
-      const { getConversationContext } = await import("@/lib/agents/memory")
-      const context = await getConversationContext(row.conversation_id)
-      if (shouldSuppressInactivityWatch(context.history)) {
-        results.skipped += 1
-        continue
-      }
-
-      if (!(await isBotWaitingForUser(row)) || (await hasPendingBuffer(row.conversation_id))) {
-        results.skipped += 1
-        continue
-      }
-
-      const customerId = parseCustomerId(row.conversation_id)
-      if (!customerId) {
-        results.skipped += 1
-        continue
-      }
-
-      if (!shouldReplyPhone(row.customer_phone)) {
-        results.skipped += 1
-        continue
-      }
-
-      const waitingMs = msSince(row.last_assistant_at)
-      const pingSentAt = asText(row.inactivity_ping_sent_at)
-      const lastUserAt = asText(row.last_user_at)
-
-      const inactivityPingAt = await lastAssistantIsInactivityPing(row.conversation_id)
-      if (inactivityPingAt) {
-        results.skipped += 1
-        continue
-      }
-
-      const userRepliedAfterPing =
-        Boolean(pingSentAt) &&
-        Boolean(lastUserAt) &&
-        Date.parse(lastUserAt) >= Date.parse(pingSentAt) - 1000
-
-      if (
-        pingSentAt &&
-        msSince(pingSentAt) >= INACTIVITY_CLOSE_AFTER_PING_MS &&
-        !userRepliedAfterPing
-      ) {
-        const outcome = await attemptInactivityClose({ ...row, pingAt: pingSentAt })
-        if (outcome === "closed") {
-          results.closed += 1
-          continue
-        }
-        if (outcome === "sales_recovery") {
-          results.salesRecovery += 1
-          continue
-        }
-      }
-
-      if (!pingSentAt && waitingMs >= INACTIVITY_PING_MS) {
-        if (
-          shouldSkipInactivityPingForSalesHandoff(
-            context.history,
-            context.lastAgent
-          )
-        ) {
-          await executeInactivitySalesRecovery({
-            conversationId: row.conversation_id,
-            customerId,
-          })
-          results.salesRecovery += 1
-          continue
-        }
-
-        const reply = buildInactivityPingReply(row.customer_name ?? undefined)
-        await assignToApiAgent(customerId)
-        await sendCustomerText(customerId, reply)
-        await recordProactiveAssistantMessage({
-          conversationId: row.conversation_id,
-          assistantText: reply,
-          action: "inactivity_ping",
-        })
-        const pingSession = await getSessionInactivityState(row.conversation_id)
-        const watchPingSentAt = asText(pingSession?.inactivity_ping_sent_at)
-        if (watchPingSentAt) {
-          void scheduleInactivityCloseWatch({
-            conversationId: row.conversation_id,
-            customerId,
-            customerName: row.customer_name ?? undefined,
-            customerPhone: row.customer_phone ?? undefined,
-            watchPingSentAt,
-          })
-        }
-        results.pinged += 1
-        continue
-      }
-
-      results.skipped += 1
+      const outcome = await attemptInactivityPing(row)
+      if (outcome === "pinged") results.pinged += 1
+      else if (outcome === "sales_recovery") results.salesRecovery += 1
+      else results.skipped += 1
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Inactivity cron failed"
+      const message = error instanceof Error ? error.message : "Inactivity ping failed"
       results.errors.push(`${row.conversation_id}: ${message}`)
     }
   }
