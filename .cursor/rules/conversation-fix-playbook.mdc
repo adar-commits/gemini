@@ -7,7 +7,7 @@ alwaysApply: true
 
 When the operator pastes a **real chat** (Landbot ID, phone, timeline, what went wrong), treat it as a **behavior spec**. Your job is to fix **why the LLM chose wrong**, not to patch Hebrew text after the fact.
 
-**Read this rule at the start of every conversation-fix task** before editing code.
+**Read this rule at the start of every conversation-fix task** before editing code. For when structured regex/state is allowed at all, see **`structured-vs-llm-routing.mdc`**.
 
 ---
 

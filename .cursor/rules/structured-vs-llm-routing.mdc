@@ -1,0 +1,70 @@
+---
+description: LLM-first intent routing — when structured regex/state is allowed vs forbidden
+alwaysApply: true
+---
+
+# Structured routing vs LLM — no intent regex hijacks
+
+**Default:** ambiguous customer intent → **LLM + tools + turn hints**. Structured code may only **bind a turn** when thread state already unambiguously defines the next step.
+
+Read this before adding regex, pre-turn handlers, or deterministic intent classifiers in agent code.
+
+---
+
+## What structured code MAY do
+
+| Allowed | Examples |
+|---------|----------|
+| **Pending-state binding** | `isOrderConfirmationPending`, `isHumanHandoffPending`, `isPhoneLookupConfirmPending` — scan **bot's last real question**, not customer intent |
+| **Identifier extraction** | Phone, order #, SO/IN/OV, SKU — format/normalize only |
+| **Thread-state guards on tools** | `executeLookupOrderStatus` refuses when `isActiveDigitalDocumentFlow` — guard blocks wrong tool, does not choose intent |
+| **Release / defer gates** | `shouldDeferDocumentFlowToOrderLookup` — exit mistaken structured flow so LLM can run |
+| **T0 / exact policy** | URLs, SLA snippets — `runT0DeterministicPaths` only |
+
+Pre-turn (`runStructured*PreTurn`) must **`skip`** (not handle) when defer gates fire or binding is ambiguous — hand the turn to the LLM.
+
+---
+
+## What structured code must NOT do
+
+| Forbidden | Why |
+|-----------|-----|
+| **New Hebrew intent regex on customer text** | e.g. `/קבלה/` → document flow. Same word means receipt copy *or* receipt reference *or* unrelated |
+| **Intent from latest line only** | Ignores shipping thread, service intake, prior bot question |
+| **Broad noun → flow routing** | "קבלה", "החזרה", "משלוח" without request verb + thread context |
+| **Pre-turn that re-decides intent** | Structured path runs before LLM and loops (phone confirm × N) |
+| **Post-LLM reply sanitizers** | See conversation-fix-playbook — never rewrite customer-facing text to fix routing |
+
+**Exception:** extend **existing shared helpers** only when binding a **known pending state** (`isPureHandoffAffirmation`, `isOrderConfirmationYes`). Do not add parallel one-off patterns.
+
+---
+
+## Before adding any new detector — checklist
+
+1. **Is intent actually unambiguous from thread state?** If no → prompt + hints, not regex.
+2. **Collision pair:** test both sides (e.g. `זה הקבלה` on shipping thread vs `שלחו קבלה בבקשה`).
+3. **Pre-turn order:** document/order pre-turn must `skip` when `shouldDefer*` or `/לא הבנתי/` fallback applies — LLM goes next.
+4. **Fixture test** in `lib/hom-agent/__tests__/` replaying operator timeline — assert **no wrong pivot**, not just happy path.
+5. **Prefer release over match:** when regex might false-positive, add a **defer** that turns structured flow off instead of another match arm.
+
+---
+
+## Anti-pattern → correct fix (530989504)
+
+| Wrong | Right |
+|-------|-------|
+| `isDigitalDocumentRequest("זה הקבלה")` → document menu | `isReceiptReferencePresentation` + `shouldDeferDocumentFlowToOrderLookup` on pickup/shipping threads |
+| Document pre-turn loops phone confirm | Pre-turn `skip` → hint `lookup_order_status` on confirm |
+| Another `/קבלה/` regex | Teach LLM in `hom-bot.md`; narrow or remove noun-only patterns |
+
+---
+
+## High-risk files (extra scrutiny on PR)
+
+- `lib/agents/digital-document-flow.ts` — document intent regex
+- `lib/agents/order-lookup.ts` — confirm/phone binding (keep pending-state only)
+- `lib/hom-agent/pre-turn.ts` — must defer, not compete with LLM
+- `lib/agents/off-topic.ts`, `lib/agents/compound-reply.ts` — handoff/confirm helpers only
+- `lib/agents/sales-intake.ts`, `lib/agents/service-intake.ts` — quiz step detection, not free-text intent
+
+When fixing a misroute: **runtime defer/guard → prompt/hints → fixture test**. Never start with customer-message regex.
