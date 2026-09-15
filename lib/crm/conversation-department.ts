@@ -77,12 +77,12 @@ export function resolveCrmDepartmentForTurn(input: {
     return { department: input.llmDepartment, source: "llm" }
   }
 
-  if (structuredServiceDepartmentActive(input.history, input.body)) {
-    return { department: "service", source: "structured" }
-  }
-
   if (hasOngoingSalesIntake(input.history)) {
     return { department: "sales", source: "structured" }
+  }
+
+  if (structuredServiceDepartmentActive(input.history, input.body)) {
+    return { department: "service", source: "structured" }
   }
 
   return null

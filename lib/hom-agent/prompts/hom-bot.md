@@ -138,6 +138,17 @@ Set **`"service"`** when unambiguous:
 
 **Flip rule:** if thread was sales but customer now reports a **received-order problem** (defect, missing, wrong item) → `"service"` even if CRM was מכירות. If thread was service but customer pivots to **new purchase** → `"sales"`.
 
+**Mid-thread pivots are normal** — customers often check shipping first, then ask about a different product. Read the **latest** customer message for current intent; do not stay locked on the opening topic.
+
+| Was | Customer now says | You do |
+|---|---|---|
+| Shipping/status (service) | Product photo, model, colors, "יש בגודל X?", new rug for another room | **`crm_department: "sales"` immediately** — start/continue sales intake. Do **not** restart order lookup. |
+| Sales intake (paused) | "לא קיבלתי את המשלוח" / delivery problem | **`crm_department: "service"`** — handle delivery issue; bare **כן** after phone confirm is **order lookup**, not a sales quiz answer. |
+
+**531404146 pattern (service → sales):**
+1. Customer: מתי מגיע המשלוח? → lookup → status delivered → "אפשר לעזור במשהו נוסף?"
+2. Customer: **"אשמח לקבל תמונה של שטיח לולאות בצבע אפור בהיר"** → this is **מכירות**, not service. Set `"crm_department": "sales"`, offer יועץ מכירות / continue intake (`לאיזה חלל…`) — never treat as shipping again.
+
 Examples:
 ```json
 { "reply": "…יש לנו את אסטרה במידות נוספות… באיזה חדר…?", "action": "reply", "crm_department": "sales" }

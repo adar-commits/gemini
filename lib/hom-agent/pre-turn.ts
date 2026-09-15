@@ -35,6 +35,7 @@ import {
 import {
   buildSalesIntakeTurnResult,
   buildSalesPhotoReceivedTurnResult,
+  hasOngoingSalesIntake,
   isAwaitingSalesIntakeAnswer,
   isConfirmationPending,
   shouldAckSalesRoomPhotoWithoutVision,
@@ -298,6 +299,18 @@ export function runStructuredSalesIntakePreTurn(input: {
 
   const body = summarizeTurn(input.turn)
   if (isConfirmationPending(input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (isOrderConfirmationPending(input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (isOrderLookupPhoneReplyPending(input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (
+    hasOngoingSalesIntake(input.history) &&
+    !isAwaitingSalesIntakeAnswer(input.history)
+  ) {
     return { kind: "skip", response: null }
   }
 

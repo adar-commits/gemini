@@ -22,9 +22,14 @@ import {
   isCreditCodeOnlineRedemptionRequest,
   isCreditRedemptionQuestion,
   isDefectReplacementStatusQuestion,
+  isMissingOrPartialDeliveryComplaint,
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
+import {
+  isProductInventoryQuestion,
+  isSpecificProductMention,
+} from "@/lib/agents/product-handoff"
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import {
   activeDigitalDocumentRequest,
@@ -149,20 +154,45 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (hasOngoingSalesIntake(history)) {
+  const awaitingSalesIntakeAnswer = isAwaitingSalesIntakeAnswer(history)
+  const salesIntakeActive =
+    hasOngoingSalesIntake(history) && awaitingSalesIntakeAnswer
+
+  if (salesIntakeActive) {
     lines.push(
       'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר/ה ליועץ מכירות) — never אני צודק? and never wait for approval.'
     )
   }
 
-  if (
+  const serviceFlowActive =
     isServiceHandoffSummaryPending(history) ||
     isServiceOrderIdentificationFlow(history, body) ||
     isReturnPickupAwaitingThread(history, body) ||
     isPostPurchaseServiceFlow(history)
-  ) {
+
+  if (serviceFlowActive && !salesIntakeActive) {
     lines.push(
       'SERVICE THREAD (שירות לקוחות): include `"crm_department": "service"` in JSON this turn when continuing service intake or rep summary — not מכירות.'
+    )
+  }
+
+  if (
+    isOrderStatusDeliveredInThread(history) &&
+    (isSpecificProductMention(body, history) || isProductInventoryQuestion(body))
+  ) {
+    lines.push(
+      'MID-THREAD PIVOT (service→sales): customer finished shipping/status and now asks about a product, photo, or new purchase. Set `"crm_department": "sales"` immediately and start/continue sales intake — do not restart order lookup or stay on service.'
+    )
+  }
+
+  if (
+    (isMissingOrPartialDeliveryComplaint(body) ||
+      isShippingStatusQuestion(body)) &&
+    hasOngoingSalesIntake(history) &&
+    !awaitingSalesIntakeAnswer
+  ) {
+    lines.push(
+      'MID-THREAD PIVOT (sales→service): customer reports delivery problem / shipment not received. Set `"crm_department": "service"`, handle as service (lookup_order_status if needed) — do not bind bare כן/נכון to a stale sales quiz.'
     )
   }
 

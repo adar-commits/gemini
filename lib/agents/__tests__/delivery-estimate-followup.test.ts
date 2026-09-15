@@ -45,6 +45,18 @@ describe("delivery estimate follow-up after status", () => {
     assert.equal(isOrderStatusDeliveredInThread(statusHistory), true)
   })
 
+  it("still detects delivered status after thanks wrap-up", () => {
+    const history: HistoryMessage[] = [
+      ...statusHistory,
+      { role: "user", content: "תודה" },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nבשמחה! 😊 במה עוד אוכל לעזור?",
+      },
+    ]
+    assert.equal(isOrderStatusDeliveredInThread(history), true)
+  })
+
   it("does not restart phone lookup after status was already delivered", async () => {
     resetPriorityApiTurnState()
     bindPriorityApiLogContext({

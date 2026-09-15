@@ -1,4 +1,5 @@
 import { buildApiFailureReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
+import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
 import {
   formatHebrewCustomerDate,
   formatHebrewCustomerDateTime,
@@ -1357,6 +1358,7 @@ export function isOrderStatusDeliveredInThread(history: HistoryMessage[]) {
     if (/בדקתי,/i.test(message.content)) {
       return true
     }
+    if (endsWithOptionalFollowUpOffer(message.content)) continue
     if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return false
     if (/נדמה לי שמצאתי את ההזמנה/i.test(message.content)) continue
     if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return false
