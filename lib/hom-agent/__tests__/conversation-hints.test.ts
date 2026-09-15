@@ -164,6 +164,19 @@ describe("buildConversationHints", () => {
     assert.doesNotMatch(hints, /do NOT call lookup_order_status again/i)
   })
 
+  it("guides cancellation FAQ with branch and courier paths, not portal-only", () => {
+    const hints = buildConversationHints({
+      history: [{ role: "assistant", content: "*הום בוט :)*\nבמה אוכל לעזור?" }],
+      body: "ביטול עסקה",
+      phone: "0525991700",
+    })
+    assert.ok(hints)
+    assert.match(hints, /CANCELLATION\/RETURN POLICY FAQ/i)
+    assert.match(hints, /branch \(free\)/i)
+    assert.match(hints, /courier/i)
+    assert.match(hints, /Never portal-only/i)
+  })
+
   it("guides merged same-issue burst toward one coherent flow", () => {
     const hints = buildConversationHints({
       history: [],

@@ -434,7 +434,7 @@ export function buildConversationHints(input: {
     )
   } else if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
     lines.push(
-      "Policy FAQ: returns/cancellations → returns portal; exchanges → branch or paid courier fees from KB — never portal for exchanges."
+      "CANCELLATION/RETURN POLICY FAQ: include BOTH execution paths — (1) return at network branch (free), (2) home pickup via courier (paid by rug size from KB). Portal is mandatory to open the request (even for branch returns); link with phone prefill when known. Also: 14 days, ללא שימוש באריזתו המקורית, refund up to 7 business days from cancellation. Never portal-only; never 'אפשר לפתוח בקשה'. Exchanges → branch/courier fees — never portal."
     )
   }
 

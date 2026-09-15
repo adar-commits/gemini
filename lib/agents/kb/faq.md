@@ -107,9 +107,11 @@ Updated 07.07.25
 
 ### Bot reply wording (returns / cancellations) — operator locked
 When explaining how to cancel or return:
-- **Portal is mandatory** — the customer must open the request themselves in the returns portal (also when returning at a branch). Say **"יש לפתוח בקשת ביטול/החזרה בפורטל"** or **"חובה לפתוח את הבקשה ב…"** with the link. **Never** "אפשר לפתוח בקשה" / "אפשר לפתוח בקשת ביטול" — that sounds optional; the portal step is required.
-- **Product condition wording** — say **"ללא שימוש, באריזתו המקורית"** within the 14-day window. **Do not** use **"מוצר שלם"**, **"אם המוצר שלם"**, or **"שלם"** — not our customer-facing terminology even if loosely correct.
-- Refund timeline for customer replies: up to **7 business days from cancellation** (ממועד ביטול העסקה).
+- **Always name both execution paths** (not portal-only): (1) **החזרה בסניפי הרשת** — ללא עלות; (2) **איסוף שליח מהבית** — בתשלום לפי גודל השטיח (85–300 ₪ לכיוון — see fee table below). **Both paths** require opening the request in the returns portal first (also when returning at a branch).
+- **Portal is mandatory** — the customer must open the request themselves in the returns portal. Say **"יש לפתוח בקשת ביטול/החזרה בפורטל"** with the link; in the portal they choose branch drop-off or home pickup. **Never** "אפשר לפתוח בקשה" — sounds optional.
+- **Product condition wording** — say **"ללא שימוש, באריזתו המקורית"** within the 14-day window. **Do not** use **"מוצר שלם"**, **"אם המוצר שלם"**, or **"שלם"**.
+- Refund timeline: up to **7 business days from cancellation** (ממועד ביטול העסקה).
+- **"ביטול עסקה" example shape:** policy (14 days + conditions) → **two ways to return** (branch / courier via portal) → portal link with phone prefill → refund timeline (7 business days). Optional: ask which order if unclear. Do **not** dump full branch address list unless they ask.
 - Exchange/return at any network store with receipt, tax-receipt invoice, or order proof.
 - Exchange/return within 14 days from receiving the product or from receiving written transaction details, the later of the two.
 - Company lab must confirm the product was unused and has no defect or dirt. Returned products go to the company lab.
