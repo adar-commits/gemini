@@ -135,16 +135,27 @@ export function hasAssistantDocumentFlowInThread(history: HistoryMessage[]) {
   return false
 }
 
+function postPurchaseCaseReleasesDocumentFlow(text: string) {
+  const kind = classifyPostPurchaseCase(text)
+  if (!kind) return false
+  if (kind === "exchange_request" || kind === "dissatisfaction") return false
+  return true
+}
+
 /** Post-purchase service owns the turn — structured document pre-turn must release to the LLM. */
 export function shouldReleaseStructuredDocumentFlow(
   history: HistoryMessage[] = [],
   body = ""
 ) {
-  void history
-  const kind = classifyPostPurchaseCase(body)
-  if (!kind) return false
-  if (kind === "exchange_request" || kind === "dissatisfaction") return false
-  return true
+  const candidates = [
+    body,
+    ...history.filter((message) => message.role === "user").map((message) => message.content),
+  ].filter(Boolean)
+
+  for (const text of candidates) {
+    if (postPurchaseCaseReleasesDocumentFlow(text)) return true
+  }
+  return false
 }
 
 /** Order lookup reuses phone prompts — only bind document steps with document context. */
@@ -518,6 +529,7 @@ export function shouldDeferDocumentFlowToOrderLookup(
   if (shouldReleaseStructuredDocumentFlow(history, body)) return true
   if (isOrderConfirmationPending(history)) return true
   if (isPhoneLookupConfirmPending(history)) {
+    if (shouldReleaseStructuredDocumentFlow(history, body)) return true
     if (
       hasAssistantDocumentFlowInThread(history) &&
       !isShippingOrPickupStatusThread(history)

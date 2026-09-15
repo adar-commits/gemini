@@ -21,6 +21,7 @@ import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
+import { coerceKbSelfServiceFaqAction } from "@/lib/agents/kb-self-service-faq"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import {
   buildHumanHandoffConfirmedReply,
@@ -38,6 +39,7 @@ import { shouldRetryInvokeAfterFailure } from "@/lib/hom-agent/invoke-retry"
 import {
   runPreTurnGuards,
   runStructuredDocumentPreTurn,
+  runStructuredKbSelfServiceFaqPreTurn,
   runStructuredOpeningAfterDocumentDeliveryPreTurn,
   runStructuredOrderLookupPreTurn,
   runStructuredPostPurchaseAltSizePreTurn,
@@ -363,6 +365,38 @@ export async function runHomAgentTurn(
     })
   }
 
+  const structuredKbFaq = runStructuredKbSelfServiceFaqPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredKbFaq.kind === "handled") {
+    const action = mapHomAction(structuredKbFaq.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: structuredKbFaq.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredKbFaq.reply,
+      action,
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_kb_faq",
+      },
+    })
+  }
+
   const structuredDocument = await runStructuredDocumentPreTurn({
     turn,
     history,
@@ -509,6 +543,8 @@ export async function runHomAgentTurn(
       llmCalls = 0
     }
   }
+
+  output = coerceKbSelfServiceFaqAction(output, body, history)
 
   const action =
     output.action === "end" && isThanksAcknowledgment(body)

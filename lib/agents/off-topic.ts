@@ -1,3 +1,4 @@
+import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
@@ -205,6 +206,8 @@ export function resolveLlmUnavailableHandoff(
 ): "human_sales" | "human_service" | null {
   const text = body.trim()
   if (!text) return null
+
+  if (isKbSelfServiceFaqThisTurn(text, history)) return null
 
   if (isHumanHandoffPending(history) && !isHumanHandoffDecline(text)) {
     if (isPendingHandoffCustomerReply(text, history)) {

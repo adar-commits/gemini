@@ -12,6 +12,7 @@ import {
   isCreditRedemptionQuestion,
   isRefundTimelineQuestion,
   isReturnPolicyQuestion,
+  isReturnShippingFeeQuestion,
   mentionsExchangeIntent,
   mentionsReturnIntent,
 } from "@/lib/agents/inquiry-intent"
@@ -225,6 +226,30 @@ export function buildReturnCancellationPolicyReply(phone?: string | null) {
 אפשר לעזור במשהו נוסף?`
 }
 
+export function buildReturnShippingFeePolicyReply(phone?: string | null) {
+  const portalUrl = buildReturnsPortalUrl(phone)
+  return `ברור — אם מקבלים את השטיח ואז מתחרטים, אפשר להחזיר בתוך 14 יום (ללא שימוש, באריזתו המקורית).
+
+שני מסלולים:
+• **החזרה בסניף** — ללא עלות
+• **איסוף שליח מהבית** — בתשלום לפי גודל השטיח (לכיוון):
+
+${EXCHANGE_COURIER_FEES}
+
+יש לפתוח בקשה בפורטל (גם לסניף):
+${portalUrl}
+
+אם תרצו עוד משהו — כאן.`
+}
+
+export function buildRugCleaningServiceFaqReply() {
+  return `שאלה טובה 🙂 אצלנו אין שירות ניקוי שטיחים — לא לוקחים את השטיח ולא עושים נטרול ריח.
+
+לטיפול שוטף כדאי ניקוי יבש אצל מקצוען. לכתם נקודתי — מגבון ללא אלכוהול, או מטלית מיקרופייבר במים חמים עם סבון כלים (תנועה סיבובית).
+
+אם תרצו עוד משהו — כאן.`
+}
+
 /** Policy FAQ about returns/exchanges — not active pickup or execution requests. */
 export function isReturnExchangePolicyFaqQuestion(body: string) {
   const text = body.trim()
@@ -238,6 +263,7 @@ export function isReturnExchangePolicyFaqQuestion(body: string) {
 
 /** Pick the right deterministic policy text — portal only for returns/cancellations. */
 export function resolveReturnExchangePolicyReply(body: string, phone?: string | null) {
+  if (isReturnShippingFeeQuestion(body)) return buildReturnShippingFeePolicyReply(phone)
   if (isRefundTimelineQuestion(body)) return buildRefundTimelinePolicyReply(phone)
   if (mentionsReturnIntent(body) && mentionsExchangeIntent(body)) {
     return `${buildCombinedReturnExchangePolicyBody(phone)}

@@ -14,6 +14,20 @@ import {
 } from "@/lib/agents/inactivity"
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
+  isRefundTimelineQuestion,
+  isReturnPolicyQuestion,
+  isReturnShippingFeeQuestion,
+} from "@/lib/agents/inquiry-intent"
+import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
+import {
+  buildRefundTimelinePolicyReply,
+  buildReturnShippingFeePolicyReply,
+  buildRugCleaningServiceFaqReply,
+  isReturnExchangePolicyFaqQuestion,
+  isRugCleaningServiceQuestion,
+  resolveReturnExchangePolicyReply,
+} from "@/lib/agents/policy-subjects"
+import {
   buildHumanHandoffConfirmedReply,
   inferHumanHandoffAction,
   isHumanHandoffAffirmation,
@@ -117,6 +131,9 @@ export function runPreTurnGuards(input: {
   }
 
   if (isHumanHandoffOfferPending(input.history) && isPureHandoffAffirmation(body)) {
+    if (isKbSelfServiceFaqThisTurn(body, input.history)) {
+      return { kind: "skip", response: null }
+    }
     const action = inferHumanHandoffAction(input.history, null)
     return {
       kind: "handled",
@@ -372,6 +389,38 @@ export function runStructuredSalesPhotoPreTurn(input: {
   }
 }
 
+/** Deterministic KB FAQ — fee table, care, return policy; never hand off when reps offline. */
+export function runStructuredKbSelfServiceFaqPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  phone?: string
+}): PreTurnResult {
+  const body = summarizeTurn(input.turn)
+  if (!isKbSelfServiceFaqThisTurn(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+
+  let replyBody: string | null = null
+  if (isReturnShippingFeeQuestion(body)) {
+    replyBody = buildReturnShippingFeePolicyReply(input.phone)
+  } else if (isRugCleaningServiceQuestion(body)) {
+    replyBody = buildRugCleaningServiceFaqReply()
+  } else if (isRefundTimelineQuestion(body)) {
+    replyBody = buildRefundTimelinePolicyReply(input.phone)
+  } else if (isReturnExchangePolicyFaqQuestion(body) || isReturnPolicyQuestion(body)) {
+    replyBody = resolveReturnExchangePolicyReply(body, input.phone)
+  }
+
+  if (!replyBody) return { kind: "skip", response: null }
+
+  const reply =
+    replyBody.startsWith(CUSTOMER_HEADER) || replyBody.startsWith("*הום בוט :)")
+      ? replyBody
+      : `${CUSTOMER_HEADER}\n${replyBody}`
+
+  return { kind: "handled", reply, action: "reply" }
+}
+
 /** Exchange + return options before order lookup on bare return / dissatisfaction opens. */
 export function runStructuredReturnOptionsPreTurn(input: {
   turn: UserTurn
@@ -438,6 +487,9 @@ export async function runStructuredDocumentPreTurn(input: {
   phone?: string
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
+  if (isKbSelfServiceFaqThisTurn(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
   if (isHumanHandoffPending(input.history)) {
     return { kind: "skip", response: null }
   }

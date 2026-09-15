@@ -67,6 +67,7 @@ import {
   isFirstSubstantiveCustomerTurn,
   substantiveUserMessages,
 } from "@/lib/agents/greeting"
+import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import {
   isCarpetRentalQuestion,
   isReturnExchangePolicyFaqQuestion,
@@ -136,10 +137,7 @@ export function buildConversationHints(input: {
   const { history, body } = input
   const lines: string[] = []
 
-  const returnFaqAnswerThisTurn =
-    isReturnShippingFeeQuestion(body) ||
-    isReturnEligibilityQuestion(body, history) ||
-    isReturnExchangePolicyFaqQuestion(body)
+  const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
 
   if (
     isFirstSubstantiveCustomerTurn(history) &&
@@ -223,7 +221,7 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isHumanHandoffPending(history) && !returnFaqAnswerThisTurn) {
+  if (isHumanHandoffPending(history) && !kbSelfServiceFaqThisTurn) {
     const handoffAction = inferHumanHandoffAction(history, null)
     const documentHandoff = documentLookupFailureOfferedInThread(history)
     lines.push(
@@ -233,7 +231,7 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isHumanHandoffPending(history) && returnFaqAnswerThisTurn) {
+  if (isHumanHandoffPending(history) && kbSelfServiceFaqThisTurn) {
     lines.push(
       "HANDOFF OFFER STALE — RETURN FAQ THIS TURN: customer pivoted to return/courier-fee policy (כמה יעלה / אתחרט / דמי משלוח). Answer from KB with action reply — do NOT treat trailing כן as handoff confirm. human_service only if they explicitly ask for a rep after the FAQ answer."
     )
@@ -278,7 +276,7 @@ export function buildConversationHints(input: {
   }
 
   if (
-    !returnFaqAnswerThisTurn &&
+    !kbSelfServiceFaqThisTurn &&
     (isHumanHandoffPending(history) ||
       isConfirmationPending(history) ||
       (isServiceHandoffSummaryPending(history) && isServiceHandoffSummaryConfirmed(body)))
@@ -391,11 +389,11 @@ export function buildConversationHints(input: {
   }
 
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
-    if (returnFaqAnswerThisTurn) {
+    if (kbSelfServiceFaqThisTurn) {
       lines.push(
-        "ORDER CONFIRM + RETURN FAQ: customer confirmed (or is confirming) the order card AND asks return/courier-fee policy — answer from KB first. Trailing כן/כן כן binds to the fee/eligibility answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
+        "ORDER CONFIRM + KB FAQ: customer confirmed (or is confirming) the order card AND asks policy (fees/eligibility/care) — answer from KB first. Trailing כן/כן כן binds to the FAQ answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
       )
-    } else if (isServiceOrderIdentificationFlow(history, body)) {
+    } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
       lines.push(
         "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → אז מסכם את הפנייה (rep bullets) → אני צודק? → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
       )

@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   isActiveDigitalDocumentFlow,
   isDigitalDocumentRequest,
+  shouldDeferDocumentFlowToOrderLookup,
   shouldReleaseStructuredDocumentFlow,
 } from "@/lib/agents/digital-document-flow"
 import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
@@ -45,6 +46,21 @@ describe("missing item releases document structured flow (532219451)", () => {
     assert.match(hints, /MISSING ITEM/i)
     assert.doesNotMatch(hints, /DOCUMENT COPY \(קבלה/)
     assert.doesNotMatch(hints, /fetch_digital_document only/)
+  })
+
+  it("releases contaminated document flow when missing item was in thread history", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: opening },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nהאם העסקה רשומה על המספר ממנו אני מתכתב כרגע? (052-6052903)",
+      },
+    ]
+
+    assert.equal(shouldReleaseStructuredDocumentFlow(history, "כן"), true)
+    assert.equal(shouldDeferDocumentFlowToOrderLookup(history, "כן"), true)
+    assert.equal(isActiveDigitalDocumentFlow(history, "כן"), false)
   })
 
   it("still continues structured document flow after bot opened intake", () => {
