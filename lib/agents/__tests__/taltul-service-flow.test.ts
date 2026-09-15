@@ -44,7 +44,7 @@ describe("Taltul-style service order confirm", () => {
     )
   })
 
-  it("skips inactivity ping while service handoff offer is pending", () => {
+  it("still allows inactivity ping while service handoff offer is pending", () => {
     const history: HistoryMessage[] = [
       ...sheddingHistory,
       {
@@ -53,6 +53,6 @@ describe("Taltul-style service order confirm", () => {
           "*הום בוט :)*\nהאם להעביר את הפנייה לנציג שירות שיבדוק ויחזור אליכם?",
       },
     ]
-    assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "faq"), true)
+    assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "faq"), false)
   })
 })
