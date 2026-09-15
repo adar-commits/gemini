@@ -431,12 +431,68 @@ export function activeOrderLineItemVerificationRequest(history: HistoryMessage[]
   return false
 }
 
+/** Customer presenting a receipt ref for order lookup — not asking for a document copy. */
+export function isReceiptReferencePresentation(body: string) {
+  const text = stripLeadingGreetings(body.trim())
+  if (!text) return false
+  return (
+    /^ז(?:ה|ו)\s+(?:ה)?קבלה(?:\s+שלי|\s+של(?:י|נו)?)?(?:[\s,.!?]|$)/iu.test(text) ||
+    /^ז(?:ה|ו)\s+(?:מס(?:'|׳|פר)?\s+)?(?:ה)?קבלה/iu.test(text) ||
+    /^(?:מס(?:'|׳|פר)?\s+)?קבלה\s*[:\-]/iu.test(text) ||
+    /^RC\d{6,}/i.test(text.trim())
+  )
+}
+
+/** Pickup / delivery status thread — document regex must not hijack these. */
+export function isShippingOrPickupStatusThread(history: HistoryMessage[]) {
+  for (const message of history) {
+    if (message.role !== "user") continue
+    const text = stripLeadingGreetings(message.content)
+    if (!text) continue
+    if (isShippingStatusQuestion(text)) return true
+    if (/מה\s+קור(?:ה|ין)\s+עם/i.test(text) && /(?:סניף|לאיסוף|הגיע|יגיע|מגיע|הזמנה)/i.test(text)) {
+      return true
+    }
+    if (/היה\s+אמור\s+להגיע/i.test(text)) return true
+    if (
+      /קניתי\b/i.test(text) &&
+      /(?:סניף|לאיסוף)/i.test(text) &&
+      /(?:ימ(?:ים|י)|שבוע|ימים)/i.test(text)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function hasExplicitDigitalDocumentRequestInThread(
+  history: HistoryMessage[],
+  body = ""
+) {
+  if (body.trim() && isDigitalDocumentRequest(body)) return true
+  for (const message of history) {
+    if (message.role === "user" && isDigitalDocumentRequest(message.content)) return true
+  }
+  return false
+}
+
+/** Mistaken document intake on a shipping thread — release to LLM / order lookup. */
+export function shouldDeferDocumentFlowToOrderLookup(
+  history: HistoryMessage[] = [],
+  body = ""
+) {
+  if (!isShippingOrPickupStatusThread(history)) return false
+  return !hasExplicitDigitalDocumentRequestInThread(history, body)
+}
+
 /** Customer wants a digital receipt / invoice copy (קבלה = receipt, not admission). */
 export function isDigitalDocumentRequest(body: string) {
   const text = stripLeadingGreetings(body.trim())
   if (!text) return false
   if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
+  if (isReceiptReferencePresentation(text)) return false
   if (mentionsDocumentNoun(text) && mentionsDocumentRequestIntent(text)) return true
+  if (/^קבלה(?:\s+שלי|\s+של(?:י|נו)?)?(?:[\s,.!?]|$)/iu.test(text)) return true
   return (
     /(?:של(?:ח|וח|חו|לח|וף)|(?:ל)?של(?:ח|וח|חו)|ה(?:ביא|וציא)|(?:ל)?קב(?:ל|ל(?:ה|ו|י)?))(?:\s+לי|\s+ל|\s+בבקשה)?\s*(?:א(?:ת|ת)?\s+)?(?:ה)?(?:קבלה|חשבונית)/i.test(
       text
@@ -446,7 +502,6 @@ export function isDigitalDocumentRequest(body: string) {
     /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))(?:\s+\S+){0,5}\s*(?:בבקשה\s+)?(?:א(?:ת|ת)?\s+)?(?:ה)?(?:העתק|עותק|קבלה|חשבונית)/i.test(
       text
     ) ||
-    /(?:ה)?קבלה(?:\s+שלי|\s+של)?/i.test(text) ||
     /receipt|invoice\s+copy|copy\s+of\s+(?:my\s+)?(?:receipt|invoice)/i.test(text)
   )
 }
@@ -472,6 +527,7 @@ export function activeDigitalDocumentRequest(history: HistoryMessage[]) {
 }
 
 function hasDocumentFlowContext(history: HistoryMessage[]) {
+  if (shouldDeferDocumentFlowToOrderLookup(history)) return false
   const state = computeDocumentFlowState(history)
   return (
     state.active ||
@@ -532,6 +588,8 @@ export function isActiveDigitalDocumentFlow(
   history: HistoryMessage[] = [],
   body = ""
 ) {
+  if (shouldDeferDocumentFlowToOrderLookup(history, body)) return false
+
   const settledState = computeDocumentFlowState(history)
   if (
     settledState.phoneConfirmed &&
@@ -910,7 +968,25 @@ async function replyWithPhoneConfirmOrLookup(input: {
   recoveryPrefix: string
   selectedType: DocumentType
   channel?: DocumentPurchaseChannel
+  history?: HistoryMessage[]
 }) {
+  if (isPurePhoneLookupConfirmYes(input.body) && input.whatsappPhone) {
+    const confirmedPhone = resolveDocumentLookupPhone(
+      input.body,
+      input.history ?? [],
+      input.whatsappPhone
+    )
+    if (confirmedPhone) {
+      return withRecoveryPrefix(
+        input.recoveryPrefix,
+        await deliverDocumentsForPhone(confirmedPhone, {
+          channel: input.channel,
+          documentType: input.selectedType,
+        })
+      )
+    }
+  }
+
   const phoneFromBody = extractPhoneFromText(input.body)
   if (phoneFromBody) {
     const typed = userProvidedPhone(input.body)
@@ -938,6 +1014,9 @@ export async function resolveDigitalDocumentFlowReply(input: {
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
+  if (shouldDeferDocumentFlowToOrderLookup(history, body)) {
+    return `${CUSTOMER_HEADER}\nלא הבנתי`
+  }
   const whatsappPhone = input.phone?.trim()
   const state = computeDocumentFlowState(history)
   const selectedTypeFromBody = parseDocumentTypeSelection(body, history)
@@ -1070,6 +1149,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
       recoveryPrefix,
       selectedType,
       channel: channel ?? undefined,
+      history,
     })
   }
 
@@ -1105,6 +1185,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
         whatsappPhone,
         recoveryPrefix,
         selectedType: explicitType,
+        history,
       })
     }
     if (intent === "receipt") {
@@ -1113,6 +1194,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
         whatsappPhone,
         recoveryPrefix,
         selectedType: DOCUMENT_TYPE_RECEIPT,
+        history,
       })
     }
     return buildDocumentTypeQuestion(intent)

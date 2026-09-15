@@ -29,6 +29,7 @@ import {
   outboundDocumentDeliveryInThread,
   isOutboundDocumentDeliveryMessage,
   lastAssistantWasOutboundDocumentDelivery,
+  shouldDeferDocumentFlowToOrderLookup,
 } from "@/lib/agents/digital-document-flow"
 import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
 import {
@@ -399,6 +400,15 @@ export function buildConversationHints(input: {
   if (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) {
     lines.push(
       "DOCUMENT COPY (קבלה / חשבונית / העתק): fetch_digital_document only — getDocument API by phone. Never lookup_order_status or getOrders for invoice/receipt requests."
+    )
+  }
+
+  if (
+    shouldDeferDocumentFlowToOrderLookup(history, body) &&
+    isPhoneLookupConfirmPending(history)
+  ) {
+    lines.push(
+      "SHIPPING / PICKUP STATUS: customer asked when an order arrives or branch pickup — NOT a document copy request (even if they said זה הקבלה with a receipt ref). On phone confirm (כן / זה המספר / כן!!) call lookup_order_status with channel phone immediately — never repeat phone confirm or ask document type."
     )
   }
 
