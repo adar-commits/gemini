@@ -61,11 +61,14 @@ import {
   extractOrderNumber,
   isChannelPhoneSelfReference,
   isOrderConfirmationPending,
+  isOrderDeliveryStatusQuestion,
   isOrderLookupPhoneReplyPending,
+  isPurePhoneLookupConfirmYes,
   requiresOrderIdentification,
   resolveOrderShippingReply,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
@@ -483,7 +486,25 @@ export async function runStructuredOrderLookupPreTurn(input: {
     return { kind: "skip", response: null }
   }
 
-  if (!typedPhone && !orderLookupStructuredBinding(body)) {
+  const phoneConfirmBinding =
+    phoneLookupPending &&
+    (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body))
+  const orderConfirmBinding =
+    orderConfirmPending &&
+    isPurePhoneLookupConfirmYes(body) &&
+    !/^(?:כן\s+)?ז(?:ה|ו)(?:\s|$)/i.test(body.trim())
+  const pendingLookupFlow = orderConfirmPending || phoneLookupPending
+  const deliveryLookupBinding =
+    pendingLookupFlow &&
+    (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body))
+
+  if (
+    !typedPhone &&
+    !orderLookupStructuredBinding(body) &&
+    !phoneConfirmBinding &&
+    !orderConfirmBinding &&
+    !deliveryLookupBinding
+  ) {
     return { kind: "skip", response: null }
   }
 

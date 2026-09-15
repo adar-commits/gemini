@@ -452,7 +452,9 @@ export function extractOrderNumber(rawText: string) {
 export function isOrderReferencePresentation(body: string) {
   const text = stripMediaAndUrls(body.trim())
   if (!text || !extractOrderNumber(text)) return false
-  if (/^(?:SO|IN|OV)\s*\d+$/i.test(text)) return true
+  if (/^(?:SO|IN|OV)\s*\d+$/im.test(text)) return true
+  const firstLine = text.split(/\n+/)[0]?.trim() ?? text
+  if (/^(?:SO|IN|OV)\s*\d+$/i.test(firstLine)) return true
   if (
     /^(?:חשבונית|הזמנ(?:ה|ת)|מס(?:'|׳|")?\s*(?:ה)?(?:הזמנה|חשבונית)?)\s*[:\-]?\s*(?:SO|IN|OV)/i.test(
       text
@@ -465,6 +467,15 @@ export function isOrderReferencePresentation(body: string) {
       text
     )
   ) {
+    return true
+  }
+  if (
+    /ז(?:ה|ו)\s+(?:ה)?(?:חשבונית|הזמנה|קבלה)/i.test(text) ||
+    /(?:^|\n)\s*(?:ה)?(?:ה)?(?:הזמנה|חשבונית)\s*#/i.test(text)
+  ) {
+    return true
+  }
+  if (extractOrderReference(text) && /(?:ה)?(?:ה)?(?:הזמנה|חשבונית|קבלה)/i.test(text)) {
     return true
   }
   return false
@@ -973,7 +984,9 @@ export function isDeliveryEstimateQuestion(body: string) {
     /(?:מתי|ממתי)\s+(?:צפוי(?:ה|ים|ות)?|נקבל|ת(?:קב|ג)?יע|מ(?:גיע|סופק))/i.test(text) ||
     /(?:צפוי(?:ה|ים|ות)?)\s+(?:ל)?(?:הגיע|ל(?:הגיע|אספק)|קבלה)/i.test(text) ||
     /(?:מתי|ממתי)\s+(?:היא|הוא|זה)\s+(?:ת)?(?:היה|יהיה|מוכנ)/i.test(text) ||
-    /(?:מתי|ממתי)\s+(?:אפשר|אוכל|יכול(?:ה)?)\s*(?:ל)?(?:אסוף|להגיע|לקחת)/i.test(text)
+    /(?:מתי|ממתי)\s+(?:אפשר|אוכל|יכול(?:ה)?)\s*(?:ל)?(?:אסוף|להגיע|לקחת)/i.test(text) ||
+    /(?:מתי|ממתי)\s+זמן\s+אספק(?:ה|ת)\s+משוער/i.test(text) ||
+    /(?:מה|מתי)\s+תאריך\s+אספק(?:ה|ת)\s+משוער/i.test(text)
   )
 }
 
@@ -1027,7 +1040,9 @@ export function isChannelPhoneSelfReference(body: string) {
       text
     ) ||
     /^מ(?:מנ)?ו\s+(?:אני\s+)?(?:מתכתב|מדבר)/iu.test(text) ||
-    /^(?:אות(?:ו|ה)|אותו)\s+(?:מס(?:'|׳|פר)?(?:\s+טלפון)?|טלפון)(?:[\s,.!?]|$)/iu.test(text)
+    /^(?:אות(?:ו|ה)|אותו)\s+(?:מס(?:'|׳|פר)?(?:\s+טלפון)?|טלפון)(?:[\s,.!?]|$)/iu.test(text) ||
+    /^(?:כן(?:\s*,?\s*)?)?\s*ז(?:ה|ו)\s+(?:ה)?(?:מספר|טלפון)/iu.test(text) ||
+    /^כן\s+(?:ה)?(?:מספר|טלפון)/iu.test(text)
   )
 }
 export function isOrderConfirmationPending(history: HistoryMessage[]) {

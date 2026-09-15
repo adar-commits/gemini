@@ -14,8 +14,11 @@ import {
   extractPhoneFromText,
   formatDisplayPhone,
   isOrderConfirmationNo,
+  isOrderConfirmationPending,
+  isOrderDeliveryStatusQuestion,
   isOrderNumberRequestPending,
   isOrderReferencePresentation,
+  isPhoneLookupConfirmPending,
   isPurePhoneLookupConfirmYes,
   resolveLookupPhoneFromHistory,
   userProvidedPhone,
@@ -479,6 +482,8 @@ export function isShippingOrPickupStatusThread(history: HistoryMessage[]) {
     const text = stripLeadingGreetings(message.content)
     if (!text) continue
     if (isShippingStatusQuestion(text)) return true
+    if (isOrderDeliveryStatusQuestion(text)) return true
+    if (/אספק(?:ה|ת)|תאריך\s+אספק|זמן\s+אספק/i.test(text)) return true
     if (/מה\s+קור(?:ה|ין)\s+עם/i.test(text) && /(?:סניף|לאיסוף|הגיע|יגיע|מגיע|הזמנה)/i.test(text)) {
       return true
     }
@@ -511,6 +516,16 @@ export function shouldDeferDocumentFlowToOrderLookup(
   body = ""
 ) {
   if (shouldReleaseStructuredDocumentFlow(history, body)) return true
+  if (isOrderConfirmationPending(history)) return true
+  if (isPhoneLookupConfirmPending(history)) {
+    if (
+      hasAssistantDocumentFlowInThread(history) &&
+      !isShippingOrPickupStatusThread(history)
+    ) {
+      return false
+    }
+    return true
+  }
   if (
     isOrderNumberRequestPending(history) &&
     (isOrderReferencePresentation(body) || Boolean(extractOrderNumber(body)))

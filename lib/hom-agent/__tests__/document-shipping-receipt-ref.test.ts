@@ -68,7 +68,8 @@ describe("document flow vs shipping receipt reference (530989504)", () => {
       history: historyThroughPhoneConfirm,
       phone: "+972544981002",
     })
-    assert.equal(order.kind, "skip")
+    assert.equal(order.kind, "handled")
+    assert.doesNotMatch(order.kind === "handled" ? order.reply : "", /לא הבנתי/)
     assert.equal(isPhoneLookupConfirmPending(historyThroughPhoneConfirm), true)
   })
 
