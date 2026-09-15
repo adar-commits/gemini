@@ -20,8 +20,8 @@ describe("document flow pre-turn (529869497)", () => {
     { role: "assistant", content: phoneConfirmReply },
   ]
 
-  it("treats invoice copy as document flow, not order lookup", () => {
-    assert.equal(isActiveDigitalDocumentFlow([], opening), true)
+  it("treats invoice copy as document intent hint, not cold structured pre-turn", () => {
+    assert.equal(isActiveDigitalDocumentFlow([], opening), false)
     assert.equal(requiresOrderIdentification(opening, []), false)
     assert.equal(
       requiresOrderIdentification("לא, זה על המספר הזה: 0533402101", historyAfterConfirm),
@@ -61,14 +61,16 @@ describe("document flow pre-turn (529869497)", () => {
     assert.match((result as { error: string }).error, /fetch_digital_document/)
   })
 
-  it("opening invoice request is handled by document pre-turn", async () => {
+  it("opening invoice request skips structured pre-turn for the LLM", async () => {
     const result = await runStructuredDocumentPreTurn({
       turn: { text: opening, media: [] },
       history: [],
       phone: "+972547495083",
     })
-    assert.equal(result.kind, "handled")
-    if (result.kind !== "handled") return
-    assert.match(result.reply, /האם\s+העסקה\s+רשומה\s+על\s+המספר/)
+    assert.equal(result.kind, "skip")
+  })
+
+  it("document pre-turn continues only after bot opened document intake", () => {
+    assert.equal(isActiveDigitalDocumentFlow(historyAfterConfirm, "כן"), true)
   })
 })

@@ -1,3 +1,4 @@
+import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
@@ -106,16 +107,41 @@ function documentQuestionKind(content: string): DocumentQuestionKind | null {
 }
 
 function hasDocumentFlowSeed(history: HistoryMessage[]) {
-  if (activeDigitalDocumentRequest(history)) return true
+  return hasAssistantDocumentFlowInThread(history)
+}
+
+/** Bot already opened document intake (type/channel) — not inferred from customer nouns alone. */
+export function hasAssistantDocumentFlowInThread(history: HistoryMessage[]) {
   for (const message of history) {
     if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) {
       continue
     }
     const kind = documentQuestionKind(message.content)
-    if (!kind || kind === "phone" || kind === "alternate_phone") continue
-    return true
+    if (kind === "type" || kind === "purchase_location" || kind === "channel") {
+      return true
+    }
+    if (
+      kind === "phone" &&
+      /האם\s+(?:ה)?(?:עסקה)/i.test(message.content) &&
+      !/הזמנה/i.test(message.content)
+    ) {
+      return true
+    }
+    if (kind === "alternate_phone") return true
   }
   return false
+}
+
+/** Post-purchase service owns the turn — structured document pre-turn must release to the LLM. */
+export function shouldReleaseStructuredDocumentFlow(
+  history: HistoryMessage[] = [],
+  body = ""
+) {
+  void history
+  const kind = classifyPostPurchaseCase(body)
+  if (!kind) return false
+  if (kind === "exchange_request" || kind === "dissatisfaction") return false
+  return true
 }
 
 /** Order lookup reuses phone prompts — only bind document steps with document context. */
@@ -484,6 +510,7 @@ export function shouldDeferDocumentFlowToOrderLookup(
   history: HistoryMessage[] = [],
   body = ""
 ) {
+  if (shouldReleaseStructuredDocumentFlow(history, body)) return true
   if (
     isOrderNumberRequestPending(history) &&
     (isOrderReferencePresentation(body) || Boolean(extractOrderNumber(body)))
@@ -494,10 +521,23 @@ export function shouldDeferDocumentFlowToOrderLookup(
   return !hasExplicitDigitalDocumentRequestInThread(history, body)
 }
 
+function isExplicitDocumentCopyAsk(body: string) {
+  const text = stripLeadingGreetings(body.trim())
+  if (!text) return false
+  return (
+    /(?:של(?:ח|וח|חו|לח|וף)|(?:ל)?של(?:ח|וח|חו)|ה(?:ביא|וציא)|(?:ה)?עתק|עותק)/i.test(text) ||
+    /(?:צריך|רוצ(?:ה|ים|ות)|(?:ת(?:וכל|בדוק)?|(?:א)?(?:פשר|וכל)))(?:\s+\S+){0,8}\s*(?:בבקשה\s+)?(?:א(?:ת|ת)?\s+)?(?:ה)?(?:העתק|עותק|קבלה|חשבונית)/i.test(
+      text
+    ) ||
+    /receipt|invoice\s+copy|copy\s+of\s+(?:my\s+)?(?:receipt|invoice)/i.test(text)
+  )
+}
+
 /** Customer wants a digital receipt / invoice copy (קבלה = receipt, not admission). */
 export function isDigitalDocumentRequest(body: string) {
   const text = stripLeadingGreetings(body.trim())
   if (!text) return false
+  if (shouldReleaseStructuredDocumentFlow([], text)) return false
   if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
   if (isReceiptReferencePresentation(text)) return false
   if (isOrderReferencePresentation(text)) return false
@@ -538,12 +578,12 @@ export function activeDigitalDocumentRequest(history: HistoryMessage[]) {
 
 function hasDocumentFlowContext(history: HistoryMessage[]) {
   if (shouldDeferDocumentFlowToOrderLookup(history)) return false
+  if (!hasAssistantDocumentFlowInThread(history)) return false
   const state = computeDocumentFlowState(history)
   return (
-    state.active ||
-    activeDigitalDocumentRequest(history) ||
     state.typeQuestionSent ||
     state.channelQuestionSent ||
+    state.purchaseLocationQuestionSent ||
     state.phoneQuestionSent ||
     state.alternatePhoneQuestionSent
   )
@@ -593,38 +633,32 @@ export function isDocumentFlowMisunderstandingPending(history: HistoryMessage[])
   return computeDocumentFlowState(history).misunderstandingSinceLastQuestion
 }
 
-/** Deterministic document copy flow — any step after the first ask. */
+/** Structured document flow — continue only after the bot opened intake, not from customer nouns alone. */
 export function isActiveDigitalDocumentFlow(
   history: HistoryMessage[] = [],
   body = ""
 ) {
   if (shouldDeferDocumentFlowToOrderLookup(history, body)) return false
+  if (shouldReleaseStructuredDocumentFlow(history, body)) return false
+  if (!hasAssistantDocumentFlowInThread(history)) return false
 
   const settledState = computeDocumentFlowState(history)
   if (
     settledState.phoneConfirmed &&
-    !isDigitalDocumentRequest(body) &&
+    !isExplicitDocumentCopyAsk(body) &&
     (outboundDocumentDeliveryInThread(history) ||
       documentLookupFailureOfferedInThread(history))
   ) {
     return false
   }
 
-  if (isDigitalDocumentRequest(body)) return true
-  if (
-    parseDocumentTypeFromText(body) &&
-    (mentionsDocumentRequestIntent(body) || isDocumentTypeSelection(body))
-  ) {
-    return true
-  }
-  if (activeDigitalDocumentRequest(history)) return true
   if (isDocumentTypeQuestionPending(history)) return true
   if (isDocumentChannelQuestionPending(history)) return true
   if (isDocumentPurchaseLocationQuestionPending(history)) return true
   if (isDocumentPhoneLookupPending(history)) return true
   if (isAlternateDocumentPhonePending(history)) return true
   if (isDocumentFlowMisunderstandingPending(history)) return true
-  if (isDocumentTypeSelection(body) && activeDigitalDocumentRequest(history)) return true
+  if (isDocumentTypeSelection(body) && settledState.typeQuestionSent) return true
   return false
 }
 

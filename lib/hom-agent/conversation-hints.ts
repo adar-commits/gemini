@@ -34,6 +34,7 @@ import {
   isOutboundDocumentDeliveryMessage,
   lastAssistantWasOutboundDocumentDelivery,
   shouldDeferDocumentFlowToOrderLookup,
+  shouldReleaseStructuredDocumentFlow,
 } from "@/lib/agents/digital-document-flow"
 import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
 import {
@@ -464,7 +465,16 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) {
+  if (postPurchaseKind === "missing_item") {
+    lines.push(
+      "MISSING ITEM / PARTIAL DELIVERY: customer cites receipt/invoice as proof of what they ordered — service case, NOT a document copy request. lookup_order_status → rep summary → human_service. Never fetch_digital_document or document type menu."
+    )
+  }
+
+  if (
+    (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) &&
+    !shouldReleaseStructuredDocumentFlow(history, body)
+  ) {
     lines.push(
       "DOCUMENT COPY (קבלה / חשבונית / העתק): fetch_digital_document only — getDocument API by phone. Never lookup_order_status or getOrders for invoice/receipt requests."
     )

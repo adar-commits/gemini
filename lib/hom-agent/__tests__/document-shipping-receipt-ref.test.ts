@@ -85,6 +85,6 @@ describe("document flow vs shipping receipt reference (530989504)", () => {
   it("still treats explicit receipt copy requests as document flow", () => {
     assert.equal(isDigitalDocumentRequest("אפשר לשלוח קבלה בבקשה?"), true)
     assert.equal(isDigitalDocumentRequest("קבלה שלי"), true)
-    assert.equal(isActiveDigitalDocumentFlow([], "אפשר לשלוח קבלה בבקשה?"), true)
+    assert.equal(isActiveDigitalDocumentFlow([], "אפשר לשלוח קבלה בבקשה?"), false)
   })
 })

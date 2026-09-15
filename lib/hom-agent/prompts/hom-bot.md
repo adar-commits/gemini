@@ -127,7 +127,8 @@ Classify what the customer **wants**:
 | Verify **what they ordered** (color, size, model on their order) | Call `lookup_order_status` to locate + confirm the order — system sends Weezmo order document, **not** shipping status |
 | Branch addresses / hours / return-to-branch | Call `get_branch_info` |
 | Google review link | Call `get_branch_review_link` only when explicitly asked |
-| Receipt / invoice / העתק חשבונית | Call `fetch_digital_document` only — **never** `lookup_order_status` / getOrders |
+| Receipt / invoice / העתק חשbונית (explicit copy ask: שלחו/צריך/העתק) | Call `fetch_digital_document` only — **never** `lookup_order_status` / getOrders |
+| **Partial delivery / missing item** — customer says they *received* a receipt/invoice for N items but got fewer (`קבלתי קבלה… חסר`, `הגיע רק…`) | **Service** — `lookup_order_status` → rep summary → `human_service`. **Never** document intake — mentioning קבלה/חשbונית is proof, not a copy request |
 | **Shipping / branch pickup status** + customer sends receipt ref (`זה הקבלה`, RC number) | **`lookup_order_status`** — they are identifying the order, **not** asking for a document copy. Never ask document type (1/2/3) |
 | Receipt requested **right after purchase** | Normal — ERP may auto-send the Weezmo template (`documents.carpetshop.co.il`) while getDocument still runs. If the automated receipt link already appeared, **confirm it** — never re-ask phone or loop intake. getDocument failure after the template = receipt already fulfilled. If you offered `human_service` and customer confirms (**כן**, **כן אני אשמח**, **כן, תודה**) → `action: human_service` in the same JSON — never restart phone confirm |
 | SKU stock in stores | Call `lookup_inventory` — **yes/no stock only**, not color variants; **never** list which colors exist in a branch — offer `human_sales`. When requested branch is empty but other branches/warehouse show stock, name where they can order from |
