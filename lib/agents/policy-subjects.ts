@@ -349,3 +349,27 @@ export function buildCarpetRentalPolicyReply() {
 export function isCarpetRentalQuestion(body: string) {
   return matchPolicySubjects(body).includes("carpet_rental")
 }
+
+/** Customer asks whether HoM offers in-house rug cleaning / odor treatment — not general care how-to. */
+export function isRugCleaningServiceQuestion(body: string) {
+  const t = body.trim()
+  if (!t) return false
+  if (
+    /(?:אתם|אתן|החברה|שירות|מציע|מבצע|עוש|ל(?:עשות|בצע|בדוק)).*(?:מנק|ניק(?:וי|ות)).*(?:שטיח|שאגי|רג)/i.test(
+      t
+    )
+  ) {
+    return true
+  }
+  if (
+    /(?:מנק|ניק(?:וי|ות)).*(?:שטיח|שאגי).*(?:שלכם|אצלכם|מטעם|אתם|בחברה|כולל)/i.test(
+      t
+    )
+  ) {
+    return true
+  }
+  if (/נטרול\s*(?:של\s*)?ריח/i.test(t) && /(?:ניקוי|מנק|שטיח|שאגי)/i.test(t)) {
+    return true
+  }
+  return false
+}

@@ -69,6 +69,7 @@ import {
 import {
   isCarpetRentalQuestion,
   isReturnExchangePolicyFaqQuestion,
+  isRugCleaningServiceQuestion,
 } from "@/lib/agents/policy-subjects"
 import {
   endsWithOptionalFollowUpOffer,
@@ -521,6 +522,12 @@ export function buildConversationHints(input: {
   if (isCarpetRentalQuestion(body)) {
     lines.push(
       "Carpet rental / try-before-buy (customer asked explicitly): answer from KB (case-by-case via sales advisor). Never 'אין לי מידע' or branch hours dump. Never volunteer rental when comparing product links."
+    )
+  }
+
+  if (isRugCleaningServiceQuestion(body)) {
+    lines.push(
+      "RUG CLEANING SERVICE FAQ: HoM does not clean rugs or do odor neutralization in-house. Answer warmly from carpet-products-faq — pro dry cleaning for general care; spot clean with alcohol-free wipe or microfiber + warm water + dish soap. React first (שאלה טובה / הבנתי), everyday Hebrew — never 'אין לי מידע על', 'מטעם החברה', or 'לא שירות שאנחנו מבצעים בעצמנו'. Simple care FAQ — no proactive handoff (רוצים שאעביר…); passive 'אם תרצו עוד משהו — כאן' only."
     )
   }
 
