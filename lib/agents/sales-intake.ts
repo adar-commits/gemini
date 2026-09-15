@@ -1657,7 +1657,14 @@ export function buildConfirmationSummary(intake: SalesIntake) {
     summary += ` ${tail.join(", ")}`
   }
 
-  return `אוקיי, אז לסיכום ${summary}. אני צודק?`
+  return `${formatSalesHandoffSummary(summary)}`
+}
+
+const SALES_HANDOFF_TAIL =
+  "מעביר/ה עכשיו ליועץ מכירות שימשיך מכאן."
+
+function formatSalesHandoffSummary(summaryBody: string) {
+  return `אוקיי, אז לסיכום ${summaryBody}.\n\n${SALES_HANDOFF_TAIL}`
 }
 
 export function buildSizeExchangeConfirmationSummary(intake: SalesIntake) {
@@ -1669,7 +1676,7 @@ export function buildSizeExchangeConfirmationSummary(intake: SalesIntake) {
   let summary = `צריך ${product}${space}`
   if (sizeLabel) summary += ` — מידה משוערת: ${sizeLabel}`
   if (intake.roomPhotoReceived) summary += ", עם תמונת חלל"
-  return `אוקיי, אז לסיכום ${summary}. אני צודק?`
+  return formatSalesHandoffSummary(summary)
 }
 
 function formatSizeForSummary(intake: SalesIntake) {
@@ -1735,8 +1742,9 @@ function formatColorForSummary(intake: SalesIntake) {
   return `צבע מועדף ${intake.favoredColor}`
 }
 
+/** Legacy sales summaries that still ask confirm — new summaries hand off immediately. */
 const SALES_SUMMARY_CONFIRM_RE =
-  /האם (?:זה |הכל )?נכון(?:\s+עד\s+כה)?|(?:^|[\n])?(?:אז\s+)?לסיכום(?:\s+עבור\s+יועץ)?/i
+  /(?:האם (?:זה |הכל )?נכון(?:\s+עד\s+כה)?|אני צודק\s*\?)/i
 
 export function isConfirmationPending(history: HistoryMessage[]) {
   if (isPostPurchaseIntentConfirmPending(history)) return false
@@ -1761,7 +1769,15 @@ function openingAckPrefix(history: HistoryMessage[], intake: SalesIntake, nextQu
   return "אוקיי הבנתי, "
 }
 
-export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
+export type SalesIntakeTurnResult = {
+  reply: string
+  action: "reply" | "human_sales"
+}
+
+export function buildSalesIntakeTurnResult(
+  history: HistoryMessage[],
+  body: string
+): SalesIntakeTurnResult {
   const intake = extractSalesIntake(history, body)
   const pendingKind = lastIntakeQuestionKind(history)
   if (pendingKind && body.trim() && !intakeStepSatisfied(intake, pendingKind)) {
@@ -1835,7 +1851,10 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
     const summary = sizeExchange
       ? buildSizeExchangeConfirmationSummary(intake)
       : buildConfirmationSummary(intake)
-    return correctionPrefix + recoveryPrefix + summary
+    return {
+      reply: (correctionPrefix + recoveryPrefix + summary).trimEnd(),
+      action: "human_sales",
+    }
   }
 
   const question = formatIntakeQuestionReply(history, next, nextKind)
@@ -1843,7 +1862,11 @@ export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
     !intro && !answerAckPrefix ? openingAckPrefix(history, intake, question) : ""
   const reply = intro ? `${intro}\n${question}` : `${openingPrefix}${question}`
   const combined = `${correctionPrefix}${recoveryPrefix}${answerAckPrefix}${reply}`
-  return combined.trimEnd()
+  return { reply: combined.trimEnd(), action: "reply" }
+}
+
+export function buildSalesIntakeReply(history: HistoryMessage[], body: string) {
+  return buildSalesIntakeTurnResult(history, body).reply
 }
 
 function intakeAnswerAcknowledgment(lastKind: string, body: string) {
@@ -1963,21 +1986,34 @@ function sanitizePhotoIntakeContinuation(continued: string) {
 }
 
 /** Customer attached a room photo during the sales quiz — never trigger order lookup. */
+export function buildSalesPhotoReceivedTurnResult(
+  history: HistoryMessage[],
+  body: string,
+  turn?: UserTurn
+): SalesIntakeTurnResult {
+  const ack = `${buildSalesPhotoAck(history, turn ?? { text: body, media: [] })}\n`
+  const intakeTurn = buildSalesIntakeTurnResult(
+    history,
+    bodyForPhotoIntakeContinuation(body, turn)
+  )
+  const continued = sanitizePhotoIntakeContinuation(intakeTurn.reply)
+  if (continued.includes("קיבלתי את התמונה") || continued.includes("קיבלתי —")) {
+    return { reply: continued, action: intakeTurn.action }
+  }
+  if (continued.startsWith("*הום בוט :)")) {
+    const header = "*הום בוט :)*\n"
+    return {
+      reply: `${header}${ack}${continued.slice(header.length).replace(/^\n+/, "")}`,
+      action: intakeTurn.action,
+    }
+  }
+  return { reply: `${ack}${continued}`, action: intakeTurn.action }
+}
+
 export function buildSalesPhotoReceivedReply(
   history: HistoryMessage[],
   body: string,
   turn?: UserTurn
 ) {
-  const ack = `${buildSalesPhotoAck(history, turn ?? { text: body, media: [] })}\n`
-  const continued = sanitizePhotoIntakeContinuation(
-    buildSalesIntakeReply(history, bodyForPhotoIntakeContinuation(body, turn))
-  )
-  if (continued.includes("קיבלתי את התמונה") || continued.includes("קיבלתי —")) {
-    return continued
-  }
-  if (continued.startsWith("*הום בוט :)")) {
-    const header = "*הום בוט :)*\n"
-    return `${header}${ack}${continued.slice(header.length).replace(/^\n+/, "")}`
-  }
-  return `${ack}${continued}`
+  return buildSalesPhotoReceivedTurnResult(history, body, turn).reply
 }

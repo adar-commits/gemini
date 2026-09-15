@@ -29,8 +29,8 @@ import {
   isPostPurchaseAlternateSizeThread,
 } from "@/lib/agents/post-purchase-alt-size"
 import {
-  buildSalesIntakeReply,
-  buildSalesPhotoReceivedReply,
+  buildSalesIntakeTurnResult,
+  buildSalesPhotoReceivedTurnResult,
   isAwaitingSalesIntakeAnswer,
   isConfirmationPending,
   shouldAckSalesRoomPhotoWithoutVision,
@@ -298,7 +298,8 @@ export function runStructuredSalesIntakePreTurn(input: {
     return { kind: "skip", response: null }
   }
 
-  const replyBody = buildSalesIntakeReply(input.history, body).trim()
+  const turnResult = buildSalesIntakeTurnResult(input.history, body)
+  const replyBody = turnResult.reply.trim()
   if (!replyBody) {
     return { kind: "skip", response: null }
   }
@@ -311,7 +312,7 @@ export function runStructuredSalesIntakePreTurn(input: {
   return {
     kind: "handled",
     reply,
-    action: "reply",
+    action: turnResult.action,
   }
 }
 
@@ -326,10 +327,25 @@ export function runStructuredSalesPhotoPreTurn(input: {
   }
 
   const body = summarizeTurn(input.turn)
+  const turnResult = buildSalesPhotoReceivedTurnResult(
+    input.history,
+    body,
+    input.turn
+  )
+  const replyBody = turnResult.reply.trim()
+  if (!replyBody) {
+    return { kind: "skip", response: null }
+  }
+
+  const reply =
+    replyBody.startsWith(CUSTOMER_HEADER) || replyBody.startsWith("*הום בוט :)")
+      ? replyBody
+      : `${CUSTOMER_HEADER}\n${replyBody}`
+
   return {
     kind: "handled",
-    reply: buildSalesPhotoReceivedReply(input.history, body, input.turn),
-    action: "reply",
+    reply,
+    action: turnResult.action,
   }
 }
 

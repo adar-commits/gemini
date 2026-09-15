@@ -140,7 +140,13 @@ export function buildConversationHints(input: {
 
   if (isConfirmationPending(history)) {
     lines.push(
-      "SALES SUMMARY STEP: intake recap is waiting for confirm (אני צודק? / האם זה נכון עד כה?) — on customer confirm (כן/נכון/בדיוק) set action human_sales immediately with a short transfer line. No extra handoff question. If they stay silent, the system auto-assigns to מכירות (no inactivity ping)."
+      "LEGACY SALES SUMMARY CONFIRM: older thread still has אני צודק? — on customer confirm (כן/נכון/בדיוק) set action human_sales immediately. New intake must never ask confirm."
+    )
+  }
+
+  if (hasOngoingSalesIntake(history)) {
+    lines.push(
+      "SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר/ה ליועץ מכירות) — never אני צודק? and never wait for approval."
     )
   }
 

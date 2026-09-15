@@ -38,8 +38,10 @@ describe("sales intake pre-turn (532390988 — placeholder stub)", () => {
 
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
+    assert.equal(result.action, "human_sales")
     assert.doesNotMatch(result.reply, /placeholder/i)
-    assert.match(result.reply, /לסיכום|אני צודק|דרישות מיוחדות|תמונה/i)
+    assert.match(result.reply, /לסיכום|מעביר|דרישות מיוחדות|תמונה/i)
+    assert.doesNotMatch(result.reply, /אני צודק/i)
   })
 
   it("does not hijack cold-start sales questions", () => {
