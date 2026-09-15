@@ -2,6 +2,30 @@
 
 Use for deterministic router tests + shadow comparison before deploy.
 
+## Council QA workflow (Conversation Contract Registry)
+
+Every production bug becomes a **versioned contract** in `lib/hom-agent/contracts/registry.ts`.
+
+### Operator workflow
+
+1. Customer complains → `npm run contracts:import -- --session CONVERSATION_ID` (or `--phone`)
+2. Tighten assertions in the draft JSON under `lib/hom-agent/contracts/drafts/`
+3. Promote draft into `registry.ts`
+4. Fix in order: **runtime → hints/prompt → contract** (see `.cursor/rules/conversation-fix-playbook.mdc`)
+5. `npm run test:contracts` green → push → no manual WhatsApp for that class
+
+### Promotion rule (Enforcer)
+
+- **First occurrence:** hint/prompt fix allowed **only with a new contract**
+- **Second occurrence of same bug class with hint-only fix:** **must** add structured runtime guard (pre-turn, FAQ coercion, document defer) before closing
+- **Third occurrence:** runtime guard mandatory — no exceptions
+
+### CI gate
+
+- Vercel `prebuild` runs `test:gold && test:contracts`
+- Legislator collision pairs: `lib/hom-agent/__tests__/legislator-collision-pairs.test.ts`
+- Sentinel nightly: `/api/cron/violation-scanner` (GOKU ≤6 + violation patterns → draft contracts)
+
 ## Routing (expected department)
 
 | # | Customer message | Expected route |

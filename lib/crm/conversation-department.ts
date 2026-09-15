@@ -1,7 +1,21 @@
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { getAgentSupabase } from "@/lib/agents/supabase"
-import { isServiceOrderIdentificationFlow } from "@/lib/agents/order-lookup"
-import { hasOngoingSalesIntake } from "@/lib/agents/sales-intake"
+import {
+  isMissingOrPartialDeliveryComplaint,
+} from "@/lib/agents/inquiry-intent"
+import {
+  isOrderStatusDeliveredInThread,
+  isServiceOrderIdentificationFlow,
+} from "@/lib/agents/order-lookup"
+import {
+  isProductInventoryQuestion,
+  isSpecificProductMention,
+} from "@/lib/agents/product-handoff"
+import {
+  hasOngoingSalesIntake,
+  isAwaitingSalesIntakeAnswer,
+} from "@/lib/agents/sales-intake"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
@@ -75,6 +89,23 @@ export function resolveCrmDepartmentForTurn(input: {
 }): { department: CrmDepartmentSlug; source: Exclude<CrmDepartmentSource, "handoff"> } | null {
   if (input.llmDepartment) {
     return { department: input.llmDepartment, source: "llm" }
+  }
+
+  if (
+    isOrderStatusDeliveredInThread(input.history) &&
+    (isSpecificProductMention(input.body, input.history) ||
+      isProductInventoryQuestion(input.body))
+  ) {
+    return { department: "sales", source: "structured" }
+  }
+
+  if (
+    (isMissingOrPartialDeliveryComplaint(input.body) ||
+      isShippingStatusQuestion(input.body)) &&
+    hasOngoingSalesIntake(input.history) &&
+    !isAwaitingSalesIntakeAnswer(input.history)
+  ) {
+    return { department: "service", source: "structured" }
   }
 
   if (hasOngoingSalesIntake(input.history)) {
