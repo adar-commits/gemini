@@ -46,6 +46,10 @@ describe("returns portal vs exchange routing", () => {
   it("includes portal in return cancellation policy helper", () => {
     const reply = buildReturnCancellationPolicyReply()
     assert.match(reply, new RegExp(RETURNS_PORTAL_URL.replace(/\./g, "\\.")))
+    assert.match(reply, /יש לפתוח בקשת החזרה/)
+    assert.match(reply, /ללא שימוש, באריזתו המקורית/)
+    assert.doesNotMatch(reply, /שלם/)
+    assert.doesNotMatch(reply, /אפשר לפתוח/)
   })
 
   it("opens dissatisfaction rescue with exchange, return paths, and portal", () => {
