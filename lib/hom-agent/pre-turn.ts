@@ -29,9 +29,13 @@ import {
   isPostPurchaseAlternateSizeThread,
 } from "@/lib/agents/post-purchase-alt-size"
 import {
+  buildSalesIntakeReply,
   buildSalesPhotoReceivedReply,
+  isAwaitingSalesIntakeAnswer,
   isConfirmationPending,
   shouldAckSalesRoomPhotoWithoutVision,
+  shouldUseSalesIntakeFastPath,
+  turnHasCustomerImage,
 } from "@/lib/agents/sales-intake"
 import {
   buildDissatisfactionRescuePortalReply,
@@ -196,6 +200,7 @@ function shouldBindInactivityReplyToPriorQuestion(history: HistoryMessage[]) {
   if (
     isHumanHandoffPending(history) ||
     isConfirmationPending(history) ||
+    isAwaitingSalesIntakeAnswer(history) ||
     isOrderConfirmationPending(history) ||
     isServiceHandoffSummaryPending(history) ||
     isPostPurchaseIntentConfirmPending(history) ||
@@ -269,6 +274,45 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
   }
 
   return { kind: "skip", response: null }
+}
+
+/**
+ * Mid-quiz sales intake — bind customer answer to the next scripted question or summary.
+ * Uses bot pending question state only (not customer-intent regex).
+ */
+export function runStructuredSalesIntakePreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  lastAgent?: AgentId | null
+}): PreTurnResult {
+  if (turnHasCustomerImage(input.turn)) {
+    return { kind: "skip", response: null }
+  }
+
+  const body = summarizeTurn(input.turn)
+  if (isConfirmationPending(input.history)) {
+    return { kind: "skip", response: null }
+  }
+
+  if (!shouldUseSalesIntakeFastPath(body, input.history, input.lastAgent ?? null)) {
+    return { kind: "skip", response: null }
+  }
+
+  const replyBody = buildSalesIntakeReply(input.history, body).trim()
+  if (!replyBody) {
+    return { kind: "skip", response: null }
+  }
+
+  const reply =
+    replyBody.startsWith(CUSTOMER_HEADER) || replyBody.startsWith("*הום בוט :)")
+      ? replyBody
+      : `${CUSTOMER_HEADER}\n${replyBody}`
+
+  return {
+    kind: "handled",
+    reply,
+    action: "reply",
+  }
 }
 
 /** Sales room photos — ack only, no vision analysis; continue intake. */

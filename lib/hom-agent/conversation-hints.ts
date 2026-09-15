@@ -87,6 +87,7 @@ import {
   extractSalesIntake,
   hasOngoingSalesIntake,
   hasRoomPhotoInHistory,
+  isAwaitingSalesIntakeAnswer,
   isSalesPhotoRequestPending,
 } from "@/lib/agents/sales-intake"
 import {
@@ -524,6 +525,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. Do NOT describe/analyze the image."
+    )
+  }
+
+  if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
+    lines.push(
+      "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Always a complete Hebrew question or summary — never stub words like placeholder/TODO."
     )
   }
 

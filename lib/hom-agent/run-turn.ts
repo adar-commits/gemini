@@ -42,6 +42,7 @@ import {
   runStructuredOrderLookupPreTurn,
   runStructuredPostPurchaseAltSizePreTurn,
   runStructuredReturnOptionsPreTurn,
+  runStructuredSalesIntakePreTurn,
   runStructuredSalesPhotoPreTurn,
 } from "@/lib/hom-agent/pre-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
@@ -284,6 +285,38 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_sales_photo",
+      },
+    })
+  }
+
+  const structuredSalesIntake = runStructuredSalesIntakePreTurn({
+    turn,
+    history,
+    lastAgent,
+  })
+
+  if (structuredSalesIntake.kind === "handled") {
+    const action = mapHomAction(structuredSalesIntake.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "sales",
+        userText: body,
+        assistantText: structuredSalesIntake.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredSalesIntake.reply,
+      action,
+      route: ["sales"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_sales_intake",
       },
     })
   }
