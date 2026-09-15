@@ -90,5 +90,16 @@ export function validatePriorityApiPayload(input: {
     return { ok: true as const, value: raw }
   }
 
+  if (input.actionType === "createSwitchRequest") {
+    try {
+      const parsed = JSON.parse(raw) as { phone?: unknown }
+      const phone = normalizedIsraeliMobilePhone(String(parsed.phone ?? ""))
+      if (!phone) return { ok: false as const, reason: "invalid_phone" as const }
+      return { ok: true as const, value: raw }
+    } catch {
+      return { ok: false as const, reason: "invalid_json" as const }
+    }
+  }
+
   return { ok: true as const, value: raw }
 }

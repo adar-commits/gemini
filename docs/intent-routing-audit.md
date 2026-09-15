@@ -28,7 +28,8 @@
 | `branch_list` | Addresses / hours | "איזה סניפים יש", "כתובת סניף נתניה" | T0 → `buildBranchReplyForText` | `branch_review_link` |
 | `branch_inventory` | SKU in which store | "יש 31501090-200290 בסניפים?" | T0 → Priority API | Sales handoff |
 | `order_status` | Where is my shipment | "איפה ההזמנה", "מה זה אומר" after status | Shipping flow + clarification | FAQ policy |
-| `dissatisfaction` | Don't like it, no defect | "לא מתאים לי" | FAQ rescue → portal | Service defect |
+| `dissatisfaction` | Don't like it, no defect | "לא מתאים לי" | FAQ rescue → portal or exchange quiz | Service defect |
+| `exchange_execution` | Swap after dissatisfaction menu | "החלפה" after two-option menu | Order confirm → A/B/C quiz → `createSwitchRequest` → `human_sales` | Return portal, policy FAQ, sales intake |
 | `defect` | Damage / wrong / missing | "השטיח קרוע", "קיבלתי רק חלק" | Service | FAQ policy |
 | `sales_intake` | New purchase help | "רוצה שטיח לסלון", "גדול לנו" | Sales intake | Order lookup |
 | `shipping_policy` | Delivery rules/cost | "כמה עולה משלוח" | T0 KB snippet | Order status |
@@ -113,6 +114,7 @@ Pulled ~100 Landbot messages. Failures vs fixes:
 | "לינק לדירוג סניף סגולה" / "חוות דעת על סניף סגולה" | Branch address | T0 `isBranchReviewLinkRequest` → writereview URL |
 | "הגיע לי… רוצה להחזיר מה עלי/מה אפשר לעשות?" | Sometimes Service phone lookup | T0 `isReturnPolicyQuestion` → portal-first FAQ |
 | "לא ממש אוהב את השטיח" | Sometimes short LLM "החלפה או החזרה?" | T0 `buildDissatisfactionRescueReply()` always |
+| "החלפה" after rescue menu | Immediate `human_sales` | Exchange intake: order confirm → A/B/C → `createSwitchRequest` → AB- id + sales |
 | "הזמנתי לפני שבוע… לא קיבלתי משלוח" | Greeting only (no reply path) | `isShippingStatusQuestion` + empty-reply fallback |
 | Return after SO26020888 confirmed | Immediate "העביר לנציג?" | Portal policy + optional "כתבו נציג" |
 | Bare "664483" mid-flow | Assumed / wrong handoff | Clarify: "זה מספר ההזמנה?" |

@@ -90,7 +90,7 @@ function insistsOnReturn(body: string) {
   )
 }
 
-export type DissatisfactionRescueFollowUp = "sales" | "portal" | "service"
+export type DissatisfactionRescueFollowUp = "exchange_intake" | "portal" | "service"
 
 export function resolveDissatisfactionRescueFollowUp(
   body: string,
@@ -98,7 +98,7 @@ export function resolveDissatisfactionRescueFollowUp(
 ): DissatisfactionRescueFollowUp | null {
   if (stage === "sales_offer") {
     if (insistsOnReturn(body)) return "portal"
-    if (wantsSalesConsultation(body)) return "sales"
+    if (wantsSalesConsultation(body)) return "exchange_intake"
     return null
   }
 

@@ -40,6 +40,7 @@ import {
   resolveDissatisfactionRescueFollowUp,
   shouldOfferReturnOptionsFirst,
 } from "@/lib/agents/dissatisfaction"
+import { buildExchangeIntakeStartReply } from "@/lib/agents/exchange-intake"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
   lastAssistantWasOutboundDocumentDelivery,
@@ -306,11 +307,11 @@ export function runStructuredReturnOptionsPreTurn(input: {
         action: "reply",
       }
     }
-    if (followUp === "sales") {
+    if (followUp === "exchange_intake") {
       return {
         kind: "handled",
-        reply: `${CUSTOMER_HEADER}\nמעולה! אשמח להעביר את השיחה לנציג מכירות לייעוץ 😊`,
-        action: "human_sales",
+        reply: buildExchangeIntakeStartReply(),
+        action: "reply",
       }
     }
     return { kind: "skip", response: null }

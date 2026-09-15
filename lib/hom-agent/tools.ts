@@ -7,6 +7,7 @@ import { executeFetchDigitalDocument } from "@/lib/hom-agent/tools/document"
 import { executeGetBranchInfo } from "@/lib/hom-agent/tools/branches"
 import { executeGetBranchReviewLink } from "@/lib/hom-agent/tools/review-link"
 import { executeGetCampaigns } from "@/lib/hom-agent/tools/campaigns"
+import { executeCreateSwitchRequest } from "@/lib/hom-agent/tools/switch-request"
 
 export type HomAgentToolContext = {
   body: string
@@ -106,6 +107,37 @@ export function createHomAgentTools(context: HomAgentToolContext) {
         executeGetCampaigns({
           body: context.body,
           campaignHint,
+        }),
+    }),
+    create_switch_request: tool({
+      description:
+        "Create an exchange (החלפה) switch request in Priority after dissatisfaction menu → customer chose החלפה → order confirmed → A/B/C quiz complete. Never for returns portal path, policy FAQ, defect/service, or new-purchase sales intake.",
+      inputSchema: z.object({
+        exchangeKind: z
+          .enum(["same_model_color", "same_model_size", "different_model"])
+          .describe("A=same model different color, B=same model/color different size, C=different model"),
+        targetSku: z
+          .string()
+          .optional()
+          .describe("Target SKU for kind A/B — optional if customer cannot find it"),
+        reasonCode: z
+          .enum(["changed_mind", "quality_insufficient", "different_from_website"])
+          .optional()
+          .describe("Required mapping for kind C — infer from customer reason text"),
+        customerReasonText: z
+          .string()
+          .optional()
+          .describe("Free-text reason for kind C — required before calling"),
+      }),
+      execute: async ({ exchangeKind, targetSku, reasonCode, customerReasonText }) =>
+        executeCreateSwitchRequest({
+          body: context.body,
+          phone: context.phone,
+          history: context.history,
+          exchangeKind,
+          targetSku,
+          reasonCode,
+          customerReasonText,
         }),
     }),
   }

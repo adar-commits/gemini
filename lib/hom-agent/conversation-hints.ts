@@ -38,6 +38,16 @@ import {
   shouldOfferReturnOptionsFirst,
 } from "@/lib/agents/dissatisfaction"
 import {
+  isDissatisfactionMenuPending,
+  isExchangeIntakeActive,
+  isExchangeKindPending,
+  isExchangeOrderRequired,
+  isExchangeReasonPending,
+  isExchangeReadyForSwitchRequest,
+  isExchangeSkuPending,
+  needsExchangeKindQuestion,
+} from "@/lib/agents/exchange-intake"
+import {
   isCasualGreeting,
   isCasualSmallTalk,
   extractLeadingGreeting,
@@ -337,9 +347,41 @@ export function buildConversationHints(input: {
     lines.push(
       "RETURN OPTIONS FIRST: bare return or dissatisfaction without defect — open with the two-option playbook (exchange + sales advisor; return via branch/courier + returns portal). Never ask for order number on this turn. Never lookup_order_status until they choose return execution or pickup-wait service."
     )
+  } else if (isDissatisfactionMenuPending(history)) {
+    lines.push(
+      "EXCHANGE INTAKE MENU PENDING: bind החלפה semantically to exchange execution quiz; bind החזרה to portal/branch return path only. Never create_switch_request on this turn."
+    )
+  } else if (isExchangeOrderRequired(history)) {
+    lines.push(
+      "EXCHANGE ORDER REQUIRED: customer chose החלפה — call lookup_order_status until order card is confirmed. No create_switch_request yet."
+    )
+  } else if (needsExchangeKindQuestion(history)) {
+    lines.push(
+      "EXCHANGE KIND PENDING: order confirmed — ask ONE question to classify A (same model, new color) / B (same model+color, new size) / C (different model). Accept paraphrases."
+    )
+  } else if (isExchangeKindPending(history)) {
+    lines.push(
+      "EXCHANGE KIND PENDING: classify the customer's reply as same_model_color / same_model_size / different_model this turn."
+    )
+  } else if (isExchangeSkuPending(history)) {
+    lines.push(
+      "EXCHANGE SKU PENDING (A/B): ask target SKU once gently — no consulting, no inventory lookup. If customer cannot find SKU, acknowledge and proceed without pushing."
+    )
+  } else if (isExchangeReasonPending(history)) {
+    lines.push(
+      "EXCHANGE REASON PENDING (C): must ask מה לא אהבתם before create_switch_request; map to reasonCode changed_mind | quality_insufficient | different_from_website."
+    )
+  } else if (isExchangeReadyForSwitchRequest(history, body)) {
+    lines.push(
+      "EXCHANGE READY FOR API: call create_switch_request now with exchangeKind + optional targetSku (A/B) or reasonCode + customerReasonText (C). On success reply with AB- id and action human_sales in same JSON."
+    )
+  } else if (isExchangeIntakeActive(history)) {
+    lines.push(
+      "Exchange intake active: stay on החלפה execution — no returns portal, no sales-intake quiz, no service defect playbook."
+    )
   } else if (isDissatisfactionRescuePending(history)) {
     lines.push(
-      "Dissatisfaction rescue pending: return choice → portal link; exchange/sales advisor → human_sales; explicit rep for return execution → service intake + lookup if needed."
+      "Dissatisfaction rescue pending: return choice → portal link; exchange → order confirm + A/B/C quiz + create_switch_request; explicit rep for return execution → service intake + lookup if needed."
     )
   } else if (isDissatisfactionWithoutDefect(body)) {
     lines.push(

@@ -9,6 +9,7 @@ import {
   getDissatisfactionRescueStage,
   shouldOfferReturnOptionsFirst,
 } from "@/lib/agents/dissatisfaction"
+import { isExchangeIntakeActive } from "@/lib/agents/exchange-intake"
 import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
@@ -76,11 +77,11 @@ export async function executeLookupOrderStatus(input: {
   }
 
   const rescueStage = getDissatisfactionRescueStage(history)
-  if (rescueStage === "sales_offer") {
+  if (rescueStage === "sales_offer" && !isExchangeIntakeActive(history)) {
     return {
       ok: false as const,
       error:
-        "Customer is choosing between exchange and return — use dissatisfaction playbook (portal for return, human_sales for exchange). Do NOT start order lookup yet.",
+        "Customer is choosing between exchange and return — use dissatisfaction playbook (portal for return; exchange → order lookup after they choose החלפה). Do NOT start order lookup until they choose.",
     }
   }
 

@@ -78,17 +78,22 @@ describe("bare return opens with options before order lookup (508713127)", () =>
     assert.match(result.reply, /returns\.carpetshop\.co\.il/)
   })
 
-  it("after options shown, exchange choice routes to sales", () => {
+  it("after options shown, exchange choice starts intake not immediate sales", () => {
     const history: HistoryMessage[] = [
       { role: "assistant", content: buildDissatisfactionRescueReply() },
     ]
-    assert.equal(resolveDissatisfactionRescueFollowUp("החלפה", "sales_offer"), "sales")
+    assert.equal(
+      resolveDissatisfactionRescueFollowUp("החלפה", "sales_offer"),
+      "exchange_intake"
+    )
     const result = runStructuredReturnOptionsPreTurn({
       turn: { text: "החלפה", media: [] },
       history,
     })
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
-    assert.equal(result.action, "human_sales")
+    assert.equal(result.action, "reply")
+    assert.match(result.reply, /נמשיך עם החלפה/)
+    assert.doesNotMatch(result.reply, /מעביר/)
   })
 })
