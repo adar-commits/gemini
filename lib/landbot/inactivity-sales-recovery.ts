@@ -2,8 +2,8 @@ import { getConversationContext } from "@/lib/agents/memory"
 import { executeInactivityHandoffRecovery } from "@/lib/landbot/inactivity-handoff-recovery"
 
 /**
- * Silent sales-funnel timeout: assign to מכירות instead of closing or leaving
- * the thread orphaned after "עדיין כאן?" with no reply.
+ * Sales-funnel timeout: silently assign to מכירות (no "עדיין כאן?" and no
+ * after-hours handoff message).
  */
 export async function executeInactivitySalesRecovery(input: {
   conversationId: string
@@ -14,5 +14,6 @@ export async function executeInactivitySalesRecovery(input: {
     ...input,
     history: context.history,
     lastAgent: context.lastAgent,
+    silent: true,
   })
 }

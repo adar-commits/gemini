@@ -172,12 +172,12 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
     return "human_handoff" as const
   }
 
-  if (!(await crmConversationAllowsServiceInactivity(payload.conversationId))) {
-    return "sales_crm_department" as const
-  }
+  const { getHistory, getConversationContext } = await import("@/lib/agents/memory")
+  const [history, context] = await Promise.all([
+    getHistory(payload.conversationId),
+    getConversationContext(payload.conversationId),
+  ])
 
-  const { getHistory } = await import("@/lib/agents/memory")
-  const history = await getHistory(payload.conversationId)
   if (isOrderConfirmationPending(history)) {
     return "order_confirmation_pending" as const
   }
@@ -186,10 +186,12 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
     return "customer_deferred" as const
   }
 
-  const { getConversationContext } = await import("@/lib/agents/memory")
-  const context = await getConversationContext(payload.conversationId)
   if (shouldSkipInactivityPingForSalesHandoff(context.history, context.lastAgent)) {
     return "sales_summary_handoff" as const
+  }
+
+  if (!(await crmConversationAllowsServiceInactivity(payload.conversationId))) {
+    return "sales_crm_department" as const
   }
 
   return null

@@ -247,13 +247,19 @@ async function hydrateSessionRows(
 /** Sessions idle longer than this silently expire — pinging them would be spam anyway. */
 const IDLE_SCAN_MAX_AGE_MS = 48 * 60 * 60 * 1000
 
-/** Sessions past the ping deadline — scanned by due time so fresh threads are not starved. */
+/** Prefer sessions that became due recently so backlog does not delay fresh threads. */
+const RECENT_PING_DUE_WINDOW_MS = 3 * 60 * 60 * 1000
+
+/** Sessions past the ping deadline — recent due first, then older backlog. */
 async function loadSessionsDueForPing(limit = PING_SCAN_LIMIT) {
   const supabase = getAgentSupabase()
   const recencyFloor = new Date(Date.now() - IDLE_SCAN_MAX_AGE_MS).toISOString()
   const pingCutoff = new Date(Date.now() - INACTIVITY_PING_MS).toISOString()
+  const recentDueFloor = new Date(
+    Date.now() - RECENT_PING_DUE_WINDOW_MS
+  ).toISOString()
 
-  const { data, error } = await supabase
+  const { data: recentDue, error: recentError } = await supabase
     .from("hom_agent_sessions")
     .select(
       "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
@@ -262,12 +268,37 @@ async function loadSessionsDueForPing(limit = PING_SCAN_LIMIT) {
     .is("inactivity_ping_sent_at", null)
     .not("last_assistant_at", "is", null)
     .lte("last_assistant_at", pingCutoff)
-    .gte("last_assistant_at", recencyFloor)
-    .order("last_assistant_at", { ascending: true })
+    .gte("last_assistant_at", recentDueFloor)
+    .order("last_assistant_at", { ascending: false })
     .limit(limit)
 
-  if (error) throw error
-  return hydrateSessionRows((data ?? []) as Omit<IdleSessionRow, "last_action">[])
+  if (recentError) throw recentError
+
+  const recentRows = (recentDue ?? []) as Omit<IdleSessionRow, "last_action">[]
+  if (recentRows.length >= limit) {
+    return hydrateSessionRows(recentRows)
+  }
+
+  const remaining = limit - recentRows.length
+  const { data: olderDue, error: olderError } = await supabase
+    .from("hom_agent_sessions")
+    .select(
+      "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+    )
+    .is("inactivity_closed_at", null)
+    .is("inactivity_ping_sent_at", null)
+    .not("last_assistant_at", "is", null)
+    .lt("last_assistant_at", recentDueFloor)
+    .gte("last_assistant_at", recencyFloor)
+    .order("last_assistant_at", { ascending: true })
+    .limit(remaining)
+
+  if (olderError) throw olderError
+
+  return hydrateSessionRows([
+    ...recentRows,
+    ...((olderDue ?? []) as Omit<IdleSessionRow, "last_action">[]),
+  ])
 }
 
 /** Retire sessions past the scan window so the pool self-cleans — no message sent. */

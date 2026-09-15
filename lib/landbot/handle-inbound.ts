@@ -39,7 +39,6 @@ import {
   ensureSessionMetaFromInbound,
   scheduleInactivityPingWatch,
 } from "@/lib/landbot/inactivity-watcher"
-import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
 import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
 import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
 import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
@@ -414,9 +413,6 @@ export async function handleLandbotInbound(
         if (shouldSuppressInactivityWatch(history)) {
           await clearInactivityWatchState(conversationId)
         } else {
-        const allowsServiceInactivity =
-          await crmConversationAllowsServiceInactivity(conversationId)
-        if (allowsServiceInactivity) {
           const session = await getSessionInactivityState(conversationId)
           const watchAssistantAt = session?.last_assistant_at
           if (watchAssistantAt) {
@@ -437,7 +433,6 @@ export async function handleLandbotInbound(
               })
             })
           }
-        }
         }
       }
     }

@@ -8,7 +8,10 @@ import {
 } from "@/lib/agents/memory"
 import { inferHumanHandoffAction } from "@/lib/agents/off-topic"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
-import { isConfirmationPending } from "@/lib/agents/sales-intake"
+import {
+  isActiveSalesConsultation,
+  isConfirmationPending,
+} from "@/lib/agents/sales-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { sendCustomerText } from "@/lib/landbot/client"
@@ -29,6 +32,7 @@ export function resolveInactivityHandoffAction(
   lastAgent: AgentId | null = null
 ): HumanHandoffAction {
   if (isConfirmationPending(history)) return "human_sales"
+  if (isActiveSalesConsultation(history, lastAgent)) return "human_sales"
   if (isPendingServiceHandoffSummary(history)) return "human_service"
   return inferHumanHandoffAction(history, lastAgent)
 }
@@ -50,12 +54,13 @@ export async function executeInactivityHandoffRecovery(input: {
   customerId: number
   history: HistoryMessage[]
   lastAgent?: AgentId | null
+  /** Sales quiz / מכירות timeout — CRM assign only, no customer message. */
+  silent?: boolean
 }) {
   const action = resolveInactivityHandoffAction(
     input.history,
     input.lastAgent ?? null
   )
-  const reply = buildInactivityHandoffRecoveryReply(action)
 
   await executeHumanHandoff({
     conversationId: input.conversationId,
@@ -63,13 +68,21 @@ export async function executeInactivityHandoffRecovery(input: {
     action,
   })
 
-  await sendCustomerText(input.customerId, reply)
-  await recordProactiveAssistantMessage({
-    conversationId: input.conversationId,
-    assistantText: reply,
-    action,
-  })
+  if (!input.silent) {
+    const reply = buildInactivityHandoffRecoveryReply(action)
+    await sendCustomerText(input.customerId, reply)
+    await recordProactiveAssistantMessage({
+      conversationId: input.conversationId,
+      assistantText: reply,
+      action,
+    })
+  }
+
   await clearInactivityWatchState(input.conversationId)
 
-  return { ok: true as const, sent: "handoff_recovery" as const, action }
+  return {
+    ok: true as const,
+    sent: input.silent ? ("silent_handoff" as const) : ("handoff_recovery" as const),
+    action,
+  }
 }

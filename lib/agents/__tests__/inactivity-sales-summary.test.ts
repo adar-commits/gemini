@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { shouldSkipInactivityPingForSalesHandoff } from "@/lib/agents/inactivity-policy"
+import { resolveInactivityHandoffAction } from "@/lib/landbot/inactivity-handoff-recovery"
 import { isSalesFinalSummaryPending } from "@/lib/agents/sales-intake"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { runPreTurnGuards } from "@/lib/hom-agent/pre-turn"
@@ -17,6 +18,24 @@ describe("sales summary inactivity", () => {
     ]
     assert.equal(isSalesFinalSummaryPending(history), true)
     assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "faq"), true)
+  })
+
+  it("skips ping during mid-quiz sales intake after photo (532118674)", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "הייי אני מעצבת פנים" },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nשמחה לשמוע — איך אפשר לעזור?",
+      },
+      { role: "user", content: "[media:image:photo.jpg]" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nתודה, קיבלתי את התמונה — אעביר ליועץ העיצוב.\nאוקיי הבנתי, לאיזה חלל מיועד המוצר? סלון, חדר שינה, או כל חלל אחר",
+      },
+    ]
+    assert.equal(shouldSkipInactivityPingForSalesHandoff(history, "faq"), true)
+    assert.equal(resolveInactivityHandoffAction(history, "faq"), "human_sales")
   })
 
   it("auto-assigns sales on אז לסיכום … אני צודק? summary step (no ping)", () => {

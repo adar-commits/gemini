@@ -33,13 +33,15 @@ export function shouldSkipInactivityClose(
 }
 
 /**
- * Pending handoff / service summary: skip "עדיין כאן?" — auto-assign the right
- * human queue after the quiet window so confirmed handoffs are not cooled down.
+ * Sales threads and pending handoffs: never send "עדיין כאן?". After the quiet
+ * window, inactivity recovery silently assigns human_sales (sales quiz / מכירות)
+ * or human_service (service summary pending).
  */
 export function shouldSkipInactivityPingForSalesHandoff(
   history: HistoryMessage[],
-  _lastAgent: AgentId | null = null
+  lastAgent: AgentId | null = null
 ) {
+  if (isActiveSalesConsultation(history, lastAgent)) return true
   if (isSalesFinalSummaryPending(history)) return true
   if (isPendingServiceHandoffSummary(history)) return true
   if (isHumanHandoffPending(history)) return true
