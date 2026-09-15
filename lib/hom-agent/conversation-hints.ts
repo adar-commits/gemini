@@ -118,6 +118,13 @@ import {
 } from "@/lib/agents/bot-voice"
 import type { HistoryMessage } from "@/lib/agents/types"
 
+function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" && /returns\.carpetshop\.co\.il/.test(message.content)
+  )
+}
+
 /** Dynamic turn hints — guide the LLM without bypassing it. */
 export function buildConversationHints(input: {
   history: HistoryMessage[]
@@ -471,7 +478,7 @@ export function buildConversationHints(input: {
     )
   } else if (isDissatisfactionRescuePending(history)) {
     lines.push(
-      "Dissatisfaction rescue pending: return choice → portal link; exchange → order confirm + A/B/C quiz + create_switch_request; explicit rep for return execution → service intake + lookup if needed."
+      "Dissatisfaction rescue pending: return choice → portal self-service (link + steps + fees/timeline); exchange → order confirm + A/B/C quiz + create_switch_request. Never proactively offer human_service to open the portal — passive 'אם נתקעים…' only; human_service when they explicitly ask for נציג or are stuck."
     )
   } else if (isDissatisfactionWithoutDefect(body)) {
     lines.push(
@@ -481,7 +488,13 @@ export function buildConversationHints(input: {
 
   if (postPurchaseKind === "return_request" && !shouldOfferReturnOptionsFirst(body, history)) {
     lines.push(
-      "Return execution after options: service intake — lookup_order_status only to identify מס׳ הזמנה if needed → rep summary → human_service."
+      "Return execution after options: portal self-service — link + how (branch/courier) + refund timeline. Never 'רוצים שאעביר… לפתוח את הבקשה'. Passive help if stuck; human_service only on explicit rep request or portal failure — not pickup-wait (that uses advanced service playbook)."
+    )
+  }
+
+  if (isReturnPortalSelfServiceThread(history) && /(?:החזר|זיכוי|הובלה|שליח|ביטול|פורטל|מעוניין|שטיח)/i.test(body)) {
+    lines.push(
+      "RETURN PORTAL SELF-SERVICE (530914111): continue guiding portal steps — no proactive handoff to open the request. Close with passive safety net: 'אם נתקעים בפתיחת הבקשה — אפשר לכתוב כאן ונעזור.' Bare כן after that is acknowledgment, not handoff confirm."
     )
   }
 
