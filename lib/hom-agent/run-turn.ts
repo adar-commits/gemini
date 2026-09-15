@@ -45,7 +45,10 @@ import {
   runStructuredSalesIntakePreTurn,
   runStructuredSalesPhotoPreTurn,
 } from "@/lib/hom-agent/pre-turn"
-import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
+import {
+  normalizeHomAgentCrmDepartment,
+  type HomAgentAction,
+} from "@/lib/hom-agent/output-schema"
 import {
   buildReturnPickupAwaitingServiceReply,
   extractServiceIntake,
@@ -249,6 +252,7 @@ export async function runHomAgentTurn(
       reply: structuredPostPurchaseAltSize.reply,
       action,
       route: ["sales"],
+      crmDepartment: "sales",
       metrics: {
         llm_calls: 0,
         profile: runtime.activeProfile,
@@ -281,6 +285,7 @@ export async function runHomAgentTurn(
       reply: structuredSalesPhoto.reply,
       action,
       route: ["sales"],
+      crmDepartment: "sales",
       metrics: {
         llm_calls: 0,
         profile: runtime.activeProfile,
@@ -313,6 +318,7 @@ export async function runHomAgentTurn(
       reply: structuredSalesIntake.reply,
       action,
       route: ["sales"],
+      crmDepartment: "sales",
       metrics: {
         llm_calls: 0,
         profile: runtime.activeProfile,
@@ -502,6 +508,7 @@ export async function runHomAgentTurn(
       ? mapHomAction("reply")
       : mapHomAction(output.action)
   const agent = mapHomAgent(output.action)
+  const crmDepartment = normalizeHomAgentCrmDepartment(output.crm_department)
   const reply = await rebuildReturnPickupServiceReplyIfNeeded({
     reply: output.reply,
     body,
@@ -527,6 +534,7 @@ export async function runHomAgentTurn(
     reply,
     action,
     route: [agent],
+    ...(crmDepartment ? { crmDepartment } : {}),
     metrics: {
       llm_calls: llmCalls,
       models_used: model ? [model] : undefined,

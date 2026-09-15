@@ -1,4 +1,7 @@
-import { setCrmConversationDepartment, type HandoffAction } from "@/lib/crm/conversation-department"
+import {
+  setCrmConversationDepartmentForHandoff,
+  type HandoffAction,
+} from "@/lib/crm/conversation-department"
 import { assignToHuman, unassignCustomer } from "@/lib/landbot/client"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 import { recordHumanAgentActivity } from "@/lib/landbot/human-takeover"
@@ -13,7 +16,7 @@ export async function executeHumanHandoff(input: {
   action: HandoffAction
 }) {
   try {
-    const dept = await setCrmConversationDepartment({
+    const dept = await setCrmConversationDepartmentForHandoff({
       conversationId: input.conversationId,
       action: input.action,
     })

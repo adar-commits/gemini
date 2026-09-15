@@ -61,6 +61,7 @@ describe("sales handoff on summary (532408613 — Astra smaller size)", () => {
       phone: "0542082048",
     })
     assert.match(hints ?? "", /SALES THREAD \(מכירות\)/i)
+    assert.match(hints ?? "", /crm_department.*sales/i)
     assert.match(hints ?? "", /human_sales in the \*\*same\*\* JSON/i)
   })
 })

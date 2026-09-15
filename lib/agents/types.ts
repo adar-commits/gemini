@@ -94,6 +94,8 @@ export type TurnMetrics = {
   routing_path?: string | null
 }
 
+export type CrmDepartmentSlug = "sales" | "service"
+
 export type AgentResponse = {
   ok: true
   agent: AgentId
@@ -105,6 +107,8 @@ export type AgentResponse = {
   metrics?: TurnMetrics
   /** True when outbound text was intentionally omitted (e.g. duplicate webhook). */
   duplicateSuppressed?: boolean
+  /** LLM-declared CRM department for early inbox tagging (internal — not customer-visible). */
+  crmDepartment?: CrmDepartmentSlug
 }
 
 export const MASTER_ROUTE_MAP: Record<MasterAction, AgentId | "shipping"> = {

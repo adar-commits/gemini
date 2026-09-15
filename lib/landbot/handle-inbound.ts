@@ -4,6 +4,7 @@ import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conver
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import type { UserTurn } from "@/lib/agents/user-turn"
@@ -371,6 +372,25 @@ export async function handleLandbotInbound(
 
     for (const text of outboundMessages) {
       await sendCustomerText(customerId, text)
+    }
+
+    if (
+      result.action !== "reset" &&
+      result.action !== "end" &&
+      !result.duplicateSuppressed
+    ) {
+      const historyForDepartment = await getHistory(conversationId)
+      await maybeSyncCrmDepartmentFromTurn({
+        conversationId,
+        llmDepartment: result.crmDepartment,
+        history: historyForDepartment,
+        body,
+      }).catch((error) => {
+        console.warn("[handle-inbound] crm department sync failed", {
+          conversationId,
+          error: error instanceof Error ? error.message : error,
+        })
+      })
     }
 
     if (result.action === "human_sales" || result.action === "human_service") {

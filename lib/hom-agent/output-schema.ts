@@ -10,9 +10,15 @@ export const HOM_AGENT_ACTIONS = [
 
 export type HomAgentAction = (typeof HOM_AGENT_ACTIONS)[number]
 
+export const CRM_DEPARTMENT_SLUGS = ["sales", "service"] as const
+
+export type CrmDepartmentSlug = (typeof CRM_DEPARTMENT_SLUGS)[number]
+
 export type HomAgentOutput = {
   reply: string
   action: HomAgentAction
+  /** Internal CRM inbox tag — omit when department is not 100% certain. */
+  crm_department?: CrmDepartmentSlug
 }
 
 export function homAgentOutputSchema() {
@@ -35,9 +41,22 @@ export function homAgentOutputSchema() {
           description:
             "Use reply for almost all turns. Never use end for thanks (תודה). end is rare — inactivity only.",
         },
+        crm_department: {
+          type: "string",
+          enum: [...CRM_DEPARTMENT_SLUGS],
+          description:
+            "Optional CRM inbox department when 100% certain: sales (מכירות) or service (שירות לקוחות). Omit on greetings, bare נציג, or ambiguous FAQ.",
+        },
       },
     }),
   })
+}
+
+export function normalizeHomAgentCrmDepartment(
+  value: unknown
+): CrmDepartmentSlug | undefined {
+  if (value === "sales" || value === "service") return value
+  return undefined
 }
 
 export function normalizeHomAgentAction(value: string): HomAgentAction {

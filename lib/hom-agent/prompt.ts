@@ -65,7 +65,8 @@ export function buildHomAgentSystemPrompt(input?: {
   parts.push(`
 ### FINAL OUTPUT
 After using tools when needed, respond with JSON only:
-{ "reply": "<Hebrew customer message>", "action": "reply" | "human_sales" | "human_service" | "reset" | "end" }
+{ "reply": "<Hebrew customer message>", "action": "reply" | "human_sales" | "human_service" | "reset" | "end", "crm_department"?: "sales" | "service" }
+Include crm_department only when department is 100% certain — omit otherwise.
 Never leave reply empty on substantive turns.`)
 
   return parts.join("")

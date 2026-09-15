@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   crmDepartmentForHandoff,
+  crmDepartmentSlugToLabel,
   crmDepartmentSyncEnabled,
 } from "@/lib/crm/conversation-department"
 
@@ -9,6 +10,11 @@ describe("crm conversation department", () => {
   it("maps human_sales to מכירות and human_service to שירות לקוחות", () => {
     assert.equal(crmDepartmentForHandoff("human_sales"), "מכירות")
     assert.equal(crmDepartmentForHandoff("human_service"), "שירות לקוחות")
+  })
+
+  it("maps crm department slugs to CRM labels", () => {
+    assert.equal(crmDepartmentSlugToLabel("sales"), "מכירות")
+    assert.equal(crmDepartmentSlugToLabel("service"), "שירות לקוחות")
   })
 
   it("is enabled by default", () => {

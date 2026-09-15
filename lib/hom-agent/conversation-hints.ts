@@ -76,6 +76,7 @@ import {
 import {
   buildServiceRepGoalNote,
   extractServiceIntake,
+  isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
@@ -146,7 +147,18 @@ export function buildConversationHints(input: {
 
   if (hasOngoingSalesIntake(history)) {
     lines.push(
-      "SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר/ה ליועץ מכירות) — never אני צודק? and never wait for approval."
+      'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר/ה ליועץ מכירות) — never אני צודק? and never wait for approval.'
+    )
+  }
+
+  if (
+    isServiceHandoffSummaryPending(history) ||
+    isServiceOrderIdentificationFlow(history, body) ||
+    isReturnPickupAwaitingThread(history, body) ||
+    isPostPurchaseServiceFlow(history)
+  ) {
+    lines.push(
+      'SERVICE THREAD (שירות לקוחות): include `"crm_department": "service"` in JSON this turn when continuing service intake or rep summary — not מכירות.'
     )
   }
 

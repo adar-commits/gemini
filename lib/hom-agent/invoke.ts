@@ -11,6 +11,7 @@ import { buildHomAgentSystemPrompt } from "@/lib/hom-agent/prompt"
 import {
   homAgentOutputSchema,
   normalizeHomAgentAction,
+  normalizeHomAgentCrmDepartment,
   type HomAgentOutput,
 } from "@/lib/hom-agent/output-schema"
 import { createHomAgentTools } from "@/lib/hom-agent/tools"
@@ -399,7 +400,8 @@ function extractUsableOutput(structured: StructuredResultLike): HomAgentOutput |
   const action = normalizeHomAgentAction(raw.action ?? "reply")
   // Non-reply actions (end/reset/handoffs) are meaningful even without text.
   if (!reply && action === "reply") return null
-  return { reply, action }
+  const crm_department = normalizeHomAgentCrmDepartment(parsed?.crm_department)
+  return crm_department ? { reply, action, crm_department } : { reply, action }
 }
 
 async function finalizeStructuredOutput(
@@ -417,9 +419,11 @@ async function finalizeStructuredOutput(
     parsed = null
   }
   const raw = parsed ?? parseFallbackOutput(structured.text)
+  const crm_department = normalizeHomAgentCrmDepartment(raw.crm_department)
   const normalized: HomAgentOutput = {
     reply: raw.reply ?? "",
     action: normalizeHomAgentAction(raw.action ?? "reply"),
+    ...(crm_department ? { crm_department } : {}),
   }
 
   return deliverValidatedOutput({
