@@ -1,16 +1,19 @@
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { isBotWaitingForCustomerReply } from "@/lib/agents/inactivity-session"
 import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
+import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_PING_MS,
   buildInactivityPingReply,
   isInactivityAssistantMessage,
+  lastNonInactivityAssistantText,
   shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
 import { resolveCronSecret } from "@/lib/agents/cron-auth"
 import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
 import {
+  clearInactivityWatchState,
   getSessionInactivityState,
   recordProactiveAssistantMessage,
   touchSessionMeta,
@@ -184,6 +187,10 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
 
   if (shouldSuppressInactivityWatch(history)) {
     return "customer_deferred" as const
+  }
+
+  if (endsWithOptionalFollowUpOffer(lastNonInactivityAssistantText(history))) {
+    return "optional_follow_up" as const
   }
 
   if (shouldSkipInactivityPingForSalesHandoff(context.history, context.lastAgent)) {
@@ -451,6 +458,10 @@ async function runPingPhase(payload: InactivityWatchPayload) {
       conversationId: payload.conversationId,
       customerId: payload.customerId,
     })
+  }
+  if (skip === "optional_follow_up") {
+    await clearInactivityWatchState(payload.conversationId)
+    return { ok: true, skipped: skip }
   }
   if (skip) {
     console.log("[inactivity-watch] ping skipped", payload.conversationId, skip)

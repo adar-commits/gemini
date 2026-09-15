@@ -1,6 +1,10 @@
 import { runCustomerConversation } from "@/lib/agents/conversation"
 import { formatOutboundMessages } from "@/lib/agents/greeting"
-import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conversation-close"
+import {
+  buildThanksAckReply,
+  endsWithOptionalFollowUpOffer,
+  isThanksAcknowledgment,
+} from "@/lib/agents/conversation-close"
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
@@ -410,7 +414,11 @@ export async function handleLandbotInbound(
         await clearInactivityWatchState(conversationId)
       } else {
         const history = await getHistory(conversationId)
-        if (shouldSuppressInactivityWatch(history)) {
+        const optionalFollowUpClosing =
+          result.suppressInactivityWatch ||
+          isThanksAcknowledgment(body) ||
+          endsWithOptionalFollowUpOffer(lastOutbound)
+        if (shouldSuppressInactivityWatch(history) || optionalFollowUpClosing) {
           await clearInactivityWatchState(conversationId)
         } else {
           const session = await getSessionInactivityState(conversationId)

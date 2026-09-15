@@ -1,4 +1,8 @@
-import { buildThanksAckReply, isThanksAcknowledgment } from "@/lib/agents/conversation-close"
+import {
+  buildThanksAckReply,
+  endsWithOptionalFollowUpOffer,
+  isThanksAcknowledgment,
+} from "@/lib/agents/conversation-close"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import {
   buildInactivityDeferAck,
@@ -77,6 +81,7 @@ export type PreTurnResult =
       kind: "handled"
       reply: string
       action: HomAgentAction
+      suppressInactivityWatch?: boolean
     }
 
 export function runPreTurnGuards(input: {
@@ -171,6 +176,7 @@ export function runPreTurnGuards(input: {
       kind: "handled",
       reply: buildThanksAckReply(input.customerName, { postHandoff: true }),
       action: "reply",
+      suppressInactivityWatch: true,
     }
   }
 
@@ -184,6 +190,7 @@ export function runPreTurnGuards(input: {
       kind: "handled",
       reply: buildThanksAckReply(input.customerName),
       action: "reply",
+      suppressInactivityWatch: true,
     }
   }
 
@@ -486,5 +493,10 @@ export async function runStructuredOrderLookupPreTurn(input: {
       ? "human_service"
       : "reply"
 
-  return { kind: "handled", reply, action }
+  return {
+    kind: "handled",
+    reply,
+    action,
+    suppressInactivityWatch: endsWithOptionalFollowUpOffer(reply),
+  }
 }

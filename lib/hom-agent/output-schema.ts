@@ -19,6 +19,8 @@ export type HomAgentOutput = {
   action: HomAgentAction
   /** Internal CRM inbox tag — omit when department is not 100% certain. */
   crm_department?: CrmDepartmentSlug
+  /** False when reply ends with an optional follow-up offer — silence is OK. */
+  expects_reply?: boolean
 }
 
 export function homAgentOutputSchema() {
@@ -46,6 +48,11 @@ export function homAgentOutputSchema() {
           enum: [...CRM_DEPARTMENT_SLUGS],
           description:
             "Optional CRM inbox department when 100% certain: sales (מכירות) or service (שירות לקוחות). Omit on greetings, bare נציג, or ambiguous FAQ.",
+        },
+        expects_reply: {
+          type: "boolean",
+          description:
+            "Default true. Set false when the reply ends with an optional follow-up offer (e.g. אפשר לעזור במשהו נוסף?, במה עוד אוכל לעזור?) — customer silence means the thread is naturally done; never chase with עדיין כאן?.",
         },
       },
     }),

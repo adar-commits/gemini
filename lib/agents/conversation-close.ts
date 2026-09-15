@@ -1,5 +1,24 @@
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import {
+  CUSTOMER_HEADER,
+  CUSTOMER_NATURAL_CLOSE,
+  ORDER_STATUS_HELP_OFFER,
+} from "@/lib/agents/types"
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
+
+/** Known optional follow-up closings the bot sends — not mandatory questions. */
+const OPTIONAL_FOLLOW_UP_OFFERS = [
+  ORDER_STATUS_HELP_OFFER,
+  "במה עוד אוכל לעזור?",
+  "במה עוד נוכל לעזור?",
+  "יש עוד שאלה? אני כאן.",
+  CUSTOMER_NATURAL_CLOSE,
+] as const
+
+/** Bot ended with an optional help offer — customer silence is a natural close. */
+export function endsWithOptionalFollowUpOffer(content: string) {
+  const body = content.replace(CUSTOMER_HEADER, "").trim()
+  return OPTIONAL_FOLLOW_UP_OFFERS.some((offer) => body.includes(offer))
+}
 
 /** Punctuation-only follow-ups ("?", "???") — not a new business ask. */
 export function isNonSubstantiveFollowUp(body: string) {

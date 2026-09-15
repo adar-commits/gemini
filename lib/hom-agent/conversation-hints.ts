@@ -64,7 +64,10 @@ import {
   isCarpetRentalQuestion,
   isReturnExchangePolicyFaqQuestion,
 } from "@/lib/agents/policy-subjects"
-import { isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
+import {
+  endsWithOptionalFollowUpOffer,
+  isNonSubstantiveFollowUp,
+} from "@/lib/agents/conversation-close"
 import {
   isActiveInventoryThread,
   isInventoryRecheckRequest,
@@ -202,6 +205,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
+    )
+  }
+
+  if (lastAssistant && endsWithOptionalFollowUpOffer(lastAssistant)) {
+    lines.push(
+      'OPTIONAL FOLLOW-UP CLOSING: your last message was an optional help offer (e.g. "אפשר לעזור במשהו נוסף?", "במה עוד אוכל לעזור?") — customer silence is OK. Never write "עדיין כאן?". If you reply again on a new topic, treat it as a fresh turn; set expects_reply false on optional closings.'
     )
   }
 

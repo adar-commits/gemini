@@ -196,6 +196,9 @@ export async function runHomAgentTurn(
       reply: preTurn.reply,
       action,
       route: ["faq"],
+      ...(preTurn.suppressInactivityWatch
+        ? { suppressInactivityWatch: true }
+        : {}),
     })
   }
 
@@ -416,6 +419,9 @@ export async function runHomAgentTurn(
       reply: structuredOrder.reply,
       action,
       route: ["faq"],
+      ...(structuredOrder.suppressInactivityWatch
+        ? { suppressInactivityWatch: true }
+        : {}),
       metrics: {
         llm_calls: 0,
         profile: runtime.activeProfile,
@@ -529,6 +535,8 @@ export async function runHomAgentTurn(
     })
   }
 
+  const suppressInactivityWatch = output.expects_reply === false
+
   return finish({
     ok: true,
     agent,
@@ -536,6 +544,7 @@ export async function runHomAgentTurn(
     action,
     route: [agent],
     ...(crmDepartment ? { crmDepartment } : {}),
+    ...(suppressInactivityWatch ? { suppressInactivityWatch: true } : {}),
     metrics: {
       llm_calls: llmCalls,
       models_used: model ? [model] : undefined,

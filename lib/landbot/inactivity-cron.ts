@@ -6,9 +6,15 @@ import {
   INACTIVITY_PING_MS,
   buildInactivityPingReply,
   isInactivityAssistantMessage,
+  lastNonInactivityAssistantText,
   shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
-import { getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
+import {
+  clearInactivityWatchState,
+  getSessionInactivityState,
+  recordProactiveAssistantMessage,
+} from "@/lib/agents/memory"
 import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
@@ -424,6 +430,11 @@ async function attemptInactivityPing(row: IdleSessionRow) {
 
   if (shouldSuppressInactivityWatch(history)) return "skipped" as const
   if (isOrderConfirmationPending(history)) return "skipped" as const
+
+  if (endsWithOptionalFollowUpOffer(lastNonInactivityAssistantText(history))) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
 
   if (
     shouldSkipInactivityPingForSalesHandoff(context.history, context.lastAgent)

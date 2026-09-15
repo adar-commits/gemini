@@ -109,6 +109,8 @@ export type AgentResponse = {
   duplicateSuppressed?: boolean
   /** LLM-declared CRM department for early inbox tagging (internal — not customer-visible). */
   crmDepartment?: CrmDepartmentSlug
+  /** Optional follow-up closing — do not schedule inactivity ping. */
+  suppressInactivityWatch?: boolean
 }
 
 export const MASTER_ROUTE_MAP: Record<MasterAction, AgentId | "shipping"> = {
