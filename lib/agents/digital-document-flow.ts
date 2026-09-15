@@ -697,13 +697,14 @@ export function outboundDocumentDeliveryInThread(history: HistoryMessage[]) {
   return false
 }
 
-function documentLookupFailureOfferedInThread(history: HistoryMessage[]) {
+export function documentLookupFailureOfferedInThread(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
     if (
-      /(?:תקלה\s+זמנית|לא\s+הצלחתי\s+למשוך)/i.test(message.content) &&
+      (/לא\s+מצאתי\s+מסמך\s+דיגיטלי/i.test(message.content) ||
+        /(?:תקלה\s+זמנית|לא\s+הצלחתי\s+למשוך)/i.test(message.content)) &&
       /האם\s+להעביר\s+לנציג/i.test(message.content)
     ) {
       return true

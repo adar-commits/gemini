@@ -62,7 +62,7 @@ describe("document ERP receipt loop (532321051 / 972505934944)", () => {
       body: "כן אני אשמח",
     })
     assert.ok(hints)
-    assert.match(hints, /HANDOFF OFFER PENDING/i)
+    assert.match(hints, /DOCUMENT HANDOFF PENDING/i)
     assert.match(hints, /כן אני אשמח/)
   })
 

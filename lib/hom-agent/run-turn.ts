@@ -48,6 +48,7 @@ import {
 import {
   normalizeHomAgentCrmDepartment,
   type HomAgentAction,
+  type HomAgentOutput,
 } from "@/lib/hom-agent/output-schema"
 import {
   buildReturnPickupAwaitingServiceReply,
@@ -423,7 +424,7 @@ export async function runHomAgentTurn(
     })
   }
 
-  let output
+  let output: HomAgentOutput
   let llmCalls = 0
   let model = modelPick.model
   let routingPath = modelPick.escalated ? "v3_opus_hard_case" : "v3"

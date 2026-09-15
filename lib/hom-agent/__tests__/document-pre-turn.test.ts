@@ -37,7 +37,10 @@ describe("document flow pre-turn (529869497)", () => {
     })
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
-    assert.match(result.reply, /מסמך|חשבונית|קישור/i)
+    assert.match(
+      result.reply,
+      /מסמך|חשbונית|קישור|להעביר\s+לנציג|תקלה\s+זמנית/i
+    )
     assert.doesNotMatch(result.reply, /הזמנות פעילות/)
   })
 

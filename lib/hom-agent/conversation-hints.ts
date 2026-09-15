@@ -28,6 +28,7 @@ import {
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import {
   activeDigitalDocumentRequest,
+  documentLookupFailureOfferedInThread,
   isActiveDigitalDocumentFlow,
   isDigitalDocumentRequest,
   outboundDocumentDeliveryInThread,
@@ -170,9 +171,7 @@ export function buildConversationHints(input: {
 
   if (isHumanHandoffPending(history)) {
     const handoffAction = inferHumanHandoffAction(history, null)
-    const documentHandoff =
-      isActiveDigitalDocumentFlow(history, body) &&
-      /לא\s+מצאתי\s+מסמך\s+דיגיטלי/i.test(lastNonInactivityAssistant(history) ?? "")
+    const documentHandoff = documentLookupFailureOfferedInThread(history)
     lines.push(
       documentHandoff
         ? `DOCUMENT HANDOFF PENDING: getDocument already ran for this phone — customer confirms rep transfer (כן / כן אני אשמח / כן, תודה / bare כן). Set action ${handoffAction} NOW — never re-ask "האם העסקה רשומה על המספר", never call fetch_digital_document or lookup_order_status again.`
