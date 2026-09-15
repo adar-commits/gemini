@@ -23,6 +23,7 @@ import {
   isCreditRedemptionQuestion,
   isDefectReplacementStatusQuestion,
   isMissingOrPartialDeliveryComplaint,
+  isOrderModificationRequest,
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
@@ -146,6 +147,12 @@ export function buildConversationHints(input: {
 
   if (customerUsesFeminineSelfReference(body)) {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
+  }
+
+  if (isOrderModificationRequest(body)) {
+    lines.push(
+      'ORDER MODIFICATION (532165595): customer wants to change color/size on an existing order. Empathize → call lookup_order_status (phone confirm is OK) → after order card confirm start exchange intake kind A for color change. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+    )
   }
 
   if (isConfirmationPending(history)) {

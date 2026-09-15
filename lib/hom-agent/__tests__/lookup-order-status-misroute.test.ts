@@ -17,15 +17,21 @@ import {
 import type { HistoryMessage } from "@/lib/agents/types"
 
 describe("lookup_order_status misuse guards", () => {
-  it("rejects lookup when no order/shipping intent exists", async () => {
+  it("runs lookup flow when LLM invoked the tool even without shipping keywords (532165595)", async () => {
     const result = await executeLookupOrderStatus({
-      body: "היי אשמח לקבל מענה",
-      history: [],
-      phone: "+972547495083",
+      body: "אני אשמח לשנות את הצבע של השטיח שהזמנתי",
+      history: [
+        { role: "user", content: "היי" },
+        {
+          role: "assistant",
+          content: "*הום בוט :)*\nהיי! 😊 שמח שפנית — במה אוכל לעזור היום?",
+        },
+      ],
+      phone: "+972533353836",
     })
-    assert.equal(result.ok, false)
-    if (result.ok) return
-    assert.equal((result as { errorCode?: string }).errorCode, "lookup_misroute")
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    assert.match(result.reply, /רשומה על המספר|מספר ההזמנה|טלפון/)
   })
 
   it("passes the flow's own phone-confirm step through as a real reply (528509859 regression)", async () => {

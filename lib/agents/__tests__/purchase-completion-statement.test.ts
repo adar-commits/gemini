@@ -23,6 +23,10 @@ describe("purchase completion statement", () => {
     assert.equal(isPurchaseCompletionStatement("הזמנתי, מתי זה מגיע?"), false)
     assert.equal(isPurchaseCompletionStatement("קניתי שטיח ואני רוצה להחזיר"), false)
     assert.equal(isPurchaseCompletionStatement("מה הסטטוס של ההזמנה שהזמנתי"), false)
+    assert.equal(
+      isPurchaseCompletionStatement("אני אשמח לשנות את הצבע של השטיח שהזמנתי"),
+      false
+    )
   })
 
   it("tool refuses lookup for a purchase statement and instructs a warm ack", async () => {

@@ -643,6 +643,16 @@ const PURCHASE_STATEMENT_QUESTION_RE =
 const PURCHASE_STATEMENT_PROBLEM_RE =
   /(?:לא\s+(?:הגיע|קיבל|מגיע)|עדיין\s+לא|טרם|מתעכב|איחור|בעיה|פגום|פגם|קרוע|לבטל|ביטול|להחזיר|החזרה|החלפה|החזר|זיכוי)/i
 
+/** Change color/size on an existing order — not a bare "I ordered" announcement. */
+export function isOrderModificationRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return (
+    /(?:ל)?(?:שנ(?:ות|ה)|להחליף|לעדכן)/i.test(text) &&
+    /(?:צבע|מידה|גודל|שטיח)/i.test(text)
+  )
+}
+
 /**
  * Customer states they already completed a purchase (e.g. "עשיתי את ההזמנה דרך הנציג")
  * with no question or complaint. Deserves a warm acknowledgment — not an order lookup.
@@ -650,6 +660,7 @@ const PURCHASE_STATEMENT_PROBLEM_RE =
 export function isPurchaseCompletionStatement(body: string) {
   const text = body.trim()
   if (!text || text.length > 160) return false
+  if (isOrderModificationRequest(text)) return false
   if (!PURCHASE_DONE_RE.test(text)) return false
   if (PURCHASE_STATEMENT_QUESTION_RE.test(text)) return false
   if (PURCHASE_STATEMENT_PROBLEM_RE.test(text)) return false

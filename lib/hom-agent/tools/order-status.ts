@@ -101,15 +101,6 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
-  if (!needsOrderLookup && !returnPickupContextInThread(history, body)) {
-    return {
-      ok: false as const,
-      errorCode: "lookup_misroute",
-      error:
-        "Likely wrong tool call for this turn (no clear order/shipping intent). Do not ask for order/phone. Re-read the customer intent and answer directly from context/KB.",
-    }
-  }
-
   if (returnPickupContextInThread(history, body)) {
     let intake = extractServiceIntake(history, body)
     intake.issueKind = "return_pickup_pending"
