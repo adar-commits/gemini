@@ -35,6 +35,22 @@ function isComplexService(text: string) {
   )
 }
 
+function wordCount(text: string) {
+  return text.split(/\s+/).filter(Boolean).length
+}
+
+/** Opus for service/defect only when the customer gave enough context or sent media. */
+function shouldEscalateComplexService(body: string, turn: UserTurn) {
+  if (!isComplexService(body)) return false
+  return wordCount(body) >= 8 || turn.media.some((m) => m.kind === "image")
+}
+
+function isMultiIntentLong(body: string) {
+  if (wordCount(body) >= 28) return true
+  const connectors = body.match(/ וגם | ואז | בנוסף /gi)?.length ?? 0
+  return wordCount(body) >= 20 && connectors >= 2
+}
+
 export function pickModelTier(input: {
   body: string
   turn: UserTurn
@@ -84,7 +100,16 @@ export function pickModelTier(input: {
     }
   }
 
-  if (isHumanHandoffPending(history) || isComplexService(body)) {
+  if (isHumanHandoffPending(history)) {
+    return {
+      tier: orchestraMode === "aggressive" ? "T2" : "T3",
+      reason: "human_handoff_pending",
+      useFullKb: false,
+      skipMaster: true,
+    }
+  }
+
+  if (shouldEscalateComplexService(body, turn)) {
     return {
       tier: orchestraMode === "aggressive" ? "T2" : "T3",
       reason: "service_complexity",
@@ -102,7 +127,7 @@ export function pickModelTier(input: {
     }
   }
 
-  if (body.split(/\s+/).length >= 20 || / וגם | ואז | בנוסף /i.test(body)) {
+  if (isMultiIntentLong(body)) {
     return {
       tier: "T3",
       reason: "multi_intent_long",

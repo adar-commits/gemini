@@ -6,7 +6,7 @@
 update public.hom_agent_runtime_config
 set
   active_profile = 'custom',
-  history_limit = 16,
+  history_limit = 10,
   orchestra_mode = 'off',
   profile_json = '{
     "router": {"model": "anthropic/claude-haiku-4.5", "temperature": 0.1, "maxOutputTokens": 256},

@@ -37,6 +37,7 @@ describe("pickHomAgentModel", () => {
       "אם אני מתלבט בין שני שטיחים אני יכול להשאיר אתכם?",
       "מה הסניף הכי קרוב לאילת?",
       "וגם אם המוצר יגיע פגום מה האפשרויות שלי?",
+      "וגם האם אפשר לקבל החזר כספי במקום החלפה?",
     ].join("\n")
     const pick = pickHomAgentModel({
       body,
@@ -49,7 +50,7 @@ describe("pickHomAgentModel", () => {
     assert.equal(pick.tier, "T3")
   })
 
-  it("escalates complex service keywords to Opus", () => {
+  it("keeps Sonnet for a short service keyword without enough context", () => {
     const history: HistoryMessage[] = [
       { role: "user", content: "השטיח הגיע עם כתם" },
     ]
@@ -57,6 +58,20 @@ describe("pickHomAgentModel", () => {
       body: "אני רוצה החזר כספי",
       turn: { text: "אני רוצה החזר כספי", media: [] },
       history,
+      defaultModel: SONNET,
+    })
+    assert.equal(pick.escalated, false)
+    assert.equal(pick.model, SONNET)
+  })
+
+  it("escalates complex service when the customer message is detailed enough", () => {
+    const pick = pickHomAgentModel({
+      body: "השטיח הגיע עם כתם גדול ואני רוצה החזר כספי מלא על ההזמנה",
+      turn: {
+        text: "השטיח הגיע עם כתם גדול ואני רוצה החזר כספי מלא על ההזמנה",
+        media: [],
+      },
+      history: [],
       defaultModel: SONNET,
     })
     assert.equal(pick.escalated, true)

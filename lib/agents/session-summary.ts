@@ -4,7 +4,7 @@ import { recordTokenUsage } from "@/lib/agent-core/token-usage"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import type { HistoryMessage } from "@/lib/agents/types"
 
-const SUMMARY_EVERY_TURNS = 8
+const SUMMARY_EVERY_TURNS = 5
 
 export async function getConversationSummary(conversationId: string) {
   const supabase = getAgentSupabase()
