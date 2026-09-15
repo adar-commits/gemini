@@ -447,6 +447,28 @@ export function extractOrderNumber(rawText: string) {
   return null
 }
 
+/** Customer labels an SO/IN/OV token as order/invoice ref — not a document copy request. */
+export function isOrderReferencePresentation(body: string) {
+  const text = stripMediaAndUrls(body.trim())
+  if (!text || !extractOrderNumber(text)) return false
+  if (/^(?:SO|IN|OV)\s*\d+$/i.test(text)) return true
+  if (
+    /^(?:חשבונית|הזמנ(?:ה|ת)|מס(?:'|׳|")?\s*(?:ה)?(?:הזמנה|חשבונית)?)\s*[:\-]?\s*(?:SO|IN|OV)/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+  if (
+    /(?:מס(?:'|׳|")?\s*(?:ה)?(?:הזמנה|חשבונית)|חשבונית|הזמנה)\s*[:\-]?\s*(?:SO|IN|OV)/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+  return false
+}
+
 export function extractOrderNumberFromConfirmationPrompt(text: string) {
   const labeled =
     text.match(/\(מס(?:'|׳|")?\s*הזמנה\s+([^)]+)\)/i) ??

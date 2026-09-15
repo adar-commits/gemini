@@ -9,9 +9,12 @@ import {
   buildDigitalDocumentNotFoundReply,
   buildDigitalDocumentReply,
   buildPhoneLookupDeclinedReply,
+  extractOrderNumber,
   extractPhoneFromText,
   formatDisplayPhone,
   isOrderConfirmationNo,
+  isOrderNumberRequestPending,
+  isOrderReferencePresentation,
   isPurePhoneLookupConfirmYes,
   resolveLookupPhoneFromHistory,
   userProvidedPhone,
@@ -476,11 +479,17 @@ function hasExplicitDigitalDocumentRequestInThread(
   return false
 }
 
-/** Mistaken document intake on a shipping thread — release to LLM / order lookup. */
+/** Mistaken document intake on a shipping/service thread — release to LLM / order lookup. */
 export function shouldDeferDocumentFlowToOrderLookup(
   history: HistoryMessage[] = [],
   body = ""
 ) {
+  if (
+    isOrderNumberRequestPending(history) &&
+    (isOrderReferencePresentation(body) || Boolean(extractOrderNumber(body)))
+  ) {
+    return true
+  }
   if (!isShippingOrPickupStatusThread(history)) return false
   return !hasExplicitDigitalDocumentRequestInThread(history, body)
 }
@@ -491,6 +500,7 @@ export function isDigitalDocumentRequest(body: string) {
   if (!text) return false
   if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
   if (isReceiptReferencePresentation(text)) return false
+  if (isOrderReferencePresentation(text)) return false
   if (mentionsDocumentNoun(text) && mentionsDocumentRequestIntent(text)) return true
   if (/^קבלה(?:\s+שלי|\s+של(?:י|נו)?)?(?:[\s,.!?]|$)/iu.test(text)) return true
   return (

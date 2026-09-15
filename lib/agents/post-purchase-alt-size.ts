@@ -1,4 +1,5 @@
 import { isOutboundDocumentDeliveryMessage } from "@/lib/agents/digital-document-flow"
+import { isDefectReplacementStatusQuestion } from "@/lib/agents/inquiry-intent"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
@@ -28,6 +29,7 @@ function hasRecentPurchaseContext(history: HistoryMessage[], text: string) {
 }
 
 function isSizeExchangeIntakeContext(history: HistoryMessage[], body = "") {
+  if (isDefectReplacementStatusQuestion(body, history)) return false
   const text = allUserText(history, body)
   const receivedProduct =
     /(?:קיבלתי|קיבלנו|הגיע(?:ה|ו)?|התקבל)/i.test(text) &&
@@ -46,6 +48,7 @@ export function isPostPurchaseAlternateSizeAvailabilityQuestion(
   body: string,
   history: HistoryMessage[] = []
 ) {
+  if (isDefectReplacementStatusQuestion(body, history)) return false
   const text = allUserText(history, body)
   if (!hasRecentPurchaseContext(history, text)) return false
 

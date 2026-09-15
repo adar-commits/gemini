@@ -1,5 +1,6 @@
 import {
   channelPhone,
+  extractOrderNumber,
   isChannelPhoneSelfReference,
   customerOrderNumberStyleFromHistory,
   isDeliveryEstimateQuestion,
@@ -7,6 +8,7 @@ import {
   isOrderDeliveryStatusQuestion,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
+  isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
@@ -16,8 +18,10 @@ import {
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
   classifyPostPurchaseCase,
+  isCallbackUrgencyRequest,
   isCreditCodeOnlineRedemptionRequest,
   isCreditRedemptionQuestion,
+  isDefectReplacementStatusQuestion,
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
@@ -260,6 +264,18 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isDefectReplacementStatusQuestion(body, history)) {
+    lines.push(
+      "DEFECT REPLACEMENT STATUS: open service case — customer asks when the defective-item replacement happens / no answer yet. This is NOT post-purchase alt-size or sales exchange intake. Brief empathize → lookup_order_status if you need מס׳ הזמנה → rep summary → human_service. Never 'אותו דגם במידה אחרת' or document type menu."
+    )
+  }
+
+  if (isCallbackUrgencyRequest(body)) {
+    lines.push(
+      "CALLBACK URGENCY: customer demands an urgent phone call — empathize briefly, do NOT loop phone confirm or document intake. Service rep summary if context exists → action human_service in the same JSON (transfer wording must match action)."
+    )
+  }
+
   if (
     postPurchaseKind === "return_pickup_pending" &&
     !isReturnPickupAwaitingThread(history, body)
@@ -276,6 +292,15 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `Customer confirmed the WhatsApp channel phone (${input.whatsappPhone}). Call lookup_order_status now — do not re-ask the same phone question.`
+    )
+  }
+
+  if (
+    isOrderNumberRequestPending(history) &&
+    (isOrderReferencePresentation(body) || extractOrderNumber(body))
+  ) {
+    lines.push(
+      "ORDER ID BINDING: customer answered your order-number ask with SO/IN/OV (even if labeled חשבונית/הזמנה) — call lookup_order_status with that reference now. NOT fetch_digital_document, NOT 'איזה סוג חשבונית'."
     )
   }
 

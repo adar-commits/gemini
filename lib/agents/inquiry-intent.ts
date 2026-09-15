@@ -26,7 +26,10 @@ const EXCHANGE_INTENT_RE =
   /(?:רוצ(?:ה|ים|ות)|(?:מ)?(?:עונ(?:ה|ים|ת)?|בקש(?:ה|ת)?))\s*(?:ל)?(?:ה)?(?:חליף|החלפ)|(?:ל)?(?:ה)?חליף(?:\s+א(?:ת|ת)?|\s+אות(?:ו|ה|ם)?)|(?:ב(?:ק|ק)ש(?:ה|ת)?\s+)?(?:ה)?החלפ(?:ה|ות)?(?:\s|$|[?.!,])|(?:^|[\s,])(?:ו)?החלפ(?:ה|ות)?(?:\s|$|[?.!,])/i
 
 const DEFECT_RE =
-  /פגם|פגום|פגומ(?:ה|ים|ות)|קרוע|שבור|סדוק|מקולקל|נזק|ליקוי|פגם\s+ב(?:ה)?ובלה/i
+  /פגם|פגום|פגומ(?:ה|ים|ות)|פגים|קרוע|שבור|סדוק|מקולקל|נזק|ליקוי|פגם\s+ב(?:ה)?ובלה/i
+
+const REPLACEMENT_STATUS_RE =
+  /(?:מתי|מועד|מתוא(?:ם|מת)|סטטוס|עדכון|לא\s+(?:קיבל(?:תי|נו)?|ענ(?:ו|תה|ית)|חז(?:ר(?:ו|ה)?)|שמ(?:ע(?:תי|נו)?)?)|(?:ל)?(?:דעת|קבל\s+עדכון)|(?:מת(?:י|)\s+)?(?:עושים|מבצעים|אמ(?:ור(?:ה|ים)?)))/i
 
 const SOFT_PROBLEM_RE =
   /כתם|כתמים|ריח|רטוב|דהוי|לא\s+תקין|לא\s+בסדר|מוזר|יש\s+בעיה|משהו\s+לא\s+כ(?:\"|״|')?כ/i
@@ -550,6 +553,45 @@ function matchesReturnPickupPending(text: string) {
   return isActiveReturnExchangePickupCase(text)
 }
 
+function matchesDefectReplacementStatus(text: string) {
+  if (!/(?:החלפ(?:ה|ות)|(?:ל)?(?:ה)?חליף)/i.test(text)) return false
+  if (DEFECT_RE.test(text) && REPLACEMENT_STATUS_RE.test(text)) return true
+  if (/לא\s+קיבל(?:תי|נו)?\s+תשובה/i.test(text) && /(?:החלפ(?:ה|ות)|פג(?:ום|ים|ם)?)/i.test(text)) {
+    return true
+  }
+  return REPLACEMENT_STATUS_RE.test(text) && DEFECT_RE.test(text)
+}
+
+/** Defect replacement timing/status — service follow-up, not sales size exchange. */
+export function isDefectReplacementStatusQuestion(
+  body: string,
+  history: { role: string; content: string }[] = []
+) {
+  const text = body.trim()
+  if (!text) return false
+  if (matchesDefectReplacementStatus(text)) return true
+
+  const threadText = [
+    ...history.filter((message) => message.role === "user").map((message) => message.content),
+    text,
+  ].join("\n")
+  if (!DEFECT_RE.test(threadText)) return false
+  if (!/(?:החלפ(?:ה|ות)|(?:ל)?(?:ה)?חליף)/i.test(text)) return false
+  return REPLACEMENT_STATUS_RE.test(text) || /לא\s+קיבל(?:תי|נו)?\s+תשובה/i.test(text)
+}
+
+export function isCallbackUrgencyRequest(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  const wantsCall =
+    /(?:ת(?:ת|)קשר(?:ו|י)?|(?:ל)?(?:ה)?תקשר(?:ו|י)?|חז(?:ור|ר(?:ו|ה))\s+אליי|(?:ל)?(?:ה)?ת(?:קשר|קשרו))/i.test(
+      text
+    )
+  const urgent =
+    /(?:דח(?:וף|ופ)|ב(?:ית\s+)?(?:ה)?משפט|מייד|עכשיו|!{3,})/i.test(text)
+  return wantsCall && urgent
+}
+
 /** Classify post-purchase case from primary clause, then each line, then full message. */
 export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | null {
   const primary = primaryIntentText(body)
@@ -564,13 +606,13 @@ export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | n
     if (matchesReturnPickupPending(text)) return "return_pickup_pending"
   }
   for (const text of candidates) {
+    if (matchesDefect(text) || matchesDefectReplacementStatus(text)) return "defect"
+  }
+  for (const text of candidates) {
     if (matchesExchangeRequest(text)) return "exchange_request"
   }
   for (const text of candidates) {
     if (matchesMissingItem(text)) return "missing_item"
-  }
-  for (const text of candidates) {
-    if (matchesDefect(text)) return "defect"
   }
   for (const text of candidates) {
     if (matchesDissatisfaction(text)) return "dissatisfaction"
