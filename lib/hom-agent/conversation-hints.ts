@@ -26,6 +26,7 @@ import {
   isOrderModificationRequest,
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
+  isReturnShippingFeeQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
   isProductInventoryQuestion,
@@ -135,6 +136,11 @@ export function buildConversationHints(input: {
   const { history, body } = input
   const lines: string[] = []
 
+  const returnFaqAnswerThisTurn =
+    isReturnShippingFeeQuestion(body) ||
+    isReturnEligibilityQuestion(body, history) ||
+    isReturnExchangePolicyFaqQuestion(body)
+
   if (
     isFirstSubstantiveCustomerTurn(history) &&
     (isCasualGreeting(body) ||
@@ -217,13 +223,19 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isHumanHandoffPending(history)) {
+  if (isHumanHandoffPending(history) && !returnFaqAnswerThisTurn) {
     const handoffAction = inferHumanHandoffAction(history, null)
     const documentHandoff = documentLookupFailureOfferedInThread(history)
     lines.push(
       documentHandoff
         ? `DOCUMENT HANDOFF PENDING: getDocument already ran for this phone — customer confirms rep transfer (כן / כן אני אשמח / כן, תודה / bare כן). Set action ${handoffAction} NOW — never re-ask "האם העסקה רשומה על המספר", never call fetch_digital_document or lookup_order_status again.`
         : `HANDOFF OFFER PENDING: any confirm (כן / כן אני אשמח / כן, תודה / בסדר / אוקיי / bare כן alone) → set action ${handoffAction} NOW in the same JSON — short transfer line paired with action. Never re-ask phone or restart document intake. Never write מעביר/העברתי with action reply only. Thanks alone (no confirm) → remind they can write כן.`
+    )
+  }
+
+  if (isHumanHandoffPending(history) && returnFaqAnswerThisTurn) {
+    lines.push(
+      "HANDOFF OFFER STALE — RETURN FAQ THIS TURN: customer pivoted to return/courier-fee policy (כמה יעלה / אתחרט / דמי משלוח). Answer from KB with action reply — do NOT treat trailing כן as handoff confirm. human_service only if they explicitly ask for a rep after the FAQ answer."
     )
   }
 
@@ -266,9 +278,10 @@ export function buildConversationHints(input: {
   }
 
   if (
-    isHumanHandoffPending(history) ||
-    isConfirmationPending(history) ||
-    (isServiceHandoffSummaryPending(history) && isServiceHandoffSummaryConfirmed(body))
+    !returnFaqAnswerThisTurn &&
+    (isHumanHandoffPending(history) ||
+      isConfirmationPending(history) ||
+      (isServiceHandoffSummaryPending(history) && isServiceHandoffSummaryConfirmed(body)))
   ) {
     const handoffAction = inferHumanHandoffAction(history, null)
     if (!isHumanAgentTeamOnline(handoffAction)) {
@@ -378,7 +391,11 @@ export function buildConversationHints(input: {
   }
 
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
-    if (isServiceOrderIdentificationFlow(history, body)) {
+    if (returnFaqAnswerThisTurn) {
+      lines.push(
+        "ORDER CONFIRM + RETURN FAQ: customer confirmed (or is confirming) the order card AND asks return/courier-fee policy — answer from KB first. Trailing כן/כן כן binds to the fee/eligibility answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
+      )
+    } else if (isServiceOrderIdentificationFlow(history, body)) {
       lines.push(
         "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → אז מסכם את הפנייה (rep bullets) → אני צודק? → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
       )
@@ -496,6 +513,12 @@ export function buildConversationHints(input: {
   if (isReturnPortalSelfServiceThread(history) && /(?:החזר|זיכוי|הובלה|שליח|ביטול|פורטל|מעוניין|שטיח)/i.test(body)) {
     lines.push(
       "RETURN PORTAL SELF-SERVICE (530914111): continue guiding portal steps — no proactive handoff to open the request. Close with passive safety net: 'אם נתקעים בפתיחת הבקשה — אפשר לכתוב כאן ונעזור.' Bare כן after that is acknowledgment, not handoff confirm."
+    )
+  }
+
+  if (isReturnShippingFeeQuestion(body)) {
+    lines.push(
+      "RETURN SHIPPING FEE FAQ (507969015): answer from KB — branch return free; home courier pickup paid by rug size (85–300 ₪ per direction). If order size known from confirm card, quote that tier; else give the size table briefly. 14 days from receipt, unused + original packaging, portal mandatory. action reply — NOT human_service. After-hours does NOT block FAQ answers; reps offline is not a reason to skip the fee table."
     )
   }
 
