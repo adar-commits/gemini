@@ -90,6 +90,7 @@ import {
 import { buildGreetingReply, isCasualGreeting, isCasualSmallTalk } from "@/lib/agents/greeting"
 import {
   buildPostOrderLookupContinuationReply,
+  isPostOrderShippingFollowUp,
   extractOrderNumber,
   isChannelPhoneSelfReference,
   isExplicitHumanRequest,
@@ -722,12 +723,28 @@ export async function runStructuredPostOrderCompletedPreTurn(input: {
     }
   }
 
+  if (isPostOrderShippingFollowUp(body, input.history)) {
+    const reply = await buildPostOrderLookupContinuationReply({
+      body,
+      history: input.history,
+      whatsappPhone: input.phone,
+    })
+    if (reply) {
+      const action: HomAgentAction = /העברתי את השיחה/i.test(reply)
+        ? inferHumanHandoffAction(input.history, null)
+        : "reply"
+      return { kind: "handled", reply, action }
+    }
+    return { kind: "skip", response: null }
+  }
+
   if (isNumberedReturnPolicyChoicePending(input.history, body)) {
     const reply = await buildPostOrderLookupContinuationReply({
       body,
       history: input.history,
       whatsappPhone: input.phone,
     })
+    if (!reply) return { kind: "skip", response: null }
     return { kind: "handled", reply, action: "reply" }
   }
 

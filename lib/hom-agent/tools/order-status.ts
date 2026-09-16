@@ -106,7 +106,6 @@ export async function executeLookupOrderStatus(input: {
 
   if (
     isOrderLookupCompletedInThread(history) &&
-    !requiresOrderIdentification(body, history) &&
     !shouldAllowOrderLookupRestart(body, history)
   ) {
     const reply = await buildPostOrderLookupContinuationReply({
@@ -114,6 +113,13 @@ export async function executeLookupOrderStatus(input: {
       history,
       whatsappPhone: input.phone,
     })
+    if (reply == null) {
+      return {
+        ok: false as const,
+        error:
+          "ORDER LOOKUP COMPLETED: answer the customer's question directly from thread context — never say 'כבר מצאנו את ההזמנה' and never offer unsolicited ביטול/החזרה/העברה menus. Shipping follow-ups (מתי יגיע, עבר שבוע, מי השליח) → status/timeline from last lookup or warm clarify + optional rep offer. Rep phrases (העברה לנציג, נציג שירות) → action human_service in the same JSON.",
+      }
+    }
     const action = /העברתי את השיחה/i.test(reply)
       ? ("human_service" as const)
       : ("reply" as const)

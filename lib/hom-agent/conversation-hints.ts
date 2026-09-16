@@ -11,6 +11,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  isPostOrderShippingFollowUp,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
   isServiceOrderIdentificationFlow,
@@ -468,7 +469,13 @@ export function buildConversationHints(input: {
 
   if (isOrderLookupCompletedInThread(history)) {
     lines.push(
-      "ORDER LOOKUP COMPLETED: order card already confirmed — NEVER call lookup_order_status or re-ask phone. Rep request (נציג שירות / כן נציג) → human_service immediately. Return menu 1/2 after policy → portal/courier instructions from KB, not lookup."
+      "ORDER LOOKUP COMPLETED: order card already confirmed — NEVER call lookup_order_status or re-ask phone unless refreshing status for a new shipping question. Never say 'כבר מצאנו את ההזמנה' — customer does not care. Never offer unsolicited ביטול/החזרה/העברה menus — let them state intent. Shipping follow-ups (מתי יגיע/יסופק, עבר שבוע, מי חברת השליחויות) → answer from last status + policy; courier name unavailable in ERP → say so + optional rep. Rep request (העברה לנציג / נציג שירות) → human_service immediately. Return menu 1/2 after policy → portal/courier instructions from KB, not lookup."
+    )
+  }
+
+  if (isOrderStatusDeliveredInThread(history) && isPostOrderShippingFollowUp(body, history)) {
+    lines.push(
+      "POST-ORDER SHIPPING THREAD (529503176): customer still on delivery timing/status — continue that thread. Do NOT pivot to cancel/return/exchange menus. Answer the question or offer human_service only when they ask for a rep or you offered rep for missing data."
     )
   }
 

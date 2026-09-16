@@ -957,9 +957,49 @@ export function isOrderDeliveryStatusQuestion(body: string) {
   if (!text) return false
   if (isOrderOutOfScopeMetadataQuestion(text)) return false
   if (isDeliveryEstimateQuestion(text)) return true
-  return /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|(?:^|\s)משלוח(?:\s|$)|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה))/i.test(
-    text
+  return (
+    /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|(?:^|\s)משלוח(?:\s|$)|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה|יגיע|יסופק|תסופק))/i.test(
+      text
+    ) ||
+    /(?:רוצ(?:ה|ים|ות)\s+לדעת|ברצוני\s+לדעת).*(?:מתי|יגיע|יסופק|מגיע|הגיע|סטטוס)/i.test(
+      text
+    ) ||
+    /^(?:ת)?(?:סופק|סופקי|סופר)(?:[\s,.!?]|$)/i.test(text)
   )
+}
+
+/** Shipping follow-up after order card + status — not unsolicited cancel/return menus. */
+export function isPostOrderShippingFollowUp(body: string, history: HistoryMessage[]) {
+  if (!isOrderLookupCompletedInThread(history)) return false
+
+  const text = body.trim()
+  if (!text) return false
+
+  if (isNumberedReturnPolicyChoicePending(history, body)) return true
+  if (isExplicitHumanRequest(text)) return true
+  if (isOrderDeliveryStatusQuestion(text) || isShippingStatusQuestion(text)) return true
+  if (isDeliveryEstimateQuestion(text)) return true
+  if (isPreorderDelayComplaint(text) || isMissingOrPartialDeliveryComplaint(text)) return true
+  if (isOrderStatusClarificationQuestion(text)) return true
+  if (isHelpInsufficient(text)) return true
+
+  if (isOrderStatusDeliveredInThread(history)) {
+    if (isOrderOutOfScopeMetadataQuestion(text)) return true
+    if (text.length <= 48) {
+      if (/^עבר\s+(?:שבוע|חודש|\d+)/i.test(text)) return true
+      if (/^מי\s/i.test(text)) return true
+    }
+  }
+
+  return false
+}
+
+export function buildCourierMetadataUnavailableReply() {
+  return `${CUSTOMER_HEADER}
+אין לי במערכת את שם חברת השליחויות — השליח יוצר קשר לפני ההגעה.
+אם חשוב לכם עדכון מדויק יותר, אפשר להעביר לנציג שירות שיבדוק.
+
+האם להעביר לנציג שירות?`
 }
 
 /** Fields we do not have in Priority — must not repeat delivery-status template. */
@@ -967,7 +1007,8 @@ export function isOrderOutOfScopeMetadataQuestion(body: string) {
   const text = body.trim()
   if (!text) return false
   return (
-    /חבר(?:ת|ה)\s+(?:ה)?משלוח/i.test(text) ||
+    /חבר(?:ת|ה)\s+(?:ה)?(?:משלוח|שליח)/i.test(text) ||
+    /מי\s+חבר(?:ת|ה)\s+(?:ה)?(?:משלוח|שליח)/i.test(text) ||
     /על\s+שם\s+מי/i.test(text) ||
     /(?:מה|מי)\s+שם\s+(?:על\s+)?(?:ה)?הזמנה/i.test(text) ||
     /מה\s+השעה/i.test(text) ||
@@ -983,7 +1024,7 @@ export function isDeliveryEstimateQuestion(body: string) {
   return (
     /(?:מה|יש|כמה)\s*(?:ה)?(?:צפי|צפוי(?:ה|ים|ות)?)/i.test(text) ||
     /(?:לוח\s+)?(?:ז)?(?:מנים|מנים)\s+(?:ל)?(?:אספקה|משלוח|קבלה|הגעה)/i.test(text) ||
-    /(?:מתי|ממתי)\s+(?:צפוי(?:ה|ים|ות)?|נקבל|ת(?:קב|ג)?יע|מ(?:גיע|סופק))/i.test(text) ||
+    /(?:מתי|ממתי)\s+(?:צפוי(?:ה|ים|ות)?|נקבל|ת(?:קב|ג)?יע|(?:י)?גיע|מ(?:גיע|סופק)|יסופק|תסופק)/i.test(text) ||
     /(?:צפוי(?:ה|ים|ות)?)\s+(?:ל)?(?:הגיע|ל(?:הגיע|אספק)|קבלה)/i.test(text) ||
     /(?:מתי|ממתי)\s+(?:היא|הוא|זה)\s+(?:ת)?(?:היה|יהיה|מוכנ)/i.test(text) ||
     /(?:מתי|ממתי)\s+(?:אפשר|אוכל|יכול(?:ה)?)\s*(?:ל)?(?:אסוף|להגיע|לקחת)/i.test(text) ||
@@ -1482,7 +1523,7 @@ export async function buildPostOrderLookupContinuationReply(input: {
   body: string
   history: HistoryMessage[]
   whatsappPhone?: string
-}) {
+}): Promise<string | null> {
   const { body, history, whatsappPhone } = input
 
   if (isNumberedReturnPolicyChoicePending(history, body)) {
@@ -1502,19 +1543,28 @@ ${portalUrl}
     return buildHumanHandoffConfirmedReply("human_service")
   }
 
-  if (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body)) {
-    const order = await resolveIdentifiedOrderFromThread({
-      history,
-      whatsappPhone,
-      body,
-    })
-    if (order) {
-      return resolveOrderStatusFollowUpReply(order, body, history)
-    }
+  if (!isPostOrderShippingFollowUp(body, history)) {
+    return null
   }
 
-  const orderNumber = identifiedOrderNumberFromThread(history)
-  return `${CUSTOMER_HEADER}\nכבר מצאנו את ההזמנה${orderNumber ? ` (${orderNumber})` : ""}. במה אוכל לעזור — ביטול, החזרה, או העברה לנציג?`
+  if (isOrderOutOfScopeMetadataQuestion(body)) {
+    return buildCourierMetadataUnavailableReply()
+  }
+
+  const order = await resolveIdentifiedOrderFromThread({
+    history,
+    whatsappPhone,
+    body,
+  })
+  if (order) {
+    return resolveOrderStatusFollowUpReply(order, body, history)
+  }
+
+  if (isOrderStatusDeliveredInThread(history)) {
+    return buildOrderStatusClarificationReply(history)
+  }
+
+  return null
 }
 
 async function resolveIdentifiedOrderFromThread(input: {
@@ -1559,7 +1609,9 @@ export function isExplicitHumanRequest(body: string) {
   return (
     /(?:^|\s)(?:נציג(?:ה|ת)?|נציג\s+שירות|שיחה\s+עם\s+נציג|אני\s+רוצ(?:ה|ים|ות)\s+נציג|תעביר(?:ו)?\s+(?:לי\s+)?(?:ל)?נציג)/i.test(
       text
-    ) || /(?:^|\s)human(?:\s+agent)?(?:\s|$|[?.!,])/i.test(text)
+    ) ||
+    /העבר(?:ה|ו)?\s+ל(?:נציג|שירות)/i.test(text) ||
+    /(?:^|\s)human(?:\s+agent)?(?:\s|$|[?.!,])/i.test(text)
   )
 }
 
@@ -2567,7 +2619,15 @@ export async function resolveOrderShippingReply(input: {
     isOrderLookupCompletedInThread(history) &&
     !shouldAllowOrderLookupRestart(body, history)
   ) {
-    return buildPostOrderLookupContinuationReply({ body, history, whatsappPhone })
+    const continuation = await buildPostOrderLookupContinuationReply({
+      body,
+      history,
+      whatsappPhone,
+    })
+    if (continuation) return continuation
+    if (isPostOrderShippingFollowUp(body, history)) {
+      return buildOrderStatusClarificationReply(history)
+    }
   }
 
   if (whatsappPhone) {
