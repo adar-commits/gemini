@@ -10,10 +10,14 @@ import {
   isInactivityPingPending,
   isInactivityStillHereReply,
   isInactivityUnavailableReply,
+  isWaitingForHumanRepReply,
   lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
+import { isTransferPromisedInThread } from "@/lib/agents/human-waiting"
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
+  classifyPostPurchaseCase,
+  isOrderModificationRequest,
   isRefundTimelineQuestion,
   isReturnPolicyQuestion,
   isReturnShippingFeeQuestion,
@@ -63,7 +67,11 @@ import {
   resolveDissatisfactionRescueFollowUp,
   shouldOfferReturnOptionsFirst,
 } from "@/lib/agents/dissatisfaction"
-import { buildExchangeIntakeStartReply } from "@/lib/agents/exchange-intake"
+import {
+  buildExchangeIntakeStartReply,
+  isExchangeIntakeActive,
+  isExchangeIntakeStartedInThread,
+} from "@/lib/agents/exchange-intake"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
   lastAssistantWasOutboundDocumentDelivery,
@@ -76,8 +84,10 @@ import {
   isChannelPhoneSelfReference,
   isOrderConfirmationPending,
   isOrderDeliveryStatusQuestion,
+  isOrderLookupCompletedInThread,
   isOrderLookupPhoneReplyPending,
   isPurePhoneLookupConfirmYes,
+  mentionsCancellationDesire,
   requiresOrderIdentification,
   resolveOrderShippingReply,
   userProvidedPhone,
@@ -151,6 +161,25 @@ export function runPreTurnGuards(input: {
       kind: "handled",
       reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`,
       action,
+    }
+  }
+
+  if (
+    (isWaitingForHumanRepReply(body) || isInactivityStillHereReply(body)) &&
+    isTransferPromisedInThread(input.history)
+  ) {
+    return {
+      kind: "handled",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_service")}`,
+      action: "human_service",
+    }
+  }
+
+  if (isInactivityPingPending(input.history) && isWaitingForHumanRepReply(body)) {
+    return {
+      kind: "handled",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_service")}`,
+      action: "human_service",
     }
   }
 
@@ -232,7 +261,8 @@ function shouldBindInactivityReplyToPriorQuestion(history: HistoryMessage[]) {
     isOrderConfirmationPending(history) ||
     isServiceHandoffSummaryPending(history) ||
     isPostPurchaseIntentConfirmPending(history) ||
-    isOrderLookupPhoneReplyPending(history)
+    isOrderLookupPhoneReplyPending(history) ||
+    isTransferPromisedInThread(history)
   ) {
     return true
   }
@@ -573,11 +603,9 @@ export async function runStructuredOrderLookupPreTurn(input: {
     return { kind: "skip", response: null }
   }
 
-  const action: HomAgentAction =
-    /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply) &&
-    /האם להעביר לנציג שירות/i.test(reply)
-      ? "human_service"
-      : "reply"
+  const action: HomAgentAction = /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply)
+    ? "human_service"
+    : "reply"
 
   return {
     kind: "handled",
@@ -585,4 +613,50 @@ export async function runStructuredOrderLookupPreTurn(input: {
     action,
     suppressInactivityWatch: endsWithOptionalFollowUpOffer(reply),
   }
+}
+
+/** Order already located — exchange/modification/cancel must not restart phone lookup. */
+export function runStructuredPostOrderExchangePreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  phone?: string
+}): PreTurnResult {
+  const body = summarizeTurn(input.turn)
+  if (!isOrderLookupCompletedInThread(input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (isExchangeIntakeActive(input.history) || isExchangeIntakeStartedInThread(input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (isShippingStatusQuestion(body) && !isOrderModificationRequest(body)) {
+    return { kind: "skip", response: null }
+  }
+
+  const postCase = classifyPostPurchaseCase(body)
+  const wantsModification = isOrderModificationRequest(body)
+  const wantsCancel = mentionsCancellationDesire(body)
+  const wantsExchange =
+    postCase === "exchange_request" || /(?:החלפ|להחליף)/i.test(body)
+
+  if (!wantsModification && !wantsCancel && !wantsExchange) {
+    return { kind: "skip", response: null }
+  }
+
+  if (wantsExchange || wantsModification) {
+    return {
+      kind: "handled",
+      reply: buildExchangeIntakeStartReply(),
+      action: "reply",
+    }
+  }
+
+  if (shouldOfferReturnOptionsFirst(body, input.history)) {
+    return {
+      kind: "handled",
+      reply: buildDissatisfactionRescueReply(input.phone),
+      action: "reply",
+    }
+  }
+
+  return { kind: "skip", response: null }
 }

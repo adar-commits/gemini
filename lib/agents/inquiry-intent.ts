@@ -685,9 +685,10 @@ const PURCHASE_STATEMENT_PROBLEM_RE =
 export function isOrderModificationRequest(body: string) {
   const text = body.trim()
   if (!text) return false
+  if (/^שינוי\s+הזמנה(?:[\s,.!?]|$)/i.test(text)) return true
   return (
     /(?:ל)?(?:שנ(?:ות|ה)|להחליף|לעדכן)/i.test(text) &&
-    /(?:צבע|מידה|גודל|שטיח)/i.test(text)
+    /(?:צבע|מידה|גודל|שטיח|מוצר|הזמנה)/i.test(text)
   )
 }
 

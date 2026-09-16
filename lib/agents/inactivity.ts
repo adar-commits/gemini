@@ -31,7 +31,16 @@ export function isInactivityPingPending(history: HistoryMessage[]) {
 export function isInactivityStillHereReply(body: string) {
   const text = body.trim()
   if (!text || text.length > 40) return false
-  return /^(?:כן|כן\s+אני|פה|אני\s+פה|עדיין\s+פה|אני\s+כאן|כאן|yes|ok|👍)(?:[\s,.!?]*|$)/iu.test(
+  return /^(?:כן|כן\s+אני|פה|אני\s+פה|עדיין\s+פה|אני\s+כאן|כאן|yes|ok|👍)(?:[\s,.!?]*)$/iu.test(
+    text
+  )
+}
+
+/** Customer says they are waiting for a human rep — not a bare inactivity ack. */
+export function isWaitingForHumanRepReply(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 120) return false
+  return /(?:מחכ(?:ה|ים|ות)|ממת(?:ין|ינים|ינות))\s+(?:ל)?(?:נציג|יועץ)|(?:רוצ(?:ה|ים|ות)|מ(?:בקש|בקש(?:ת|ים|ות)))\s+(?:ל)?(?:נציג|יועץ)|(?:מחכ(?:ה|ים|ות)\s+ל(?:שיחה|טיפול))/iu.test(
     text
   )
 }

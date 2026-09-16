@@ -44,4 +44,15 @@ describe("shouldSkipInactivityForHumanWait", () => {
       false
     )
   })
+
+  it("skips inactivity after transfer-promised copy without handoff action", () => {
+    assert.equal(
+      shouldSkipInactivityForHumanWait({
+        lastAction: "reply",
+        lastAssistantText:
+          "*הום בוט :)*\nבדקתי, ההזמנה נמצאה, אך לא ניתן להציג כרגע סטטוס משלוח חד-משמעי. הפנייה תועבר להמשך טיפול.",
+      }),
+      true
+    )
+  })
 })

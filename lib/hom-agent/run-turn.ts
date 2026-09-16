@@ -41,6 +41,7 @@ import {
   runStructuredDocumentPreTurn,
   runStructuredKbSelfServiceFaqPreTurn,
   runStructuredOpeningAfterDocumentDeliveryPreTurn,
+  runStructuredPostOrderExchangePreTurn,
   runStructuredOrderLookupPreTurn,
   runStructuredPostPurchaseAltSizePreTurn,
   runStructuredReturnOptionsPreTurn,
@@ -393,6 +394,39 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_kb_faq",
+      },
+    })
+  }
+
+  const structuredPostOrderExchange = runStructuredPostOrderExchangePreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredPostOrderExchange.kind === "handled") {
+    const action = mapHomAction(structuredPostOrderExchange.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: structuredPostOrderExchange.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredPostOrderExchange.reply,
+      action,
+      route: ["faq"],
+      crmDepartment: "service",
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_post_order_exchange",
       },
     })
   }

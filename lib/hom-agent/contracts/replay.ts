@@ -6,6 +6,7 @@ import {
 } from "@/lib/agents/digital-document-flow"
 import {
   classifyPostPurchaseCase,
+  isOrderModificationRequest,
   isRefundTimelineQuestion,
   isReturnPolicyQuestion,
   isReturnShippingFeeQuestion,
@@ -25,6 +26,7 @@ import {
   runStructuredDocumentPreTurn,
   runStructuredKbSelfServiceFaqPreTurn,
   runStructuredOrderLookupPreTurn,
+  runStructuredPostOrderExchangePreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesIntakePreTurn,
 } from "@/lib/hom-agent/pre-turn"
@@ -42,6 +44,7 @@ const CLASSIFIERS: Record<string, (...args: string[]) => boolean> = {
   isReturnExchangePolicyFaqQuestion: (text) => isReturnExchangePolicyFaqQuestion(text),
   isRefundTimelineQuestion: (text) => isRefundTimelineQuestion(text),
   isRugCleaningServiceQuestion: (text) => isRugCleaningServiceQuestion(text),
+  isOrderModificationRequest: (text) => isOrderModificationRequest(text),
   isDigitalDocumentRequest: (text) => isDigitalDocumentRequest(text),
   isShippingStatusQuestion: (text) => isShippingStatusQuestion(text),
   isBranchReviewLinkRequest: (text) => isBranchReviewLinkRequest(text),
@@ -87,6 +90,8 @@ async function runPreTurnHandler(
       return await runStructuredOrderLookupPreTurn(input)
     case "return_options":
       return runStructuredReturnOptionsPreTurn(input)
+    case "post_order_exchange":
+      return runStructuredPostOrderExchangePreTurn(input)
     case "sales_intake":
       return runStructuredSalesIntakePreTurn(input)
     default: {

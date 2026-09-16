@@ -1407,6 +1407,20 @@ export function identifiedOrderNumberFromThread(history: HistoryMessage[]) {
   return pendingOrderNumberFromHistory(history)
 }
 
+/** Order card was confirmed and lookup already ran — do not restart phone flow. */
+export function isOrderLookupCompletedInThread(history: HistoryMessage[]) {
+  if (!identifiedOrderNumberFromThread(history)) return false
+  if (isOrderConfirmationPending(history) || isPhoneLookupConfirmPending(history)) {
+    return false
+  }
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      (/בדקתי,/i.test(message.content) ||
+        /לא ניתן להציג כרגע סטטוס משלוח/i.test(message.content))
+  )
+}
+
 async function resolveIdentifiedOrderFromThread(input: {
   history: HistoryMessage[]
   whatsappPhone?: string
