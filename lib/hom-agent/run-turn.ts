@@ -54,7 +54,6 @@ import {
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesIntakePreTurn,
   runStructuredSalesPhotoPreTurn,
-  shouldDeferStructuredPreTurnToLlm,
 } from "@/lib/hom-agent/pre-turn"
 import {
   normalizeHomAgentCrmDepartment,
@@ -215,396 +214,393 @@ export async function runHomAgentTurn(
     })
   }
 
-  if (!shouldDeferStructuredPreTurnToLlm(history)) {
-    const structuredOpeningAfterDocument = runStructuredOpeningAfterDocumentDeliveryPreTurn({
-      turn,
-      history,
-    })
+  const structuredOpeningAfterDocument = runStructuredOpeningAfterDocumentDeliveryPreTurn({
+    turn,
+    history,
+  })
 
-    if (structuredOpeningAfterDocument.kind === "handled") {
-      const action = mapHomAction(structuredOpeningAfterDocument.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "faq",
-          userText: body,
-          assistantText: structuredOpeningAfterDocument.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  if (structuredOpeningAfterDocument.kind === "handled") {
+    const action = mapHomAction(structuredOpeningAfterDocument.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "faq",
-        reply: structuredOpeningAfterDocument.reply,
+        userText: body,
+        assistantText: structuredOpeningAfterDocument.reply,
         action,
-        route: ["faq"],
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_opening_after_document",
-        },
+        preview,
       })
     }
-
-    const structuredPostPurchaseAltSize = runStructuredPostPurchaseAltSizePreTurn({
-      turn,
-      history,
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredOpeningAfterDocument.reply,
+      action,
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_opening_after_document",
+      },
     })
+  }
 
-    if (structuredPostPurchaseAltSize.kind === "handled") {
-      const action = mapHomAction(structuredPostPurchaseAltSize.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "sales",
-          userText: body,
-          assistantText: structuredPostPurchaseAltSize.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredPostPurchaseAltSize = runStructuredPostPurchaseAltSizePreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredPostPurchaseAltSize.kind === "handled") {
+    const action = mapHomAction(structuredPostPurchaseAltSize.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "sales",
-        reply: structuredPostPurchaseAltSize.reply,
+        userText: body,
+        assistantText: structuredPostPurchaseAltSize.reply,
         action,
-        route: ["sales"],
-        crmDepartment: "sales",
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_post_purchase_alt_size",
-        },
+        preview,
       })
     }
-
-    const structuredSalesPhoto = runStructuredSalesPhotoPreTurn({
-      turn,
-      history,
-      lastAgent,
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredPostPurchaseAltSize.reply,
+      action,
+      route: ["sales"],
+      crmDepartment: "sales",
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_post_purchase_alt_size",
+      },
     })
+  }
 
-    if (structuredSalesPhoto.kind === "handled") {
-      const action = mapHomAction(structuredSalesPhoto.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "sales",
-          userText: body,
-          assistantText: structuredSalesPhoto.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredSalesPhoto = runStructuredSalesPhotoPreTurn({
+    turn,
+    history,
+    lastAgent,
+  })
+
+  if (structuredSalesPhoto.kind === "handled") {
+    const action = mapHomAction(structuredSalesPhoto.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "sales",
-        reply: structuredSalesPhoto.reply,
+        userText: body,
+        assistantText: structuredSalesPhoto.reply,
         action,
-        route: ["sales"],
-        crmDepartment: "sales",
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_sales_photo",
-        },
+        preview,
       })
     }
-
-    const structuredSalesIntake = runStructuredSalesIntakePreTurn({
-      turn,
-      history,
-      lastAgent,
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredSalesPhoto.reply,
+      action,
+      route: ["sales"],
+      crmDepartment: "sales",
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_sales_photo",
+      },
     })
+  }
 
-    if (structuredSalesIntake.kind === "handled") {
-      const action = mapHomAction(structuredSalesIntake.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "sales",
-          userText: body,
-          assistantText: structuredSalesIntake.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredSalesIntake = runStructuredSalesIntakePreTurn({
+    turn,
+    history,
+    lastAgent,
+  })
+
+  if (structuredSalesIntake.kind === "handled") {
+    const action = mapHomAction(structuredSalesIntake.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "sales",
-        reply: structuredSalesIntake.reply,
+        userText: body,
+        assistantText: structuredSalesIntake.reply,
         action,
-        route: ["sales"],
-        crmDepartment: "sales",
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_sales_intake",
-        },
+        preview,
       })
     }
-
-    const structuredExchangeExecution = runStructuredExchangeExecutionPreTurn({
-      turn,
-      history,
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredSalesIntake.reply,
+      action,
+      route: ["sales"],
+      crmDepartment: "sales",
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_sales_intake",
+      },
     })
+  }
 
-    if (structuredExchangeExecution.kind === "handled") {
-      const action = mapHomAction(structuredExchangeExecution.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "faq",
-          userText: body,
-          assistantText: structuredExchangeExecution.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredExchangeExecution = runStructuredExchangeExecutionPreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredExchangeExecution.kind === "handled") {
+    const action = mapHomAction(structuredExchangeExecution.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "faq",
-        reply: structuredExchangeExecution.reply,
+        userText: body,
+        assistantText: structuredExchangeExecution.reply,
         action,
-        route: ["faq"],
-        crmDepartment: "service",
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_exchange_execution",
-        },
+        preview,
       })
     }
-
-    const structuredOrder = await runStructuredOrderLookupPreTurn({
-      turn,
-      history,
-      phone: phone || undefined,
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredExchangeExecution.reply,
+      action,
+      route: ["faq"],
+      crmDepartment: "service",
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_exchange_execution",
+      },
     })
+  }
 
-    if (structuredOrder.kind === "handled") {
-      const action = mapHomAction(structuredOrder.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "faq",
-          userText: body,
-          assistantText: structuredOrder.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredOrder = await runStructuredOrderLookupPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredOrder.kind === "handled") {
+    const action = mapHomAction(structuredOrder.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "faq",
-        reply: structuredOrder.reply,
+        userText: body,
+        assistantText: structuredOrder.reply,
         action,
-        route: ["faq"],
-        ...(structuredOrder.suppressInactivityWatch
-          ? { suppressInactivityWatch: true }
-          : {}),
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_order",
-        },
+        preview,
       })
     }
-
-    const structuredReturnOptions = runStructuredReturnOptionsPreTurn({
-      turn,
-      history,
-      phone: phone || undefined,
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredOrder.reply,
+      action,
+      route: ["faq"],
+      ...(structuredOrder.suppressInactivityWatch
+        ? { suppressInactivityWatch: true }
+        : {}),
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_order",
+      },
     })
+  }
 
-    if (structuredReturnOptions.kind === "handled") {
-      const action = mapHomAction(structuredReturnOptions.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: action === "human_sales" ? "sales" : "faq",
-          userText: body,
-          assistantText: structuredReturnOptions.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredReturnOptions = runStructuredReturnOptionsPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredReturnOptions.kind === "handled") {
+    const action = mapHomAction(structuredReturnOptions.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: action === "human_sales" ? "sales" : "faq",
-        reply: structuredReturnOptions.reply,
+        userText: body,
+        assistantText: structuredReturnOptions.reply,
         action,
-        route: [action === "human_sales" ? "sales" : "faq"],
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_return_options",
-        },
+        preview,
       })
     }
-
-    const structuredKbFaq = runStructuredKbSelfServiceFaqPreTurn({
-      turn,
-      history,
-      phone: phone || undefined,
+    return finish({
+      ok: true,
+      agent: action === "human_sales" ? "sales" : "faq",
+      reply: structuredReturnOptions.reply,
+      action,
+      route: [action === "human_sales" ? "sales" : "faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_return_options",
+      },
     })
+  }
 
-    if (structuredKbFaq.kind === "handled") {
-      const action = mapHomAction(structuredKbFaq.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "faq",
-          userText: body,
-          assistantText: structuredKbFaq.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredKbFaq = runStructuredKbSelfServiceFaqPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredKbFaq.kind === "handled") {
+    const action = mapHomAction(structuredKbFaq.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "faq",
-        reply: structuredKbFaq.reply,
+        userText: body,
+        assistantText: structuredKbFaq.reply,
         action,
-        route: ["faq"],
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_kb_faq",
-        },
+        preview,
       })
     }
-
-    const structuredInventory = await runStructuredInventoryPreTurn({
-      turn,
-      history,
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredKbFaq.reply,
+      action,
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_kb_faq",
+      },
     })
+  }
 
-    if (structuredInventory.kind === "handled") {
-      const action = mapHomAction(structuredInventory.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "sales",
-          userText: body,
-          assistantText: structuredInventory.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredInventory = await runStructuredInventoryPreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredInventory.kind === "handled") {
+    const action = mapHomAction(structuredInventory.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "sales",
-        reply: structuredInventory.reply,
+        userText: body,
+        assistantText: structuredInventory.reply,
         action,
-        route: ["sales"],
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_inventory",
-        },
+        preview,
       })
     }
-
-    const structuredPostOrderExchange = runStructuredPostOrderExchangePreTurn({
-      turn,
-      history,
-      phone: phone || undefined,
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredInventory.reply,
+      action,
+      route: ["sales"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_inventory",
+      },
     })
+  }
 
-    if (structuredPostOrderExchange.kind === "handled") {
-      const action = mapHomAction(structuredPostOrderExchange.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "faq",
-          userText: body,
-          assistantText: structuredPostOrderExchange.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredPostOrderExchange = runStructuredPostOrderExchangePreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredPostOrderExchange.kind === "handled") {
+    const action = mapHomAction(structuredPostOrderExchange.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "faq",
-        reply: structuredPostOrderExchange.reply,
+        userText: body,
+        assistantText: structuredPostOrderExchange.reply,
         action,
-        route: ["faq"],
-        crmDepartment: "service",
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_post_order_exchange",
-        },
+        preview,
       })
     }
-
-    const structuredPostOrderCompleted = await runStructuredPostOrderCompletedPreTurn({
-      turn,
-      history,
-      phone: phone || undefined,
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredPostOrderExchange.reply,
+      action,
+      route: ["faq"],
+      crmDepartment: "service",
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_post_order_exchange",
+      },
     })
+  }
 
-    if (structuredPostOrderCompleted.kind === "handled") {
-      const action = mapHomAction(structuredPostOrderCompleted.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: action === "human_sales" ? "sales" : "faq",
-          userText: body,
-          assistantText: structuredPostOrderCompleted.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredPostOrderCompleted = await runStructuredPostOrderCompletedPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredPostOrderCompleted.kind === "handled") {
+    const action = mapHomAction(structuredPostOrderCompleted.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: action === "human_sales" ? "sales" : "faq",
-        reply: structuredPostOrderCompleted.reply,
+        userText: body,
+        assistantText: structuredPostOrderCompleted.reply,
         action,
-        route: [action === "human_sales" ? "sales" : "faq"],
-        crmDepartment: action === "human_service" ? "service" : undefined,
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_post_order_completed",
-        },
+        preview,
       })
     }
-
-    const structuredDocument = await runStructuredDocumentPreTurn({
-      turn,
-      history,
-      phone: phone || undefined,
+    return finish({
+      ok: true,
+      agent: action === "human_sales" ? "sales" : "faq",
+      reply: structuredPostOrderCompleted.reply,
+      action,
+      route: [action === "human_sales" ? "sales" : "faq"],
+      crmDepartment: action === "human_service" ? "service" : undefined,
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_post_order_completed",
+      },
     })
+  }
 
-    if (structuredDocument.kind === "handled") {
-      const action = mapHomAction(structuredDocument.action)
-      if (persistTurn) {
-        await appendTurn({
-          conversationId,
-          agent: "faq",
-          userText: body,
-          assistantText: structuredDocument.reply,
-          action,
-          preview,
-        })
-      }
-      return finish({
-        ok: true,
+  const structuredDocument = await runStructuredDocumentPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredDocument.kind === "handled") {
+    const action = mapHomAction(structuredDocument.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
         agent: "faq",
-        reply: structuredDocument.reply,
+        userText: body,
+        assistantText: structuredDocument.reply,
         action,
-        route: ["faq"],
-        metrics: {
-          llm_calls: 0,
-          profile: runtime.activeProfile,
-          routing_path: "v3_structured_document",
-        },
+        preview,
       })
     }
-
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredDocument.reply,
+      action,
+      route: ["faq"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_document",
+      },
+    })
   }
 
   let output: HomAgentOutput

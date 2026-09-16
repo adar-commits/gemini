@@ -148,12 +148,6 @@ export function buildConversationHints(input: {
 
   const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
 
-  if (isFirstSubstantiveCustomerTurn(history)) {
-    lines.push(
-      "FIRST CUSTOMER MESSAGE: interpret their full intent with LLM + tools this turn — no structured FAQ/order shortcuts. Answer what they actually asked; call lookup_order_status only when live order data is needed."
-    )
-  }
-
   if (
     isFirstSubstantiveCustomerTurn(history) &&
     (isCasualGreeting(body) ||
