@@ -8,6 +8,8 @@ create table if not exists public.hom_agent_token_usage (
   model text not null,
   input_tokens int not null default 0,
   output_tokens int not null default 0,
+  cache_read_tokens int not null default 0,
+  cache_write_tokens int not null default 0,
   tier text,
   routing_path text,
   profile text,

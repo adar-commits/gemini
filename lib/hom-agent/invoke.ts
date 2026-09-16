@@ -28,6 +28,21 @@ const INVOKE_FALLBACK_MODEL = "anthropic/claude-haiku-4.5"
  */
 const GATEWAY_PROVIDER_OPTIONS = { gateway: { caching: "auto" as const } }
 
+const TOOL_SYSTEM_SUFFIX =
+  "If you need live data, call the appropriate tool first. Do not invent order status, stock, or documents. Base the reply on tool results exactly — never contradict them."
+
+const TOOL_RECOVERY_USER_PREFIX = `[Tool call was rejected as misrouted/uncertain for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool. CRITICAL: you have NO lookup results — never claim you checked, found, or see orders/stock/documents, and never promise to check and come back (no "רגע אחד ואחזור", no "אבדוק ואעדכן"). Answer from context/KB or ask the customer for what you need.
+
+Compose the best direct customer reply for:`
+
+function homAgentToolSystemPrompt(system: string) {
+  return `${system}\n\n${TOOL_SYSTEM_SUFFIX}`
+}
+
+function homAgentGatewayHeaders(conversationId: string) {
+  return { "x-session-affinity": conversationId }
+}
+
 type InvokeContext = {
   conversationId: string
   turn: UserTurn
@@ -140,9 +155,10 @@ async function invokeWithTools(ctx: InvokeContext) {
   // Single pass: the model may call tools (up to MAX_TOOL_ROUNDS steps) and must
   // finish with the structured { reply, action } output in the same call — the
   // large system prompt is billed once per turn instead of twice.
+  const toolSystem = homAgentToolSystemPrompt(system)
   const result = await generateText({
     model: ctx.model,
-    system: `${system}\n\nIf you need live data, call the appropriate tool first. Do not invent order status, stock, or documents. Base the reply on tool results exactly — never contradict them.`,
+    system: toolSystem,
     messages,
     tools,
     stopWhen: stepCountIs(MAX_TOOL_ROUNDS + 1),
@@ -150,6 +166,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
     providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
   recordTokenUsage({
@@ -183,18 +200,19 @@ async function invokeWithTools(ctx: InvokeContext) {
   if (hasToolRecoverySignal(result.steps) && !deterministicReply) {
     const recovery = await generateText({
       model: ctx.model,
-      system: `${system}\n\nA previous tool call was rejected as misrouted or non-definitive for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool. CRITICAL: you have NO lookup results — never claim you checked, found, or see orders/stock/documents, and never promise to check and come back (no "רגע אחד ואחזור", no "אבדוק ואעדכן"). Answer from context/KB or ask the customer for what you need.`,
+      system: toolSystem,
       messages: [
         ...messages,
         {
           role: "user",
-          content: `[Tool call was rejected as misrouted/uncertain. Compose the best direct customer reply for: ${ctx.body}]`,
+          content: `${TOOL_RECOVERY_USER_PREFIX} ${ctx.body}]`,
         },
       ],
       temperature: homAgentTemperature(ctx.runtime),
       maxOutputTokens: homAgentMaxTokens(ctx.runtime),
       output: homAgentOutputSchema(),
       providerOptions: GATEWAY_PROVIDER_OPTIONS,
+      headers: homAgentGatewayHeaders(ctx.conversationId),
     })
 
     recordTokenUsage({
@@ -242,7 +260,7 @@ async function invokeWithTools(ctx: InvokeContext) {
 
   const finalWord = await generateText({
     model: ctx.model,
-    system,
+    system: toolSystem,
     messages: [
       ...messages,
       {
@@ -257,6 +275,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
     providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
   recordTokenUsage({
@@ -296,6 +315,7 @@ async function invokeKbOnly(ctx: InvokeContext) {
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
     providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
   recordTokenUsage({
@@ -354,6 +374,7 @@ async function deliverValidatedOutput(input: {
       maxOutputTokens: maxTokens + TRUNCATION_RETRY_EXTRA_TOKENS,
       output: homAgentOutputSchema(),
       providerOptions: GATEWAY_PROVIDER_OPTIONS,
+      headers: homAgentGatewayHeaders(input.ctx.conversationId),
     })
 
     recordTokenUsage({

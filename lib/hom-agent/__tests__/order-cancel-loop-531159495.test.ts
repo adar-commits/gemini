@@ -16,6 +16,8 @@ import {
 import type { HistoryMessage } from "@/lib/agents/types"
 
 const PHONE = "+972525991700"
+/** 10:00 Israel — service reps online for deterministic handoff assertions. */
+const BUSINESS_HOURS = new Date("2026-09-09T07:00:00.000Z")
 
 function historyThroughReturnPolicy(): HistoryMessage[] {
   return [
@@ -111,6 +113,7 @@ describe("order cancel loop prevention (531159495)", () => {
       turn: { text: "כן נציג שירות", media: [] },
       history,
       phone: PHONE,
+      now: BUSINESS_HOURS,
     })
     assert.equal(preTurn.kind, "handled")
     if (preTurn.kind !== "handled") return
