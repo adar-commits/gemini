@@ -118,6 +118,7 @@ import {
   turnHasVoiceMessage,
 } from "@/lib/agents/user-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
+import { isFirstSubstantiveCustomerTurn } from "@/lib/agents/greeting"
 
 export type PreTurnResult =
   | { kind: "skip"; response: null }
@@ -127,6 +128,13 @@ export type PreTurnResult =
       action: HomAgentAction
       suppressInactivityWatch?: boolean
     }
+
+/** First substantive customer message always goes through the LLM — structured paths bind follow-ups only. */
+export function shouldDeferStructuredPreTurnToLlm(
+  history: HistoryMessage[]
+): boolean {
+  return isFirstSubstantiveCustomerTurn(history)
+}
 
 export function runPreTurnGuards(input: {
   turn: UserTurn
