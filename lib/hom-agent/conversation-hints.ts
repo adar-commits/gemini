@@ -1,3 +1,4 @@
+import { salesIntakeMode } from "@/lib/agent-core/config"
 import {
   channelPhone,
   extractOrderNumber,
@@ -707,7 +708,9 @@ export function buildConversationHints(input: {
 
   if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
     lines.push(
-      "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Always a complete Hebrew question or summary — never stub words like placeholder/TODO."
+      salesIntakeMode() === "llm"
+        ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product already stated. On לא יודע/לא בטוח: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). Never replay canned script blocks verbatim."
+        : "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Always a complete Hebrew question or summary — never stub words like placeholder/TODO."
     )
   }
 

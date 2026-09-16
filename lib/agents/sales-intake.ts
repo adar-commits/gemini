@@ -440,6 +440,12 @@ export function shouldUseSalesIntakeFastPath(
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
 
+  // Default mode: LLM runs the full sales quiz — structured pre-turn must not hijack mid-thread.
+  if (mode === "llm") {
+    if (isConfirmationPending(history)) return true
+    return false
+  }
+
   if (isSalesQuizContext(history, lastAgent)) {
     if (isIntakeTopicPivot(body, history)) return false
     return true

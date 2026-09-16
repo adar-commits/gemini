@@ -1,8 +1,12 @@
 import assert from "node:assert/strict"
-import { describe, it } from "node:test"
+import { afterEach, describe, it } from "node:test"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import { runStructuredSalesIntakePreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HistoryMessage } from "@/lib/agents/types"
+
+afterEach(() => {
+  delete process.env.SALES_INTAKE_MODE
+})
 
 describe("sales intake pre-turn (532390988 — placeholder stub)", () => {
   const historyBeforePetsAnswer: HistoryMessage[] = [
@@ -30,6 +34,7 @@ describe("sales intake pre-turn (532390988 — placeholder stub)", () => {
   ]
 
   it("binds pets=no to the next intake step instead of LLM stub", () => {
+    process.env.SALES_INTAKE_MODE = "scripted"
     const result = runStructuredSalesIntakePreTurn({
       turn: { text: "לא", media: [] },
       history: historyBeforePetsAnswer,
@@ -58,6 +63,7 @@ describe("sales intake pre-turn (532390988 — placeholder stub)", () => {
   })
 
   it("emits sales intake quiz hint while a scripted question is pending", () => {
+    process.env.SALES_INTAKE_MODE = "scripted"
     const hints = buildConversationHints({
       body: "לא",
       history: historyBeforePetsAnswer,
