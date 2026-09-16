@@ -7,7 +7,8 @@ import { setRoutingPath } from "@/lib/agent-core/turn-metrics"
 import { buildModelMessages } from "@/lib/agents/multimodal"
 import type { HistoryMessage } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
-import { buildHomAgentSystemPrompt } from "@/lib/hom-agent/prompt"
+import { buildHomAgentSystemPromptAsync } from "@/lib/hom-agent/prompt"
+import type { ModelTier } from "@/lib/agent-core/model-orchestra"
 import {
   homAgentOutputSchema,
   normalizeHomAgentAction,
@@ -26,7 +27,9 @@ const INVOKE_FALLBACK_MODEL = "anthropic/claude-haiku-4.5"
  * (5-min TTL). The big system prompt is re-billed at ~10% on cache hits —
  * multi-step tool turns and active conversations benefit most.
  */
-const GATEWAY_PROVIDER_OPTIONS = { gateway: { caching: "auto" as const } }
+const GATEWAY_PROVIDER_OPTIONS = {
+  gateway: { caching: "auto" as const, cacheTtl: "1h" as const },
+}
 
 const TOOL_SYSTEM_SUFFIX =
   "If you need live data, call the appropriate tool first. Do not invent order status, stock, or documents. Base the reply on tool results exactly — never contradict them."
@@ -53,6 +56,7 @@ type InvokeContext = {
   learnedRules?: string | null
   ownerAnswers?: string | null
   model: string
+  modelTier: ModelTier | null
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }
 
@@ -84,6 +88,7 @@ function buildInvokeContext(input: {
   learnedRules?: string | null
   ownerAnswers?: string | null
   modelOverride?: string
+  modelTier?: ModelTier | null
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }): InvokeContext {
   return {
@@ -96,6 +101,7 @@ function buildInvokeContext(input: {
     learnedRules: input.learnedRules,
     ownerAnswers: input.ownerAnswers,
     model: homAgentModel(input.runtime, input.modelOverride),
+    modelTier: input.modelTier ?? null,
     runtime: input.runtime,
   }
 }
@@ -107,6 +113,7 @@ export async function invokeHomAgent(input: {
   body: string
   phone?: string
   sessionSummary?: string | null
+  modelTier?: ModelTier | null
   /** Retry path — use a lighter model when the primary call failed instantly. */
   modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
@@ -136,13 +143,14 @@ export async function invokeHomAgent(input: {
 }
 
 async function invokeWithTools(ctx: InvokeContext) {
-  const system = buildHomAgentSystemPrompt({
+  const system = await buildHomAgentSystemPromptAsync({
     sessionSummary: ctx.sessionSummary,
     whatsappPhone: ctx.phone,
     userText: ctx.body,
     history: ctx.history,
     learnedRules: ctx.learnedRules,
     ownerAnswers: ctx.ownerAnswers,
+    modelTier: ctx.modelTier,
   })
   const tools = createHomAgentTools({
     body: ctx.body,
@@ -291,13 +299,14 @@ async function invokeWithTools(ctx: InvokeContext) {
 }
 
 async function invokeKbOnly(ctx: InvokeContext) {
-  const system = buildHomAgentSystemPrompt({
+  const system = await buildHomAgentSystemPromptAsync({
     sessionSummary: ctx.sessionSummary,
     whatsappPhone: ctx.phone,
     userText: ctx.body,
     history: ctx.history,
     learnedRules: ctx.learnedRules,
     ownerAnswers: ctx.ownerAnswers,
+    modelTier: ctx.modelTier,
   })
   const messages = buildModelMessages(ctx.history, ctx.turn)
 
