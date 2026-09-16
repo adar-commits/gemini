@@ -145,7 +145,7 @@ describe("pre-turn human handoff", () => {
     assert.doesNotMatch(result.reply, /עדיין מעבד/)
   })
 
-  it("keeps conversation open on bare תודה without handoff pending", () => {
+  it("closes warmly on bare תודה without handoff pending", () => {
     const history: HistoryMessage[] = [
       {
         role: "assistant",
@@ -160,8 +160,9 @@ describe("pre-turn human handoff", () => {
 
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
-    assert.equal(result.action, "reply")
-    assert.match(result.reply, /במה עוד/)
+    assert.equal(result.action, "end")
+    assert.match(result.reply, /שמחתי לעזור/)
+    assert.doesNotMatch(result.reply, /במה עוד/)
   })
 })
 

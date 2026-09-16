@@ -1,6 +1,9 @@
 import { buildApiFailureReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
 import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
-import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
+import {
+  endsWithOptionalFollowUpOffer,
+  isSkippableClosingAssistantMessage,
+} from "@/lib/agents/conversation-close"
 import {
   formatHebrewCustomerDate,
   formatHebrewCustomerDateTime,
@@ -1362,7 +1365,7 @@ export function isBotHelpJustDelivered(history: HistoryMessage[]) {
     return (
       (/בדקתי,/i.test(message.content) && /נכון לתאריך/i.test(message.content)) ||
       (/לגבי הזמנה\s+(?:SO|IN|OV)\d+/i.test(message.content) &&
-        /(?:אפשר לעזור במשהו נוסף|אם צריך עוד משהו)/i.test(message.content)) ||
+        /(?:שמחתי לעזור|אפשר לעזור במשהו נוסף|אם צריך עוד משהו)/i.test(message.content)) ||
       /הנה הקישור למסמך/i.test(message.content)
     )
   }
@@ -1379,7 +1382,7 @@ export function isOrderStatusDeliveredInThread(history: HistoryMessage[]) {
     if (/בדקתי,/i.test(message.content)) {
       return true
     }
-    if (endsWithOptionalFollowUpOffer(message.content)) continue
+    if (isSkippableClosingAssistantMessage(message.content)) continue
     if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return false
     if (/נדמה לי שמצאתי את ההזמנה/i.test(message.content)) continue
     if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return false
@@ -1498,7 +1501,7 @@ export async function buildPostOrderLookupContinuationReply(input: {
     return `${CUSTOMER_HEADER}\nמצוין — להחזרה בסניף בוחרים "החזרה לסניף" בפורטל:
 ${portalUrl}
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
   }
 
   const repTarget = remainderAfterLeadingAffirmation(body) || body

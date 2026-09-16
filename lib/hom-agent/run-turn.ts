@@ -614,10 +614,7 @@ export async function runHomAgentTurn(
 
   output = coerceKbSelfServiceFaqAction(output, body, history)
 
-  const action =
-    output.action === "end" && isThanksAcknowledgment(body)
-      ? mapHomAction("reply")
-      : mapHomAction(output.action)
+  const action = mapHomAction(output.action)
   const agent = mapHomAgent(output.action)
   const crmDepartment = normalizeHomAgentCrmDepartment(output.crm_department)
   const reply = await rebuildReturnPickupServiceReplyIfNeeded({

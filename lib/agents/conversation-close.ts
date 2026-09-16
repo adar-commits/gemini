@@ -5,19 +5,50 @@ import {
 } from "@/lib/agents/types"
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 
-/** Known optional follow-up closings the bot sends — not mandatory questions. */
-const OPTIONAL_FOLLOW_UP_OFFERS = [
+/** Warm resolution closings — not mandatory questions; silence means thread is done. */
+const WARM_CONVERSATION_CLOSES = [
   ORDER_STATUS_HELP_OFFER,
-  "במה עוד אוכל לעזור?",
-  "במה עוד נוכל לעזור?",
-  "יש עוד שאלה? אני כאן.",
   CUSTOMER_NATURAL_CLOSE,
+  "שמחתי לעזור היום",
+  "שמחתי לעזור!",
 ] as const
 
-/** Bot ended with an optional help offer — customer silence is a natural close. */
+export function buildWarmConversationCloseLine(customerName?: string) {
+  const name = customerName?.trim()
+  return name ? `${name}, שמחתי לעזור היום! 😊` : "שמחתי לעזור היום! 😊"
+}
+
+export function buildWarmConversationCloseReply(customerName?: string) {
+  return `${CUSTOMER_HEADER}\n${buildWarmConversationCloseLine(customerName)}`
+}
+
+/** Bot ended with a warm close — customer silence is a natural end. */
 export function endsWithOptionalFollowUpOffer(content: string) {
   const body = content.replace(CUSTOMER_HEADER, "").trim()
-  return OPTIONAL_FOLLOW_UP_OFFERS.some((offer) => body.includes(offer))
+  return WARM_CONVERSATION_CLOSES.some((closing) => body.includes(closing))
+}
+
+/** Post-answer closings (current or legacy) — skip when scanning for prior substantive bot turns. */
+export function isSkippableClosingAssistantMessage(content: string) {
+  const body = content.replace(CUSTOMER_HEADER, "").trim()
+  if (!body) return false
+  if (endsWithOptionalFollowUpOffer(content)) return true
+  if (/במה עוד (?:אוכל|נוכל) לעזור/i.test(body)) return true
+  if (/אפשר לעזור במשהו נוסף/i.test(body)) return true
+  if (/יש עוד שאלה/i.test(body)) return true
+  if (/אם צריך עוד משהו — אני כאן/i.test(body)) return true
+  if (!/בדקתי,/i.test(body) && /שמחתי לעזור/i.test(body) && body.length <= 160) {
+    return true
+  }
+  if (
+    !/בדקתי,/i.test(body) &&
+    /בשמחה/i.test(body) &&
+    body.length <= 120 &&
+    !/\?/.test(body.replace(/בשמחה[^?!]*[?!]/gi, ""))
+  ) {
+    return true
+  }
+  return false
 }
 
 /** Punctuation-only follow-ups ("?", "???") — not a new business ask. */
@@ -81,10 +112,7 @@ ${greeting} הנציג כבר קיבל את הפנייה ויצור קשר בה�
 בשמחה! 🙏 אם תרצו שאעביר לנציג — כתבו כן. יש עוד שאלה? אני כאן.`
   }
 
-  const name = customerName?.trim()
-  const greeting = name ? `${name}, בשמחה! 😊` : "בשמחה! 😊"
-  return `${CUSTOMER_HEADER}
-${greeting} במה עוד אוכל לעזור?`
+  return buildWarmConversationCloseReply(customerName)
 }
 
 /** @deprecated Use buildThanksAckReply — kept for callers expecting the old name. */

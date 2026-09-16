@@ -76,6 +76,7 @@ import {
 } from "@/lib/agents/policy-subjects"
 import {
   endsWithOptionalFollowUpOffer,
+  isThanksAcknowledgment,
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
 import {
@@ -266,7 +267,17 @@ export function buildConversationHints(input: {
 
   if (lastAssistant && endsWithOptionalFollowUpOffer(lastAssistant)) {
     lines.push(
-      'OPTIONAL FOLLOW-UP CLOSING: your last message was an optional help offer (e.g. "אפשר לעזור במשהו נוסף?", "במה עוד אוכל לעזור?") — customer silence is OK. Never write "עדיין כאן?". If you reply again on a new topic, treat it as a fresh turn; set expects_reply false on optional closings.'
+      'WARM CLOSE SENT: your last message already closed warmly (שמחתי לעזור…) — never write "עדיין כאן?" or ask "אפשר לעזור במשהו נוסף?". Customer thanks → action end with the same warm close; new business on a later message = fresh turn.'
+    )
+  }
+
+  if (
+    isThanksAcknowledgment(body) &&
+    !isHumanHandoffPending(history) &&
+    !isOrderConfirmationPending(history)
+  ) {
+    lines.push(
+      "THANKS AFTER RESOLVED THREAD: customer is closing — reply with warm close only (`{name}, שמחתי לעזור היום! 😊`), action end, expects_reply false. Never ask במה עוד אוכל לעזור."
     )
   }
 

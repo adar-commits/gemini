@@ -223,7 +223,7 @@ export function buildExchangePolicyReply() {
 export function buildReturnCancellationPolicyReply(phone?: string | null) {
   return `${buildReturnPolicyBody(phone)}
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
 }
 
 export function buildReturnShippingFeePolicyReply(phone?: string | null) {
@@ -268,7 +268,7 @@ export function resolveReturnExchangePolicyReply(body: string, phone?: string | 
   if (mentionsReturnIntent(body) && mentionsExchangeIntent(body)) {
     return `${buildCombinedReturnExchangePolicyBody(phone)}
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
   }
   if (isExchangePolicyQuestion(body) || isExchangeOnlyIntent(body)) {
     return buildExchangePolicyReply()
@@ -278,7 +278,7 @@ export function resolveReturnExchangePolicyReply(body: string, phone?: string | 
   }
   return `${buildCombinedReturnExchangePolicyBody(phone)}
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
 }
 
 /** @deprecated Use resolveReturnExchangePolicyReply(body) */

@@ -67,7 +67,7 @@ export function buildHomAgentSystemPrompt(input?: {
 After using tools when needed, respond with JSON only:
 { "reply": "<Hebrew customer message>", "action": "reply" | "human_sales" | "human_service" | "reset" | "end", "crm_department"?: "sales" | "service", "expects_reply"?: boolean }
 Include crm_department only when department is 100% certain — omit otherwise.
-Set expects_reply false when the reply ends with an optional follow-up offer (אפשר לעזור במשהו נוסף?, במה עוד אוכל לעזור?) — never chase with עדיין כאן?.
+Set expects_reply false when the reply ends with a warm resolution close (שמחתי לעזור היום! 😊) — never chase with עדיין כאן? or ask "אפשר לעזור במשהו נוסף?". Customer thanks after a resolved answer → action end with the same warm close.
 Never leave reply empty on substantive turns.`)
 
   return parts.join("")

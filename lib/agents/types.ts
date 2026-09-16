@@ -68,9 +68,9 @@ export const SILENT_ACTIONS = new Set<AgentAction>([
 ])
 
 export const CUSTOMER_HEADER = "*הום בוט :)*"
-export const CUSTOMER_NATURAL_CLOSE = "אם צריך עוד משהו — אני כאן."
-/** After a successful order/shipment status lookup — invite further help. */
-export const ORDER_STATUS_HELP_OFFER = "אפשר לעזור במשהו נוסף?"
+export const CUSTOMER_NATURAL_CLOSE = "שמחתי לעזור! 😊"
+/** After a successful order/shipment status lookup — warm close, no follow-up question. */
+export const ORDER_STATUS_HELP_OFFER = "שמחתי לעזור! 😊"
 
 export type HistoryMessage = {
   role: "user" | "assistant"

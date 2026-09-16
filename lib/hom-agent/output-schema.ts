@@ -52,7 +52,7 @@ export function homAgentOutputSchema() {
         expects_reply: {
           type: "boolean",
           description:
-            "Default true. Set false when the reply ends with an optional follow-up offer (e.g. אפשר לעזור במשהו נוסף?, במה עוד אוכל לעזור?) — customer silence means the thread is naturally done; never chase with עדיין כאן?.",
+            "Default true. Set false when the reply ends with a warm resolution close (e.g. שמחתי לעזור היום! 😊) — customer silence means the thread is naturally done; never chase with עדיין כאן? or ask another follow-up question.",
         },
       },
     }),

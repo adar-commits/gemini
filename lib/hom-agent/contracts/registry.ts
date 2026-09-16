@@ -760,4 +760,27 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
       { type: "preTurn", handler: "order", expect: "skip" },
     ],
   },
+  {
+    id: "warm-close-thanks-532201347",
+    description: "Thanks after resolved FAQ closes warmly — no follow-up question",
+    source: { session: "532201347" },
+    history: [
+      { role: "user", content: "מה שעות הסניפים?" },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\n…שעות הסניפים…\n\nשמחתי לעזור! 😊",
+      },
+    ],
+    turn: { text: "תודה רבה" },
+    assertions: [
+      {
+        type: "preTurn",
+        handler: "guards",
+        expect: "handled",
+        action: "end",
+        replyMustInclude: ["שמחתי לעזור"],
+        replyMustNotInclude: ["במה עוד", "משהו נוסף"],
+      },
+    ],
+  },
 ]

@@ -83,7 +83,7 @@ function buildServicePraiseReplyForOrder(
     return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
   }
 
   const branch = isWebsiteBranch(order.branchCode, order.branchLabel)
@@ -94,7 +94,7 @@ function buildServicePraiseReplyForOrder(
     return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
   }
 
   const websiteNote = isWebsiteBranch(order.branchCode, order.branchLabel)
@@ -106,7 +106,7 @@ function buildServicePraiseReplyForOrder(
 ${websiteNote}אם תרצו, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
 }
 
 function buildServicePraiseReplyForBranchLabel(
@@ -117,7 +117,7 @@ function buildServicePraiseReplyForBranchLabel(
     return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
   }
 
   const branch = resolveBranchGoogleReview(branchLabel)
@@ -125,7 +125,7 @@ function buildServicePraiseReplyForBranchLabel(
     return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
   }
 
   return `${CUSTOMER_HEADER}
@@ -133,7 +133,7 @@ function buildServicePraiseReplyForBranchLabel(
 אם תרצו, אשמח לביקורת ב-Google על הסניף ב${branch.displayName}:
 ${branch.reviewUrl}
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
 }
 
 function buildBranchReviewLinkReplyBody(branchLabel: string, contextTexts: string[] = []) {
@@ -236,7 +236,7 @@ export async function resolveServicePraiseReply(input: {
       return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
     }
 
     if (whatsappPhone) {
@@ -265,7 +265,7 @@ export function buildServicePraiseReply() {
   return `${CUSTOMER_HEADER}
 תודה רבה על המילים החמות — שמחתי לעזור!
 
-אפשר לעזור במשהו נוסף?`
+שמחתי לעזור! 😊`
 }
 
 export function isWebsiteIssueComplaint(body: string) {

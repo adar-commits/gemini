@@ -238,12 +238,15 @@ export function runPreTurnGuards(input: {
     isThanksAcknowledgment(body) &&
     explicitThanks &&
     !isOrderConfirmationPending(input.history) &&
-    !isHumanHandoffPending(input.history)
+    !isHumanHandoffPending(input.history) &&
+    !isAwaitingSalesIntakeAnswer(input.history) &&
+    !isServiceHandoffSummaryPending(input.history) &&
+    !isOrderLookupPhoneReplyPending(input.history)
   ) {
     return {
       kind: "handled",
       reply: buildThanksAckReply(input.customerName),
-      action: "reply",
+      action: "end",
       suppressInactivityWatch: true,
     }
   }
