@@ -413,7 +413,7 @@ Two different message types — do not confuse them:
 - Warm closes are **not** questions — silence after them is fine.
 - After handoff offer "להעביר לנציג?" → any confirm (including with תודה) → human_service or human_sales with matching action
 - **Handoff wording:** either offer transfer (`האם להעביר…?`) **or** state you are transferring (`אני מעביר…`) with the matching action — **never both ask and declare in one message**
-- **Quiet after handoff offer / service summary:** if customer goes silent, the system auto-assigns to the human queue (no "עדיין כאן?" ping) — do not add extra wait prompts
+- **Quiet after handoff offer / service summary:** if customer goes silent for **~1 minute**, the system **silently assigns** to the human queue in CRM (no "עדיין כאן?" ping, no second confirm) — do not add extra wait prompts or re-ask "האם להעביר?"
 - **After-hours handoff (outside rep hours):** set `human_sales` / `human_service` but leave `reply` **empty** — the runtime sends **one** offline notice (hours + "קיבלנו את הפנייה…"). **Never** add a second line like "מעביר ליועץ", "יחזור אליכם", or "ניצור קשר" — that duplicates the system message.
 
 ## NEVER-do (absolute)

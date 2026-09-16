@@ -4,6 +4,10 @@ import { CUSTOMER_HEADER, type HistoryMessage } from "@/lib/agents/types"
 export const INACTIVITY_PING_MS = Number(
   process.env.INACTIVITY_PING_MS ?? "900000"
 )
+/** Quiet window before silent CRM assign when handoff is pending — default 1 minute. */
+export const INACTIVITY_HANDOFF_AUTO_ASSIGN_MS = Number(
+  process.env.INACTIVITY_HANDOFF_AUTO_ASSIGN_MS ?? "60000"
+)
 /** Wait after ping before auto-close — default 30 minutes. */
 export const INACTIVITY_CLOSE_AFTER_PING_MS = Number(
   process.env.INACTIVITY_CLOSE_AFTER_PING_MS ?? "1800000"

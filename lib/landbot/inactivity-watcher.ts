@@ -18,12 +18,14 @@ import {
   recordProactiveAssistantMessage,
   touchSessionMeta,
 } from "@/lib/agents/memory"
+import { executeInactivitySilentQueueRecovery } from "@/lib/landbot/inactivity-handoff-recovery"
 import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
 import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-close"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import {
+  resolveInactivityPingDelayMs,
+  shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
-  shouldSkipInactivityPingForSalesHandoff,
 } from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
@@ -193,8 +195,8 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
     return "optional_follow_up" as const
   }
 
-  if (shouldSkipInactivityPingForSalesHandoff(context.history, context.lastAgent)) {
-    return "sales_summary_handoff" as const
+  if (shouldSilentAutoAssignOnQuietWindow(context.history, context.lastAgent)) {
+    return "silent_handoff_queue" as const
   }
 
   if (!(await crmConversationAllowsServiceInactivity(payload.conversationId))) {
@@ -433,7 +435,10 @@ async function runPingPhase(payload: InactivityWatchPayload) {
     return { ok: true, skipped: "missing_watch_assistant_at" as const }
   }
 
-  const dueAt = Date.parse(watchAssistantAt) + INACTIVITY_PING_MS
+  const { getConversationContext } = await import("@/lib/agents/memory")
+  const context = await getConversationContext(payload.conversationId)
+  const pingDelayMs = resolveInactivityPingDelayMs(context.history, context.lastAgent)
+  const dueAt = Date.parse(watchAssistantAt) + pingDelayMs
   const remaining = dueAt - Date.now()
 
   if (remaining > PING_WATCH_CHUNK_MS) {
@@ -453,8 +458,12 @@ async function runPingPhase(payload: InactivityWatchPayload) {
   }
 
   const skip = await shouldSendPing({ ...payload, watchAssistantAt })
-  if (skip === "sales_summary_handoff" || skip === "sales_crm_department") {
-    return executeInactivitySalesRecovery({
+  if (
+    skip === "silent_handoff_queue" ||
+    skip === "sales_summary_handoff" ||
+    skip === "sales_crm_department"
+  ) {
+    return executeInactivitySilentQueueRecovery({
       conversationId: payload.conversationId,
       customerId: payload.customerId,
     })

@@ -12,28 +12,19 @@ import {
   isActiveSalesConsultation,
   isConfirmationPending,
 } from "@/lib/agents/sales-intake"
+import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { sendCustomerText } from "@/lib/landbot/client"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
 
-function isPendingServiceHandoffSummary(history: HistoryMessage[]) {
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const message = history[index]
-    if (message.role !== "assistant") continue
-    if (isInactivityAssistantMessage(message.content)) continue
-    return /מסכם\s+את\s+הפנייה|עבור\s+נציג\s+שירות/i.test(message.content)
-  }
-  return false
-}
-
 export function resolveInactivityHandoffAction(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ): HumanHandoffAction {
+  if (isServiceHandoffSummaryPending(history)) return "human_service"
   if (isConfirmationPending(history)) return "human_sales"
   if (isActiveSalesConsultation(history, lastAgent)) return "human_sales"
-  if (isPendingServiceHandoffSummary(history)) return "human_service"
   return inferHumanHandoffAction(history, lastAgent)
 }
 
@@ -85,4 +76,19 @@ export async function executeInactivityHandoffRecovery(input: {
     sent: input.silent ? ("silent_handoff" as const) : ("handoff_recovery" as const),
     action,
   }
+}
+
+/** CRM assign only — no customer message (handoff offer / summary quiet timeout). */
+export async function executeInactivitySilentQueueRecovery(input: {
+  conversationId: string
+  customerId: number
+}) {
+  const { getConversationContext } = await import("@/lib/agents/memory")
+  const context = await getConversationContext(input.conversationId)
+  return executeInactivityHandoffRecovery({
+    ...input,
+    history: context.history,
+    lastAgent: context.lastAgent,
+    silent: true,
+  })
 }

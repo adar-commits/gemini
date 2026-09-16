@@ -3,6 +3,7 @@ import { isBotWaitingForCustomerReply } from "@/lib/agents/inactivity-session"
 import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
+  INACTIVITY_HANDOFF_AUTO_ASSIGN_MS,
   INACTIVITY_PING_MS,
   buildInactivityPingReply,
   isInactivityAssistantMessage,
@@ -19,12 +20,13 @@ import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
 import { assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
+import { executeInactivitySilentQueueRecovery } from "@/lib/landbot/inactivity-handoff-recovery"
 import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-recovery"
 import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-close"
 import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 import {
+  shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
-  shouldSkipInactivityPingForSalesHandoff,
 } from "@/lib/agents/inactivity-policy"
 import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
@@ -256,6 +258,59 @@ const IDLE_SCAN_MAX_AGE_MS = 48 * 60 * 60 * 1000
 /** Prefer sessions that became due recently so backlog does not delay fresh threads. */
 const RECENT_PING_DUE_WINDOW_MS = 3 * 60 * 60 * 1000
 
+/** Handoff-offer / sales-summary quiet window — silent assign without "עדיין כאן?". */
+async function loadSessionsDueForSilentHandoff(limit = PING_SCAN_LIMIT) {
+  const supabase = getAgentSupabase()
+  const recencyFloor = new Date(Date.now() - IDLE_SCAN_MAX_AGE_MS).toISOString()
+  const handoffCutoff = new Date(
+    Date.now() - INACTIVITY_HANDOFF_AUTO_ASSIGN_MS
+  ).toISOString()
+  const recentDueFloor = new Date(
+    Date.now() - RECENT_PING_DUE_WINDOW_MS
+  ).toISOString()
+
+  const { data: recentDue, error: recentError } = await supabase
+    .from("hom_agent_sessions")
+    .select(
+      "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+    )
+    .is("inactivity_closed_at", null)
+    .is("inactivity_ping_sent_at", null)
+    .not("last_assistant_at", "is", null)
+    .lte("last_assistant_at", handoffCutoff)
+    .gte("last_assistant_at", recentDueFloor)
+    .order("last_assistant_at", { ascending: false })
+    .limit(limit)
+
+  if (recentError) throw recentError
+
+  const recentRows = (recentDue ?? []) as Omit<IdleSessionRow, "last_action">[]
+  if (recentRows.length >= limit) {
+    return hydrateSessionRows(recentRows)
+  }
+
+  const remaining = limit - recentRows.length
+  const { data: olderDue, error: olderError } = await supabase
+    .from("hom_agent_sessions")
+    .select(
+      "conversation_id, last_user_at, last_assistant_at, inactivity_ping_sent_at, inactivity_closed_at, customer_name, customer_phone"
+    )
+    .is("inactivity_closed_at", null)
+    .is("inactivity_ping_sent_at", null)
+    .not("last_assistant_at", "is", null)
+    .lt("last_assistant_at", recentDueFloor)
+    .gte("last_assistant_at", recencyFloor)
+    .order("last_assistant_at", { ascending: true })
+    .limit(remaining)
+
+  if (olderError) throw olderError
+
+  return hydrateSessionRows([
+    ...recentRows,
+    ...((olderDue ?? []) as Omit<IdleSessionRow, "last_action">[]),
+  ])
+}
+
 /** Sessions past the ping deadline — recent due first, then older backlog. */
 async function loadSessionsDueForPing(limit = PING_SCAN_LIMIT) {
   const supabase = getAgentSupabase()
@@ -412,6 +467,38 @@ async function loadSessionsDueForClose(limit = CLOSE_SCAN_LIMIT): Promise<CloseC
   return due
 }
 
+async function attemptSilentHandoffAssign(row: IdleSessionRow) {
+  if (await shouldSkipIdleForHumanWait(row)) return "skipped" as const
+  if (await hasPendingBuffer(row.conversation_id)) return "skipped" as const
+  if (!(await isBotWaitingForUser(row))) return "skipped" as const
+
+  const customerId = parseCustomerId(row.conversation_id)
+  if (!customerId) return "skipped" as const
+  if (!shouldReplyPhone(row.customer_phone)) return "skipped" as const
+  if (await lastAssistantIsInactivityPing(row.conversation_id)) return "skipped" as const
+  if (msSince(row.last_assistant_at) < INACTIVITY_HANDOFF_AUTO_ASSIGN_MS) {
+    return "skipped" as const
+  }
+
+  const { getConversationContext, getHistory } = await import("@/lib/agents/memory")
+  const [context, history] = await Promise.all([
+    getConversationContext(row.conversation_id),
+    getHistory(row.conversation_id),
+  ])
+
+  if (shouldSuppressInactivityWatch(history)) return "skipped" as const
+  if (isOrderConfirmationPending(history)) return "skipped" as const
+  if (!shouldSilentAutoAssignOnQuietWindow(context.history, context.lastAgent)) {
+    return "skipped" as const
+  }
+
+  await executeInactivitySilentQueueRecovery({
+    conversationId: row.conversation_id,
+    customerId,
+  })
+  return "silent_handoff" as const
+}
+
 async function attemptInactivityPing(row: IdleSessionRow) {
   if (await shouldSkipIdleForHumanWait(row)) return "skipped" as const
   if (await hasPendingBuffer(row.conversation_id)) return "skipped" as const
@@ -436,18 +523,19 @@ async function attemptInactivityPing(row: IdleSessionRow) {
     return "skipped" as const
   }
 
-  if (
-    shouldSkipInactivityPingForSalesHandoff(context.history, context.lastAgent)
-  ) {
-    await executeInactivitySalesRecovery({
-      conversationId: row.conversation_id,
-      customerId,
-    })
-    return "sales_recovery" as const
+  if (shouldSilentAutoAssignOnQuietWindow(context.history, context.lastAgent)) {
+    if (msSince(row.last_assistant_at) >= INACTIVITY_HANDOFF_AUTO_ASSIGN_MS) {
+      await executeInactivitySilentQueueRecovery({
+        conversationId: row.conversation_id,
+        customerId,
+      })
+      return "silent_handoff" as const
+    }
+    return "skipped" as const
   }
 
   if (!(await crmConversationAllowsServiceInactivity(row.conversation_id))) {
-    await executeInactivitySalesRecovery({
+    await executeInactivitySilentQueueRecovery({
       conversationId: row.conversation_id,
       customerId,
     })
@@ -515,15 +603,18 @@ export async function processInactivityTimeouts() {
   const backfilled = await backfillSessionActivityTimestamps()
   const expired = await expireStaleIdleSessions().catch(() => 0)
   const dueForClose = await loadSessionsDueForClose()
+  const dueForSilentHandoff = await loadSessionsDueForSilentHandoff()
   const dueForPing = await loadSessionsDueForPing()
   const results = {
     backfilled,
     expired,
     closeCandidates: dueForClose.length,
+    silentHandoffCandidates: dueForSilentHandoff.length,
     pingCandidates: dueForPing.length,
     pinged: 0,
     closed: 0,
     salesRecovery: 0,
+    silentHandoff: 0,
     skipped: 0,
     errors: [] as string[],
   }
@@ -540,11 +631,24 @@ export async function processInactivityTimeouts() {
     }
   }
 
+  for (const row of dueForSilentHandoff) {
+    try {
+      const outcome = await attemptSilentHandoffAssign(row)
+      if (outcome === "silent_handoff") results.silentHandoff += 1
+      else results.skipped += 1
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Silent handoff assign failed"
+      results.errors.push(`${row.conversation_id}: ${message}`)
+    }
+  }
+
   for (const row of dueForPing) {
     try {
       const outcome = await attemptInactivityPing(row)
       if (outcome === "pinged") results.pinged += 1
       else if (outcome === "sales_recovery") results.salesRecovery += 1
+      else if (outcome === "silent_handoff") results.silentHandoff += 1
       else results.skipped += 1
     } catch (error) {
       const message = error instanceof Error ? error.message : "Inactivity ping failed"
