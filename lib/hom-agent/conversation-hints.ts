@@ -377,8 +377,19 @@ export function buildConversationHints(input: {
   }
 
   if (
+    isShippingStatusQuestion(body) &&
+    !isServiceOrderIdentificationFlow(history, body)
+  ) {
+    lines.push(
+      "ORDER STATUS OPENING (532163951): delivery/shipment tracking only — call lookup_order_status immediately (phone confirm OK). Never dissatisfaction two-option menu (exchange/return). Never return_pickup service summary unless they explicitly submitted a return pickup request."
+    )
+  }
+
+  if (
     postPurchaseKind === "return_pickup_pending" &&
-    !isReturnPickupAwaitingThread(history, body)
+    !isReturnPickupAwaitingThread(history, body) &&
+    !isShippingStatusQuestion(body) &&
+    !isOrderDeliveryStatusQuestion(body)
   ) {
     lines.push(
       "Opening: return pickup wait. Mirror briefly if needed, then service summary — not order lookup."

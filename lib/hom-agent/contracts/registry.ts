@@ -377,6 +377,32 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
     ],
   },
   {
+    id: "order-status-not-return-options-532163951",
+    description: "Order status opening must not show dissatisfaction return menu",
+    source: { session: "532163951" },
+    history: [],
+    turn: { text: "היי אשמח לדעת מתי מגיע המשלוח שלי ?", phone: "+972501234567" },
+    assertions: [
+      {
+        type: "preTurn",
+        handler: "return_options",
+        expect: "skip",
+      },
+      {
+        type: "preTurn",
+        handler: "order",
+        expect: "handled",
+        action: "reply",
+        replyMustNotInclude: ["יש שתי אפשרויות"],
+      },
+      {
+        type: "classifier",
+        name: "classifyPostPurchaseCase_return_pickup_pending",
+        expect: false,
+      },
+    ],
+  },
+  {
     id: "shipping-policy-not-order-status",
     description: "Shipping cost policy is not order lookup",
     source: {},

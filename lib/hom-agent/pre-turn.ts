@@ -72,6 +72,7 @@ import {
   buildDissatisfactionRescueReply,
   getDissatisfactionRescueStage,
   resolveDissatisfactionRescueFollowUp,
+  shouldBlockReturnOptionsForShippingStatus,
   shouldOfferReturnOptionsFirst,
 } from "@/lib/agents/dissatisfaction"
 import {
@@ -99,6 +100,8 @@ import {
   isOrderLookupPhoneReplyPending,
   isPurePhoneLookupConfirmYes,
   mentionsCancellationDesire,
+  isServiceLookupContext,
+  isShippingLookupContext,
   requiresOrderIdentification,
   resolveOrderShippingReply,
   userProvidedPhone,
@@ -543,6 +546,10 @@ export function runStructuredReturnOptionsPreTurn(input: {
     return { kind: "skip", response: null }
   }
 
+  if (shouldBlockReturnOptionsForShippingStatus(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+
   if (!shouldOfferReturnOptionsFirst(body, input.history)) {
     return { kind: "skip", response: null }
   }
@@ -628,7 +635,15 @@ export async function runStructuredOrderLookupPreTurn(input: {
       ? userProvidedPhone(body)
       : null
 
-  if (!orderConfirmPending && !phoneLookupPending && !typedPhone) {
+  const openingShippingStatus =
+    !orderConfirmPending &&
+    !phoneLookupPending &&
+    !typedPhone &&
+    !isServiceLookupContext(input.history) &&
+    isShippingLookupContext(body, input.history) &&
+    requiresOrderIdentification(body, input.history)
+
+  if (!orderConfirmPending && !phoneLookupPending && !typedPhone && !openingShippingStatus) {
     return { kind: "skip", response: null }
   }
 
@@ -645,6 +660,7 @@ export async function runStructuredOrderLookupPreTurn(input: {
     (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body))
 
   if (
+    !openingShippingStatus &&
     !typedPhone &&
     !orderLookupStructuredBinding(body) &&
     !phoneConfirmBinding &&

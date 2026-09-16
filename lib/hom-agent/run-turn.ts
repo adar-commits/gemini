@@ -369,6 +369,41 @@ export async function runHomAgentTurn(
     })
   }
 
+  const structuredOrder = await runStructuredOrderLookupPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredOrder.kind === "handled") {
+    const action = mapHomAction(structuredOrder.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: structuredOrder.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredOrder.reply,
+      action,
+      route: ["faq"],
+      ...(structuredOrder.suppressInactivityWatch
+        ? { suppressInactivityWatch: true }
+        : {}),
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_order",
+      },
+    })
+  }
+
   const structuredReturnOptions = runStructuredReturnOptionsPreTurn({
     turn,
     history,
@@ -558,41 +593,6 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_document",
-      },
-    })
-  }
-
-  const structuredOrder = await runStructuredOrderLookupPreTurn({
-    turn,
-    history,
-    phone: phone || undefined,
-  })
-
-  if (structuredOrder.kind === "handled") {
-    const action = mapHomAction(structuredOrder.action)
-    if (persistTurn) {
-      await appendTurn({
-        conversationId,
-        agent: "faq",
-        userText: body,
-        assistantText: structuredOrder.reply,
-        action,
-        preview,
-      })
-    }
-    return finish({
-      ok: true,
-      agent: "faq",
-      reply: structuredOrder.reply,
-      action,
-      route: ["faq"],
-      ...(structuredOrder.suppressInactivityWatch
-        ? { suppressInactivityWatch: true }
-        : {}),
-      metrics: {
-        llm_calls: 0,
-        profile: runtime.activeProfile,
-        routing_path: "v3_structured_order",
       },
     })
   }

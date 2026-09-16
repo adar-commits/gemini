@@ -395,10 +395,24 @@ function matchesDefect(text: string) {
   return false
 }
 
+function isDeliveryTimingFrustrationNotProductFit(text: string) {
+  return (
+    /(?:בזמנ(?:ים|י)|עיכוב|איחור|מ(?:אחר|ש(?:ך|כה))|מתי|מגיע|הגיע|משלוח|הזמנה)/i.test(
+      text
+    ) && !RECEIVED_RE.test(text)
+  )
+}
+
 function matchesDissatisfaction(text: string) {
   if (!text || matchesDefect(text)) return false
-  if (DISSATISFACTION_RE.test(text)) return true
-  if (MISMATCH_RE.test(text)) return true
+  if (DISSATISFACTION_RE.test(text)) {
+    if (isDeliveryTimingFrustrationNotProductFit(text)) return false
+    return true
+  }
+  if (MISMATCH_RE.test(text)) {
+    if (isDeliveryTimingFrustrationNotProductFit(text)) return false
+    return true
+  }
   if (
     RECEIVED_RE.test(text) &&
     /(?:לא\s+(?:ממש|כל\s+כך|מ(?:די)?)\s+)?(?:מרוצ|מתאים|א(?:וה|ה)ב(?:ת|ים|ות|ו)?|כ(?:\"|״|')?כ)|לא\s+אוהב\s+א/i.test(
@@ -444,7 +458,8 @@ function hasPickupWaitSignal(text: string) {
   if (
     /(?:עדיין|כבר).{0,35}(?:לא\s+(?:בא(?:ו|ה)|הגיע(?:ו|ה)?|אספ(?:ו|u)|יצא(?:ו|ה)?)|(?:מ)?(?:חכ(?:ה|ים|ות)|מתinin(?:ה|ים|ות)?))/i.test(
       text
-    )
+    ) &&
+    /(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף|אספ)|החזר|להחזיר|החלפ|ממני)/i.test(text)
   ) {
     return true
   }
@@ -475,7 +490,23 @@ const PICKUP_WAIT_RE = {
 }
 
 /** Customer submitted a return via portal and is waiting for courier pickup — not starting a new return. */
+/** Avoid circular import with shipping.ts — delivery tracking is not return pickup wait. */
+function isDeliveryTrackingNotReturnPickup(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (
+    /(?:קניתי|הזמנתי)/i.test(trimmed) &&
+    /(?:עדיין\s+לא|טרם|לא\s+(?:קיבל|הגיע))/i.test(trimmed) &&
+    !/(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף)|ממני|החזר|להחזיר)/i.test(trimmed)
+  ) {
+    return true
+  }
+  return /(?:סטטוס|מעקב|איפה).{0,24}(?:משלוח|הזמנה)/i.test(trimmed)
+}
+
 function isReturnPickupWaitComplaint(text: string) {
+  if (isDeliveryTrackingNotReturnPickup(text)) return false
+
   const hasPickupWait =
     PICKUP_WAIT_RE.test(text) ||
     /(?:ל)?(?:חכ(?:ה|ות|ית)|מ(?:מתינ(?:ה|ים|ות)?|ש(?:ך|כה))).{0,45}(?:ש)?(?:יאספ(?:ו|u)|(?:ל)?(?:איסוף|לאסוף|אספ))/i.test(

@@ -50,6 +50,7 @@ import {
 } from "@/lib/agents/shipping"
 import {
   buildDissatisfactionRescueReply,
+  shouldBlockReturnOptionsForShippingStatus,
   shouldOfferReturnOptionsFirst,
 } from "@/lib/agents/dissatisfaction"
 import { isSalesConsultationTrigger, isConfirmationPending } from "@/lib/agents/sales-intake"
@@ -269,11 +270,16 @@ Do not merge unrelated questions. Do not invent questions.`,
   return questions.length >= 2 ? questions : [text]
 }
 
-export function answerFaqQuestionDeterministic(question: string) {
+export function answerFaqQuestionDeterministic(
+  question: string,
+  history: HistoryMessage[] = []
+) {
   const text = question.trim()
   if (!text) return null
 
-  if (shouldOfferReturnOptionsFirst(text)) {
+  if (shouldBlockReturnOptionsForShippingStatus(text, history)) return null
+
+  if (shouldOfferReturnOptionsFirst(text, history)) {
     return buildDissatisfactionRescueReply()
   }
 
@@ -374,7 +380,7 @@ export async function answerCombinedQuestions(
   const llmNeeded: string[] = []
 
   for (const question of ordered) {
-    const deterministic = answerFaqQuestionDeterministic(question)
+    const deterministic = answerFaqQuestionDeterministic(question, input.history)
     if (deterministic) {
       parts.push(stripCustomerHeader(deterministic))
       continue

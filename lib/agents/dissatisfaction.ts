@@ -11,12 +11,34 @@ import {
   mentionsReturnIntent,
 } from "@/lib/agents/inquiry-intent"
 import { isExplicitExchangeExecutionTurn } from "@/lib/agents/exchange-intake"
-import { isServiceLookupContext } from "@/lib/agents/order-lookup"
+import {
+  isOrderDeliveryStatusQuestion,
+  isServiceLookupContext,
+  isShippingLookupContext,
+  requiresOrderIdentification,
+} from "@/lib/agents/order-lookup"
 import { buildReturnsPortalUrl } from "@/lib/agents/policy-subjects"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 
 /** Customer unhappy after delivery without defect wording — FAQ return/exchange policy first. */
 export function isDissatisfactionWithoutDefect(body: string) {
   return isPostPurchaseDissatisfaction(body)
+}
+
+/** Order/shipment status — never the dissatisfaction exchange+return menu. */
+export function shouldBlockReturnOptionsForShippingStatus(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (isShippingStatusQuestion(body)) return true
+  if (isOrderDeliveryStatusQuestion(body)) return true
+  if (
+    requiresOrderIdentification(body, history) &&
+    isShippingLookupContext(body, history)
+  ) {
+    return true
+  }
+  return false
 }
 
 /** Opening turn: exchange + return options before order lookup or service intake. */
@@ -24,6 +46,7 @@ export function shouldOfferReturnOptionsFirst(
   body: string,
   history: HistoryMessage[] = []
 ) {
+  if (shouldBlockReturnOptionsForShippingStatus(body, history)) return false
   if (isDissatisfactionRescuePending(history)) return false
   if (isServiceLookupContext(history)) return false
   if (isPostPurchaseIntentConfirmPending(history)) return false

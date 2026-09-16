@@ -56,6 +56,8 @@ const CLASSIFIERS: Record<string, (...args: string[]) => boolean> = {
   classifyPostPurchaseCase_dissatisfaction: (text) =>
     classifyPostPurchaseCase(text) === "dissatisfaction",
   classifyPostPurchaseCase_defect: (text) => classifyPostPurchaseCase(text) === "defect",
+  classifyPostPurchaseCase_return_pickup_pending: (text) =>
+    classifyPostPurchaseCase(text) === "return_pickup_pending",
 }
 
 const DOCUMENT_FLOW: Record<
