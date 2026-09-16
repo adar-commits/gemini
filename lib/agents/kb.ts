@@ -184,10 +184,6 @@ const SECTION_HINTS: Array<{ re: RegExp; titles: string[] }> = [
     re: /trade[\s-]?in|טרייד[\s-]?א(?:ין|ון)|טרייד(?:ין|)?/i,
     titles: ["Owner-verified", "Trade-in"],
   },
-  {
-    re: /(?:מחיר\s+המפורסם|מחיר\s+ב(?:אתר|עמוד)|עגלה|ל(?:שלם|קופה)).{0,80}(?:מחיר|עלה|שונה)|(?:יתכן|למה).{0,30}מחיר.{0,80}(?:עלה|שונה)/i,
-    titles: ["Owner-verified", "Checkout price"],
-  },
 ]
 
 function sectionsForText(text: string, sections: Section[]) {

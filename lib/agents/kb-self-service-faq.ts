@@ -1,7 +1,6 @@
 import { isExplicitExchangeExecutionTurn } from "@/lib/agents/exchange-intake"
 import {
   classifyPostPurchaseCase,
-  isCheckoutPriceDiscrepancyQuestion,
   isOrderModificationRequest,
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
@@ -41,7 +40,6 @@ export function isKbSelfServiceFaqThisTurn(
 ) {
   const text = body.trim()
   if (!text) return false
-  if (isCheckoutPriceDiscrepancyQuestion(text)) return false
   if (customerExplicitlyRequestsHuman(text)) return false
   if (isExplicitExchangeExecutionTurn(text, history)) return false
   if (classifyPostPurchaseCase(text) === "exchange_request") return false

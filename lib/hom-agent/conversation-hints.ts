@@ -29,7 +29,6 @@ import {
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
   isReturnShippingFeeQuestion,
-  isCheckoutPriceDiscrepancyQuestion,
   isTradeInQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
@@ -595,12 +594,6 @@ export function buildConversationHints(input: {
   if (isTradeInQuestion(body)) {
     lines.push(
       "TRADE-IN (478627132): no טרייד אין / trade-in program — one short line from KB only. Never mention תיקון שטיחים or repair (not in KB). Never unprompted exchange/return/14-day policy. Product inquiry thread → continue sales intake after answering."
-    )
-  }
-
-  if (isCheckoutPriceDiscrepancyQuestion(body)) {
-    lines.push(
-      "CHECKOUT PRICE DISCREPANCY (532554998): cart/page price ≠ payment total — NOT return/exchange FAQ. Empathize; no live cart access; verify size/variant + shipping/promo; offer human_sales to check. Never combined return+exchange policy wall."
     )
   }
 
