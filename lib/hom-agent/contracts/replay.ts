@@ -28,6 +28,7 @@ import {
   runStructuredOrderLookupPreTurn,
   runStructuredPostOrderCompletedPreTurn,
   runStructuredPostOrderExchangePreTurn,
+  runStructuredExchangeExecutionPreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesIntakePreTurn,
 } from "@/lib/hom-agent/pre-turn"
@@ -91,6 +92,8 @@ async function runPreTurnHandler(
       return await runStructuredOrderLookupPreTurn(input)
     case "return_options":
       return runStructuredReturnOptionsPreTurn(input)
+    case "exchange_execution":
+      return runStructuredExchangeExecutionPreTurn(input)
     case "post_order_exchange":
       return runStructuredPostOrderExchangePreTurn(input)
     case "post_order_completed":

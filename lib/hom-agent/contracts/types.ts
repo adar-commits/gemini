@@ -15,6 +15,7 @@ export type PreTurnHandler =
   | "post_order_exchange"
   | "post_order_completed"
   | "return_options"
+  | "exchange_execution"
   | "sales_intake"
 
 export type PreTurnAssertion = {

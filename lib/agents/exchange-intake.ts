@@ -1,6 +1,11 @@
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { getDissatisfactionRescueStage } from "@/lib/agents/dissatisfaction"
 import {
+  classifyPostPurchaseCase,
+  isExchangePolicyQuestion,
+  isOrderModificationRequest,
+} from "@/lib/agents/inquiry-intent"
+import {
   identifiedOrderNumberFromThread,
   isOrderConfirmationPending,
 } from "@/lib/agents/order-lookup"
@@ -118,6 +123,51 @@ export function isDissatisfactionMenuPending(history: HistoryMessage[]) {
     getDissatisfactionRescueStage(history) === "sales_offer" &&
     !isExchangeIntakeStartedInThread(history)
   )
+}
+
+function lastAssistantOfferedExchangeChoice(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return (
+      /\*החלפה\*/.test(message.content) ||
+      /1\.\s*(?:\*החלפה\*|החלפה)/i.test(message.content) ||
+      /נמשיך עם החלפה/i.test(message.content)
+    )
+  }
+  return false
+}
+
+/** Customer chose or stated exchange execution — not return portal / not policy FAQ only. */
+export function isExplicitExchangeExecutionTurn(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  if (isExchangePolicyQuestion(text)) return false
+
+  if (classifyPostPurchaseCase(text) === "exchange_request") return true
+  if (isOrderModificationRequest(text)) return true
+
+  if (/^(?:החלפה|ביצוע\s+החלפה)(?:[\s,.!?]|$)/i.test(text)) {
+    return (
+      getDissatisfactionRescueStage(history) === "sales_offer" ||
+      lastAssistantOfferedExchangeChoice(history)
+    )
+  }
+
+  if (
+    /^(?:כן|בטח|מעולה|אשמח|בסדר)(?:[\s,.!?]|$)/i.test(text) &&
+    /(?:החלפ|להחליף|דגם\s+אחר)/i.test(text) &&
+    (getDissatisfactionRescueStage(history) === "sales_offer" ||
+      lastAssistantOfferedExchangeChoice(history))
+  ) {
+    return true
+  }
+
+  return false
 }
 
 function extractSkuFromText(text: string) {

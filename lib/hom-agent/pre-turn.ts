@@ -71,6 +71,7 @@ import {
   buildExchangeIntakeStartReply,
   isExchangeIntakeActive,
   isExchangeIntakeStartedInThread,
+  isExplicitExchangeExecutionTurn,
 } from "@/lib/agents/exchange-intake"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import {
@@ -456,6 +457,26 @@ export function runStructuredKbSelfServiceFaqPreTurn(input: {
       : `${CUSTOMER_HEADER}\n${replyBody}`
 
   return { kind: "handled", reply, action: "reply" }
+}
+
+/** Explicit exchange execution — never returns portal or combined return policy. */
+export function runStructuredExchangeExecutionPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+}): PreTurnResult {
+  const body = summarizeTurn(input.turn)
+  if (isExchangeIntakeActive(input.history) || isExchangeIntakeStartedInThread(input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (!isExplicitExchangeExecutionTurn(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+
+  return {
+    kind: "handled",
+    reply: buildExchangeIntakeStartReply(),
+    action: "reply",
+  }
 }
 
 /** Exchange + return options before order lookup on bare return / dissatisfaction opens. */

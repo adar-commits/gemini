@@ -53,6 +53,7 @@ import {
 } from "@/lib/agents/dissatisfaction"
 import {
   isDissatisfactionMenuPending,
+  isExplicitExchangeExecutionTurn,
   isExchangeIntakeActive,
   isExchangeKindPending,
   isExchangeOrderRequired,
@@ -474,7 +475,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (shouldOfferReturnOptionsFirst(body, history)) {
+  if (isExplicitExchangeExecutionTurn(body, history)) {
+    lines.push(
+      "EXPLICIT EXCHANGE EXECUTION: customer chose/wants החלפה — stay on exchange intake only (lookup_order_status → A/B/C quiz → create_switch_request). **Never** returns.carpetshop.co.il portal, **never** החזרה וביטול paths, **never** combined return+exchange policy in the same reply."
+    )
+  } else if (shouldOfferReturnOptionsFirst(body, history)) {
     lines.push(
       "RETURN OPTIONS FIRST: bare return or dissatisfaction without defect — open with the two-option playbook (exchange + sales advisor; return via branch/courier + returns portal). Never ask for order number on this turn. Never lookup_order_status until they choose return execution or pickup-wait service."
     )

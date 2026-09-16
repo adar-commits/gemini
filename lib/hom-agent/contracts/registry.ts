@@ -761,6 +761,29 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
     ],
   },
   {
+    id: "exchange-explicit-no-portal-532407210",
+    description: "Explicit החלפה starts exchange intake — never returns portal",
+    source: { session: "532407210" },
+    history: [
+      {
+        role: "assistant",
+        content: buildDissatisfactionRescueReply("+972532407210"),
+      },
+    ],
+    turn: { text: "החלפה", phone: "+972532407210" },
+    assertions: [
+      {
+        type: "preTurn",
+        handler: "exchange_execution",
+        expect: "handled",
+        action: "reply",
+        replyMustInclude: ["נמשיך עם החלפה"],
+        replyMustNotInclude: ["returns.carpetshop.co.il", "החזרה וביטול"],
+      },
+      { type: "preTurn", handler: "kb_faq", expect: "skip" },
+    ],
+  },
+  {
     id: "warm-close-thanks-532201347",
     description: "Thanks after resolved FAQ closes warmly — no follow-up question",
     source: { session: "532201347" },

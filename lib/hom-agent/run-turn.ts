@@ -45,6 +45,7 @@ import {
   runStructuredPostOrderExchangePreTurn,
   runStructuredOrderLookupPreTurn,
   runStructuredPostPurchaseAltSizePreTurn,
+  runStructuredExchangeExecutionPreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesIntakePreTurn,
   runStructuredSalesPhotoPreTurn,
@@ -331,6 +332,38 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_sales_intake",
+      },
+    })
+  }
+
+  const structuredExchangeExecution = runStructuredExchangeExecutionPreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredExchangeExecution.kind === "handled") {
+    const action = mapHomAction(structuredExchangeExecution.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "faq",
+        userText: body,
+        assistantText: structuredExchangeExecution.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "faq",
+      reply: structuredExchangeExecution.reply,
+      action,
+      route: ["faq"],
+      crmDepartment: "service",
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_exchange_execution",
       },
     })
   }

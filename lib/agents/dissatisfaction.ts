@@ -4,10 +4,13 @@ import { isExplicitHumanRequest } from "@/lib/agents/order-lookup"
 
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
+  classifyPostPurchaseCase,
   isBareReturnExecutionRequest,
+  isOrderModificationRequest,
   isPostPurchaseDissatisfaction,
   mentionsReturnIntent,
 } from "@/lib/agents/inquiry-intent"
+import { isExplicitExchangeExecutionTurn } from "@/lib/agents/exchange-intake"
 import { isServiceLookupContext } from "@/lib/agents/order-lookup"
 import { buildReturnsPortalUrl } from "@/lib/agents/policy-subjects"
 
@@ -24,6 +27,9 @@ export function shouldOfferReturnOptionsFirst(
   if (isDissatisfactionRescuePending(history)) return false
   if (isServiceLookupContext(history)) return false
   if (isPostPurchaseIntentConfirmPending(history)) return false
+  if (isExplicitExchangeExecutionTurn(body, history)) return false
+  if (classifyPostPurchaseCase(body) === "exchange_request") return false
+  if (isOrderModificationRequest(body)) return false
   if (isDissatisfactionWithoutDefect(body)) return true
   return isBareReturnExecutionRequest(body)
 }
