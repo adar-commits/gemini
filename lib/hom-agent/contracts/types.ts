@@ -17,6 +17,7 @@ export type PreTurnHandler =
   | "return_options"
   | "exchange_execution"
   | "sales_intake"
+  | "inventory"
 
 export type PreTurnAssertion = {
   type: "preTurn"

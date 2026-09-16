@@ -35,7 +35,9 @@ import {
   buildCreditRedemptionPolicyReply,
   buildRefundTimelinePolicyReply,
   buildRefundStatusHandoffReply,
+  buildCarpetPackagingFaqReply,
   buildRugCleaningServiceFaqReply,
+  isCarpetPackagingOpenQuestion,
   isRugCleaningServiceQuestion,
   resolveReturnExchangePolicyReply,
   matchPolicySubjects,
@@ -278,6 +280,7 @@ export function answerFaqQuestionDeterministic(question: string) {
   const subjects = matchPolicySubjects(text)
   if (subjects.includes("carpet_rental")) return buildCarpetRentalPolicyReply()
   if (isRugCleaningServiceQuestion(text)) return buildRugCleaningServiceFaqReply()
+  if (isCarpetPackagingOpenQuestion(text)) return buildCarpetPackagingFaqReply()
   if (isCreditRedemptionQuestion(text)) return buildCreditRedemptionPolicyReply()
   if (isRefundTimelineQuestion(text)) return buildRefundTimelinePolicyReply()
   if (isRefundStatusInquiry(text)) return buildRefundStatusHandoffReply()

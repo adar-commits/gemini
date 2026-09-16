@@ -29,6 +29,7 @@ import {
   runStructuredPostOrderCompletedPreTurn,
   runStructuredPostOrderExchangePreTurn,
   runStructuredExchangeExecutionPreTurn,
+  runStructuredInventoryPreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesIntakePreTurn,
 } from "@/lib/hom-agent/pre-turn"
@@ -100,6 +101,8 @@ async function runPreTurnHandler(
       return await runStructuredPostOrderCompletedPreTurn(input)
     case "sales_intake":
       return runStructuredSalesIntakePreTurn(input)
+    case "inventory":
+      return await runStructuredInventoryPreTurn(input)
     default: {
       const never: never = handler
       throw new Error(`Unknown pre-turn handler: ${never}`)

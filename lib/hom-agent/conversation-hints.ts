@@ -71,6 +71,7 @@ import {
 } from "@/lib/agents/greeting"
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import {
+  isCarpetPackagingOpenQuestion,
   isCarpetRentalQuestion,
   isReturnExchangePolicyFaqQuestion,
   isRugCleaningServiceQuestion,
@@ -81,8 +82,10 @@ import {
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
 import {
+  extractSku,
   isActiveInventoryThread,
   isInventoryRecheckRequest,
+  shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
 import {
   isPostPurchaseIntentConfirmPending,
@@ -572,6 +575,22 @@ export function buildConversationHints(input: {
   if (isRugCleaningServiceQuestion(body)) {
     lines.push(
       "RUG CLEANING SERVICE FAQ: HoM does not clean rugs or do odor neutralization in-house. Answer warmly from carpet-products-faq — pro dry cleaning for general care; spot clean with alcohol-free wipe or microfiber + warm water + dish soap. React first (שאלה טובה / הבנתי), everyday Hebrew — never 'אין לי מידע על', 'מטעם החברה', or 'לא שירות שאנחנו מבצעים בעצמנו'. Simple care FAQ — no proactive handoff (רוצים שאעביר…); passive 'אם תרצו עוד משהו — כאן' only."
+    )
+  }
+
+  if (isCarpetPackagingOpenQuestion(body)) {
+    lines.push(
+      "CARPET PACKAGING FAQ: answer from carpet-products-faq (כיצד לפתוח את האריזה) — cut plastic edge carefully with scissors, remove rug and corner guards, remove tape; never sharp objects on the rug. Warm tone (שאלה טובה). Not return-policy 'באריזה המקורית'. action: reply — no handoff."
+    )
+  }
+
+  if (
+    extractSku(body) &&
+    shouldHandleBranchInventory(body, history) &&
+    !isPostPurchaseAlternateSizeThread(history, body)
+  ) {
+    lines.push(
+      "INVENTORY SKU PROVIDED: customer sent a valid מק״ט — call lookup_inventory (or use the structured result). Never re-ask for מק״ט, never say you cannot check stock, never jump to human_sales while a lookup is possible."
     )
   }
 

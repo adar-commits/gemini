@@ -46,6 +46,7 @@ import {
   runStructuredOrderLookupPreTurn,
   runStructuredPostPurchaseAltSizePreTurn,
   runStructuredExchangeExecutionPreTurn,
+  runStructuredInventoryPreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesIntakePreTurn,
   runStructuredSalesPhotoPreTurn,
@@ -428,6 +429,37 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_kb_faq",
+      },
+    })
+  }
+
+  const structuredInventory = await runStructuredInventoryPreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredInventory.kind === "handled") {
+    const action = mapHomAction(structuredInventory.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: "sales",
+        userText: body,
+        assistantText: structuredInventory.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: "sales",
+      reply: structuredInventory.reply,
+      action,
+      route: ["sales"],
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_inventory",
       },
     })
   }

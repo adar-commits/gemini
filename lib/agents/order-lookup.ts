@@ -1431,8 +1431,8 @@ export function isOrderLookupCompletedInThread(history: HistoryMessage[]) {
 }
 
 const NUMBERED_BRANCH_RETURN_OPTION_RE =
-  /1\.\s*(?:החזרה|החלפה).*סניפ/is
-const NUMBERED_HOME_PICKUP_OPTION_RE = /2\.\s*.*(?:איסוף|שליח)/is
+  /1\.\s*(?:החזרה|החלפה)[\s\S]*סניפ/i
+const NUMBERED_HOME_PICKUP_OPTION_RE = /2\.\s*[\s\S]*(?:איסוף|שליח)/i
 
 function lastNonInactivityAssistantContent(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {

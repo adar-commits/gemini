@@ -8,7 +8,7 @@ import { isLandbotApiAgentId } from "@/lib/landbot/api-agent-ids"
 
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 
-const DEFAULT_HISTORY_LIMIT = 10
+const DEFAULT_HISTORY_LIMIT = 15
 
 async function historyLimit() {
   try {

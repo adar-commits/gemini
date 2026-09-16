@@ -24,9 +24,16 @@ import {
 } from "@/lib/agents/inquiry-intent"
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import {
+  extractSku,
+  resolveBranchInventoryReply,
+  shouldHandleBranchInventory,
+} from "@/lib/agents/inventory-lookup"
+import {
+  buildCarpetPackagingFaqReply,
   buildRefundTimelinePolicyReply,
   buildReturnShippingFeePolicyReply,
   buildRugCleaningServiceFaqReply,
+  isCarpetPackagingOpenQuestion,
   isReturnExchangePolicyFaqQuestion,
   isRugCleaningServiceQuestion,
   resolveReturnExchangePolicyReply,
@@ -443,6 +450,8 @@ export function runStructuredKbSelfServiceFaqPreTurn(input: {
     replyBody = buildReturnShippingFeePolicyReply(input.phone)
   } else if (isRugCleaningServiceQuestion(body)) {
     replyBody = buildRugCleaningServiceFaqReply()
+  } else if (isCarpetPackagingOpenQuestion(body)) {
+    replyBody = buildCarpetPackagingFaqReply()
   } else if (isRefundTimelineQuestion(body)) {
     replyBody = buildRefundTimelinePolicyReply(input.phone)
   } else if (isReturnExchangePolicyFaqQuestion(body) || isReturnPolicyQuestion(body)) {
@@ -455,6 +464,33 @@ export function runStructuredKbSelfServiceFaqPreTurn(input: {
     replyBody.startsWith(CUSTOMER_HEADER) || replyBody.startsWith("*הום בוט :)")
       ? replyBody
       : `${CUSTOMER_HEADER}\n${replyBody}`
+
+  return { kind: "handled", reply, action: "reply" }
+}
+
+/** Customer provided a valid מק״ט — run inventory lookup; do not hand off or re-ask. */
+export async function runStructuredInventoryPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+}): Promise<PreTurnResult> {
+  const body = summarizeTurn(input.turn)
+  if (isPostPurchaseAlternateSizeAvailabilityQuestion(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (isKbSelfServiceFaqThisTurn(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (!extractSku(body)) {
+    return { kind: "skip", response: null }
+  }
+  if (!shouldHandleBranchInventory(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+
+  const reply = await resolveBranchInventoryReply({
+    body,
+    history: input.history,
+  })
 
   return { kind: "handled", reply, action: "reply" }
 }

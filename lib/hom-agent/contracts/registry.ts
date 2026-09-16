@@ -806,4 +806,54 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
       },
     ],
   },
+  {
+    id: "packaging-faq-532185810",
+    description: "How to open rug packaging — KB FAQ, not return policy or handoff",
+    source: { session: "532185810" },
+    history: [
+      { role: "user", content: "יש לכם שטיחים?" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nכן, יש מגוון שטיחים באתר ובסניפים. איזה סגנון מעניין אתכם?",
+      },
+    ],
+    turn: { text: "איך פותחים את האריזה כשהשטיח מגיע?" },
+    assertions: [
+      {
+        type: "preTurn",
+        handler: "kb_faq",
+        expect: "handled",
+        action: "reply",
+        replyMustInclude: ["מספריים", "פלסטיק"],
+        replyMustNotInclude: ["באריזה המקורית", "human_service", "נציג"],
+      },
+      { type: "preTurn", handler: "inventory", expect: "skip" },
+    ],
+  },
+  {
+    id: "inventory-sku-bind-532185810",
+    description: "Valid מק״ט after stock ask runs inventory — no re-ask or give-up",
+    source: { session: "532185810" },
+    history: [
+      { role: "user", content: "יש במלאי בסניף בני ברק?" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nכדי לבדוק מלאי בסניף אני צריך את המק״ט של הדגם (לדוגמה: 31503138-200290).",
+      },
+    ],
+    turn: { text: "31503138-200290" },
+    assertions: [
+      { type: "preTurn", handler: "kb_faq", expect: "skip" },
+      {
+        type: "preTurn",
+        handler: "inventory",
+        expect: "handled",
+        action: "reply",
+        replyMustInclude: ["31503138-200290"],
+        replyMustNotInclude: ["שלחו מק״ט", "אין לי אפשרות"],
+      },
+    ],
+  },
 ]

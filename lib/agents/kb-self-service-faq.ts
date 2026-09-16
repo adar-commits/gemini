@@ -8,6 +8,7 @@ import {
   isReturnShippingFeeQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
+  isCarpetPackagingOpenQuestion,
   isReturnExchangePolicyFaqQuestion,
   isRugCleaningServiceQuestion,
 } from "@/lib/agents/policy-subjects"
@@ -50,6 +51,7 @@ export function isKbSelfServiceFaqThisTurn(
   if (isReturnExchangePolicyFaqQuestion(text)) return true
   if (isRefundTimelineQuestion(text)) return true
   if (isRugCleaningServiceQuestion(text)) return true
+  if (isCarpetPackagingOpenQuestion(text)) return true
 
   if (
     isReturnPortalSelfServiceThread(history) &&

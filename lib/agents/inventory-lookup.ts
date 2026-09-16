@@ -176,7 +176,7 @@ function extractRecentSku(body: string, history: HistoryMessage[] = []) {
   if (fromBody) return fromBody
 
   let userSeen = 0
-  for (let index = history.length - 1; index >= 0 && userSeen < 4; index -= 1) {
+  for (let index = history.length - 1; index >= 0 && userSeen < 8; index -= 1) {
     const message = history[index]
     if (message.role !== "user") continue
     userSeen += 1
@@ -276,7 +276,7 @@ export function isSkuRequestPending(history: HistoryMessage[]) {
 
 /** Recent branch stock lookup — follow-up SKUs should reuse inventory flow, not FAQ/sales LLM. */
 export function isActiveInventoryThread(history: HistoryMessage[] = []) {
-  const recent = history.slice(-10)
+  const recent = history.slice(-15)
   return recent.some(
     (message) =>
       message.role === "assistant" &&

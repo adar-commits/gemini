@@ -250,6 +250,38 @@ export function buildRugCleaningServiceFaqReply() {
 אם תרצו עוד משהו — כאן.`
 }
 
+/** How to open product packaging — not return-policy "באריזה המקורית". */
+export function isCarpetPackagingOpenQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  const asksHowToOpen =
+    /איך\s+(?:פותח(?:ים|ה)?|פורק(?:ים|ה)?|לפתוח|מ(?:וציא|וריד)(?:ים|ה)?)\s*(?:את\s+)?(?:ה)?(?:אריז|ניילון|שק|שטיח)/i.test(
+      text
+    ) ||
+    /כיצד\s+לפתוח\s+א(?:ת\s+)?(?:ה)?אריז/i.test(text) ||
+    /פתיח(?:ה|ת)\s*(?:של\s*)?(?:ה)?אריז(?:ה|ת)?(?:\s+של\s+(?:ה)?שטיח)?/i.test(text)
+  if (!asksHowToOpen) return false
+  if (
+    /באריז(?:ה|ת)(?:\s+ה)?מקורית|(?:ה)?חזר(?:ה|ות)?|(?:ה)?החלפ(?:ה|ות)?|ביטול|זיכוי|returns\.carpetshop/i.test(
+      text
+    ) &&
+    !/איך\s+(?:פותח|פורק|לפתוח)|כיצד\s+לפתוח|פתיח(?:ה|ת)\s*(?:של\s*)?(?:ה)?אריז/i.test(text)
+  ) {
+    return false
+  }
+  return true
+}
+
+export function buildCarpetPackagingFaqReply() {
+  return `שאלה טובה 🙂
+
+לפתיחת האריזה — לחתוך **בזהירות** קצה אחד של הפלסטיק במספריים, להוציא את השטיח, להסיר מגני קצוות, ואז לחתוך ולהסיר את סרט ההדבק. **לא** להשתמש בחפצים חדים על השטיח עצמו.
+
+אחרי שמוציאים — כדאי לפרוש על הרצפה וליישר קמטים ביד או בכפות הרגליים.
+
+אם תרצו עוד משהו — כאן.`
+}
+
 /** Policy FAQ about returns/exchanges — not active pickup or execution requests. */
 export function isReturnExchangePolicyFaqQuestion(body: string) {
   const text = body.trim()
