@@ -458,11 +458,7 @@ async function runPingPhase(payload: InactivityWatchPayload) {
   }
 
   const skip = await shouldSendPing({ ...payload, watchAssistantAt })
-  if (
-    skip === "silent_handoff_queue" ||
-    skip === "sales_summary_handoff" ||
-    skip === "sales_crm_department"
-  ) {
+  if (skip === "silent_handoff_queue" || skip === "sales_crm_department") {
     return executeInactivitySilentQueueRecovery({
       conversationId: payload.conversationId,
       customerId: payload.customerId,

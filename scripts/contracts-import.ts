@@ -84,7 +84,6 @@ function transcriptToHistory(
   return transcript.map((row) => ({
     role: row.role,
     content: row.content,
-    ...(row.agent ? { agent: row.agent as HistoryMessage["agent"] } : {}),
   }))
 }
 

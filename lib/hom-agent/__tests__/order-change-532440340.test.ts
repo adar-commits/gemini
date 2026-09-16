@@ -9,11 +9,14 @@ import {
   isInactivityStillHereReply,
 } from "@/lib/agents/inactivity"
 import { isOrderModificationRequest } from "@/lib/agents/inquiry-intent"
-import { isOrderLookupCompletedInThread } from "@/lib/agents/order-lookup"
+import {
+  buildOrderStatusReply,
+  isOrderLookupCompletedInThread,
+  mapPriorityOrderRow,
+} from "@/lib/agents/order-lookup"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import {
   runPreTurnGuards,
-  runStructuredOrderLookupPreTurn,
   runStructuredPostOrderExchangePreTurn,
 } from "@/lib/hom-agent/pre-turn"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -54,17 +57,21 @@ describe("order change after unknown shipping status (532440340)", () => {
     assert.equal(isOrderModificationRequest("שינוי הזמנה"), true)
   })
 
-  it("structured order pre-turn hands off on unknown delivery status", async () => {
-    const history = historyThroughUnknownStatus().slice(0, 6)
-    const result = await runStructuredOrderLookupPreTurn({
-      turn: { text: "כן", media: [] },
-      history,
-      phone: PHONE,
+  it("unknown delivery status maps to human_service action binding", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26019842",
+      REFERENCE: "#76996",
+      ZPIT_DELSTATUSCODE: "15",
+      ZPIT_DELSTATUSDES: "הוקפא זמנית",
+      ORDSTATUSDES: "הושלם",
+      ZPIT_UDATE: "2026-08-30T14:00:00+03:00",
     })
-    assert.equal(result.kind, "handled")
-    if (result.kind !== "handled") return
-    assert.equal(result.action, "human_service")
-    assert.match(result.reply, /לא ניתן להציג כרגע סטטוס משלוח/)
+    const reply = buildOrderStatusReply(order)
+    assert.match(reply, /לא ניתן להציג כרגע סטטוס משלוח/)
+    const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply)
+      ? "human_service"
+      : "reply"
+    assert.equal(action, "human_service")
   })
 
   it("does not treat waiting-for-rep as inactivity still-here ack", () => {

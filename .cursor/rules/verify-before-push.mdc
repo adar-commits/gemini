@@ -1,0 +1,29 @@
+---
+description: Run verify:deploy before every git push — Vercel prebuild fails if contracts/build break
+alwaysApply: true
+---
+
+# Verify deploy before push
+
+Vercel runs `npm run prebuild` (`test:gold` + `test:contracts`) before `next build`. A push without a local green build leaves **Production in Error** with none of the fixes live.
+
+## Required before every `git push`
+
+From workspace root:
+
+```bash
+npm run verify:deploy
+```
+
+This equals `npm run build` (includes prebuild tests). **Do not push** if it exits non-zero.
+
+## Agent workflow
+
+1. Finish code changes.
+2. Run `npm run verify:deploy` (or full `npm run test:predeploy` when touching many tests).
+3. Only then `git add`, `git commit`, `git push`.
+4. After push, confirm Vercel deployment is not Error (MCP or dashboard).
+
+## Contract tests
+
+Never assert live Priority API outcomes in `contracts/registry.ts` — use unit tests with `mapPriorityOrderRow` fixtures. Live API data drifts and breaks Production builds.

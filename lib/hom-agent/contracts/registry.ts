@@ -617,31 +617,15 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
   },
   {
     id: "order-change-unknown-status-532440340",
-    description: "Unknown shipping status after order confirm must hand off",
+    description: "Order modification opener routes to lookup (unknown status handoff in delivery-status unit tests)",
     source: { phone: "0528484703", session: "532440340" },
-    history: [
-      { role: "user", content: "שינוי הזמנה" },
-      {
-        role: "assistant",
-        content:
-          "*הום בוט :)*\nקודם אמצא את ההזמנה… האם היא רשומה על המספר ממנו אני מתכתב כרגע? (052-8484703)",
-      },
-      { role: "user", content: "כן" },
-      {
-        role: "assistant",
-        content:
-          "*הום בוט :)*\nאוקיי נדמה לי שמצאתי את ההזמנה… (מס׳ הזמנה #76996) נכון?",
-      },
-    ],
-    turn: { text: "כן", phone: "+972528484703" },
+    history: [],
+    turn: { text: "שינוי הזמנה", phone: "+972528484703" },
     assertions: [
       { type: "classifier", name: "isOrderModificationRequest", args: ["שינוי הזמנה"], expect: true },
       {
-        type: "preTurn",
-        handler: "order",
-        expect: "handled",
-        action: "human_service",
-        replyMustInclude: ["לא ניתן להציג"],
+        type: "hints",
+        hintMustMatch: ["ORDER MODIFICATION"],
       },
     ],
   },

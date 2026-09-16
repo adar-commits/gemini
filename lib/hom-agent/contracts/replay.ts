@@ -76,12 +76,12 @@ async function runPreTurnHandler(
   handler: PreTurnHandler,
   contract: ConversationContract
 ) {
-  const turn = { text: contract.turn.text, media: [] as const }
+  const turn = { text: contract.turn.text, media: [] }
   const input = {
     turn,
     history: contract.history,
     phone: contract.turn.phone,
-    lastAgent: null as const,
+    lastAgent: null,
   }
 
   switch (handler) {
