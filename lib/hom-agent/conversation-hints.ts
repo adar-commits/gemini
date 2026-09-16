@@ -10,6 +10,7 @@ import {
   isOrderNumberRequestPending,
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
+  isOrderLookupCompletedInThread,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
   isServiceOrderIdentificationFlow,
@@ -436,6 +437,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "Order already identified this thread — do NOT call lookup_order_status again or re-ask phone. Delivery estimate (צפי) → policy by status code only; never invent a calendar date."
+    )
+  }
+
+  if (isOrderLookupCompletedInThread(history)) {
+    lines.push(
+      "ORDER LOOKUP COMPLETED: order card already confirmed — NEVER call lookup_order_status or re-ask phone. Rep request (נציג שירות / כן נציג) → human_service immediately. Return menu 1/2 after policy → portal/courier instructions from KB, not lookup."
     )
   }
 

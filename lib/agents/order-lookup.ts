@@ -1,4 +1,5 @@
 import { buildApiFailureReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
+import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
 import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
 import {
   formatHebrewCustomerDate,
@@ -33,6 +34,11 @@ import {
   isOrderLineItemVerificationRequest,
 } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
+import {
+  buildCantVisitBranchReturnReply,
+  buildReturnsPortalUrl,
+} from "@/lib/agents/policy-subjects"
+import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import {
   isAwaitingSalesIntakeAnswer,
   isLikelyBudgetIntakeAnswer,
@@ -1421,6 +1427,100 @@ export function isOrderLookupCompletedInThread(history: HistoryMessage[]) {
   )
 }
 
+const NUMBERED_BRANCH_RETURN_OPTION_RE =
+  /1\.\s*(?:החזרה|החלפה).*סניפ/is
+const NUMBERED_HOME_PICKUP_OPTION_RE = /2\.\s*.*(?:איסוף|שליח)/is
+
+function lastNonInactivityAssistantContent(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message.content
+  }
+  return null
+}
+
+function assistantOfferedNumberedReturnPolicy(content: string) {
+  return (
+    NUMBERED_BRANCH_RETURN_OPTION_RE.test(content) &&
+    NUMBERED_HOME_PICKUP_OPTION_RE.test(content) &&
+    /(?:פורטל|returns\.carpetshop)/i.test(content)
+  )
+}
+
+/** Customer chose 1/2 after bot listed branch vs home-pickup return paths. */
+export function parseNumberedReturnPolicyChoice(body: string): 1 | 2 | null {
+  const text = body.trim()
+  if (!text || text.length > 40) return null
+  if (/^(?:1|א(?:חד|חת))(?:[\s,.!?]|$)/iu.test(text)) return 1
+  if (/^(?:2|ש(?:תיים|ני))(?:[\s,.!?]|$)/iu.test(text)) return 2
+  if (/^(?:אפשרות|מס(?:'|\.)?\s*|מספר\s+)?1(?:[\s,.!?]|$)/iu.test(text)) return 1
+  if (/^(?:אפשרות|מס(?:'|\.)?\s*|מספר\s+)?2(?:[\s,.!?]|$)/iu.test(text)) return 2
+  return null
+}
+
+export function isNumberedReturnPolicyChoicePending(
+  history: HistoryMessage[],
+  body: string
+) {
+  const choice = parseNumberedReturnPolicyChoice(body)
+  if (!choice) return false
+  const lastAssistant = lastNonInactivityAssistantContent(history)
+  return lastAssistant ? assistantOfferedNumberedReturnPolicy(lastAssistant) : false
+}
+
+/** Restart phone/order lookup only when customer rejects identified order or cites another. */
+export function shouldAllowOrderLookupRestart(body: string, history: HistoryMessage[]) {
+  if (isIdentifiedOrderRejection(body)) return true
+  const reference = extractOrderReference(body, history) ?? extractOrderNumber(body)
+  if (!reference) return false
+  const identified = identifiedOrderNumberFromThread(history)
+  if (!identified) return true
+  const normalizedReference = reference.replace(/^#/, "").toUpperCase()
+  const normalizedIdentified = identified.replace(/^#/, "").toUpperCase()
+  return normalizedReference !== normalizedIdentified
+}
+
+export async function buildPostOrderLookupContinuationReply(input: {
+  body: string
+  history: HistoryMessage[]
+  whatsappPhone?: string
+}) {
+  const { body, history, whatsappPhone } = input
+
+  if (isNumberedReturnPolicyChoicePending(history, body)) {
+    const choice = parseNumberedReturnPolicyChoice(body)!
+    if (choice === 2) {
+      return `${CUSTOMER_HEADER}\n${buildCantVisitBranchReturnReply(whatsappPhone)}`
+    }
+    const portalUrl = buildReturnsPortalUrl(whatsappPhone)
+    return `${CUSTOMER_HEADER}\nמצוין — להחזרה בסניף בוחרים "החזרה לסניף" בפורטל:
+${portalUrl}
+
+אפשר לעזור במשהו נוסף?`
+  }
+
+  const repTarget = remainderAfterLeadingAffirmation(body) || body
+  if (isExplicitHumanRequest(repTarget) || isExplicitHumanRequest(body)) {
+    return buildHumanHandoffConfirmedReply("human_service")
+  }
+
+  if (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body)) {
+    const order = await resolveIdentifiedOrderFromThread({
+      history,
+      whatsappPhone,
+      body,
+    })
+    if (order) {
+      return resolveOrderStatusFollowUpReply(order, body, history)
+    }
+  }
+
+  const orderNumber = identifiedOrderNumberFromThread(history)
+  return `${CUSTOMER_HEADER}\nכבר מצאנו את ההזמנה${orderNumber ? ` (${orderNumber})` : ""}. במה אוכל לעזור — ביטול, החזרה, או העברה לנציג?`
+}
+
 async function resolveIdentifiedOrderFromThread(input: {
   history: HistoryMessage[]
   whatsappPhone?: string
@@ -2299,7 +2399,7 @@ export async function resolveOrderShippingReply(input: {
     return lookupAndStartOrderConfirm(typedPhone, empathize, { history, body })
   }
 
-  if (isOrderStatusDeliveredInThread(history)) {
+  if (isOrderLookupCompletedInThread(history)) {
     if (isIdentifiedOrderRejection(body)) {
       const lookupPhone =
         resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
@@ -2465,6 +2565,13 @@ export async function resolveOrderShippingReply(input: {
   const providedPhone = userProvidedPhone(body)
   if (providedPhone && orderLookupEnabled()) {
     return lookupAndStartOrderConfirm(providedPhone, empathize, { history, body })
+  }
+
+  if (
+    isOrderLookupCompletedInThread(history) &&
+    !shouldAllowOrderLookupRestart(body, history)
+  ) {
+    return buildPostOrderLookupContinuationReply({ body, history, whatsappPhone })
   }
 
   if (whatsappPhone) {

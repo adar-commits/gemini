@@ -26,6 +26,7 @@ import {
   runStructuredDocumentPreTurn,
   runStructuredKbSelfServiceFaqPreTurn,
   runStructuredOrderLookupPreTurn,
+  runStructuredPostOrderCompletedPreTurn,
   runStructuredPostOrderExchangePreTurn,
   runStructuredReturnOptionsPreTurn,
   runStructuredSalesIntakePreTurn,
@@ -92,6 +93,8 @@ async function runPreTurnHandler(
       return runStructuredReturnOptionsPreTurn(input)
     case "post_order_exchange":
       return runStructuredPostOrderExchangePreTurn(input)
+    case "post_order_completed":
+      return await runStructuredPostOrderCompletedPreTurn(input)
     case "sales_intake":
       return runStructuredSalesIntakePreTurn(input)
     default: {

@@ -80,8 +80,11 @@ import {
 } from "@/lib/agents/digital-document-flow"
 import { buildGreetingReply, isCasualGreeting, isCasualSmallTalk } from "@/lib/agents/greeting"
 import {
+  buildPostOrderLookupContinuationReply,
   extractOrderNumber,
   isChannelPhoneSelfReference,
+  isExplicitHumanRequest,
+  isNumberedReturnPolicyChoicePending,
   isOrderConfirmationPending,
   isOrderDeliveryStatusQuestion,
   isOrderLookupCompletedInThread,
@@ -92,6 +95,7 @@ import {
   resolveOrderShippingReply,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
+import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -613,6 +617,45 @@ export async function runStructuredOrderLookupPreTurn(input: {
     action,
     suppressInactivityWatch: endsWithOptionalFollowUpOffer(reply),
   }
+}
+
+/** Order already located — rep request or return menu must not restart phone lookup. */
+export async function runStructuredPostOrderCompletedPreTurn(input: {
+  turn: UserTurn
+  history: HistoryMessage[]
+  phone?: string
+}): Promise<PreTurnResult> {
+  const body = summarizeTurn(input.turn)
+  if (!isOrderLookupCompletedInThread(input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (
+    isOrderConfirmationPending(input.history) ||
+    isOrderLookupPhoneReplyPending(input.history)
+  ) {
+    return { kind: "skip", response: null }
+  }
+
+  const repTarget = remainderAfterLeadingAffirmation(body) || body
+  if (isExplicitHumanRequest(repTarget) || isExplicitHumanRequest(body)) {
+    const action = inferHumanHandoffAction(input.history, null)
+    return {
+      kind: "handled",
+      reply: buildHumanHandoffConfirmedReply(action),
+      action,
+    }
+  }
+
+  if (isNumberedReturnPolicyChoicePending(input.history, body)) {
+    const reply = await buildPostOrderLookupContinuationReply({
+      body,
+      history: input.history,
+      whatsappPhone: input.phone,
+    })
+    return { kind: "handled", reply, action: "reply" }
+  }
+
+  return { kind: "skip", response: null }
 }
 
 /** Order already located — exchange/modification/cancel must not restart phone lookup. */

@@ -17,12 +17,15 @@ import {
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
+  buildPostOrderLookupContinuationReply,
   enrichReturnPickupIntake,
   isOrderConfirmationPending,
+  isOrderLookupCompletedInThread,
   isOrderLookupPhoneReplyPending,
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
   resolveOrderShippingReply,
+  shouldAllowOrderLookupRestart,
 } from "@/lib/agents/order-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -99,6 +102,22 @@ export async function executeLookupOrderStatus(input: {
       error:
         "Service thread — order lookup is only for מס׳ הזמנה. After customer confirms the order card, continue service rep report (אז מסכם את הפנייה…) → אני צודק? → human_service. Never shipping status or משהו נוסף.",
     }
+  }
+
+  if (
+    isOrderLookupCompletedInThread(history) &&
+    !requiresOrderIdentification(body, history) &&
+    !shouldAllowOrderLookupRestart(body, history)
+  ) {
+    const reply = await buildPostOrderLookupContinuationReply({
+      body,
+      history,
+      whatsappPhone: input.phone,
+    })
+    const action = /העברתי את השיחה/i.test(reply)
+      ? ("human_service" as const)
+      : ("reply" as const)
+    return { ok: true as const, reply, action }
   }
 
   if (returnPickupContextInThread(history, body)) {

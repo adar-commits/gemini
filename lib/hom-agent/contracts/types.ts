@@ -13,6 +13,7 @@ export type PreTurnHandler =
   | "document"
   | "order"
   | "post_order_exchange"
+  | "post_order_completed"
   | "return_options"
   | "sales_intake"
 

@@ -41,6 +41,7 @@ import {
   runStructuredDocumentPreTurn,
   runStructuredKbSelfServiceFaqPreTurn,
   runStructuredOpeningAfterDocumentDeliveryPreTurn,
+  runStructuredPostOrderCompletedPreTurn,
   runStructuredPostOrderExchangePreTurn,
   runStructuredOrderLookupPreTurn,
   runStructuredPostPurchaseAltSizePreTurn,
@@ -427,6 +428,39 @@ export async function runHomAgentTurn(
         llm_calls: 0,
         profile: runtime.activeProfile,
         routing_path: "v3_structured_post_order_exchange",
+      },
+    })
+  }
+
+  const structuredPostOrderCompleted = await runStructuredPostOrderCompletedPreTurn({
+    turn,
+    history,
+    phone: phone || undefined,
+  })
+
+  if (structuredPostOrderCompleted.kind === "handled") {
+    const action = mapHomAction(structuredPostOrderCompleted.action)
+    if (persistTurn) {
+      await appendTurn({
+        conversationId,
+        agent: action === "human_sales" ? "sales" : "faq",
+        userText: body,
+        assistantText: structuredPostOrderCompleted.reply,
+        action,
+        preview,
+      })
+    }
+    return finish({
+      ok: true,
+      agent: action === "human_sales" ? "sales" : "faq",
+      reply: structuredPostOrderCompleted.reply,
+      action,
+      route: [action === "human_sales" ? "sales" : "faq"],
+      crmDepartment: action === "human_service" ? "service" : undefined,
+      metrics: {
+        llm_calls: 0,
+        profile: runtime.activeProfile,
+        routing_path: "v3_structured_post_order_completed",
       },
     })
   }

@@ -681,4 +681,83 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
       { type: "preTurn", handler: "order", expect: "skip" },
     ],
   },
+  {
+    id: "order-cancel-menu-no-relookup-531159495",
+    description: "Return menu 2 after order found must not restart lookup",
+    source: { phone: "+972525991700", session: "531159495" },
+    history: [
+      { role: "user", content: "ביטול עסקה" },
+      { role: "user", content: "נציג שירות" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nקודם אמצא… (052-5991700)",
+      },
+      { role: "user", content: "כן" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\n… (מס׳ הזמנה SO26021506) נכון?",
+      },
+      { role: "user", content: "נכון" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nבדקתי, המשלוח סומן כנמסר…\n\nאפשר לעזור במשהו נוסף?",
+      },
+      { role: "user", content: "ביטול עסקה" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nניתן להחזיר…\n1. החזרה לסניפי הרשת — ללא עלות\n2. איסוף מהבית באמצעות שליח — בתשלום\n\n… returns.carpetshop.co.il …",
+      },
+    ],
+    turn: { text: "2", phone: "+972525991700" },
+    assertions: [
+      {
+        type: "preTurn",
+        handler: "post_order_completed",
+        expect: "handled",
+        action: "reply",
+        replyMustInclude: ["returns.carpetshop.co.il"],
+        replyMustNotInclude: ["קודם אמצא", "האם היא רשומה על המספר"],
+      },
+      { type: "preTurn", handler: "order", expect: "skip" },
+    ],
+  },
+  {
+    id: "order-cancel-rep-no-relookup-531159495",
+    description: "Rep request after order found must hand off not re-lookup",
+    source: { phone: "+972525991700", session: "531159495" },
+    history: [
+      { role: "user", content: "נציג שירות" },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\nקודם אמצא… (052-5991700)",
+      },
+      { role: "user", content: "כן" },
+      {
+        role: "assistant",
+        content: "*הום בוט :)*\n… SO26021506 … נכון?",
+      },
+      { role: "user", content: "נכון" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nבדקתי, המשלוח סומן כנמסר…\n\nאפשר לעזור במשהו נוסף?",
+      },
+    ],
+    turn: { text: "כן נציג שירות", phone: "+972525991700" },
+    assertions: [
+      {
+        type: "preTurn",
+        handler: "post_order_completed",
+        expect: "handled",
+        action: "human_service",
+        replyMustInclude: ["העברתי"],
+        replyMustNotInclude: ["קודם אמצא"],
+      },
+      { type: "preTurn", handler: "order", expect: "skip" },
+    ],
+  },
 ]
