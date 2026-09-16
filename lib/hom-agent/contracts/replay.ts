@@ -72,6 +72,9 @@ const DOCUMENT_FLOW: Record<
     isActiveDigitalDocumentFlow(history, body),
 }
 
+/** Fixed business-hours instant so handoff contracts are deterministic (10:00 Israel). */
+const CONTRACT_REPLAY_NOW = new Date("2026-09-09T07:00:00.000Z")
+
 async function runPreTurnHandler(
   handler: PreTurnHandler,
   contract: ConversationContract
@@ -100,7 +103,10 @@ async function runPreTurnHandler(
     case "post_order_exchange":
       return runStructuredPostOrderExchangePreTurn(input)
     case "post_order_completed":
-      return await runStructuredPostOrderCompletedPreTurn(input)
+      return await runStructuredPostOrderCompletedPreTurn({
+        ...input,
+        now: CONTRACT_REPLAY_NOW,
+      })
     case "sales_intake":
       return runStructuredSalesIntakePreTurn(input)
     case "inventory":

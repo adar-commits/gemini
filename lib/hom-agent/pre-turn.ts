@@ -701,6 +701,8 @@ export async function runStructuredPostOrderCompletedPreTurn(input: {
   turn: UserTurn
   history: HistoryMessage[]
   phone?: string
+  /** Contract replay — fixed business hours; production uses real time. */
+  now?: Date
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
   if (!isOrderLookupCompletedInThread(input.history)) {
@@ -718,7 +720,7 @@ export async function runStructuredPostOrderCompletedPreTurn(input: {
     const action = inferHumanHandoffAction(input.history, null)
     return {
       kind: "handled",
-      reply: buildHumanHandoffConfirmedReply(action),
+      reply: buildHumanHandoffConfirmedReply(action, input.now),
       action,
     }
   }
