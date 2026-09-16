@@ -1,10 +1,14 @@
-import { selectFaqKb, selectFaqKbAsync } from "@/lib/agents/kb"
-import type { ModelTier } from "@/lib/agent-core/model-orchestra"
-import { buildHomBotPrompt } from "@/lib/hom-agent/hom-bot-prompt"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { selectFaqKb } from "@/lib/agents/kb"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import type { HistoryMessage } from "@/lib/agents/types"
 
-/** Static JSON contract — kept adjacent to hom-bot core for prompt-cache prefix stability. */
+const root = join(process.cwd(), "lib/hom-agent")
+
+let cachedPrompt: string | null = null
+
+/** Static JSON contract — kept adjacent to hom-bot.md for prompt-cache prefix stability. */
 const FINAL_OUTPUT_BLOCK = `
 ### FINAL OUTPUT
 After using tools when needed, respond with JSON only:
@@ -13,17 +17,29 @@ Include crm_department only when department is 100% certain — omit otherwise.
 Set expects_reply false when the reply ends with a warm resolution close (שמחתי לעזור היום! 😊) — never chase with עדיין כאן? or ask "אפשר לעזור במשהו נוסף?". Customer thanks after a resolved answer → action end with the same warm close.
 Never leave reply empty on substantive turns.`
 
-export type HomAgentPromptInput = {
+function readHomBotPrompt() {
+  if (cachedPrompt) return cachedPrompt
+  cachedPrompt = readFileSync(join(root, "prompts/hom-bot.md"), "utf8")
+  return cachedPrompt
+}
+
+export function buildHomAgentSystemPrompt(input?: {
   sessionSummary?: string | null
   whatsappPhone?: string | null
   userText?: string | null
   history?: HistoryMessage[]
+  /** Pre-rendered trainer rules section (see homAgentLearnedRulesSection). */
   learnedRules?: string | null
+  /** Pre-rendered owner Q&A section (see ownerAnswersSection). */
   ownerAnswers?: string | null
-  modelTier?: ModelTier | null
-}
+}) {
+  // Static prefix first (hom-bot + JSON contract) so Gateway/Anthropic prompt cache
+  // can reuse the brain across turns; per-turn KB/hints/summary follow.
+  const parts = [readHomBotPrompt(), FINAL_OUTPUT_BLOCK]
 
-function appendDynamicSections(parts: string[], input?: HomAgentPromptInput) {
+  parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
+  parts.push(selectFaqKb(input?.userText?.trim() ?? ""))
+
   if (input?.ownerAnswers?.trim()) {
     parts.push(`\n\n${input.ownerAnswers.trim()}`)
   }
@@ -56,26 +72,7 @@ function appendDynamicSections(parts: string[], input?: HomAgentPromptInput) {
       `\n\n### CONVERSATION SUMMARY (internal)\n${input.sessionSummary.trim()}`
     )
   }
-}
 
-export async function buildHomAgentSystemPromptAsync(input?: HomAgentPromptInput) {
-  const parts = [buildHomBotPrompt(input), FINAL_OUTPUT_BLOCK]
-
-  parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
-  parts.push(await selectFaqKbAsync(input?.userText?.trim() ?? "", input?.modelTier ?? null))
-
-  appendDynamicSections(parts, input)
-  return parts.join("")
-}
-
-/** Sync path for tests — regex KB slice without async RAG fetch. */
-export function buildHomAgentSystemPrompt(input?: HomAgentPromptInput) {
-  const parts = [buildHomBotPrompt(input), FINAL_OUTPUT_BLOCK]
-
-  parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
-  parts.push(selectFaqKb(input?.userText?.trim() ?? "", input?.modelTier ?? null))
-
-  appendDynamicSections(parts, input)
   return parts.join("")
 }
 

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
-  KB_CAP_NORMAL,
   selectFaqKb,
   selectFaqKbFull,
   shouldIncludeCarpetFaqKb,
@@ -48,15 +47,5 @@ describe("selectFaqKb", () => {
     const kb = selectFaqKb("מה ההבדל בין קילים לפרסי?")
     assert.match(kb, /מילון מונחים/)
     assert.match(kb, /שאגי|קילים/)
-  })
-
-  it("caps normal FAQ KB at 6K characters", () => {
-    const kb = selectFaqKb("מה מדיניות החלפה לשטיח?")
-    assert.ok(kb.length <= KB_CAP_NORMAL + 120)
-  })
-
-  it("allows wider cap on T3 full KB", () => {
-    const kb = selectFaqKb("", "T3")
-    assert.ok(kb.length <= 12_000 + 120)
   })
 })

@@ -102,7 +102,7 @@ export function pickModelTier(input: {
 
   if (isHumanHandoffPending(history)) {
     return {
-      tier: "T2",
+      tier: orchestraMode === "aggressive" ? "T2" : "T3",
       reason: "human_handoff_pending",
       useFullKb: false,
       skipMaster: true,

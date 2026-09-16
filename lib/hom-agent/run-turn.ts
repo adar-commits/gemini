@@ -11,10 +11,6 @@ import { isGatewayBudgetExceeded } from "@/lib/agent-core/gateway-errors"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
 import { pickHomAgentModel } from "@/lib/agent-core/hard-case-model"
 import {
-  getOpusEscalatedReason,
-  setOpusEscalatedReason,
-} from "@/lib/agent-core/opus-session"
-import {
   beginTurnMetrics,
   finishTurnMetrics,
   setFallbackLayer,
@@ -155,13 +151,11 @@ export async function runHomAgentTurn(
 
   beginTurnMetrics(conversationId, runtime.activeProfile, phone)
 
-  const opusEscalatedReason = await getOpusEscalatedReason(conversationId)
   const modelPick = pickHomAgentModel({
     body,
     turn,
     history,
     defaultModel: runtime.profile.faq.model,
-    opusEscalatedReason,
   })
   setTurnTier(conversationId, modelPick.tier)
   if (modelPick.escalated) {
@@ -616,7 +610,6 @@ export async function runHomAgentTurn(
       body,
       phone: phone || undefined,
       sessionSummary: conversationSummary,
-      modelTier: modelPick.tier,
       modelOverride: modelOverride ?? (modelPick.escalated ? modelPick.model : undefined),
     })
 
@@ -648,11 +641,6 @@ export async function runHomAgentTurn(
     output = invoked.output
     llmCalls = invoked.llmCalls
     model = invoked.model
-    if (modelPick.recordOpusEscalation) {
-      await setOpusEscalatedReason(conversationId, modelPick.reason)
-    } else if (modelPick.clearOpusEscalation) {
-      await setOpusEscalatedReason(conversationId, null)
-    }
   } catch (error) {
     const canRetry = shouldRetryInvokeAfterFailure(conversationId)
     const gatewayBudgetExceeded = isGatewayBudgetExceeded(error)

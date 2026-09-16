@@ -64,19 +64,6 @@ describe("pickHomAgentModel", () => {
     assert.equal(pick.model, SONNET)
   })
 
-  it("does not re-escalate Opus on the same hard-case reason in-session", () => {
-    const pick = pickHomAgentModel({
-      body: "קיבלתי את השטיח ולא אהבתי אותו",
-      turn: { text: "קיבלתי את השטיח ולא אהבתי אותו", media: [] },
-      history: [{ role: "user", content: "קיבלתי את השטיח ולא אהבתי אותו" }],
-      defaultModel: SONNET,
-      opusEscalatedReason: "dissatisfaction_or_policy_dispute",
-    })
-    assert.equal(pick.escalated, false)
-    assert.equal(pick.model, SONNET)
-    assert.match(pick.reason, /opus_followup/)
-  })
-
   it("escalates complex service when the customer message is detailed enough", () => {
     const pick = pickHomAgentModel({
       body: "השטיח הגיע עם כתם גדול ואני רוצה החזר כספי מלא על ההזמנה",
