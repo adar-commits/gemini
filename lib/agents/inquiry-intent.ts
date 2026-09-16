@@ -196,17 +196,41 @@ export function isExchangePolicyQuestion(text: string) {
   return false
 }
 
+/** Cart / checkout total differs from published or cart price — sales/service, not return FAQ. */
+export function isCheckoutPriceDiscrepancyQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+
+  const priceContext =
+    /(?:מחיר|על(?:ה|ות)|ש(?:\"|'|׳)?(?:׳|')?ח|\d[\d,.]*\s*ש)/i.test(text)
+  if (!priceContext) return false
+
+  return (
+    /(?:ל(?:שלם|קופה)|checkout|עגלה|ב(?:שלב|עמוד)\s+(?:ה)?(?:תשלום|קופה))/i.test(text) ||
+    /(?:מחיר\s+המפורסם|מחיר\s+ב(?:אתר|עמוד)|ב(?:אתר|עמוד)).{0,120}(?:עלה|שונה|גבוה|יותר)/i.test(
+      text
+    ) ||
+    /(?:יתכן|למה).{0,40}מחיר.{0,120}(?:עלה|שונה|גבוה|יותר)/i.test(text) ||
+    /(?:כש(?:באתי|הגעתי)\s+ל(?:שלם|קופה)|בעת\s+(?:ה)?(?:תשלום|קופה)).{0,80}מחיר/i.test(text)
+  )
+}
+
 /** Policy / hypothetical return question — not an active return request. */
 export function isReturnPolicyQuestion(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return false
 
   if (isExchangePolicyQuestion(trimmed)) return false
+  if (isCheckoutPriceDiscrepancyQuestion(trimmed)) return false
 
   if (isRefundTimelineQuestion(trimmed)) return true
 
   if (
-    /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות)|מדיניות\s+(?:ה)?החזר)/i.test(trimmed) &&
+    /(?:איך\s+(?:מ(?:חזירים|בצעים|חזירים)|להחזיר|עושים(?:\s+(?:ה)?(?:החזר|החזרה))?|פותח(?:ים|ה)?(?:\s+בקש(?:ה|ת))?)|מה\s+(?:ה)?(?:דרך|מדיניות)(?:\s+(?:ה)?(?:החזר|לביטול))?|מדיניות\s+(?:ה)?החזר)/i.test(
+      trimmed
+    ) &&
+    (mentionsReturnIntent(trimmed) ||
+      /(?:ביטול|פורטל|זיכוי|בקש(?:ה|ת)\s+(?:ה)?(?:החזר|ביטול))/i.test(trimmed)) &&
     !RECEIVED_RE.test(trimmed)
   ) {
     return true

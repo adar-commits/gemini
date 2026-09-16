@@ -291,7 +291,9 @@ export function answerFaqQuestionDeterministic(
   if (isRefundTimelineQuestion(text)) return buildRefundTimelinePolicyReply()
   if (isRefundStatusInquiry(text)) return buildRefundStatusHandoffReply()
   if (isBranchReviewLinkRequest(text)) return buildBranchReviewLinkReply(text)
-  if (subjects.includes("returns_exchanges")) return resolveReturnExchangePolicyReply(text)
+  if (subjects.includes("returns_exchanges")) {
+    return resolveReturnExchangePolicyReply(text) ?? null
+  }
   if (isShippingPolicyQuestion(text) || subjects.includes("shipping_policy")) {
     return buildShippingPolicyReply()
   }

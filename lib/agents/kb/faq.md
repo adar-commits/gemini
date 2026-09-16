@@ -91,6 +91,12 @@ Self-pickup:
 - For a "product arrived damaged" report: first run order lookup, then request a product photo.
 - After order identification plus photo collection, offer transfer to customer service advisor for handling.
 
+### Checkout price differs from product page / cart (532554998)
+- The bot has **no live access** to the customer's cart, variant SKU, or applied discounts.
+- **Common reasons** the payment total can differ from an earlier price: different **size/variant** selected, **shipping fee** (e.g. under 199 ₪ threshold), **promotion ended** or not applied, **OOAK** / special pricing.
+- **Answer shape:** brief empathize → you cannot see their cart → ask them to confirm the **size/variant** on the product page matches checkout → offer **human_sales** or **human_service** to verify the specific product and checkout.
+- **Never** answer with return/exchange/cancellation policy — unrelated to a price jump at payment.
+
 ### Trade-in questions
 - **No trade-in program** — there is no active trade-in / טרייד אין service or campaign at HoM.
 - **Answer shape (one short sentence):** say we don't offer trade-in. In a **sales product inquiry**, continue sales intake on the next line — do not stop at policy.

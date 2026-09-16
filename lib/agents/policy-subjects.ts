@@ -6,6 +6,7 @@
 import { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
 import {
   isActiveReturnExchangePickupCase,
+  isCheckoutPriceDiscrepancyQuestion,
   isExchangeOnlyIntent,
   isExchangePolicyQuestion,
   isCreditCodeOnlineRedemptionRequest,
@@ -286,6 +287,7 @@ export function buildCarpetPackagingFaqReply() {
 export function isReturnExchangePolicyFaqQuestion(body: string) {
   const text = body.trim()
   if (!text) return false
+  if (isCheckoutPriceDiscrepancyQuestion(text)) return false
   if (isActiveReturnExchangePickupCase(text)) return false
   if (isRefundTimelineQuestion(text)) return true
   if (isExchangePolicyQuestion(text)) return true
@@ -294,7 +296,11 @@ export function isReturnExchangePolicyFaqQuestion(body: string) {
 }
 
 /** Pick the right deterministic policy text — portal only for returns/cancellations. */
-export function resolveReturnExchangePolicyReply(body: string, phone?: string | null) {
+export function resolveReturnExchangePolicyReply(
+  body: string,
+  phone?: string | null
+): string | null {
+  if (isCheckoutPriceDiscrepancyQuestion(body)) return null
   if (isReturnShippingFeeQuestion(body)) return buildReturnShippingFeePolicyReply(phone)
   if (isRefundTimelineQuestion(body)) return buildRefundTimelinePolicyReply(phone)
   if (mentionsReturnIntent(body) && mentionsExchangeIntent(body)) {
