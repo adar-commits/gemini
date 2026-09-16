@@ -29,6 +29,7 @@ import {
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
   isReturnShippingFeeQuestion,
+  isTradeInQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
   isProductInventoryQuestion,
@@ -587,6 +588,12 @@ export function buildConversationHints(input: {
   if (isCarpetRentalQuestion(body)) {
     lines.push(
       "Carpet rental / try-before-buy (customer asked explicitly): answer from KB (case-by-case via sales advisor). Never 'אין לי מידע' or branch hours dump. Never volunteer rental when comparing product links."
+    )
+  }
+
+  if (isTradeInQuestion(body)) {
+    lines.push(
+      "TRADE-IN (478627132): no טרייד אין / trade-in program — one short line from KB only. Never mention תיקון שטיחים or repair (not in KB). Never unprompted exchange/return/14-day policy. Product inquiry thread → continue sales intake after answering."
     )
   }
 

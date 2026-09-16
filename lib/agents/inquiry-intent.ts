@@ -753,3 +753,10 @@ export function isBareReturnExecutionRequest(body: string) {
   if (isActiveReturnExchangePickupCase(text)) return false
   return true
 }
+
+/** Trade-in / טרייד אין — not exchange, return, or repair. */
+export function isTradeInQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return /(?:trade[\s-]?in|טרייד[\s-]?א(?:ין|ון)|טרייד(?:ין|)?)/i.test(text)
+}

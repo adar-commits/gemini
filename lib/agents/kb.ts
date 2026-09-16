@@ -152,6 +152,10 @@ const SECTION_HINTS: Array<{ re: RegExp; titles: string[] }> = [
     re: /הדמיה|visualization|roomvo/i,
     titles: ["Visualization"],
   },
+  {
+    re: /trade[\s-]?in|טרייד[\s-]?א(?:ין|ון)|טרייד(?:ין|)?/i,
+    titles: ["Owner-verified", "Trade-in"],
+  },
 ]
 
 function sectionsForText(text: string, sections: Section[]) {

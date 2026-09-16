@@ -98,8 +98,12 @@ Self-pickup:
 - After order identification plus photo collection, offer transfer to customer service advisor for handling.
 
 ### Trade-in questions
-- There is currently no active trade-in campaign.
-- If customer asks for alternatives or active offers, route to a sales advisor.
+- **No trade-in program** — there is no active trade-in / טרייד אין service or campaign at HoM.
+- **Answer shape (one short sentence):** say we don't offer trade-in. In a **sales product inquiry**, continue sales intake on the next line — do not stop at policy.
+- **Never invent alternatives** — do **not** mention rug repair (תיקון שטיחים / מתקנים שטיחים). HoM does not offer repair as a trade-in substitute unless this KB is updated by the operator.
+- **Never unprompted pivot** to return/exchange/cancellation policy (14 days, החלפה, פורטל) when they only asked about trade-in — that is a different topic.
+- Optional: `get_campaigns` — if nothing matches trade-in, say there is no such campaign (never invent one).
+- If they want a human to discuss purchase options → sales advisor (`human_sales` after intake or on explicit request).
 
 ## Refund / exchange / cancellation policy
 Source: https://www.carpetshop.co.il/policies/refund-policy
