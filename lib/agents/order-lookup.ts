@@ -48,6 +48,7 @@ import {
   isSalesIntakeAnswer,
   pendingSalesIntakeQuestionKind,
 } from "@/lib/agents/sales-intake"
+import { parseDocumentLinkFromPayload } from "@/lib/agents/get-document-parse"
 import { callPriorityWebhook, getPriorityApiLogContext, isPriorityApiWaitMessage } from "@/lib/agents/priority-webhook"
 import {
   recallConversationLookupPhone,
@@ -422,14 +423,6 @@ export async function lookupDigitalDocument(
   const link = parseDocumentLinkFromPayload(data)
   if (link) return { ok: true, link }
   return { ok: false, reason: "not_found" }
-}
-
-function parseDocumentLinkFromPayload(data: unknown) {
-  if (typeof data === "object" && data != null && "result" in data) {
-    const link = String((data as { result: unknown }).result ?? "").trim()
-    return link || null
-  }
-  return null
 }
 
 const ORDER_NUMBER_MIN_DIGITS = 5

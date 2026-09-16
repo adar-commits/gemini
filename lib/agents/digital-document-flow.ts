@@ -3,6 +3,7 @@ import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isValidIsraeliMobilePhone } from "@/lib/agents/phone-for-api"
+import { parseDocumentLinksFromPayload } from "@/lib/agents/get-document-parse"
 import { callPriorityWebhook } from "@/lib/agents/priority-webhook"
 import {
   buildAlternatePhoneRequestPrompt,
@@ -754,18 +755,9 @@ function phoneForOrderApi(phone: string) {
   return digits
 }
 
-function parseDocumentLink(data: unknown) {
-  if (data == null) return null
-  if (typeof data === "object" && "result" in data) {
-    const link = String((data as { result: unknown }).result ?? "").trim()
-    return link || null
-  }
-  return null
-}
-
 async function fetchGetDocumentLink(input: { value: string; documentType: string }) {
   const value = input.value.trim()
-  if (!value) return { link: null as string | null, sawResponse: false }
+  if (!value) return { links: [] as string[], sawResponse: false }
 
   const data = await callPriorityWebhook({
     actionType: "getDocument",
@@ -774,7 +766,7 @@ async function fetchGetDocumentLink(input: { value: string; documentType: string
   })
 
   return {
-    link: parseDocumentLink(data),
+    links: parseDocumentLinksFromPayload(data),
     sawResponse: data != null,
   }
 }
@@ -802,7 +794,7 @@ export async function lookupDigitalDocumentsByType(phone: string, documentType: 
   for (const type of DOCUMENT_TYPE_FALLBACKS[documentType]) {
     const doc = await fetchGetDocumentLink({ value: lookupPhone, documentType: type })
     sawResponse = sawResponse || doc.sawResponse
-    if (doc.link) links.push(doc.link)
+    links.push(...doc.links)
   }
 
   const unique = uniqueLinks(links)
@@ -833,7 +825,8 @@ export async function lookupDigitalDocumentsForChannel(
       value,
       documentType: DOCUMENT_TYPE_TAX_INVOICE_RECEIPT,
     })
-    if (doc.link) return { ok: true as const, links: [doc.link] }
+    const storeLinks = uniqueLinks(doc.links)
+    if (storeLinks.length > 0) return { ok: true as const, links: storeLinks }
     return {
       ok: false as const,
       reason: doc.sawResponse ? ("not_found" as const) : ("api_failed" as const),
@@ -846,7 +839,7 @@ export async function lookupDigitalDocumentsForChannel(
     fetchGetDocumentLink({ value: lookupPhone, documentType: DOCUMENT_TYPE_TAX_INVOICE }),
   ])
 
-  const links = uniqueLinks([receipt.link, invoice.link])
+  const links = uniqueLinks([...receipt.links, ...invoice.links])
   if (links.length > 0) return { ok: true as const, links }
 
   const sawResponse = receipt.sawResponse || invoice.sawResponse
