@@ -1507,6 +1507,46 @@ export function buildOrderStatusReply(order: OrderShipmentStatus) {
 בדקתי, ${body}${datePhrase}${helpOffer}`
 }
 
+function formatPreorderLineEta(item: OrderLineItem) {
+  const date = item.preorderExpectedDate
+    ? formatHebrewCustomerDate(item.preorderExpectedDate)
+    : null
+  if (date) return `${item.name.trim()} — הזמנה מוקדמת, צפי הגעה: ${date}`
+  return `${item.name.trim()} — הזמנה מוקדמת`
+}
+
+/** After confirm: Pre Order lines explain ETA instead of unknown-status handoff. */
+export function buildPreorderAwareStatusReply(
+  order: OrderShipmentStatus,
+  items: OrderLineItem[]
+) {
+  const preorderItems = items.filter(isPreorderLineItem)
+  if (preorderItems.length === 0) return buildOrderStatusReply(order)
+
+  const etaLines = preorderItems.map(formatPreorderLineEta).filter(Boolean)
+  const statusBody = order.statusDescription?.trim() ?? ""
+  const mappedStatus =
+    Boolean(statusBody) && !isUnknownDeliveryStatusMessage(statusBody)
+
+  if (mappedStatus) {
+    const dateAlreadyInBody = /(?:נכון לתאריך|נמסר בתאריך|בתאריך \d)/i.test(statusBody)
+    const datePhrase = dateAlreadyInBody ? "" : orderStatusDatePhrase(order)
+    return `${CUSTOMER_HEADER}
+בדקתי, ${statusBody}${datePhrase}
+
+${etaLines.join("\n")}
+
+${ORDER_STATUS_HELP_OFFER}`
+  }
+
+  return `${CUSTOMER_HEADER}
+בדקתי את ההזמנה — הפריט רשום כהזמנה מוקדמת, ולכן עדיין אין סטטוס משלוח.
+
+${etaLines.join("\n")}
+
+${ORDER_STATUS_HELP_OFFER}`
+}
+
 export function isOrderStatusAlreadySharedInThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
@@ -2402,6 +2442,12 @@ async function replyAfterOrderIdentified(
     return buildServiceHandoffConfirmReply(intake, body, history)
   }
 
+  const items = orderLineItemsFromOrder(order)
+  if (items.some(isPreorderLineItem)) {
+    const enriched = await enrichLineItemsWithPreorderDates(items)
+    return buildPreorderAwareStatusReply(order, enriched)
+  }
+
   if (
     shouldSurfaceOrderLineItems({
       history,
@@ -2411,7 +2457,6 @@ async function replyAfterOrderIdentified(
     }) &&
     REMAINING_ORDER_ITEMS_RE.test(body.trim())
   ) {
-    const items = orderLineItemsFromOrder(order)
     const contextReply = await buildOrderLineItemsContextReply(order, items)
     if (contextReply) return contextReply
   }

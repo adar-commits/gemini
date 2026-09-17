@@ -52,6 +52,10 @@ describe("isShippingStatusQuestion", () => {
     assert.equal(isShippingLookupContext(delayed, []), true)
   })
 
+  it("treats bare 'לא קיבלתי את השטיח' as shipping status (532360395)", () => {
+    assert.equal(isShippingStatusQuestion("לא קיבלתי את השטיח שלי"), true)
+  })
+
   it("does not treat a new purchase intent as status lookup", () => {
     assert.equal(isShippingStatusQuestion("רוצה לקנות שטיח לסלון"), false)
   })

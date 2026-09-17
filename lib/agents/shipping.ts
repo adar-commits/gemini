@@ -70,6 +70,10 @@ function hasDeliveryTrackingIntent(text: string) {
     return true
   }
 
+  if (/(?:עדיין\s+)?לא\s+קיבלתי\s+(?:את\s+)?(?:ה)?(?:שטיח|פוף|מוצר|פריט)/i.test(text)) {
+    return true
+  }
+
   if (/מה\s+קורה\s+ע(?:ם|im)\s+(?:ה)?(?:משלוח|הזמנה|חבילה|אספקה)/i.test(text)) {
     return true
   }

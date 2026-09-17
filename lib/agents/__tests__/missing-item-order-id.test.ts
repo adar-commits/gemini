@@ -22,6 +22,11 @@ describe("missing item order identification", () => {
     assert.ok(isMissingOrPartialDeliveryComplaint("ביצעתי 2 הזמנות וקיבלתי רק אחת מהן"))
   })
 
+  it("does not treat bare 'לא קיבלתי את השטיח' as missing_item", () => {
+    assert.equal(classifyPostPurchaseCase("לא קיבלתי את השטיח שלי"), null)
+    assert.equal(isMissingOrPartialDeliveryComplaint("לא קיבלתי את השטיח שלי"), false)
+  })
+
   it("detects LLM order-number ask and unknown answer", () => {
     const history: HistoryMessage[] = [
       {

@@ -390,7 +390,7 @@ export function buildConversationHints(input: {
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "ORDER STATUS OPENING (532163951): delivery/shipment tracking only — call lookup_order_status immediately (phone confirm OK). Never dissatisfaction two-option menu (exchange/return). Never return_pickup service summary unless they explicitly submitted a return pickup request."
+      "ORDER STATUS OPENING (532163951 / 532360395): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order, explain הזמנה מוקדמת + ETA from inventory — do not jump to human_service just because delivery status is empty."
     )
   }
 
