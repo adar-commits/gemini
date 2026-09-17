@@ -6,7 +6,9 @@ import {
   INACTIVITY_HANDOFF_AUTO_ASSIGN_MS,
   INACTIVITY_PING_MS,
   buildInactivityPingReply,
+  inactivityCloseBlockReason,
   isInactivityAssistantMessage,
+  isInactivityPingMessage,
   lastNonInactivityAssistantText,
   shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
@@ -100,7 +102,7 @@ async function getLastMeaningfulAssistantMessage(conversationId: string) {
 async function lastAssistantIsInactivityPing(conversationId: string) {
   const lastAssistant = await getLastAssistantMessage(conversationId)
   if (!lastAssistant?.content) return null
-  if (!isInactivityAssistantMessage(String(lastAssistant.content))) return null
+  if (!isInactivityPingMessage(String(lastAssistant.content))) return null
   return String(lastAssistant.created_at)
 }
 
@@ -475,6 +477,9 @@ async function attemptSilentHandoffAssign(row: IdleSessionRow) {
   const customerId = parseCustomerId(row.conversation_id)
   if (!customerId) return "skipped" as const
   if (!shouldReplyPhone(row.customer_phone)) return "skipped" as const
+  if (inactivityCloseBlockReason((await getLastAssistantMessage(row.conversation_id))?.content) === "already_closed_notice") {
+    return "skipped" as const
+  }
   if (await lastAssistantIsInactivityPing(row.conversation_id)) return "skipped" as const
   if (msSince(row.last_assistant_at) < INACTIVITY_HANDOFF_AUTO_ASSIGN_MS) {
     return "skipped" as const
@@ -507,6 +512,9 @@ async function attemptInactivityPing(row: IdleSessionRow) {
   const customerId = parseCustomerId(row.conversation_id)
   if (!customerId) return "skipped" as const
   if (!shouldReplyPhone(row.customer_phone)) return "skipped" as const
+  if (inactivityCloseBlockReason((await getLastAssistantMessage(row.conversation_id))?.content) === "already_closed_notice") {
+    return "skipped" as const
+  }
   if (await lastAssistantIsInactivityPing(row.conversation_id)) return "skipped" as const
 
   const { getConversationContext, getHistory } = await import("@/lib/agents/memory")
@@ -577,6 +585,8 @@ async function attemptInactivityClose(row: CloseCandidate) {
   const context = await getConversationContext(row.conversation_id)
   const salesRecovery = shouldSkipInactivityClose(context.history, context.lastAgent)
 
+  const lastAssistant = await getLastAssistantMessage(row.conversation_id)
+  if (inactivityCloseBlockReason(lastAssistant?.content)) return "skipped" as const
   const pingAt = await lastAssistantIsInactivityPing(row.conversation_id)
   if (!pingAt) return "skipped" as const
   if (await userRepliedAfterTimestamp(row.conversation_id, pingAt)) {

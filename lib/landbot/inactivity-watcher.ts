@@ -6,7 +6,9 @@ import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_PING_MS,
   buildInactivityPingReply,
+  inactivityCloseBlockReason,
   isInactivityAssistantMessage,
+  isInactivityPingMessage,
   lastNonInactivityAssistantText,
   shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
@@ -128,7 +130,7 @@ function resolveWatchPhone(payload: InactivityWatchPayload, sessionPhone?: unkno
   return asText(payload.customerPhone) || asText(sessionPhone) || undefined
 }
 
-async function lastAssistantIsInactivityPing(conversationId: string) {
+async function lastAssistantRow(conversationId: string) {
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
     .from("hom_agent_messages")
@@ -140,11 +142,20 @@ async function lastAssistantIsInactivityPing(conversationId: string) {
     .maybeSingle()
 
   if (error) throw error
-  if (!data?.content || !isInactivityAssistantMessage(String(data.content))) return null
+  return data
+}
+
+async function lastAssistantIsInactivityPing(conversationId: string) {
+  const data = await lastAssistantRow(conversationId)
+  if (!data?.content || !isInactivityPingMessage(String(data.content))) return null
   return String(data.created_at)
 }
 
 async function resolveInactivityPingTimestamp(conversationId: string, fallback?: string) {
+  const lastAssistant = await lastAssistantRow(conversationId)
+  if (inactivityCloseBlockReason(lastAssistant?.content) === "already_closed_notice") {
+    return null
+  }
   const fromMessage = await lastAssistantIsInactivityPing(conversationId)
   if (fromMessage) return fromMessage
   const session = await getSessionInactivityState(conversationId)
@@ -161,6 +172,9 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
     return "phone_not_allowed" as const
   }
   if (asText(session.inactivity_closed_at)) return "already_closed" as const
+  const lastAssistant = await lastAssistantRow(payload.conversationId)
+  const closeBlock = inactivityCloseBlockReason(lastAssistant?.content)
+  if (closeBlock === "already_closed_notice") return closeBlock
   if (await lastAssistantIsInactivityPing(payload.conversationId)) {
     return "ping_already_sent" as const
   }
@@ -253,9 +267,9 @@ async function shouldSendClose(payload: InactivityWatchPayload) {
     return "phone_not_allowed" as const
   }
   if (asText(session.inactivity_closed_at)) return "already_closed" as const
-  if (!(await lastAssistantIsInactivityPing(payload.conversationId))) {
-    return "ping_not_last_assistant" as const
-  }
+  const lastAssistant = await lastAssistantRow(payload.conversationId)
+  const closeBlock = inactivityCloseBlockReason(lastAssistant?.content)
+  if (closeBlock) return closeBlock
   if (!(await isBotWaitingForCustomerReply(payload.conversationId, session))) {
     return "bot_not_waiting" as const
   }

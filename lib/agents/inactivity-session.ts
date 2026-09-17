@@ -23,6 +23,16 @@ export async function isBotWaitingForCustomerReply(
     last_assistant_at?: unknown
   }
 ) {
+  const lastUser = asText(session.last_user_at)
+  const lastAssistant = asText(session.last_assistant_at)
+  if (
+    lastUser &&
+    lastAssistant &&
+    Date.parse(lastUser) > Date.parse(lastAssistant)
+  ) {
+    return false
+  }
+
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
     .from("hom_agent_messages")

@@ -123,15 +123,39 @@ export function shouldSuppressInactivityWatch(history: HistoryMessage[]) {
   return lastUserIndex < deferAckIndex
 }
 
+/** Live "עדיין כאן?" ping — not a close notice. */
+export function isInactivityPingMessage(content: string) {
+  return /עדיין\s+(?:שם|כאן)/.test(content)
+}
+
+/** Prior inactivity close — thread already ended; do not close again. */
+export function isInactivityCloseMessage(content: string) {
+  return (
+    /נסגרה עקב (?:אי מענה|חוסר פעילות)/.test(content) ||
+    /ניתן לשלוח הודעה חוזרת/.test(content)
+  )
+}
+
 /** Ping / close notices — not the bot's real pending question. Matches current and legacy wording. */
 export function isInactivityAssistantMessage(content: string) {
   return (
-    /עדיין\s+(?:שם|כאן)/.test(content) ||
-    /נסגרה עקב (?:אי מענה|חוסר פעילות)/.test(content) ||
-    /ניתן לשלוח הודעה חוזרת/.test(content) ||
+    isInactivityPingMessage(content) ||
+    isInactivityCloseMessage(content) ||
     /אפשר לשלוח הודעה בכל עת/.test(content) ||
     isInactivityDeferAckMessage(content)
   )
+}
+
+/**
+ * Close is only due when the last assistant line is a live ping.
+ * A leftover close notice (521424471) must never be treated as that ping.
+ */
+export function inactivityCloseBlockReason(lastAssistantContent: string | null | undefined) {
+  const content = String(lastAssistantContent ?? "")
+  if (!content) return "missing_last_assistant" as const
+  if (isInactivityCloseMessage(content)) return "already_closed_notice" as const
+  if (!isInactivityPingMessage(content)) return "ping_not_last_assistant" as const
+  return null
 }
 
 export function lastNonInactivityAssistantText(history: HistoryMessage[]) {

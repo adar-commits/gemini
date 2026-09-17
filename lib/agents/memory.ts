@@ -276,6 +276,7 @@ export async function touchSessionMeta(
   const patch: Record<string, string | null> = {
     conversation_id: conversationId,
     updated_at: new Date().toISOString(),
+    last_user_at: new Date().toISOString(),
   }
 
   if (input.customerName?.trim()) patch.customer_name = input.customerName.trim()
