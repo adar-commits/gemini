@@ -27,6 +27,8 @@ export type ServiceIntake = {
   /** Set only after Priority API match — never from LLM hints alone. */
   orderNumber?: string
   matchedOrder?: OrderShipmentStatus
+  missingProductLabel?: string
+  missingProductSku?: string
   waitDuration?: string
   customerGoal?: string
 }
@@ -242,6 +244,13 @@ export function buildServiceHandoffReportBlock(
     lines.push(ISSUE_LABELS[intake.issueKind])
   } else {
     lines.push("פנייה לשירות לקוחות")
+  }
+
+  if (intake.issueKind === "missing_item" && intake.missingProductLabel?.trim()) {
+    const skuPart = intake.missingProductSku?.trim()
+      ? ` (מק״ט ${intake.missingProductSku.trim()})`
+      : ""
+    lines.push(`פריט חסר: ${intake.missingProductLabel.trim()}${skuPart}`)
   }
 
   if (intake.waitDuration) {

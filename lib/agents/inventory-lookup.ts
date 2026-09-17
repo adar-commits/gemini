@@ -101,6 +101,26 @@ function parsePreorder(value: unknown): PreorderInfo | null {
   }
 }
 
+function parsePreorderFromPayload(payload: Record<string, unknown>): PreorderInfo | null {
+  const nested = parsePreorder(payload.preorder)
+  const topLevelDate = String(payload.preorder_reqdate ?? "").trim()
+  if (topLevelDate) {
+    return {
+      po_qty: nested?.po_qty ?? 0,
+      open_order_qty: nested?.open_order_qty ?? 0,
+      current_qty: nested?.current_qty ?? 0,
+      safe_qty: nested?.safe_qty ?? 0,
+      req_date: topLevelDate,
+    }
+  }
+  return nested
+}
+
+export function resolvePreorderExpectedDate(row: InventoryBranchRow): string | null {
+  const reqDate = row.preorder?.req_date?.trim()
+  return reqDate || null
+}
+
 function parseInventoryLocations(value: unknown): InventoryLocation[] {
   if (!Array.isArray(value)) return []
   const locations: InventoryLocation[] = []
@@ -449,7 +469,7 @@ export function parseInventoryBranchPayload(data: unknown): InventoryBranchRow |
       return {
         sku,
         product_title: productTitle,
-        preorder: parsePreorder(payload.preorder),
+        preorder: parsePreorderFromPayload(payload),
         inventory: parseInventoryLocations(payload.inventory),
       }
     }
@@ -458,7 +478,7 @@ export function parseInventoryBranchPayload(data: unknown): InventoryBranchRow |
       return {
         sku,
         product_title: productTitle,
-        preorder: parsePreorder(payload.preorder),
+        preorder: parsePreorderFromPayload(payload),
         inventory: parseInventoryLocations(payload.warehouses_inventory),
       }
     }

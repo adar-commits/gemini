@@ -20,6 +20,7 @@ import {
   isActiveReturnExchangePickupCase,
   isRefundStatusInquiry,
   classifyPostPurchaseCase,
+  type PostPurchaseCaseKind,
 } from "@/lib/agents/inquiry-intent"
 import {
   buildReturnPickupAwaitingServiceReply,
@@ -66,9 +67,14 @@ import {
 import { buildDeliveryEstimatePolicyReply } from "@/lib/agents/delivery-estimate-policy"
 import {
   isValidIsraeliMobilePhone,
+  isValidInventorySku,
   normalizePhoneForOrderApi,
   stripMediaAndUrls,
 } from "@/lib/agents/phone-for-api"
+import {
+  lookupInventoryBySku,
+  resolvePreorderExpectedDate,
+} from "@/lib/agents/inventory-lookup"
 
 export { buildDeliveryStatusMessage } from "@/lib/agents/delivery-status-terminology"
 export { normalizePhoneForOrderApi } from "@/lib/agents/phone-for-api"
@@ -107,13 +113,18 @@ export type PriorityOrderRow = {
   /** Line items when n8n getOrders includes them (PARTDES / price fields). */
   items?: OrderLineItem[] | unknown[] | null
   ORDERITEMS?: unknown[] | null
+  ORDERITEMS_SUBFORM?: unknown[] | null
   lineItems?: unknown[] | null
 }
 
-/** Normalized product line from getOrders — used in order confirmation cards. */
+/** Normalized product line from getOrders — surfaced post-confirm when context warrants. */
 export type OrderLineItem = {
   name: string
   price: number | null
+  sku?: string
+  quantity?: number | null
+  lineStatus?: string
+  preorderExpectedDate?: string | null
 }
 
 export type OrderShipmentStatus = {
@@ -130,6 +141,7 @@ export type OrderShipmentStatus = {
   customerName?: string | null
   orderStatus?: string | null
   deliveryType?: string | null
+  lineItems?: OrderLineItem[]
   raw: PriorityOrderRow
 }
 
@@ -337,6 +349,7 @@ export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus 
   const statusLabel = String(row.ZPIT_DELSTATUSDES ?? "").trim()
   const delDate = formatHebrewCustomerDate(row.ZPIT_DELDATE)
 
+  const lineItems = extractOrderLineItems(row)
   const mapped: OrderShipmentStatus = {
     orderNumber,
     statusCode,
@@ -351,6 +364,7 @@ export function mapPriorityOrderRow(row: PriorityOrderRow): OrderShipmentStatus 
     customerName: row.CDES?.trim() || null,
     orderStatus: row.ORDSTATUSDES?.trim() || null,
     deliveryType: row.ZPIT_DELIVERYDES?.trim() || null,
+    lineItems: lineItems.length > 0 ? lineItems : undefined,
     raw: row,
   }
 
@@ -1213,13 +1227,23 @@ function coerceItemArray(value: unknown): unknown[] {
 }
 
 function parseLineItemPrice(record: Record<string, unknown>) {
-  for (const key of ["TOTPRICE", "QPRICE", "PRICE", "price", "lineTotal", "unitPrice"]) {
+  for (const key of ["VPRICE", "TOTPRICE", "QPRICE", "PRICE", "price", "lineTotal", "unitPrice"]) {
     const value = record[key]
     if (typeof value === "number" && Number.isFinite(value)) return value
     if (typeof value === "string") {
       const parsed = Number(value.replace(/,/g, "").trim())
       if (Number.isFinite(parsed)) return parsed
     }
+  }
+  return null
+}
+
+function parseLineItemQuantity(record: Record<string, unknown>) {
+  const value = record.TQUANT ?? record.QUANT ?? record.quantity
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/,/g, "").trim())
+    if (Number.isFinite(parsed)) return parsed
   }
   return null
 }
@@ -1232,11 +1256,21 @@ function parseOrderLineItem(value: unknown): OrderLineItem | null {
   if (typeof value !== "object" || value == null) return null
 
   const record = value as Record<string, unknown>
-  for (const key of ["PARTDES", "PDES", "name", "productName", "description", "PARTNAME"]) {
-    const name = String(record[key] ?? "").trim()
-    if (name) return { name, price: parseLineItemPrice(record) }
+  const sku = String(record.PARTNAME ?? record.sku ?? "").trim() || undefined
+  const displayName = String(
+    record.PDES ?? record.PARTDES ?? record.name ?? record.productName ?? record.description ?? ""
+  ).trim()
+  const name = displayName || sku
+  if (!name) return null
+
+  const lineStatus = String(record.ORDISTATUSDES ?? record.lineStatus ?? "").trim() || undefined
+  return {
+    name,
+    price: parseLineItemPrice(record),
+    sku,
+    quantity: parseLineItemQuantity(record),
+    lineStatus,
   }
-  return null
 }
 
 /** Extract product lines from a getOrders row — supports common Priority / n8n field names. */
@@ -1251,7 +1285,7 @@ export function extractOrderLineItems(row: PriorityOrderRow): OrderLineItem[] {
     if (alreadyNormalized) return row.items as OrderLineItem[]
   }
 
-  const candidates = [row.items, row.ORDERITEMS, row.lineItems]
+  const candidates = [row.items, row.ORDERITEMS, row.ORDERITEMS_SUBFORM, row.lineItems]
   for (const candidate of candidates) {
     const parsed = coerceItemArray(candidate)
       .map(parseOrderLineItem)
@@ -1261,15 +1295,171 @@ export function extractOrderLineItems(row: PriorityOrderRow): OrderLineItem[] {
   return []
 }
 
+function formatOrderLineItemLine(item: OrderLineItem) {
+  const price = formatOrderPrice(item.price)
+  if (!item.name.trim()) return null
+  let line = price ? `${item.name.trim()} (${price} ש׳׳ח)` : item.name.trim()
+  if (isPreorderLineItem(item)) {
+    const date = item.preorderExpectedDate
+      ? formatHebrewCustomerDate(item.preorderExpectedDate)
+      : null
+    line += date
+      ? ` — הזמנה מוקדמת, צפי הגעה: ${date}`
+      : " — הזמנה מוקדמת"
+  }
+  return line
+}
+
 function formatOrderLineItemsBlock(items: OrderLineItem[]) {
   const lines = items
-    .map((item) => {
-      const price = formatOrderPrice(item.price)
-      if (!item.name.trim()) return null
-      return price ? `${item.name.trim()} (${price} ש׳׳ח)` : item.name.trim()
-    })
+    .map(formatOrderLineItemLine)
     .filter((line): line is string => Boolean(line))
   return lines.length > 0 ? lines.join("\n") : ""
+}
+
+export function isPreorderLineItem(item: OrderLineItem) {
+  return /pre\s*order/i.test(item.lineStatus ?? "")
+}
+
+export function orderLineItemsFromOrder(order: OrderShipmentStatus): OrderLineItem[] {
+  if (order.lineItems?.length) return order.lineItems
+  return extractOrderLineItems(order.raw)
+}
+
+/** Order card accepted in-thread — not waiting on "נכון?". */
+export function isOrderConfirmedInThread(history: HistoryMessage[]) {
+  if (!identifiedOrderNumberFromThread(history)) return false
+  return !isOrderConfirmationPending(history)
+}
+
+const REMAINING_ORDER_ITEMS_RE =
+  /מה\s+עוד\s+מגיע|איז(?:ה|ו)\s+פריט(?:ים)?(?:\s+עוד)?(?:\s+בהזמנה)?|מה\s+נשאר(?:\s+בהזמנה)?|פריטים\s+בהזמנה/i
+
+const MISSING_PRODUCT_CHOICE_PENDING_RE = /איזה\s+פריט\s+לא\s+הגיע/i
+
+function recentUserCorpus(history: HistoryMessage[], body: string) {
+  return history
+    .filter((message) => message.role === "user")
+    .slice(-6)
+    .map((message) => message.content)
+    .concat(body.trim())
+    .join("\n")
+}
+
+export function shouldSurfaceOrderLineItems(input: {
+  history: HistoryMessage[]
+  body: string
+  order: OrderShipmentStatus
+  issueKind?: PostPurchaseCaseKind | null
+  afterOrderConfirm?: boolean
+}) {
+  const confirmed =
+    input.afterOrderConfirm === true || isOrderConfirmedInThread(input.history)
+  if (!confirmed) return false
+
+  if (input.issueKind === "missing_item") return true
+  if (input.issueKind === "preorder_delay") return true
+  if (isMissingProductChoicePending(input.history)) return true
+  if (isMissingOrPartialDeliveryComplaint(recentUserCorpus(input.history, input.body))) {
+    return true
+  }
+  if (isPreorderDelayComplaint(recentUserCorpus(input.history, input.body))) return true
+  if (REMAINING_ORDER_ITEMS_RE.test(input.body.trim())) return true
+  if (
+    orderLineItemsFromOrder(input.order).some(isPreorderLineItem) &&
+    (isDeliveryEstimateQuestion(input.body) || isPreorderDelayComplaint(input.body))
+  ) {
+    return true
+  }
+  return false
+}
+
+export function isMissingProductChoicePending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    return (
+      MISSING_PRODUCT_CHOICE_PENDING_RE.test(message.content) &&
+      /^\s*1\.\s/m.test(message.content)
+    )
+  }
+  return false
+}
+
+export function resolveMissingProductChoice(
+  body: string,
+  items: OrderLineItem[]
+): OrderLineItem | null {
+  const text = body.trim()
+  if (!text || text.length > 160) return null
+
+  const numberMatch = text.match(/^(\d{1,2})(?:[\s,.!?]|$)/)
+  if (numberMatch) {
+    const index = Number(numberMatch[1]) - 1
+    return items[index] ?? null
+  }
+
+  const normalized = text.toLowerCase()
+  for (const item of items) {
+    const name = item.name.trim().toLowerCase()
+    if (name && (normalized === name || normalized.includes(name) || name.includes(normalized))) {
+      return item
+    }
+    const sku = item.sku?.trim().toLowerCase()
+    if (sku && normalized.includes(sku)) return item
+  }
+  return null
+}
+
+export function buildMissingProductChoicePrompt(
+  order: OrderShipmentStatus,
+  items: OrderLineItem[]
+) {
+  const displayOrder = formatCustomerOrderNumberForThread(order.orderNumber, [], "", order)
+  const lines = items.map((item, index) => `${index + 1}. ${item.name.trim()}`)
+  return `${CUSTOMER_HEADER}
+לפי ההזמנה ${displayOrder}, אלה הפריטים:
+${lines.join("\n")}
+
+איזה פריט לא הגיע? (מספר או שם)`
+}
+
+async function enrichLineItemsWithPreorderDates(
+  items: OrderLineItem[]
+): Promise<OrderLineItem[]> {
+  const targets = items.filter(
+    (item) => isPreorderLineItem(item) && item.sku && isValidInventorySku(item.sku)
+  )
+  if (targets.length === 0) return items
+
+  const enriched = await Promise.all(
+    targets.map(async (item) => {
+      const inventory = await lookupInventoryBySku(item.sku!)
+      const reqDate = inventory ? resolvePreorderExpectedDate(inventory) : null
+      return reqDate ? { ...item, preorderExpectedDate: reqDate } : item
+    })
+  )
+
+  const bySku = new Map(enriched.map((item) => [item.sku ?? item.name, item]))
+  return items.map((item) => bySku.get(item.sku ?? item.name) ?? item)
+}
+
+export async function buildOrderLineItemsContextReply(
+  order: OrderShipmentStatus,
+  items: OrderLineItem[]
+) {
+  const relevant = items.filter(isPreorderLineItem)
+  if (relevant.length === 0) return null
+
+  const enriched = await enrichLineItemsWithPreorderDates(relevant)
+  const block = formatOrderLineItemsBlock(enriched)
+  if (!block) return null
+
+  return `${CUSTOMER_HEADER}
+לגבי הזמנה ${order.orderNumber}:
+${block}`
 }
 
 function normalizePriorityOrderRow(row: PriorityOrderRow): PriorityOrderRow {
@@ -1296,10 +1486,8 @@ export function buildOrderConfirmationPrompt(
     order
   )
 
-  const summary = `${CUSTOMER_HEADER}
+  return `${CUSTOMER_HEADER}
 אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${displayOrder})`
-  const itemLines = formatOrderLineItemsBlock(extractOrderLineItems(order.raw))
-  return itemLines ? `${summary}\n\n${itemLines}` : summary
 }
 
 export function buildOrderConfirmationClarifyPrompt() {
@@ -1557,6 +1745,17 @@ ${portalUrl}
     body,
   })
   if (order) {
+    if (
+      isOrderConfirmedInThread(history) &&
+      REMAINING_ORDER_ITEMS_RE.test(body) &&
+      shouldSurfaceOrderLineItems({ history, body, order })
+    ) {
+      const contextReply = await buildOrderLineItemsContextReply(
+        order,
+        orderLineItemsFromOrder(order)
+      )
+      if (contextReply) return contextReply
+    }
     return resolveOrderStatusFollowUpReply(order, body, history)
   }
 
@@ -2139,20 +2338,84 @@ async function deliverOrderVerificationDocumentReply(phone: string) {
   return buildDigitalDocumentNotFoundReply()
 }
 
+async function resolveMissingItemServiceReply(
+  order: OrderShipmentStatus,
+  history: HistoryMessage[],
+  body: string
+) {
+  const intake = extractServiceIntake(history, body)
+  intake.issueKind = intake.issueKind ?? "missing_item"
+  intake.orderNumber = order.orderNumber
+  intake.matchedOrder = order
+
+  const items = orderLineItemsFromOrder(order)
+  if (isMissingProductChoicePending(history)) {
+    const picked = resolveMissingProductChoice(body, items)
+    if (picked) {
+      intake.missingProductLabel = picked.name
+      intake.missingProductSku = picked.sku
+      return buildServiceHandoffConfirmReply(intake, body, history)
+    }
+  }
+
+  if (items.length === 1) {
+    intake.missingProductLabel = items[0]!.name
+    intake.missingProductSku = items[0]!.sku
+    return buildServiceHandoffConfirmReply(intake, body, history)
+  }
+
+  if (items.length > 1 && !intake.missingProductLabel) {
+    return buildMissingProductChoicePrompt(order, items)
+  }
+
+  return buildServiceHandoffConfirmReply(intake, body, history)
+}
+
 async function replyAfterOrderIdentified(
   order: OrderShipmentStatus,
   lookupPhone: string,
-  history: HistoryMessage[]
+  history: HistoryMessage[],
+  body = ""
 ) {
   if (activeOrderLineItemVerificationRequest(history)) {
     return deliverOrderVerificationDocumentReply(lookupPhone)
   }
-  if (isServiceOrderIdentificationFlow(history)) {
-    const intake = extractServiceIntake(history, "")
+  if (isServiceOrderIdentificationFlow(history, body)) {
+    const intake = extractServiceIntake(history, body)
     intake.orderNumber = order.orderNumber
     intake.matchedOrder = order
-    return buildServiceHandoffConfirmReply(intake, "", history)
+
+    if (intake.issueKind === "missing_item") {
+      return resolveMissingItemServiceReply(order, history, body)
+    }
+
+    if (intake.issueKind === "preorder_delay") {
+      const items = orderLineItemsFromOrder(order)
+      const preorderContext = await buildOrderLineItemsContextReply(order, items)
+      const summary = buildServiceHandoffConfirmReply(intake, body, history)
+      if (preorderContext) {
+        const summaryBody = summary.slice(CUSTOMER_HEADER.length).trimStart()
+        return `${preorderContext}\n\n${summaryBody}`
+      }
+    }
+
+    return buildServiceHandoffConfirmReply(intake, body, history)
   }
+
+  if (
+    shouldSurfaceOrderLineItems({
+      history,
+      body,
+      order,
+      afterOrderConfirm: true,
+    }) &&
+    REMAINING_ORDER_ITEMS_RE.test(body.trim())
+  ) {
+    const items = orderLineItemsFromOrder(order)
+    const contextReply = await buildOrderLineItemsContextReply(order, items)
+    if (contextReply) return contextReply
+  }
+
   return buildOrderStatusReply(order)
 }
 
@@ -2193,7 +2456,7 @@ async function lookupOrderByReference(input: {
       ) ?? null
 
   if (matched) {
-    return replyAfterOrderIdentified(matched, input.lookupPhone, input.history)
+    return replyAfterOrderIdentified(matched, input.lookupPhone, input.history, input.body)
   }
   if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
   return buildOrderNumberNotFoundReply(
@@ -2251,14 +2514,14 @@ async function resolveOrderConfirmationFlow(input: {
   if (explicitOrder) {
     const matched = findOrderByNumber(sorted, explicitOrder)
     if (matched) {
-      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
+      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history, input.body)
     }
   }
 
   if (pendingOrder && isPureOrderConfirmation(input.body)) {
     const matched = findOrderByNumber(sorted, pendingOrder)
     if (matched) {
-      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
+      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history, input.body)
     }
     return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body, matched)
   }
@@ -2273,7 +2536,7 @@ async function resolveOrderConfirmationFlow(input: {
       ) {
         return resolveOrderStatusFollowUpReply(matched, input.body, input.history)
       }
-      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history)
+      return replyAfterOrderIdentified(matched, threadLookupPhone, input.history, input.body)
     }
     return buildOrderNumberNotFoundReply(pendingOrder, input.history, input.body)
   }
@@ -2423,6 +2686,17 @@ export async function resolveOrderShippingReply(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const whatsappPhone = input.phone?.trim()
+
+  if (isMissingProductChoicePending(history)) {
+    const order = await resolveIdentifiedOrderFromThread({
+      history,
+      whatsappPhone,
+      body,
+    })
+    if (order) {
+      return resolveMissingItemServiceReply(order, history, body)
+    }
+  }
 
   if (isReturnPickupAwaitingThread(history, body)) {
     let intake = extractServiceIntake(history, body)

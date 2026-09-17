@@ -35,17 +35,13 @@ describe("order confirmation line items", () => {
     assert.equal(items[0]?.price, 544.8)
   })
 
-  it("appends product lines below the confirmation question", () => {
+  it("does not append product lines to the pre-confirm order card", () => {
     const prompt = buildOrderConfirmationPrompt(orderWithItems)
     assert.match(prompt, /SO26018130/)
     assert.match(prompt, /644\.8/)
-    assert.match(prompt, /שטיח שאגי מרקש 01 קרם \(544\.8 ש׳׳ח\)/)
-    assert.match(prompt, /כרית נוי קטיפתית \(100 ש׳׳ח\)/)
-    const lines = prompt.split("\n")
-    const summaryIndex = lines.findIndex((line) => line.includes("נכון?"))
-    const firstItemIndex = lines.findIndex((line) => line.includes("שטיח שאגי"))
-    assert.ok(summaryIndex >= 0)
-    assert.ok(firstItemIndex > summaryIndex)
+    assert.match(prompt, /נכון\?/)
+    assert.doesNotMatch(prompt, /שטיח שאגי/)
+    assert.doesNotMatch(prompt, /כרית נוי/)
   })
 
   it("keeps confirmation compact when no items are present", () => {
@@ -65,6 +61,43 @@ describe("order confirmation line items", () => {
       ORDNAME: "SO1",
       ORDERITEMS: [{ name: "שטיח בד", price: 250 }],
     })
-    assert.deepEqual(items, [{ name: "שטיח בד", price: 250 }])
+    assert.equal(items[0]?.name, "שטיח בד")
+    assert.equal(items[0]?.price, 250)
+  })
+
+  it("parses ORDERITEMS_SUBFORM with sku, quantity, line status, and VPRICE", () => {
+    const items = extractOrderLineItems({
+      ORDNAME: "SO26021446",
+      ORDERITEMS_SUBFORM: [
+        {
+          PARTNAME: "33201138-120170",
+          PDES: "מירוץ מכוניות פורמולה 1 קרם אפור 170*120 FORMULA 1",
+          TQUANT: 1,
+          VPRICE: 465.5,
+          ORDISTATUSDES: "Pre Order",
+        },
+      ],
+    })
+    assert.equal(items.length, 1)
+    assert.equal(items[0]?.sku, "33201138-120170")
+    assert.equal(items[0]?.quantity, 1)
+    assert.equal(items[0]?.price, 465.5)
+    assert.equal(items[0]?.lineStatus, "Pre Order")
+  })
+
+  it("maps lineItems onto OrderShipmentStatus", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26021446",
+      TOTPRICE: 465.5,
+      ORDERITEMS_SUBFORM: [
+        {
+          PARTNAME: "33201138-120170",
+          PDES: "מירוץ מכוניות",
+          VPRICE: 465.5,
+        },
+      ],
+    })
+    assert.equal(order.lineItems?.length, 1)
+    assert.equal(order.lineItems?.[0]?.sku, "33201138-120170")
   })
 })

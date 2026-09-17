@@ -349,6 +349,21 @@ describe("branch color availability", () => {
 })
 
 describe("parseInventoryBranchPayload", () => {
+  it("maps preorder_reqdate from the updated getInventoryBranch layout", () => {
+    const row = parseInventoryBranchPayload([
+      {
+        sku: "33201138-120170",
+        preorder_reqdate: "2026-11-15",
+        warehouses_inventory: [
+          { warehouse: "מחסן פתח תקווה", warehouse_id: "120", quantity: 0 },
+        ],
+      },
+    ])
+    assert.ok(row)
+    assert.equal(row?.preorder?.req_date, "2026-11-15")
+    assert.ok(isPreorderSku(row!))
+  })
+
   it("maps the new getInventoryBranch response layout", () => {
     const row = parseInventoryBranchPayload([
       {

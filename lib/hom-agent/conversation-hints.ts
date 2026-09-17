@@ -646,7 +646,7 @@ export function buildConversationHints(input: {
 
   if (postPurchaseKind === "missing_item") {
     lines.push(
-      "MISSING ITEM / PARTIAL DELIVERY: customer cites receipt/invoice as proof of what they ordered — service case, NOT a document copy request. lookup_order_status → rep summary → human_service. Never fetch_digital_document or document type menu."
+      "MISSING ITEM / PARTIAL DELIVERY: service case, NOT document copy. lookup_order_status → order confirm (no product list on card) → after כן, if order has line items show numbered pick for missing product → rep summary with פריט חסר → human_service. Never fetch_digital_document."
     )
   }
 
