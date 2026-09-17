@@ -8,7 +8,12 @@ import {
   formatHebrewCustomerDate,
   formatHebrewCustomerDateTime,
 } from "@/lib/agents/hebrew-date-format"
-import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE, ORDER_STATUS_HELP_OFFER } from "@/lib/agents/types"
+import {
+  CUSTOMER_HEADER,
+  CUSTOMER_NATURAL_CLOSE,
+  ORDER_STATUS_HELP_OFFER,
+  POLITE_HELP_CLOSE,
+} from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
@@ -1507,15 +1512,38 @@ export function buildOrderStatusReply(order: OrderShipmentStatus) {
 בדקתי, ${body}${datePhrase}${helpOffer}`
 }
 
-function formatPreorderLineEta(item: OrderLineItem) {
-  const date = item.preorderExpectedDate
-    ? formatHebrewCustomerDate(item.preorderExpectedDate)
-    : null
-  if (date) return `${item.name.trim()} — הזמנה מוקדמת, צפי הגעה: ${date}`
-  return `${item.name.trim()} — הזמנה מוקדמת`
+function formatPreorderRestockExplanation(items: OrderLineItem[]) {
+  const named = items
+    .map((item) => {
+      const name = item.name.trim()
+      if (!name) return null
+      const date = item.preorderExpectedDate
+        ? formatHebrewCustomerDate(item.preorderExpectedDate)
+        : null
+      return { name, date }
+    })
+    .filter((item): item is { name: string; date: string | null } => item != null)
+
+  const meaning =
+    "הזמנה מוקדמת משמעותה שהפריט לא היה במלאי כפי שצוין בעמוד ההזמנה"
+
+  if (named.length === 1) {
+    const only = named[0]!
+    const restock = only.date
+      ? `ולכן אנחנו מצפים לחידוש מלאי בסביבות ${only.date}`
+      : "ולכן אנחנו מצפים לחידוש מלאי בקרוב"
+    return `${meaning}, ${restock}.\n\n• ${only.name}`
+  }
+
+  const lines = named.map((item) =>
+    item.date
+      ? `• ${item.name} — חידוש מלאי בסביבות ${item.date}`
+      : `• ${item.name}`
+  )
+  return `${meaning}, ולכן אנחנו מצפים לחידוש מלאי לפי הפריטים הבאים:\n${lines.join("\n")}`
 }
 
-/** After confirm: Pre Order lines explain ETA instead of unknown-status handoff. */
+/** After confirm: Pre Order lines explain restock ETA instead of unknown-status handoff. */
 export function buildPreorderAwareStatusReply(
   order: OrderShipmentStatus,
   items: OrderLineItem[]
@@ -1523,7 +1551,7 @@ export function buildPreorderAwareStatusReply(
   const preorderItems = items.filter(isPreorderLineItem)
   if (preorderItems.length === 0) return buildOrderStatusReply(order)
 
-  const etaLines = preorderItems.map(formatPreorderLineEta).filter(Boolean)
+  const explanation = formatPreorderRestockExplanation(preorderItems)
   const statusBody = order.statusDescription?.trim() ?? ""
   const mappedStatus =
     Boolean(statusBody) && !isUnknownDeliveryStatusMessage(statusBody)
@@ -1534,17 +1562,17 @@ export function buildPreorderAwareStatusReply(
     return `${CUSTOMER_HEADER}
 בדקתי, ${statusBody}${datePhrase}
 
-${etaLines.join("\n")}
+${explanation}
 
-${ORDER_STATUS_HELP_OFFER}`
+${POLITE_HELP_CLOSE}`
   }
 
   return `${CUSTOMER_HEADER}
-בדקתי את ההזמנה — הפריט רשום כהזמנה מוקדמת, ולכן עדיין אין סטטוס משלוח.
+בדקתי את ההזמנה.
 
-${etaLines.join("\n")}
+${explanation}
 
-${ORDER_STATUS_HELP_OFFER}`
+${POLITE_HELP_CLOSE}`
 }
 
 export function isOrderStatusAlreadySharedInThread(history: HistoryMessage[]) {

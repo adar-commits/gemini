@@ -9,6 +9,7 @@ import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
+import { closeCrmConversation } from "@/lib/crm/conversation-close"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import type { UserTurn } from "@/lib/agents/user-turn"
@@ -402,6 +403,17 @@ export async function handleLandbotInbound(
         conversationId,
         customerId,
         action: result.action,
+      })
+    } else if (result.action === "end") {
+      await clearInactivityWatchState(conversationId)
+      await closeCrmConversation({
+        conversationId,
+        reason: "resolved_close",
+      }).catch((error) => {
+        console.warn("[handle-inbound] crm resolved close failed", {
+          conversationId,
+          error: error instanceof Error ? error.message : error,
+        })
       })
     } else if (outboundMessages.length > 0) {
       const lastOutbound = outboundMessages[outboundMessages.length - 1] ?? ""

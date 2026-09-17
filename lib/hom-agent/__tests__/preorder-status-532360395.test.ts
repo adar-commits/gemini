@@ -3,6 +3,8 @@ import { describe, it } from "node:test"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
+import { isResolvedStatusCloseReply } from "@/lib/agents/conversation-close"
+import { POLITE_HELP_CLOSE } from "@/lib/agents/types"
 import {
   buildOrderConfirmationPrompt,
   buildPreorderAwareStatusReply,
@@ -56,8 +58,12 @@ describe("preorder status 532360395", () => {
       preorderExpectedDate: "2026-11-15",
     }))
     const reply = buildPreorderAwareStatusReply(preorderOrder, items)
-    assert.match(reply, /הזמנה מוקדמת/)
-    assert.match(reply, /15\/11\/2026|15\.11\.2026/)
+    assert.match(reply, /הזמנה מוקדמת משמעותה שהפריט לא היה במלאי/)
+    assert.match(reply, /חידוש מלאי בסביבות 15\/11\/2026/)
+    assert.match(reply, /מירוץ מכוניות/)
+    assert.match(reply, new RegExp(POLITE_HELP_CLOSE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    assert.equal(isResolvedStatusCloseReply(reply), true)
+    assert.doesNotMatch(reply, /שמחתי לעזור/)
     assert.doesNotMatch(reply, /אז מסכם את הפנייה/)
     assert.doesNotMatch(reply, /תועבר להמשך טיפול/)
     assert.doesNotMatch(reply, /פריט חסר/)

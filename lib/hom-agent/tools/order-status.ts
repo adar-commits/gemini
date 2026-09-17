@@ -27,6 +27,7 @@ import {
   resolveOrderShippingReply,
   shouldAllowOrderLookupRestart,
 } from "@/lib/agents/order-lookup"
+import { isResolvedStatusCloseReply } from "@/lib/agents/conversation-close"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 function returnPickupContextInThread(
@@ -163,7 +164,9 @@ export async function executeLookupOrderStatus(input: {
     }
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
       ? ("human_service" as const)
-      : ("reply" as const)
+      : isResolvedStatusCloseReply(trimmed)
+        ? ("end" as const)
+        : ("reply" as const)
 
     return { ok: true as const, reply: trimmed, action }
   } catch (error) {

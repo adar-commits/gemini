@@ -2,15 +2,18 @@ import {
   CUSTOMER_HEADER,
   CUSTOMER_NATURAL_CLOSE,
   ORDER_STATUS_HELP_OFFER,
+  POLITE_HELP_CLOSE,
 } from "@/lib/agents/types"
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 
 /** Warm resolution closings — not mandatory questions; silence means thread is done. */
 const WARM_CONVERSATION_CLOSES = [
+  POLITE_HELP_CLOSE,
   ORDER_STATUS_HELP_OFFER,
   CUSTOMER_NATURAL_CLOSE,
   "שמחתי לעזור היום",
   "שמחתי לעזור!",
+  "אם יש משהו נוסף שאוכל לעזור בו, אני כאן",
 ] as const
 
 export function buildWarmConversationCloseLine(customerName?: string) {
@@ -20,6 +23,18 @@ export function buildWarmConversationCloseLine(customerName?: string) {
 
 export function buildWarmConversationCloseReply(customerName?: string) {
   return `${CUSTOMER_HEADER}\n${buildWarmConversationCloseLine(customerName)}`
+}
+
+/** Resolved status/preorder card — close the thread (action end), not a pending question. */
+export function isResolvedStatusCloseReply(content: string) {
+  const body = content.replace(CUSTOMER_HEADER, "").trim()
+  if (!body) return false
+  if (/נכון\?/i.test(body)) return false
+  if (/האם להעביר/i.test(body)) return false
+  if (/איזה פריט לא הגיע/i.test(body)) return false
+  if (/לא ניתן להציג כרגע סטטוס משלוח/i.test(body)) return false
+  if (/אז מסכם את הפנייה/i.test(body)) return false
+  return /בדקתי/i.test(body) && endsWithOptionalFollowUpOffer(content)
 }
 
 /** Bot ended with a warm close — customer silence is a natural end. */
@@ -37,6 +52,7 @@ export function isSkippableClosingAssistantMessage(content: string) {
   if (/אפשר לעזור במשהו נוסף/i.test(body)) return true
   if (/יש עוד שאלה/i.test(body)) return true
   if (/אם צריך עוד משהו — אני כאן/i.test(body)) return true
+  if (/אם יש משהו נוסף שאוכל לעזור בו, אני כאן/i.test(body)) return true
   if (!/בדקתי,/i.test(body) && /שמחתי לעזור/i.test(body) && body.length <= 160) {
     return true
   }

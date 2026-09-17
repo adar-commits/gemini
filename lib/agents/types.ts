@@ -71,6 +71,8 @@ export const CUSTOMER_HEADER = "*הום בוט :)*"
 export const CUSTOMER_NATURAL_CLOSE = "שמחתי לעזור! 😊"
 /** After a successful order/shipment status lookup — warm close, no follow-up question. */
 export const ORDER_STATUS_HELP_OFFER = "שמחתי לעזור! 😊"
+/** Polite resolved close — still a closure (expects_reply false / action end), not a new question. */
+export const POLITE_HELP_CLOSE = "אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊"
 
 export type HistoryMessage = {
   role: "user" | "assistant"

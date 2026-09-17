@@ -1,6 +1,7 @@
 import {
   buildThanksAckReply,
   endsWithOptionalFollowUpOffer,
+  isResolvedStatusCloseReply,
   isThanksAcknowledgment,
 } from "@/lib/agents/conversation-close"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
@@ -686,7 +687,9 @@ export async function runStructuredOrderLookupPreTurn(input: {
 
   const action: HomAgentAction = /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply)
     ? "human_service"
-    : "reply"
+    : isResolvedStatusCloseReply(reply)
+      ? "end"
+      : "reply"
 
   return {
     kind: "handled",
