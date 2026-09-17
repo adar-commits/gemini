@@ -75,6 +75,7 @@ import {
   isFirstSubstantiveCustomerTurn,
   substantiveUserMessages,
 } from "@/lib/agents/greeting"
+import { isOwnedRugCareQuestion } from "@/lib/crm/conversation-department"
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import {
   isCarpetPackagingOpenQuestion,
@@ -613,9 +614,9 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isRugCleaningServiceQuestion(body)) {
+  if (isRugCleaningServiceQuestion(body) || isOwnedRugCareQuestion(body)) {
     lines.push(
-      "RUG CLEANING SERVICE FAQ: HoM does not clean rugs or do odor neutralization in-house. Answer warmly from carpet-products-faq — pro dry cleaning for general care; spot clean with alcohol-free wipe or microfiber + warm water + dish soap. React first (שאלה טובה / הבנתי), everyday Hebrew — never 'אין לי מידע על', 'מטעם החברה', or 'לא שירות שאנחנו מבצעים בעצמנו'. Simple care FAQ — no proactive handoff (רוצים שאעביר…); passive 'אם תרצו עוד משהו — כאן' only."
+      'RUG CLEANING / CARE FAQ (שירות): wash, stain, pee, or "do you clean rugs?" on a rug they have — `"crm_department": "service"`. HoM does not clean rugs or neutralize odor in-house. Answer warmly from carpet-products-faq — pro dry cleaning for general care; spot clean with alcohol-free wipe or microfiber + warm water + dish soap. React first (שאלה טובה / הבנתי), everyday Hebrew — never אין לי מידע על, מטעם החברה, or לא שירות שאנחנו מבצעים בעצמנו. Simple care FAQ — no proactive handoff; passive close only.'
     )
   }
 

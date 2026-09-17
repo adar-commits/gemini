@@ -67,4 +67,20 @@ describe("resolveCrmDepartmentForTurn", () => {
     })
     assert.equal(resolved, null)
   })
+
+  it("tags owned-rug wash / stain as service (532637652)", () => {
+    const resolved = resolveCrmDepartmentForTurn({
+      history: [],
+      body: "היי, יש לי שטיח מסוג גפן כותנה. אפשר לכבס אותו? הכלבה עשתה עליו פיפי",
+    })
+    assert.deepEqual(resolved, { department: "service", source: "structured" })
+  })
+
+  it("does not tag shopping 'קל לניקוי' as service", () => {
+    const resolved = resolveCrmDepartmentForTurn({
+      history: [],
+      body: "מחפש שטיח לסלון שקל לניקוי",
+    })
+    assert.equal(resolved, null)
+  })
 })

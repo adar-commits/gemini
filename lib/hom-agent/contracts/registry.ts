@@ -91,7 +91,7 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
       },
       {
         type: "hints",
-        hintMustMatch: ["RUG CLEANING SERVICE FAQ", "no proactive handoff"],
+        hintMustMatch: ["RUG CLEANING / CARE FAQ", "no proactive handoff"],
       },
     ],
     snapshot: {

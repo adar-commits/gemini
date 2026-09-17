@@ -22,7 +22,7 @@ describe("rug cleaning service FAQ tone (532160407)", () => {
       history: [],
       whatsappPhone: "0542115321",
     })
-    assert.match(hints ?? "", /RUG CLEANING SERVICE FAQ/i)
+    assert.match(hints ?? "", /RUG CLEANING \/ CARE FAQ/i)
     assert.match(hints ?? "", /never.*אין לי מידע/i)
     assert.match(hints ?? "", /no proactive handoff/i)
     assert.match(hints ?? "", /dry cleaning|ניקוי יבש/i)

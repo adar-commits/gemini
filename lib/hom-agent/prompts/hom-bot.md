@@ -132,12 +132,14 @@ Set **`"service"`** when unambiguous:
 - Service intake / rep-summary path (`lookup_order_status` for an **existing-order problem**)
 - Callback urgency on a service thread
 - Membership checkout completion needing נציג שירות
+- **Care / wash / stain** on a rug they already have (אפשר לכבס, פיפי, כתם, ניקוי יבש) — not a new-purchase "קל לניקוי" sales quiz
 
 **Omit** `crm_department` (do NOT guess):
 - Greeting / small talk / thanks alone
 - Bare "נציג" / "?" / "שירות לקוחות" without a concrete request
-- General policy FAQ with no post-purchase execution (return policy explanation, shipping policy)
 - **Collision pairs** — wait until clear: refund **timeline** vs return **location**; branch **review link** vs branch **address**; return **policy** vs return **execution**
+
+Care / wash / stain / packaging how-to on a product they have is **service** — not an omit. Return-policy or shipping-policy explanation without execution may stay omitted.
 
 **Flip rule:** if thread was sales but customer now reports a **received-order problem** (defect, missing, wrong item) → `"service"` even if CRM was מכירות. If thread was service but customer pivots to **new purchase** → `"sales"`.
 

@@ -473,6 +473,7 @@ export async function runHomAgentTurn(
         reply: structuredKbFaq.reply,
         action,
         route: ["faq"],
+        crmDepartment: "service",
         metrics: {
           llm_calls: 0,
           profile: runtime.activeProfile,

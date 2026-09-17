@@ -8,6 +8,7 @@ import {
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { assignCrmConversationToHomBot } from "@/lib/crm/conversation-assign"
 import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
 import { closeCrmConversation } from "@/lib/crm/conversation-close"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
@@ -376,6 +377,20 @@ export async function handleLandbotInbound(
 
     for (const text of outboundMessages) {
       await sendCustomerText(customerId, text)
+    }
+
+    if (
+      result.action !== "reset" &&
+      result.action !== "human_sales" &&
+      result.action !== "human_service" &&
+      !result.duplicateSuppressed
+    ) {
+      await assignCrmConversationToHomBot({ conversationId }).catch((error) => {
+        console.warn("[handle-inbound] crm hom-bot assign failed", {
+          conversationId,
+          error: error instanceof Error ? error.message : error,
+        })
+      })
     }
 
     if (

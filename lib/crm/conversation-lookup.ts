@@ -11,7 +11,9 @@ export async function findCrmConversation(conversationId: string) {
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
     .from("conversations")
-    .select("session_id, department, inquiry_type, landbot_customer_id, closed_at")
+    .select(
+      "session_id, department, inquiry_type, landbot_customer_id, closed_at, assigned_agent_code, assigned_at"
+    )
     .or(
       `landbot_customer_id.eq.${lookupId},session_id.eq.${lookupId},conversation_ref.eq.${lookupId}`
     )

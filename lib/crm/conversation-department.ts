@@ -3,6 +3,11 @@ import { getAgentSupabase } from "@/lib/agents/supabase"
 import {
   isMissingOrPartialDeliveryComplaint,
 } from "@/lib/agents/inquiry-intent"
+import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
+import {
+  isCarpetPackagingOpenQuestion,
+  isRugCleaningServiceQuestion,
+} from "@/lib/agents/policy-subjects"
 import {
   isOrderStatusDeliveredInThread,
   isServiceOrderIdentificationFlow,
@@ -70,6 +75,14 @@ export type SetCrmDepartmentResult =
       reason: "disabled" | "not_found" | "unchanged"
     }
 
+/** Wash / stain / pet accident on a rug they already have — care FAQ, not "קל לניקוי" shopping. */
+export function isOwnedRugCareQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (!/(?:ל)?כבס|כביסה|כתם|פיפי|שתן/.test(text)) return false
+  return /שטיח|שאגי|פוף|rug|carpet/i.test(text)
+}
+
 function structuredServiceDepartmentActive(
   history: HistoryMessage[],
   body: string
@@ -78,7 +91,11 @@ function structuredServiceDepartmentActive(
     isServiceHandoffSummaryPending(history) ||
     isServiceOrderIdentificationFlow(history, body) ||
     isReturnPickupAwaitingThread(history, body) ||
-    isPostPurchaseServiceFlow(history)
+    isPostPurchaseServiceFlow(history) ||
+    isKbSelfServiceFaqThisTurn(body, history) ||
+    isRugCleaningServiceQuestion(body) ||
+    isCarpetPackagingOpenQuestion(body) ||
+    isOwnedRugCareQuestion(body)
   )
 }
 
