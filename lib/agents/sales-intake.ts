@@ -1754,6 +1754,7 @@ const SALES_SUMMARY_CONFIRM_RE =
 
 export function isConfirmationPending(history: HistoryMessage[]) {
   if (isPostPurchaseIntentConfirmPending(history)) return false
+  if (isServiceHandoffSummaryPending(history)) return false
   const last = lastNonInactivityAssistantText(history)
   return SALES_SUMMARY_CONFIRM_RE.test(last)
 }

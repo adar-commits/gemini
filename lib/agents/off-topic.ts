@@ -1,4 +1,8 @@
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
+import {
+  isPostPurchaseServiceFlow,
+  isServiceHandoffSummaryPending,
+} from "@/lib/agents/service-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
@@ -163,6 +167,10 @@ export function inferHumanHandoffAction(
 ): "human_sales" | "human_service" {
   const transcript = history.map((message) => message.content).join("\n")
   const last = lastAssistantText(history)
+
+  if (isServiceHandoffSummaryPending(history) || isPostPurchaseServiceFlow(history)) {
+    return "human_service"
+  }
 
   if (/האם להעביר את הפנייה כעת ליועץ מכירות/.test(last)) {
     return "human_sales"

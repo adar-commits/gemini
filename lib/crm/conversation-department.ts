@@ -108,6 +108,10 @@ export function resolveCrmDepartmentForTurn(input: {
     return { department: "service", source: "structured" }
   }
 
+  if (isServiceHandoffSummaryPending(input.history)) {
+    return { department: "service", source: "structured" }
+  }
+
   if (hasOngoingSalesIntake(input.history)) {
     return { department: "sales", source: "structured" }
   }

@@ -232,7 +232,7 @@ export function buildConversationHints(input: {
 
   if (isServiceHandoffSummaryPending(history)) {
     lines.push(
-      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/כן תודה) set action human_service immediately — short transfer line only. If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
+      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (אני צודק? here is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
     )
   }
 

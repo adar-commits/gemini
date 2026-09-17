@@ -294,7 +294,9 @@ Bot: הבנתי שכבר פתחתם בקשת החזרה… ממתינים שהש
      • הלקוח פנה לברר סטטוס איסוף כדי להתקדם עם ההחזרה
 
      אני צודק?
-User: כן → human_service — never read shipping/self-pickup status to customer
+User: כן → `human_service` + `"crm_department": "service"` — נציג שירות / שירות לקוחות.
+     **Never** `human_sales` / יועץ מכירות after a service recap (`מסכם את הפנייה` / נציג שירות + אני צודק?).
+     Sales "אני צודק?" is a different flow — only when the last recap is for יועץ מכירות, not שירות.
 ```
 
 **Order modification — change color / size on an existing order (classic)**

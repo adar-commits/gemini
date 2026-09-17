@@ -82,7 +82,10 @@ import {
   isExchangeIntakeStartedInThread,
   isExplicitExchangeExecutionTurn,
 } from "@/lib/agents/exchange-intake"
-import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
+import {
+  isServiceHandoffSummaryConfirmed,
+  isServiceHandoffSummaryPending,
+} from "@/lib/agents/service-intake"
 import {
   lastAssistantWasOutboundDocumentDelivery,
   shouldHandleDigitalDocumentFlow,
@@ -147,6 +150,17 @@ export function runPreTurnGuards(input: {
 
   if (isWhatsappAutoresponder(body)) {
     return { kind: "handled", reply: "", action: "end" }
+  }
+
+  if (
+    isServiceHandoffSummaryPending(input.history) &&
+    isServiceHandoffSummaryConfirmed(body)
+  ) {
+    return {
+      kind: "handled",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_service")}`,
+      action: "human_service",
+    }
   }
 
   if (isConfirmationPending(input.history) && isHumanHandoffAffirmation(body)) {
