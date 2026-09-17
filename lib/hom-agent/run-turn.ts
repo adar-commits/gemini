@@ -209,9 +209,9 @@ export async function runHomAgentTurn(
     })
   }
 
-  const deferStructuredToLlm = shouldDeferStructuredPreTurnToLlm(history)
+  const deferStructuredToLlm = shouldDeferStructuredPreTurnToLlm(history, turn)
   if (deferStructuredToLlm) {
-    setRoutingPath(conversationId, "v3_opening_llm_only")
+    setRoutingPath(conversationId, "v3_llm_only")
   }
 
   if (!deferStructuredToLlm) {

@@ -88,11 +88,11 @@ export function buildLlmFailureReply(options?: { gatewayBudgetExceeded?: boolean
   if (options?.gatewayBudgetExceeded) {
     return `${CUSTOMER_HEADER}
 המערכת שלי מלאה כרגע — לא הצלחתי לעבד את ההודעה.
-אעביר לנציג שירות שימשיך מכאן?`
+האם להעביר את השיחה לנציג שירות שימשיך מכאן?`
   }
   return `${CUSTOMER_HEADER}
 משהו נתקע בצד שלי, סליחה על זה.
-אפשר לנסח שוב בקצרה, או שאעביר לנציג שימשיך מכאן?`
+אפשר לנסח שוב בקצרה, או להעביר את השיחה לנציג שירות שימשיך מכאן?`
 }
 
 /** Last-resort customer text when the pipeline produced nothing sendable. */

@@ -20,6 +20,17 @@ describe("resolveLlmUnavailableHandoff", () => {
     assert.equal(isHumanHandoffPending(llmFailureHistory), true)
   })
 
+  it("treats gateway budget failure reply as a pending handoff offer", () => {
+    const history: HistoryMessage[] = [
+      {
+        role: "assistant",
+        content: buildLlmFailureReply({ gatewayBudgetExceeded: true }),
+      },
+    ]
+    assert.equal(isHumanHandoffPending(history), true)
+    assert.equal(resolveLlmUnavailableHandoff("כן", history), "human_service")
+  })
+
   it("hands off on כן after LLM failure offer", () => {
     assert.equal(resolveLlmUnavailableHandoff("כן", llmFailureHistory), "human_service")
   })
