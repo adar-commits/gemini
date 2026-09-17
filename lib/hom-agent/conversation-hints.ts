@@ -12,6 +12,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  isPreorderEtaSharedInThread,
   isPostOrderShippingFollowUp,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
@@ -482,6 +483,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "Order already identified this thread — do NOT call lookup_order_status again or re-ask phone. Delivery estimate (צפי) → policy by status code only; never invent a calendar date."
+    )
+  }
+
+  if (isPreorderEtaSharedInThread(history)) {
+    lines.push(
+      "PREORDER ETA UNSATISFIED (511324782): last status was הזמנה מוקדמת + date. If they push back (לא / לא מתאים / רוצה שירות / או לבטל) — action human_service + short transfer to נציג שירות only. Never \"אין בעיה, אפשר לבטל\", never \"נטפל בביטול\", never write that the wait לא מתאימה and then sell cancel. The rep owns wait vs cancel."
     )
   }
 

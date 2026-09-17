@@ -866,4 +866,40 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
       },
     ],
   },
+  {
+    id: "preorder-eta-unsatisfied-511324782",
+    description: "Unhappy with preorder date → service human, never pitch cancel",
+    source: { session: "511324782", landbotId: "511103877" },
+    history: [
+      { role: "user", content: "היישלום\nהזמנתי שטיח\nמתי הוא אמור להגיע?" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nקודם אמצא את ההזמנה שלכם בזריזות, האם היא רשומה על המספר ממנו אני מתכתב כרגע? (050-5713706)",
+      },
+      { role: "user", content: "כן" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nאוקיי נדמה לי שמצאתי את ההזמנה, בוצעה לפני 31 ימים באתר אינטרנט על סך 1,125 ש׳׳ח נכון? (מס׳ הזמנה ⁦#75253⁩)",
+      },
+      { role: "user", content: "נכון" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nבדקתי את ההזמנה — הפריט רשום כהזמנה מוקדמת, ולכן עדיין אין סטטוס משלוח.\n\nאייקוניק אפור בהיר 290*200 ICONIC — הזמנה מוקדמת, צפי הגעה: 15/11/2026\n\nשמחתי לעזור! 😊",
+      },
+    ],
+    turn: { text: "לא\nרוצה שירות לקוחות\nאו לבטל", phone: "0505713706" },
+    assertions: [
+      {
+        type: "hints",
+        hintMustMatch: [
+          "PREORDER ETA UNSATISFIED",
+          "human_service",
+          "Never \"אין בעיה, אפשר לבטל\"",
+        ],
+      },
+    ],
+  },
 ]

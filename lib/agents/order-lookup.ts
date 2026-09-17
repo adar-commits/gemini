@@ -1727,6 +1727,16 @@ export function isOrderLookupCompletedInThread(history: HistoryMessage[]) {
   )
 }
 
+/** Bot already explained הזמנה מוקדמת + ETA — dissatisfaction is service, not cancel. */
+export function isPreorderEtaSharedInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /הזמנה מוקדמת/.test(message.content) &&
+      /צפי הגעה|חידוש מלאי|preorder_reqdate/i.test(message.content)
+  )
+}
+
 const NUMBERED_BRANCH_RETURN_OPTION_RE =
   /1\.\s*(?:החזרה|החלפה)[\s\S]*סניפ/i
 const NUMBERED_HOME_PICKUP_OPTION_RE = /2\.\s*[\s\S]*(?:איסוף|שליח)/i
