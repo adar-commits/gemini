@@ -33,6 +33,9 @@ import {
   isTradeInQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
+  isCatalogProductInquiry,
+  isHomStorefrontUrl,
+  isProductDetailsRequest,
   isProductInventoryQuestion,
   isSpecificProductMention,
 } from "@/lib/agents/product-handoff"
@@ -150,7 +153,13 @@ export function buildConversationHints(input: {
 
   if (isFirstSubstantiveCustomerTurn(history)) {
     lines.push(
-      "FIRST CUSTOMER MESSAGE: interpret their full intent with LLM + tools this turn — no structured FAQ/order shortcuts. Answer what they actually asked; call lookup_order_status only when live order data is needed."
+      "FIRST CUSTOMER MESSAGE: interpret their full intent with LLM + tools this turn — no structured FAQ/order shortcuts. Answer what they actually asked; call lookup_order_status only when they ask about an existing order/shipment — never for a product page or פרטים נוספים."
+    )
+  }
+
+  if (isCatalogProductInquiry(body, history) || isHomStorefrontUrl(body) || isProductDetailsRequest(body)) {
+    lines.push(
+      'CATALOG PRODUCT (מכירות): carpetshop.co.il / pozitiveshop.co.il link or Landbot "פרטים נוספים לגבי …" is a product they saw on the site — not an order. Never lookup_order_status / phone-confirm. Set `"crm_department": "sales"`, answer from KB or continue sales intake (room / photo / advisor). A photo asking about the model shape belongs here too.'
     )
   }
 

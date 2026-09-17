@@ -13,6 +13,7 @@ import { isExchangeIntakeActive } from "@/lib/agents/exchange-intake"
 import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
+  isOrderModificationRequest,
   isPurchaseCompletionStatement,
   isReturnEligibilityQuestion,
 } from "@/lib/agents/inquiry-intent"
@@ -50,6 +51,20 @@ export async function executeLookupOrderStatus(input: {
   const history = input.history ?? []
   const body = input.body.trim()
   const needsOrderLookup = requiresOrderIdentification(body, history)
+  const lookupAllowed =
+    needsOrderLookup ||
+    isOrderModificationRequest(body) ||
+    isOrderConfirmationPending(history) ||
+    isOrderLookupPhoneReplyPending(history)
+
+  if (!lookupAllowed) {
+    return {
+      ok: false as const,
+      errorCode: "lookup_misroute",
+      error:
+        "No live order/shipping ask this turn. Do NOT start getOrders or phone-confirm. Product page / פרטים נוספים / catalog photo (carpetshop.co.il or pozitiveshop.co.il) is sales — answer from KB or continue sales intake with crm_department sales.",
+    }
+  }
 
   if (
     isPurchaseCompletionStatement(body) &&

@@ -202,6 +202,40 @@ export function hasProductUrl(text: string) {
   return extractProductUrl(text) != null
 }
 
+/** Storefront host only — not documents/tracking/returns subdomains. */
+export function isHomStorefrontUrl(text: string) {
+  return /https?:\/\/(?:www\.)?(?:carpetshop|pozitiveshop)\.co\.il(?:\/|\?|#|$)/i.test(
+    text
+  )
+}
+
+/** Catalog / product-page inquiry — not an order to look up. */
+export function isCatalogProductInquiry(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (isServiceOrderIdentificationPending(history)) return false
+  if (isPostPurchaseDissatisfaction(body) || isProductDefectComplaint(body)) {
+    return false
+  }
+  if (isMissingOrPartialDeliveryComplaint(body)) return false
+  const userCorpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  ].join("\n")
+  return (
+    isProductDetailsRequest(body) ||
+    isProductDetailsRequest(userCorpus) ||
+    isHomStorefrontUrl(body) ||
+    isHomStorefrontUrl(userCorpus) ||
+    hasProductUrl(body) ||
+    isActiveProductSalesPrepThread(history) ||
+    isSpecificProductMention(body, history)
+  )
+}
+
 /** Stock, price, size availability, or "do you have X" for a known product. */
 export function isProductInventoryQuestion(body: string) {
   const text = body.trim()

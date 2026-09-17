@@ -112,6 +112,7 @@ import {
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
+import { isCatalogProductInquiry } from "@/lib/agents/product-handoff"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -635,6 +636,13 @@ export async function runStructuredOrderLookupPreTurn(input: {
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
   if (shouldHandleDigitalDocumentFlow(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (
+    !isOrderConfirmationPending(input.history) &&
+    !isOrderLookupPhoneReplyPending(input.history) &&
+    isCatalogProductInquiry(body, input.history)
+  ) {
     return { kind: "skip", response: null }
   }
 
