@@ -7,7 +7,8 @@ import { setRoutingPath } from "@/lib/agent-core/turn-metrics"
 import { buildModelMessages } from "@/lib/agents/multimodal"
 import type { HistoryMessage } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
-import { buildHomAgentSystemPrompt } from "@/lib/hom-agent/prompt"
+import { buildHomAgentSystemPromptAsync } from "@/lib/hom-agent/prompt"
+import type { ModelTier } from "@/lib/agent-core/model-orchestra"
 import {
   homAgentOutputSchema,
   normalizeHomAgentAction,
@@ -26,7 +27,24 @@ const INVOKE_FALLBACK_MODEL = "anthropic/claude-haiku-4.5"
  * (5-min TTL). The big system prompt is re-billed at ~10% on cache hits —
  * multi-step tool turns and active conversations benefit most.
  */
-const GATEWAY_PROVIDER_OPTIONS = { gateway: { caching: "auto" as const } }
+const GATEWAY_PROVIDER_OPTIONS = {
+  gateway: { caching: "auto" as const, cacheTtl: "1h" as const },
+}
+
+const TOOL_SYSTEM_SUFFIX =
+  "If you need live data, call the appropriate tool first. Do not invent order status, stock, or documents. Base the reply on tool results exactly — never contradict them."
+
+const TOOL_RECOVERY_USER_PREFIX = `[Tool call was rejected as misrouted/uncertain for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool. CRITICAL: you have NO lookup results — never claim you checked, found, or see orders/stock/documents, and never promise to check and come back (no "רגע אחד ואחזור", no "אבדוק ואעדכן"). Answer from context/KB or ask the customer for what you need.
+
+Compose the best direct customer reply for:`
+
+function homAgentToolSystemPrompt(system: string) {
+  return `${system}\n\n${TOOL_SYSTEM_SUFFIX}`
+}
+
+function homAgentGatewayHeaders(conversationId: string) {
+  return { "x-session-affinity": conversationId }
+}
 
 type InvokeContext = {
   conversationId: string
@@ -38,6 +56,8 @@ type InvokeContext = {
   learnedRules?: string | null
   ownerAnswers?: string | null
   model: string
+  modelTier: ModelTier | null
+  llmOwnsIntent: boolean
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }
 
@@ -69,6 +89,8 @@ function buildInvokeContext(input: {
   learnedRules?: string | null
   ownerAnswers?: string | null
   modelOverride?: string
+  modelTier?: ModelTier | null
+  llmOwnsIntent?: boolean
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }): InvokeContext {
   return {
@@ -81,6 +103,8 @@ function buildInvokeContext(input: {
     learnedRules: input.learnedRules,
     ownerAnswers: input.ownerAnswers,
     model: homAgentModel(input.runtime, input.modelOverride),
+    modelTier: input.modelTier ?? null,
+    llmOwnsIntent: input.llmOwnsIntent ?? false,
     runtime: input.runtime,
   }
 }
@@ -92,6 +116,8 @@ export async function invokeHomAgent(input: {
   body: string
   phone?: string
   sessionSummary?: string | null
+  modelTier?: ModelTier | null
+  llmOwnsIntent?: boolean
   /** Retry path — use a lighter model when the primary call failed instantly. */
   modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
@@ -121,13 +147,15 @@ export async function invokeHomAgent(input: {
 }
 
 async function invokeWithTools(ctx: InvokeContext) {
-  const system = buildHomAgentSystemPrompt({
+  const system = await buildHomAgentSystemPromptAsync({
     sessionSummary: ctx.sessionSummary,
     whatsappPhone: ctx.phone,
     userText: ctx.body,
     history: ctx.history,
     learnedRules: ctx.learnedRules,
     ownerAnswers: ctx.ownerAnswers,
+    modelTier: ctx.modelTier,
+    llmOwnsIntent: ctx.llmOwnsIntent,
   })
   const tools = createHomAgentTools({
     body: ctx.body,
@@ -140,9 +168,10 @@ async function invokeWithTools(ctx: InvokeContext) {
   // Single pass: the model may call tools (up to MAX_TOOL_ROUNDS steps) and must
   // finish with the structured { reply, action } output in the same call — the
   // large system prompt is billed once per turn instead of twice.
+  const toolSystem = homAgentToolSystemPrompt(system)
   const result = await generateText({
     model: ctx.model,
-    system: `${system}\n\nIf you need live data, call the appropriate tool first. Do not invent order status, stock, or documents. Base the reply on tool results exactly — never contradict them.`,
+    system: toolSystem,
     messages,
     tools,
     stopWhen: stepCountIs(MAX_TOOL_ROUNDS + 1),
@@ -150,6 +179,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
     providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
   recordTokenUsage({
@@ -183,18 +213,19 @@ async function invokeWithTools(ctx: InvokeContext) {
   if (hasToolRecoverySignal(result.steps) && !deterministicReply) {
     const recovery = await generateText({
       model: ctx.model,
-      system: `${system}\n\nA previous tool call was rejected as misrouted or non-definitive for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool. CRITICAL: you have NO lookup results — never claim you checked, found, or see orders/stock/documents, and never promise to check and come back (no "רגע אחד ואחזור", no "אבדוק ואעדכן"). Answer from context/KB or ask the customer for what you need.`,
+      system: toolSystem,
       messages: [
         ...messages,
         {
           role: "user",
-          content: `[Tool call was rejected as misrouted/uncertain. Compose the best direct customer reply for: ${ctx.body}]`,
+          content: `${TOOL_RECOVERY_USER_PREFIX} ${ctx.body}]`,
         },
       ],
       temperature: homAgentTemperature(ctx.runtime),
       maxOutputTokens: homAgentMaxTokens(ctx.runtime),
       output: homAgentOutputSchema(),
       providerOptions: GATEWAY_PROVIDER_OPTIONS,
+      headers: homAgentGatewayHeaders(ctx.conversationId),
     })
 
     recordTokenUsage({
@@ -242,7 +273,7 @@ async function invokeWithTools(ctx: InvokeContext) {
 
   const finalWord = await generateText({
     model: ctx.model,
-    system,
+    system: toolSystem,
     messages: [
       ...messages,
       {
@@ -257,6 +288,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
     providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
   recordTokenUsage({
@@ -272,13 +304,15 @@ async function invokeWithTools(ctx: InvokeContext) {
 }
 
 async function invokeKbOnly(ctx: InvokeContext) {
-  const system = buildHomAgentSystemPrompt({
+  const system = await buildHomAgentSystemPromptAsync({
     sessionSummary: ctx.sessionSummary,
     whatsappPhone: ctx.phone,
     userText: ctx.body,
     history: ctx.history,
     learnedRules: ctx.learnedRules,
     ownerAnswers: ctx.ownerAnswers,
+    modelTier: ctx.modelTier,
+    llmOwnsIntent: ctx.llmOwnsIntent,
   })
   const messages = buildModelMessages(ctx.history, ctx.turn)
 
@@ -296,6 +330,7 @@ async function invokeKbOnly(ctx: InvokeContext) {
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
     providerOptions: GATEWAY_PROVIDER_OPTIONS,
+    headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
   recordTokenUsage({
@@ -354,6 +389,7 @@ async function deliverValidatedOutput(input: {
       maxOutputTokens: maxTokens + TRUNCATION_RETRY_EXTRA_TOKENS,
       output: homAgentOutputSchema(),
       providerOptions: GATEWAY_PROVIDER_OPTIONS,
+      headers: homAgentGatewayHeaders(input.ctx.conversationId),
     })
 
     recordTokenUsage({

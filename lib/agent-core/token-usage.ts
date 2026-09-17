@@ -19,13 +19,21 @@ type LanguageModelUsage = {
   outputTokens?: number
   promptTokens?: number
   completionTokens?: number
+  inputTokenDetails?: {
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
+  }
 }
 
 export function extractTokenCounts(usage: LanguageModelUsage | undefined | null) {
-  if (!usage) return { inputTokens: 0, outputTokens: 0 }
+  if (!usage) {
+    return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
+  }
   return {
     inputTokens: usage.inputTokens ?? usage.promptTokens ?? 0,
     outputTokens: usage.outputTokens ?? usage.completionTokens ?? 0,
+    cacheReadTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+    cacheWriteTokens: usage.inputTokenDetails?.cacheWriteTokens ?? 0,
   }
 }
 
@@ -40,7 +48,8 @@ export function recordTokenUsage(input: {
   routingPath?: string | null
   profile?: string | null
 }) {
-  const { inputTokens, outputTokens } = extractTokenCounts(input.usage ?? undefined)
+  const { inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens } =
+    extractTokenCounts(input.usage ?? undefined)
   recordLlmCall(input.conversationId, input.model)
   recordTurnTokens(input.conversationId, inputTokens, outputTokens)
 
@@ -62,6 +71,8 @@ export function recordTokenUsage(input: {
         model: input.model,
         input_tokens: inputTokens,
         output_tokens: outputTokens,
+        cache_read_tokens: cacheReadTokens,
+        cache_write_tokens: cacheWriteTokens,
         tier,
         routing_path: routingPath,
         profile,

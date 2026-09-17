@@ -31,12 +31,6 @@ Source: https://www.carpetshop.co.il/pages/%D7%A1%D7%A0%D7%99%D7%A4%D7%99%D7%9D-
 Pozitive branch list: https://www.pozitiveshop.co.il/pages/%D7%A1%D7%A0%D7%99%D7%A4%D7%99%D7%9D-%D7%94%D7%A9%D7%98%D7%99%D7%97-%D7%94%D7%90%D7%93%D7%95%D7%9D
 Pozitive listed stores: ראשון לציון, נתניה, בני ברק, פתח תקווה, איירפורט סיטי, קריית אתא.
 
-## About
-Founded 2014 by אלון בבג'ני. Fourth-generation carpet trading family from Isfahan.
-Site pioneered online rug shopping in Israel and offers Roomvo visualization developed with a Canadian startup.
-Catalog includes handmade and machine rugs from around the world, including recycled Greenland rugs made from plastic bottles.
-About: https://www.carpetshop.co.il/pages/about
-
 ## Payments — from FAQ page only
 Source: https://www.carpetshop.co.il/pages/faq
 - Up to 12 interest-free payments on every purchase.
@@ -210,18 +204,6 @@ Updated 09.11.25
 - Visualization: https://www.carpetshop.co.il/pages/visualization-page
 - Roomvo: https://www.roomvo.com/my/carpetshop/rooms/
 - Returns portal: https://returns.carpetshop.co.il/
-
-## Additional site-intel coverage (2026-09 crawl)
-
-- Extended crawl-backed intent map is maintained in `lib/agents/kb/carpetshop-site-intel.md`.
-- Pozitive crawl-backed intent map is maintained in `lib/agents/kb/pozitiveshop-site-intel.md`.
-- The map covers major content hubs and aliases used by customers, including:
-- Blog hubs (`/blogs/news`, `/blogs/carpetshop-business-blog`, `/blogs/pozitive-blog`) and common design/care/moving phrasing.
-- Utility pages (`/pages/visualization-page`, `/pages/quiz`, `/pages/pick-your-style`, `/pages/rug-sizes`, `/pages/search-results-page`).
-- Business/designer context (`/pages/b2b`, `/pages/designers`, `/pages/projects`, architect/designer workflow page).
-- OOAK/premium collection landings (`/pages/ooak`, `/pages/דף-לובי-ooak`, Ariana/Kazak/Super-Zigler intros).
-- Time-bound campaign regulations (`/pages/תקנון-*`, `/pages/הטבת-*`) as high-churn references only.
-- Pozitive-specific finding: provided `pozitiveshop.co.il/articles/*` links are unavailable (404) in the crawl; use Pozitive `blogs/*`, `pages/*`, and `policies/*` as canonical live sources.
 
 ## Dated promotions — prefer live API via `getCampaigns`
 - Call `get_campaigns` when customer asks about מבצעים, validity, or whether a campaign is still active.
