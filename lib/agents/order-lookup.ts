@@ -461,6 +461,13 @@ export function ltrIsolateOrderNumber(orderNumber: string) {
 }
 
 export function extractOrderNumber(rawText: string) {
+  const tracking = rawText.match(
+    /tracking\.carpetshop\.co\.il\/track\?[^?\s#]*orderID=([A-Za-z0-9]+)/i
+  )
+  if (tracking?.[1]) {
+    const fromQuery = normalizeExtractedOrderNumber(tracking[1])
+    if (fromQuery) return fromQuery
+  }
   const text = stripMediaAndUrls(rawText)
   const compact = text.match(/\b((?:SO|IN|OV)\s*\d+)\b/i)
   if (compact?.[1]) return normalizeExtractedOrderNumber(compact[1])

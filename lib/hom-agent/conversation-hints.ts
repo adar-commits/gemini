@@ -650,6 +650,27 @@ export function buildConversationHints(input: {
     )
   }
 
+  const forwardedWeezmo =
+    isOutboundDocumentDeliveryMessage(body) ||
+    history.some(
+      (message) =>
+        message.role === "user" && isOutboundDocumentDeliveryMessage(message.content)
+    )
+  const forwardedWeezmoOrder =
+    extractOrderNumber(body) ??
+    history.reduce<string | null>((found, message) => {
+      if (found || message.role !== "user") return found
+      return extractOrderNumber(message.content)
+    }, null)
+
+  if (forwardedWeezmo && !isDigitalDocumentRequest(body)) {
+    lines.push(
+      forwardedWeezmoOrder
+        ? `FORWARDED WEEZMO TEMPLATE: customer pasted the automated receipt+tracking SMS (documents.carpetshop.co.il). This is order context, not a request for another copy. Do not open איזה סוג מסמך and do not call fetch_digital_document from this paste. Tracking order is ${forwardedWeezmoOrder} — if they ask about the order or delivery, lookup_order_status with that id. If they only forwarded it, ack briefly and ask how you can help.`
+        : "FORWARDED WEEZMO TEMPLATE: customer pasted the automated receipt+tracking SMS (documents.carpetshop.co.il). This is order context, not a request for another copy. Do not open איזה סוג מסמך and do not call fetch_digital_document from this paste. If they ask about the order or delivery, lookup_order_status. If they only forwarded it, ack briefly and ask how you can help."
+    )
+  }
+
   if (
     (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) &&
     !shouldReleaseStructuredDocumentFlow(history, body)

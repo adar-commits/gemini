@@ -1,13 +1,7 @@
 import {
-  activeDigitalDocumentRequest,
-  isAlternateDocumentPhonePending,
   isDigitalDocumentRequest,
-  isDocumentChannelQuestionPending,
-  isDocumentFlowMisunderstandingPending,
-  isDocumentPhoneLookupPending,
-  isDocumentPurchaseLocationQuestionPending,
-  isDocumentTypeQuestionPending,
   resolveDigitalDocumentFlowReply,
+  shouldHandleDigitalDocumentFlow,
 } from "@/lib/agents/digital-document-flow"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -20,13 +14,7 @@ export async function executeFetchDigitalDocument(input: {
   const body = input.body.trim()
   const hasDocumentContext =
     isDigitalDocumentRequest(body) ||
-    activeDigitalDocumentRequest(history) ||
-    isDocumentTypeQuestionPending(history) ||
-    isDocumentPurchaseLocationQuestionPending(history) ||
-    isDocumentChannelQuestionPending(history) ||
-    isDocumentPhoneLookupPending(history) ||
-    isAlternateDocumentPhonePending(history) ||
-    isDocumentFlowMisunderstandingPending(history)
+    shouldHandleDigitalDocumentFlow(body, history)
   if (!hasDocumentContext) {
     return {
       ok: false as const,

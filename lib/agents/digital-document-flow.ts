@@ -153,6 +153,7 @@ export function shouldReleaseStructuredDocumentFlow(
     ...history.filter((message) => message.role === "user").map((message) => message.content),
   ].filter(Boolean)
 
+  if (isOutboundDocumentDeliveryMessage(body)) return true
   for (const text of candidates) {
     if (postPurchaseCaseReleasesDocumentFlow(text)) return true
   }
@@ -565,6 +566,7 @@ function isExplicitDocumentCopyAsk(body: string) {
 export function isDigitalDocumentRequest(body: string) {
   const text = stripLeadingGreetings(body.trim())
   if (!text) return false
+  if (isOutboundDocumentDeliveryMessage(text)) return false
   if (shouldReleaseStructuredDocumentFlow([], text)) return false
   if (/^(?:איך|מה\s+(?:ה)?(?:מדיניות|דרך))/i.test(text)) return false
   if (isReceiptReferencePresentation(text)) return false
@@ -680,14 +682,30 @@ export function isActiveDigitalDocumentFlow(
     return false
   }
 
-  if (isDocumentTypeQuestionPending(history)) return true
-  if (isDocumentChannelQuestionPending(history)) return true
-  if (isDocumentPurchaseLocationQuestionPending(history)) return true
-  if (isDocumentPhoneLookupPending(history)) return true
-  if (isAlternateDocumentPhonePending(history)) return true
-  if (isDocumentFlowMisunderstandingPending(history)) return true
+  const pendingDocumentStep =
+    isDocumentTypeQuestionPending(history) ||
+    isDocumentChannelQuestionPending(history) ||
+    isDocumentPurchaseLocationQuestionPending(history) ||
+    isDocumentPhoneLookupPending(history) ||
+    isAlternateDocumentPhonePending(history) ||
+    isDocumentFlowMisunderstandingPending(history)
+
+  if (pendingDocumentStep) return isDocumentFlowStepAnswer(body)
   if (isDocumentTypeSelection(body) && settledState.typeQuestionSent) return true
   return false
+}
+
+function isDocumentFlowStepAnswer(body: string) {
+  const text = body.trim()
+  if (!text || isOutboundDocumentDeliveryMessage(text)) return false
+  return (
+    isDocumentTypeSelection(text) ||
+    isExplicitDocumentCopyAsk(text) ||
+    Boolean(userProvidedPhone(text)) ||
+    isPurePhoneLookupConfirmYes(text) ||
+    Boolean(parseDocumentPurchaseChannel(text)) ||
+    isDocumentChannelUncertaintyAnswer(text)
+  )
 }
 
 export function shouldHandleDigitalDocumentFlow(
