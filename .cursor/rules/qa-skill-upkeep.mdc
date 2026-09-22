@@ -1,0 +1,10 @@
+---
+description: Keep the HoM conversation QA skill current after each real-chat fix
+alwaysApply: true
+---
+
+# QA skill upkeep
+
+When a turn uses `qa-teach-plan-implement` (a `service.hom-group.co.il/conversations/` URL, or a request to teach the HoM agent from a real chat), follow `.cursor/skills/qa-teach-plan-implement/SKILL.md`.
+
+If that run needed a step the skill does not already say, update the skill in the same commit. Do not leave a repeated gap for the next chat.

@@ -60,3 +60,7 @@ Do not add a new Hebrew regex on the customer message, a reply sanitizer, or a o
 5. Confirm the Vercel production deployment for that commit is READY, not Error.
 
 Reply with the cause (which layer, which sentence), the teaching in one or two sentences, and that it is live. Do not recap the whole thread.
+
+## Keep this skill current
+
+After every use, if the run needed a step this file does not say, update `SKILL.md` in the same commit. Typical gaps: where the thread is stored, which function emitted the bad sentence, a layer that should have been preferred, or a ban that was nearly broken. Do not add a step that only restates the playbook. Leave the file alone when this run followed it cleanly.
