@@ -1,8 +1,10 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  classifyDocumentNumber,
   extractOrderReference,
   findOrderByNumber,
+  inferCustomerOrderNumberStyle,
   mapPriorityOrderRow,
   resolveCustomerOrderNumber,
   resolveLookupPhoneFromHistory,
@@ -17,6 +19,10 @@ describe("order reference lookup", () => {
     assert.equal(extractOrderReference(SHOPIFY_MESSAGE), "75488")
     assert.equal(extractOrderReference("הזמנה #75488"), "75488")
     assert.equal(extractOrderReference("#76859"), "76859")
+    assert.equal(extractOrderReference("#36805"), "36805")
+    assert.equal(inferCustomerOrderNumberStyle("#36805"), "hash")
+    assert.notEqual(inferCustomerOrderNumberStyle("#3680"), "hash")
+    assert.notEqual(inferCustomerOrderNumberStyle("#368055"), "hash")
     assert.equal(extractOrderReference("SO26019625"), "SO26019625")
     assert.equal(extractOrderReference("SO 84197422"), "SO84197422")
   })
@@ -72,5 +78,38 @@ describe("order reference lookup", () => {
 
     assert.equal(findOrderByNumber(orders, "75488")?.orderNumber, "75488")
     assert.equal(findOrderByNumber(orders, "SO26075488")?.orderNumber, "75488")
+  })
+
+  it("matches # + 5 digits to REFERENCE, not an ORDNAME that merely ends with those digits", () => {
+    const byOrdNameSuffix = mapPriorityOrderRow({
+      ORDNAME: "SO26036805",
+      REFERENCE: "11111",
+      BRANCHNAME: "3000",
+    })
+    const byReference = mapPriorityOrderRow({
+      ORDNAME: "SO26099999",
+      REFERENCE: "#36805",
+      BRANCHNAME: "1001",
+    })
+    byReference.orderNumber = "SO26099999"
+    const orders: OrderShipmentStatus[] = [byOrdNameSuffix, byReference]
+    assert.equal(findOrderByNumber(orders, "36805")?.raw.ORDNAME, "SO26099999")
+  })
+
+  it("treats RC as a receipt and IN/OV as invoices, not REFERENCE", () => {
+    assert.deepEqual(classifyDocumentNumber("RC269019533"), {
+      kind: "receipt",
+      id: "RC269019533",
+    })
+    assert.deepEqual(classifyDocumentNumber("IN264019998"), {
+      kind: "invoice",
+      id: "IN264019998",
+    })
+    assert.deepEqual(classifyDocumentNumber("OV26010001"), {
+      kind: "invoice",
+      id: "OV26010001",
+    })
+    assert.equal(classifyDocumentNumber("#36805"), null)
+    assert.equal(extractOrderReference("#36805"), "36805")
   })
 })

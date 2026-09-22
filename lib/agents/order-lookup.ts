@@ -463,6 +463,9 @@ export async function lookupDigitalDocument(
 }
 
 const ORDER_NUMBER_MIN_DIGITS = 5
+/** Customer order id in Priority REFERENCE — exactly `#` plus 5 digits, e.g. #36805. */
+const HASH_REFERENCE_RE = /#\s*(\d{5})\b/
+const DOCUMENT_NUMBER_RE = /\b(RC|IN|OV)\s*(\d+)\b/i
 
 function normalizeExtractedOrderNumber(value: string) {
   const normalized = value.replace(/\s+/g, "").toUpperCase()
@@ -492,6 +495,20 @@ export function extractOrderNumber(rawText: string) {
   const match = text.match(/\b((?:SO|IN|OV)\d+)\b/i)
   if (match?.[1]) return normalizeExtractedOrderNumber(match[1])
   return null
+}
+
+/** RC = receipt, IN/OV = invoice. Document ids; the order they belong to is ORDNAME, not REFERENCE. */
+export function classifyDocumentNumber(rawText: string): {
+  kind: "receipt" | "invoice"
+  id: string
+} | null {
+  const match = stripMediaAndUrls(rawText).match(DOCUMENT_NUMBER_RE)
+  if (!match?.[1] || !match[2]) return null
+  const prefix = match[1].toUpperCase()
+  return {
+    kind: prefix === "RC" ? "receipt" : "invoice",
+    id: `${prefix}${match[2]}`,
+  }
 }
 
 /** Customer labels an SO/IN/OV token as order/invoice ref — not a document copy request. */
@@ -535,7 +552,7 @@ export function extractOrderNumberFromConfirmationPrompt(text: string) {
     const token = labeled[1].replace(/[\u2066\u2069]/g, "").trim()
     const prefixed = extractOrderNumber(token)
     if (prefixed) return prefixed
-    const hash = token.match(/#\s*(\d{4,8})\b/)
+    const hash = token.match(HASH_REFERENCE_RE)
     if (hash?.[1]) return hash[1]
     const digits = token.replace(/\D/g, "")
     if (digits.length >= 4 && digits.length <= 8) return digits
@@ -805,7 +822,7 @@ export function extractOrderReference(rawText: string, history: HistoryMessage[]
   const prefixed = extractOrderNumber(text)
   if (prefixed) return prefixed
 
-  const hashMatch = text.match(/#\s*(\d{4,8})\b/)
+  const hashMatch = text.match(HASH_REFERENCE_RE)
   if (hashMatch?.[1]) return hashMatch[1]
 
   const labeled =
@@ -839,7 +856,7 @@ export type CustomerOrderNumberStyle = "so" | "hash" | "digits"
 export function inferCustomerOrderNumberStyle(text: string): CustomerOrderNumberStyle | null {
   const trimmed = text.trim()
   if (!trimmed) return null
-  if (/#\s*\d{4,8}\b/.test(trimmed)) return "hash"
+  if (HASH_REFERENCE_RE.test(trimmed)) return "hash"
   if (/\b(?:SO|IN|OV)\s*\d+\b/i.test(trimmed)) return "so"
   const ref = extractOrderReference(trimmed)
   if (!ref) return null
@@ -880,7 +897,7 @@ function customerReferenceDigitsFromHistory(
       .reverse(),
   ]
   for (const text of corpus) {
-    const hash = text.match(/#\s*(\d{4,8})\b/)
+    const hash = text.match(HASH_REFERENCE_RE)
     if (hash?.[1]) return hash[1]
     const ref = extractOrderReference(text, history)
     if (ref && !/^(?:SO|IN|OV)/i.test(ref)) return ref.replace(/\D/g, "")
@@ -961,6 +978,15 @@ export function findOrderByNumber(
           priorityOrdName(order).toUpperCase().includes(key)
       ) ?? null
     )
+  }
+
+  if (digits.length === 5) {
+    const byReference =
+      orders.find((order) => {
+        const reference = String(order.raw.REFERENCE ?? "").replace(/\D/g, "")
+        return reference === digits
+      }) ?? null
+    if (byReference) return byReference
   }
 
   if (digits) {

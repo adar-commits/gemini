@@ -112,6 +112,7 @@ import {
 } from "@/lib/agents/service-intake"
 import {
   isPostPurchaseAlternateSizeThread,
+  isShippingAddressChangeAsk,
 } from "@/lib/agents/post-purchase-alt-size"
 import {
   extractSalesIntake,
@@ -513,7 +514,7 @@ export function buildConversationHints(input: {
   }
 
   lines.push(
-    "ORDER REFERENCE GROUND RULE: when getOrders returns REFERENCE (#76736 / 76736), that is the customer order number — never show Priority ORDNAME (SO260…) in replies when REFERENCE is set."
+    "ORDER REFERENCE GROUND RULE: `#` + exactly 5 digits (#36805) is Priority REFERENCE — the customer order id. SO… is ORDNAME (internal; tracking orderID). RC… is a receipt and IN…/OV… are invoices — digital documents tied to the order via ORDNAME, not REFERENCE. Never show ORDNAME when REFERENCE is set."
   )
 
   const orderStyle = customerOrderNumberStyleFromHistory(history, body)
@@ -731,7 +732,16 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isPostPurchaseAlternateSizeThread(history, body)) {
+  if (isShippingAddressChangeAsk(body, history) && !isShippingAddressUpdateThread(history)) {
+    lines.push(
+      "ADDRESS CHANGE NOT STOCK (529942717): לשנות/להחליף כתובת is a delivery-address change. Never alternate size, never מק״ט, never 'אותו דגם במידה אחרת', never lookup_inventory. Address policy from KB. If they also ask when it arrives, that part is shipment timing — do not turn להחליף into a size exchange. כן to a phone-confirm question confirms the phone."
+    )
+  }
+
+  if (
+    isPostPurchaseAlternateSizeThread(history, body) &&
+    !isShippingAddressChangeAsk(body, history)
+  ) {
     lines.push(
       "POST-PURCHASE ALT SIZE: customer wants the same model in another size after ordering/receiving — **human_sales**, not lookup_inventory. You cannot read מק״ט from photos or payment screenshots. Never loop asking for מק״ט when they reference their order (הזמנה / רכשתי היום). Brief exchange policy OK, then offer יועץ מכירות to check availability against their order."
     )

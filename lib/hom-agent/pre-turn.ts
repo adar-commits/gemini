@@ -329,6 +329,12 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
   history: HistoryMessage[]
 }): PreTurnResult {
   const body = summarizeTurn(input.turn)
+  if (
+    isOrderConfirmationPending(input.history) ||
+    isOrderLookupPhoneReplyPending(input.history)
+  ) {
+    return { kind: "skip", response: null }
+  }
   if (!isPostPurchaseAlternateSizeThread(input.history, body)) {
     return { kind: "skip", response: null }
   }

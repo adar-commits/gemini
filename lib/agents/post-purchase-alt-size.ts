@@ -12,6 +12,15 @@ function allUserText(history: HistoryMessage[], body: string) {
     .trim()
 }
 
+/** לשנות/להחליף כתובת is a delivery-address change, not a size or stock ask. */
+export function isShippingAddressChangeAsk(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const text = allUserText(history, body)
+  return /כתובת/.test(text) && /(?:לשנות|לעדכן|להחליף)/.test(text)
+}
+
 function hasRecentPurchaseContext(history: HistoryMessage[], text: string) {
   if (
     /(?:רכשתי|הזמנתי|ההזמנה(?:\s+שלי)?|בהזמנה|SO\d+|היום\s+ר(?:כש|כש)|ש(?:ב|)חר(?:תי)?)/i.test(
@@ -32,7 +41,7 @@ function isSizeExchangeIntakeContext(history: HistoryMessage[], body = "") {
   if (isDefectReplacementStatusQuestion(body, history)) return false
   const text = allUserText(history, body)
   const receivedProduct =
-    /(?:קיבלתי|קיבלנו|הגיע(?:ה|ו)?|התקבל)/i.test(text) &&
+    /(?:קיבלתי|קיבלנו|(?<![ל])הגיע(?:ה|ו)?|התקבל)/i.test(text) &&
     /(?:שטיח|פוף|מוצר|הזמנה)/i.test(text)
   const sizeIssue =
     /(?:גדול|קטן)\s+(?:מ(?:די|ידי)|ל(?:י|נו|הם))|לא\s+מתאים(?:\s+ל(?:י|נו))?/i.test(text) ||
@@ -49,6 +58,7 @@ export function isPostPurchaseAlternateSizeAvailabilityQuestion(
   history: HistoryMessage[] = []
 ) {
   if (isDefectReplacementStatusQuestion(body, history)) return false
+  if (isShippingAddressChangeAsk(body, history)) return false
   const text = allUserText(history, body)
   if (!hasRecentPurchaseContext(history, text)) return false
 
