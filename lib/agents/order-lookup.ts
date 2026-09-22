@@ -1,5 +1,10 @@
 import { buildApiFailureReply, buildUncertainHandoffReply } from "@/lib/agent-core/fallbacks"
-import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
+import {
+  isPureHandoffAffirmation,
+  remainderAfterLeadingAffirmation,
+  startsWithHandoffAffirmation,
+} from "@/lib/agents/compound-reply"
+import { extractLeadingGreeting } from "@/lib/agents/greeting"
 import {
   endsWithOptionalFollowUpOffer,
   isSkippableClosingAssistantMessage,
@@ -1806,6 +1811,105 @@ export function isNumberedReturnPolicyChoicePending(
   return lastAssistant ? assistantOfferedNumberedReturnPolicy(lastAssistant) : false
 }
 
+const TRACKING_ORDER_RE =
+  /tracking\.carpetshop\.co\.il\/track\?[^?\s#]*orderID=([A-Za-z0-9]+)/i
+
+/** Receipt / tracking link already named the order — customer should not be asked again. */
+export function orderIdGivenInThread(history: HistoryMessage[]) {
+  for (const message of history) {
+    const tracking = message.content.match(TRACKING_ORDER_RE)
+    if (!tracking?.[1]) continue
+    const id = extractOrderNumber(tracking[1])
+    if (id) return id
+  }
+  return null
+}
+
+function lastRealAssistantContent(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    return message.content
+  }
+  return ""
+}
+
+function assistantOfferedKnownOrder(content: string, known: string) {
+  const text = stripMediaAndUrls(content)
+  if (!text.includes(known)) return false
+  if (!/\?/.test(text)) return false
+  return !isOrderLookupIdentificationAssistantMessage(text)
+}
+
+/** Bot already asked whether they mean the receipt order — not a fresh number ask. */
+export function knownOrderWasOffered(history: HistoryMessage[]) {
+  const known = orderIdGivenInThread(history)
+  if (!known) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" && assistantOfferedKnownOrder(message.content, known)
+  )
+}
+
+export function isKnownOrderConfirmPending(history: HistoryMessage[]) {
+  const known = orderIdGivenInThread(history)
+  if (!known || isOrderLookupCompletedInThread(history)) return false
+  const last = lastRealAssistantContent(history)
+  return assistantOfferedKnownOrder(last, known)
+}
+
+function affirmationBody(body: string) {
+  const stripped = body.replace(/\p{Extended_Pictographic}/gu, "").replace(/\s+/g, " ").trim()
+  const greeting = extractLeadingGreeting(stripped)
+  if (!greeting) return stripped
+  const rest = stripped.slice(greeting.length).replace(/^[\s,!?.]+/, "").trim()
+  return rest || stripped
+}
+
+/** כן / היי, כן / בסדר — including a short confirm that names "the last order". */
+export function affirmsKnownOrder(body: string) {
+  const rest = affirmationBody(body)
+  return (
+    isOrderConfirmationYes(rest) ||
+    isPureHandoffAffirmation(rest) ||
+    startsWithHandoffAffirmation(rest)
+  )
+}
+
+/**
+ * Receipt order is already in the thread and the customer is confirming it.
+ * Do not start phone lookup or ask for an order number.
+ */
+export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]) {
+  const known = orderIdGivenInThread(history)
+  if (!known || isOrderLookupCompletedInThread(history)) return false
+  if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
+  if (mentionsCancellationDesire(body)) return false
+  const other = extractOrderNumber(body)
+  if (other && other.toUpperCase() !== known.toUpperCase()) return false
+  if (!affirmsKnownOrder(body)) return false
+  if (isKnownOrderConfirmPending(history)) return true
+  if (isOrderNumberRequestPending(history)) return true
+  if (isPhoneLookupConfirmPending(history) && knownOrderWasOffered(history)) return true
+  if (knownOrderWasOffered(history) && /לא הצלחתי להבין/.test(lastRealAssistantContent(history))) {
+    return true
+  }
+  return false
+}
+
+/** Order id is already in the thread and this turn is not a confirm of it. */
+export function shouldRefuseKnownOrderLookup(body: string, history: HistoryMessage[]) {
+  const known = orderIdGivenInThread(history)
+  if (!known || isOrderLookupCompletedInThread(history)) return false
+  if (shouldBindKnownOrderTurn(body, history)) return false
+  if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
+  const other = extractOrderNumber(body)
+  if (other && other.toUpperCase() !== known.toUpperCase()) return false
+  return true
+}
+
 /** Restart phone/order lookup only when customer rejects identified order or cites another. */
 export function shouldAllowOrderLookupRestart(body: string, history: HistoryMessage[]) {
   if (isIdentifiedOrderRejection(body)) return true
@@ -2827,6 +2931,21 @@ export async function resolveOrderShippingReply(input: {
 
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
+
+  if (shouldBindKnownOrderTurn(body, history)) {
+    const known = orderIdGivenInThread(history)
+    const lookupPhone =
+      resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+      channelPhone(whatsappPhone)
+    if (known && lookupPhone) {
+      return lookupOrderByReference({
+        orderReference: known,
+        lookupPhone,
+        body,
+        history,
+      })
+    }
+  }
 
   const typedPhone = userProvidedPhone(body)
   if (

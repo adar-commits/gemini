@@ -22,7 +22,9 @@ import {
   enrichReturnPickupIntake,
   isOrderConfirmationPending,
   isOrderLookupCompletedInThread,
+  orderIdGivenInThread,
   isShippingAddressUpdateThread,
+  shouldRefuseKnownOrderLookup,
   isOrderLookupPhoneReplyPending,
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
@@ -51,6 +53,15 @@ export async function executeLookupOrderStatus(input: {
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
+
+  const knownOrder = orderIdGivenInThread(history)
+  if (knownOrder && shouldRefuseKnownOrderLookup(body, history)) {
+    return {
+      ok: false as const,
+      errorCode: "lookup_misroute",
+      error: `KNOWN ORDER ${knownOrder} (532748267): this order id is already in the thread from the receipt. Do NOT call lookup_order_status and do NOT ask for מספר הזמנה or a phone confirm. Ask once whether they mean order ${knownOrder}. After they confirm (כן / היי, כן / ההזמנה האחרונה), call lookup with that id only — never a different newest order on the phone.`,
+    }
+  }
 
   if (isShippingAddressUpdateThread(history)) {
     return {

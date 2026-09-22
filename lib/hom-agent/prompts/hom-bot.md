@@ -469,6 +469,7 @@ Two different message types — do not confuse them:
 33. **Preorder ETA dissatisfaction → cancel pitch** — after הזמנה מוקדמת + date, never "אין בעיה, אפשר לבטל" / "ההמתנה לא מתאימה — נטפל בביטול". Offer **נציג שירות** (`human_service`) only.
 34. **Address change → shipment status** — "לשנות את הכתובת למשלוח" is shipping-policy KB, not order lookup. Never answer it with בדקתי / סטטוס משלוח.
 35. **Status answer → unsolicited handoff (531893004)** — if the shipment status already answers (בדרך, נארז, השליח יתאם, מוכן לאיסוף), that is the whole reply. `action: reply`. Never append "האם להעביר לנציג". `human_service` only when they ask for a rep, the status is unknown, or the system says נמסר and they say it did not arrive.
+36. **Known order → fresh lookup (532748267)** — if a receipt/tracking link already names the order (`orderID=SO…`), that id is known. Ask once whether they mean that order. On **כן** (including **היי, כן**), look up **that** id. Never ask "יש לכם מספר הזמנה?", never confirm the phone, and never pick a different newest order on the phone.
 
 ## Intake playbooks
 

@@ -12,6 +12,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  orderIdGivenInThread,
   isShippingAddressUpdateThread,
   isPreorderEtaSharedInThread,
   isPostOrderShippingFollowUp,
@@ -676,22 +677,24 @@ export function buildConversationHints(input: {
 
   const forwardedWeezmo =
     isOutboundDocumentDeliveryMessage(body) ||
-    history.some(
-      (message) =>
-        message.role === "user" && isOutboundDocumentDeliveryMessage(message.content)
-    )
+    history.some((message) => isOutboundDocumentDeliveryMessage(message.content))
   const forwardedWeezmoOrder =
+    orderIdGivenInThread(history) ??
     extractOrderNumber(body) ??
     history.reduce<string | null>((found, message) => {
-      if (found || message.role !== "user") return found
+      if (found) return found
       return extractOrderNumber(message.content)
     }, null)
 
-  if (forwardedWeezmo && !isDigitalDocumentRequest(body)) {
+  if (
+    forwardedWeezmo &&
+    !isDigitalDocumentRequest(body) &&
+    !isOrderLookupCompletedInThread(history)
+  ) {
     lines.push(
       forwardedWeezmoOrder
-        ? `FORWARDED WEEZMO TEMPLATE: customer pasted the automated receipt+tracking SMS (documents.carpetshop.co.il). This is order context, not a request for another copy. Do not open איזה סוג מסמך and do not call fetch_digital_document from this paste. Tracking order is ${forwardedWeezmoOrder} — if they ask about the order or delivery, lookup_order_status with that id. If they only forwarded it, ack briefly and ask how you can help.`
-        : "FORWARDED WEEZMO TEMPLATE: customer pasted the automated receipt+tracking SMS (documents.carpetshop.co.il). This is order context, not a request for another copy. Do not open איזה סוג מסמך and do not call fetch_digital_document from this paste. If they ask about the order or delivery, lookup_order_status. If they only forwarded it, ack briefly and ask how you can help."
+        ? `FORWARDED WEEZMO TEMPLATE / KNOWN ORDER ${forwardedWeezmoOrder} (532748267): the receipt/tracking link already names this order. Do NOT ask for מספר הזמנה or phone, and do NOT start a fresh identification lookup. If you have not confirmed it yet, ask once whether they mean order ${forwardedWeezmoOrder}. On כן (including היי, כן / כן, ההזמנה האחרונה), lookup_order_status with that id only — never a different newest order on the phone. Not a document-copy request.`
+        : "FORWARDED WEEZMO TEMPLATE: automated receipt is order context, not a document copy. Do not open איזה סוג מסמך. If they ask about delivery, confirm the tracking order already in the thread — do not ask for a new order number."
     )
   }
 

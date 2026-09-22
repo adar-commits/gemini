@@ -110,6 +110,7 @@ import {
   isShippingLookupContext,
   requiresOrderIdentification,
   resolveOrderShippingReply,
+  shouldBindKnownOrderTurn,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
@@ -671,7 +672,15 @@ export async function runStructuredOrderLookupPreTurn(input: {
     isShippingLookupContext(body, input.history) &&
     requiresOrderIdentification(body, input.history)
 
-  if (!orderConfirmPending && !phoneLookupPending && !typedPhone && !openingShippingStatus) {
+  const knownOrderBind = shouldBindKnownOrderTurn(body, input.history)
+
+  if (
+    !orderConfirmPending &&
+    !phoneLookupPending &&
+    !typedPhone &&
+    !openingShippingStatus &&
+    !knownOrderBind
+  ) {
     return { kind: "skip", response: null }
   }
 
@@ -693,7 +702,8 @@ export async function runStructuredOrderLookupPreTurn(input: {
     !orderLookupStructuredBinding(body) &&
     !phoneConfirmBinding &&
     !orderConfirmBinding &&
-    !deliveryLookupBinding
+    !deliveryLookupBinding &&
+    !knownOrderBind
   ) {
     return { kind: "skip", response: null }
   }
