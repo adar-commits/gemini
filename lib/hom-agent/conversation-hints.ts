@@ -12,6 +12,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  isShippingAddressUpdateThread,
   isPreorderEtaSharedInThread,
   isPostOrderShippingFollowUp,
   isOrderStatusDeliveredInThread,
@@ -185,6 +186,12 @@ export function buildConversationHints(input: {
 
   if (customerUsesFeminineSelfReference(body)) {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
+  }
+
+  if (isShippingAddressUpdateThread(history)) {
+    lines.push(
+      "SHIPPING ADDRESS UPDATE (532692073): they want to change the delivery address — not shipment status. Answer from shipping-policy KB: an update is not always possible; it depends on whether the order was already handed to the courier. After handover there is a cost — WhatsApp 077-9725055 or *3076. Do NOT call lookup_order_status, do NOT send בדקתי / סטטוס משלוח, do NOT ask for the new address or an order number. action reply — never אעביר with action reply."
+    )
   }
 
   if (isOrderModificationRequest(body)) {

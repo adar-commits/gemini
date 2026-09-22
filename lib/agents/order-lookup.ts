@@ -1740,6 +1740,19 @@ export function isOrderLookupCompletedInThread(history: HistoryMessage[]) {
   )
 }
 
+/**
+ * Bot already took a shipping-address change — an order number must not become
+ * a shipment-status card. Scans the bot's own replies, not a new customer intent.
+ */
+export function isShippingAddressUpdateThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /כתובת/.test(message.content) &&
+      /(?:לשנות|לעדכן|החדשה)/.test(message.content)
+  )
+}
+
 /** Bot already explained הזמנה מוקדמת + ETA — dissatisfaction is service, not cancel. */
 export function isPreorderEtaSharedInThread(history: HistoryMessage[]) {
   return history.some(

@@ -102,6 +102,7 @@ import {
   isOrderConfirmationPending,
   isOrderDeliveryStatusQuestion,
   isOrderLookupCompletedInThread,
+  isShippingAddressUpdateThread,
   isOrderLookupPhoneReplyPending,
   isPurePhoneLookupConfirmYes,
   mentionsCancellationDesire,
@@ -636,6 +637,9 @@ export async function runStructuredOrderLookupPreTurn(input: {
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
   if (shouldHandleDigitalDocumentFlow(body, input.history)) {
+    return { kind: "skip", response: null }
+  }
+  if (isShippingAddressUpdateThread(input.history)) {
     return { kind: "skip", response: null }
   }
   if (
