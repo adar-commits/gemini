@@ -83,9 +83,9 @@ Self-pickup:
 - These answers were provided directly by the business owner and should be preferred when phrasing customer replies in overlapping cases.
 
 ### Delivery status wording for customers
-- Customer-facing delivery comes **only** from `ZPIT_DELSTATUSCODE` (codes 1, 3, 4, 5, 6, 21, 22, 23, 80).
-- Never tell a customer the order was delivered from `ORDSTATUSDES` ("הושלם" / "נמסרה") or from a date field.
-- Unmapped codes (including 15 הוקפא זמנית) or a missing code: the order was found, but a clear delivery status cannot be shown, and the request is forwarded to the team.
+- When `ZPIT_DELSTATUSCODE` is one of **1, 3, 4, 5, 6, 21, 22, 23, 80**, customer-facing copy comes **only** from that code. Do not replace it with `ORDSTATUSDES` or a date field.
+- When `ZPIT_DELSTATUSCODE` is **empty**, use the `ORDSTATUSDES` sheet: בליקוט / מאושר לביצוע → בתהליכי אריזה; לוקטה → ממתינה לאיסוף; העברה מסניף → נשלחה מסניף; מבוטלת → בוטלה; הושלם → מסומנת כנמסרה ליעדה. That is a status answer, not a handoff.
+- A **present but unmapped** code (including 15 הוקפא זמנית): the order was found, but a clear delivery status cannot be shown, and the request is forwarded to the team. Do not override that with `ORDSTATUSDES`.
 
 ### Damaged product initial flow
 - For a "product arrived damaged" report: first run order lookup, then request a product photo.

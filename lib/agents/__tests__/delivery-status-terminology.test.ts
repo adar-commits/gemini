@@ -137,16 +137,18 @@ describe("delivery status terminology", () => {
     assert.doesNotMatch(reply, /אפשר לעזור במשהו נוסף/)
   })
 
-  it("does not treat completed order status as delivered without mapped delivery code 6", () => {
+  it("uses ORDSTATUSDES הושלם when there is no shipment code, without a delivery date", () => {
     const order = mapPriorityOrderRow({
       ORDNAME: "SO26075921",
       ORDSTATUSDES: "הושלם",
       ZPIT_UDATE: "2026-09-07T10:00:00+03:00",
     })
-    assert.equal(orderStatusDatePhrase(order), "")
+    assert.match(orderStatusDatePhrase(order), /נכון לתאריך 07\/09\/2026/)
     const reply = buildOrderStatusReply(order)
-    assert.match(reply, /לא ניתן להציג כרגע סטטוס משלוח/)
-    assert.doesNotMatch(reply, /נמסרה ליעדה/)
+    assert.match(reply, /מסומנת כנמסרה ליעדה/)
+    assert.doesNotMatch(reply, /לא ניתן להציג כרגע סטטוס משלוח/)
+    assert.doesNotMatch(reply, /נמסר באמצעות שליח/)
+    assert.doesNotMatch(reply, /נמסר בתאריך/)
   })
 
   it("uses ZPIT_DELDATE for delivered delivery status 6", () => {
@@ -164,15 +166,15 @@ describe("delivery status terminology", () => {
     assert.match(reply, /שמחתי לעזור/)
   })
 
-  it("does not treat a delivery date as proof of delivery without code 6", () => {
+  it("does not treat a delivery date as proof of courier delivery without code 6", () => {
     const order = mapPriorityOrderRow({
       ORDNAME: "SO26075921",
       ORDSTATUSDES: "הושלם",
       ZPIT_DELDATE: "2026-09-05T00:00:00+03:00",
     })
     const reply = buildOrderStatusReply(order)
-    assert.match(reply, /לא ניתן להציג כרגע סטטוס משלוח/)
-    assert.doesNotMatch(reply, /נמסרה ליעדה/)
+    assert.match(reply, /מסומנת כנמסרה ליעדה/)
+    assert.doesNotMatch(reply, /נמסר באמצעות שליח/)
     assert.doesNotMatch(reply, /נמסר בתאריך/)
   })
 })

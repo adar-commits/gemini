@@ -8,6 +8,7 @@ import {
 import {
   countOrderConfirmationPrompts,
   describeShipmentStatus,
+  buildOrderStatusReply,
   mapPriorityOrderRow,
   MAX_ORDER_PICK_ATTEMPTS,
   requiresOrderStatusServiceHandoff,
@@ -25,16 +26,20 @@ describe("order status terminology", () => {
     assert.match(buildOrderStatusMessage("הושלם"), /נמסרה/)
   })
 
-  it("does not invent delivery copy from order status when delivery code is empty", () => {
+  it("falls back to ORDSTATUSDES when ZPIT_DELSTATUSCODE is empty (532759384)", () => {
     const order = mapPriorityOrderRow({
-      ORDNAME: "SO26018793",
-      ZPIT_DELSTATUSCODE: "",
-      ZPIT_DELSTATUSDES: "",
-      ORDSTATUSDES: "לוקטה",
-      ZPIT_UDATE: "2026-08-18T00:00:00+03:00",
+      ORDNAME: "SO26022818",
+      REFERENCE: "#77150",
+      ZPIT_DELSTATUSCODE: null,
+      ZPIT_DELSTATUSDES: null,
+      ORDSTATUSDES: "בליקוט",
     })
-    assert.match(order.statusDescription, /לא ניתן להציג כרגע סטטוס משלוח/)
-    assert.equal(requiresOrderStatusServiceHandoff(order), true)
+    assert.match(order.statusDescription, /בתהליכי אריזה/)
+    assert.doesNotMatch(order.statusDescription, /לא ניתן להציג כרגע סטטוס משלוח/)
+    assert.equal(requiresOrderStatusServiceHandoff(order), false)
+    const reply = buildOrderStatusReply(order)
+    assert.match(reply, /בדקתי, ההזמנה התקבלה וכעת בתהליכי אריזה/)
+    assert.doesNotMatch(reply, /הפנייה תועבר להמשך טיפול/)
   })
 
   it("does not call a frozen/unmapped code delivered even if order status is הושלם", () => {

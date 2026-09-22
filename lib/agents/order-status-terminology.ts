@@ -27,7 +27,8 @@ const ORDER_STATUS_COPY: Array<{ pattern: RegExp; message: string }> = [
   },
 ]
 
-export function buildOrderStatusMessage(orderStatusDesc?: string | null) {
+/** Mapped Sheet2 copy only — null when ORDSTATUSDES is empty or not in the sheet. */
+export function buildKnownOrderStatusMessage(orderStatusDesc?: string | null) {
   const label = String(orderStatusDesc ?? "").trim()
   if (!label) return null
 
@@ -35,5 +36,11 @@ export function buildOrderStatusMessage(orderStatusDesc?: string | null) {
     if (entry.pattern.test(label)) return entry.message
   }
 
-  return `סטטוס ההזמנה במערכת: ${label}.`
+  return null
+}
+
+export function buildOrderStatusMessage(orderStatusDesc?: string | null) {
+  const label = String(orderStatusDesc ?? "").trim()
+  if (!label) return null
+  return buildKnownOrderStatusMessage(label) ?? `סטטוס ההזמנה במערכת: ${label}.`
 }

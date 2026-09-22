@@ -70,6 +70,7 @@ import {
   isUnknownDeliveryStatusMessage,
 } from "@/lib/agents/delivery-status-terminology"
 import { buildDeliveryEstimatePolicyReply } from "@/lib/agents/delivery-estimate-policy"
+import { buildKnownOrderStatusMessage } from "@/lib/agents/order-status-terminology"
 import {
   isValidIsraeliMobilePhone,
   isValidInventorySku,
@@ -289,6 +290,15 @@ export function buildOrderPickExhaustedHandoffPrompt() {
 }
 
 export function describeShipmentStatus(order: OrderShipmentStatus) {
+  const statusId = String(order.statusCode ?? "").trim()
+  // No shipment code at all — customer copy comes from ORDSTATUSDES (Sheet2).
+  // A present but unmapped code (15 הוקפא, 99) stays unknown so order status
+  // cannot override a freeze or call the order delivered.
+  if (!statusId) {
+    const fromOrderStatus = buildKnownOrderStatusMessage(order.orderStatus)
+    if (fromOrderStatus) return fromOrderStatus
+  }
+
   const deliveryDate = formatHebrewCustomerDate(order.raw.ZPIT_DELDATE)
   const coordinateDate = formatHebrewCustomerDateTime(order.raw.ZPIT_COORDATE)
 
@@ -306,12 +316,15 @@ export function requiresOrderStatusServiceHandoff(order: OrderShipmentStatus) {
 /** Customer-facing as-of date for status replies — UDATE by default, DELDATE when delivered (6). */
 export function orderStatusDatePhrase(order: OrderShipmentStatus) {
   const statusId = String(order.statusCode ?? "").trim()
-  if (!isMappedDeliveryStatusId(statusId)) return ""
 
   if (statusId === "6") {
     const deliveryDate = formatHebrewCustomerDate(order.raw.ZPIT_DELDATE)
     if (deliveryDate) return ` נמסר בתאריך ${deliveryDate}`
   }
+
+  const datedFromOrderStatus =
+    !statusId && Boolean(buildKnownOrderStatusMessage(order.orderStatus))
+  if (!isMappedDeliveryStatusId(statusId) && !datedFromOrderStatus) return ""
 
   const lastUpdate = formatHebrewCustomerDateTime(order.raw.ZPIT_UDATE)
   if (lastUpdate) return ` נכון לתאריך ${lastUpdate}`
