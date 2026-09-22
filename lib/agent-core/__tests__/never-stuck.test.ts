@@ -99,7 +99,7 @@ describe("never-stuck mechanism — proof suite", () => {
     const reply = buildOrderStatusClarificationReply(history)
     assertNeverSilent(reply, "status clarification")
     assert.match(reply, /בקצרה/)
-    assert.match(reply, /האם להעביר לנציג שירות/)
+    assert.doesNotMatch(reply, /האם להעביר/)
   })
 
   it("Layer 6: duplicate status would not leave customer silent — clarification substitutes", () => {

@@ -144,7 +144,7 @@ export async function executeLookupOrderStatus(input: {
       return {
         ok: false as const,
         error:
-          "ORDER LOOKUP COMPLETED: answer the customer's question directly from thread context — never say 'כבר מצאנו את ההזמנה' and never offer unsolicited ביטול/החזרה/העברה menus. Shipping follow-ups (מתי יגיע, עבר שבוע, מי השליח) → status/timeline from last lookup or warm clarify + optional rep offer. Rep phrases (העברה לנציג, נציג שירות) → action human_service in the same JSON.",
+          "ORDER LOOKUP COMPLETED: answer the customer's question directly from thread context — never say 'כבר מצאנו את ההזמנה' and never offer unsolicited ביטול/החזרה/העברה menus. Shipping follow-ups (מתי יגיע, עבר שבוע, למה לא קיבלתי) → status/timeline from last lookup. A complete status answer is enough — do NOT append האם להעביר לנציג. human_service only if they ask for a rep, status is unknown, or marked delivered and they say it did not arrive.",
       }
     }
     const action = /העברתי את השיחה/i.test(reply)

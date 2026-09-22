@@ -44,16 +44,13 @@ export function buildDeliveryEstimatePolicyReply(order: OrderShipmentStatus) {
 
   if (statusId === "22") {
     return `${CUSTOMER_HEADER}
-ההזמנה מוכנה לאיסוף עצמי — אפשר להגיע לפי הפרטים שנשלחו קודם.
-לשאלות נוספות — האם להעביר לנציג שירות?`
+ההזמנה מוכנה לאיסוף עצמי — אפשר להגיע לפי הפרטים שנשלחו קודם.`
   }
 
   if (statusId === "21") {
     return `${CUSTOMER_HEADER}
 ההזמנה עדיין בטיפול וטרם מוכנה לאיסוף עצמי.
-ברגע שתהיה מוכנה — נשלח עדכון.
-
-האם להעביר לנציג שירות לעדכון נוסף?`
+ברגע שתהיה מוכנה — נשלח עדכון.`
   }
 
   const coordinateDate =

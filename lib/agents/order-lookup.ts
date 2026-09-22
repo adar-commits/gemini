@@ -1976,7 +1976,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
 בקצרה — השטיח כבר נארז במחסן שלנו, וחברת השליחויות עדיין לא אספה אותו.
 לאחר האיסוף השליח יתאם איתכם טלפונית את מועד ההגעה.
 
-אם תרצו עדכון מדויק יותר — האם להעביר לנציג שירות?`
+${CUSTOMER_NATURAL_CLOSE}`
   }
 
   if (/נאסף על ידי חברת השליחויות|ממתין ליציאתו|הועמס לשליח|מתואם לאספקה/i.test(statusText)) {
@@ -1984,7 +1984,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
 בקצרה — המשלוח כבר יצא מהמחסן ונמצא בדרך.
 השליח יתאם איתכם טלפונית ביום האספקה.
 
-האם להעביר לנציג שירות לעדכון נוסף?`
+${CUSTOMER_NATURAL_CLOSE}`
   }
 
   if (/נארזה ומוכנה לאיסוף|טרם הועבר|עדיין בטיפול/i.test(statusText)) {
@@ -1992,7 +1992,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
 בקצרה — ההזמנה נארזה במחסן וממתינה לאיסוף על ידי חברת השליחויות.
 ברגע שתצא לשליח — תקבלו עדכון.
 
-האם להעביר לנציג שירות שיבדוק ויתעדכן?`
+${CUSTOMER_NATURAL_CLOSE}`
   }
 
   if (/נמסר באמצעות שליח/i.test(statusText)) {
@@ -2007,7 +2007,7 @@ export function buildOrderStatusClarificationReply(history: HistoryMessage[]) {
     return `${CUSTOMER_HEADER}
 ההזמנה מוכנה לאיסוף עצמי מהמחסן — לפי הפרטים שנשלחו קודם.
 
-האם להעביר לנציג שירות לעזרה נוספת?`
+${CUSTOMER_NATURAL_CLOSE}`
   }
 
   return `${CUSTOMER_HEADER}

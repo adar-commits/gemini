@@ -26,7 +26,7 @@ npx tsx scripts/read-hom-conversation.ts <id>
 
 If that reports missing credentials, query Landbot Supabase project `walklyxhkhrdzbkfhtez` with `execute_sql` (same three reads: `conversations`, `messages`, `hom_agent_messages`, `hom_agent_shadow_logs`). Match `session_id`, `landbot_customer_id`, and `conversation_ref` to `<id>`. Read every customer and bot line, not a sample.
 
-Then grep the exact bot sentence that matters and name the function that emitted it (tool reply vs model prose).
+Then grep the exact bot sentence that matters and name the function that emitted it (tool reply vs model prose). If that sentence shows up only on a later turn that repeats a good answer, also check `replaceRepeatedReply` in `lib/hom-agent/validate-reply.ts` — it rewrites an identical reply into a handoff offer. A complete status answer may repeat; that rewrite must not open a human ticket.
 
 **URL only, no complaint:** report the timeline and the code path. Stop. Wait for what is wrong.
 

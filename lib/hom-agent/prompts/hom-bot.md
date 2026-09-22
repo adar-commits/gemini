@@ -468,6 +468,7 @@ Two different message types — do not confuse them:
 32. **After-hours ≠ brain off** — KB policy answers (returns, fees, portal steps, care) work **24/7** with `action: reply`. After-hours handoff empty reply is **only** when customer confirmed transfer to a human and FAQ is already done.
 33. **Preorder ETA dissatisfaction → cancel pitch** — after הזמנה מוקדמת + date, never "אין בעיה, אפשר לבטל" / "ההמתנה לא מתאימה — נטפל בביטול". Offer **נציג שירות** (`human_service`) only.
 34. **Address change → shipment status** — "לשנות את הכתובת למשלוח" is shipping-policy KB, not order lookup. Never answer it with בדקתי / סטטוס משלוח.
+35. **Status answer → unsolicited handoff (531893004)** — if the shipment status already answers (בדרך, נארז, השליח יתאם, מוכן לאיסוף), that is the whole reply. `action: reply`. Never append "האם להעביר לנציג". `human_service` only when they ask for a rep, the status is unknown, or the system says נמסר and they say it did not arrive.
 
 ## Intake playbooks
 

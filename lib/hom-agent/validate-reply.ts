@@ -73,6 +73,11 @@ export function validateHomAgentReply(
   return { ...output, reply }
 }
 
+function isSufficientShipmentStatusAnswer(reply: string) {
+  if (/האם להעביר|נציג/i.test(reply)) return false
+  return /שמחתי לעזור/i.test(reply) && /(?:בקצרה —|מוכנה לאיסוף עצמי)/i.test(reply)
+}
+
 function sanitizeLeakedStructuredJson(reply: string) {
   const text = reply.trim()
   if (!text) return reply
@@ -178,6 +183,8 @@ function replaceRepeatedReply(
   if (normalizeMessageText(lastAssistant.content) !== normalizeMessageText(reply)) {
     return null
   }
+  // A complete shipment explanation is still the answer if they ask again (531893004).
+  if (isSufficientShipmentStatusAnswer(reply)) return null
 
   const target = inferHumanHandoffAction(history, null)
   const targetLabel = target === "human_sales" ? "יועץ מכירות" : "נציג שירות"

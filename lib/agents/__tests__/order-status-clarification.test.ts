@@ -21,10 +21,11 @@ describe("order status clarification", () => {
     assert.equal(isOrderStatusClarificationQuestion("איפוס"), false)
   })
 
-  it("explains packed-awaiting-courier status and offers service handoff", () => {
+  it("explains packed-awaiting-courier status without a handoff offer", () => {
     const reply = buildOrderStatusClarificationReply(statusHistory)
     assert.match(reply, /בקצרה/)
     assert.match(reply, /חברת השליחויות/)
-    assert.match(reply, /האם להעביר לנציג שירות/)
+    assert.match(reply, /שמחתי לעזור/)
+    assert.doesNotMatch(reply, /האם להעביר/)
   })
 })

@@ -507,7 +507,7 @@ export function buildConversationHints(input: {
 
   if (isOrderStatusDeliveredInThread(history) && isPostOrderShippingFollowUp(body, history)) {
     lines.push(
-      "POST-ORDER SHIPPING THREAD (529503176): customer still on delivery timing/status — continue that thread. Do NOT pivot to cancel/return/exchange menus. Answer the question or offer human_service only when they ask for a rep or you offered rep for missing data."
+      "POST-ORDER SHIPPING THREAD (529503176 / 531893004): customer still on delivery timing/status — continue that thread. Do NOT pivot to cancel/return/exchange menus. A complete status answer (בדרך, נארז, השליח יתאם, מוכן לאיסוף) is the whole reply — action reply, never append האם להעביר לנציג. human_service only when they ask for a rep, status is unknown, or the system says נמסר and they say it did not arrive."
     )
   }
 
