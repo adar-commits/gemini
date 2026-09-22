@@ -40,6 +40,8 @@ function matchesOffTopicPattern(text: string) {
 export function isHumanHandoffOfferText(text: string) {
   const last = text.trim()
   if (!last) return false
+  // Confusion fallback is not a transfer offer — the next כן stays with the LLM (404732305).
+  if (/לא הצלחתי להבין את ההודעה/.test(last)) return false
   return (
     /שאעביר את השיחה לנציג אנושי/.test(last) ||
     /שנעביר את השיחה לנציג אנושי/.test(last) ||

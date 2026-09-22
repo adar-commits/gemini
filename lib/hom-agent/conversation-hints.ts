@@ -5,6 +5,7 @@ import {
   isChannelPhoneSelfReference,
   customerOrderNumberStyleFromHistory,
   isDeliveryEstimateQuestion,
+  isKnownOrderConfirmPending,
   isOrderConfirmationPending,
   isOrderDeliveryStatusQuestion,
   isOrderLookupPhoneReplyPending,
@@ -729,6 +730,13 @@ export function buildConversationHints(input: {
   if (isDeliverySchedulingPreferenceQuestion(body)) {
     lines.push(
       "DELIVERY SCHEDULING: ≤3 sentences — carrier calls on delivery day; cannot pre-book exact date/time; deferred requests (מיום X ואילך) are noted but not scheduled in advance — offer order # lookup or *3076. Complete message with punctuation; never cut off mid-sentence."
+    )
+  }
+
+  if (isKnownOrderConfirmPending(history)) {
+    const known = orderIdGivenInThread(history)
+    lines.push(
+      `KNOWN ORDER CONFIRM (404732305): you already asked if they mean order ${known ?? "from the receipt"}. כן means call lookup_order_status with that id now. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
     )
   }
 

@@ -26,7 +26,11 @@ import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { coerceKbSelfServiceFaqAction } from "@/lib/agents/kb-self-service-faq"
-import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
+import {
+  isOrderConfirmationPending,
+  resolveOrderShippingReply,
+  shouldBindKnownOrderTurn,
+} from "@/lib/agents/order-lookup"
 import {
   buildHumanHandoffConfirmedReply,
   resolveLlmUnavailableHandoff,
@@ -701,6 +705,23 @@ export async function runHomAgentTurn(
   }
 
   output = coerceKbSelfServiceFaqAction(output, body, history)
+
+  if (
+    /לא הצלחתי להבין את ההודעה/.test(output.reply) &&
+    shouldBindKnownOrderTurn(body, history)
+  ) {
+    const recovered = await resolveOrderShippingReply({
+      body,
+      phone: phone || undefined,
+      history,
+    })
+    if (
+      recovered.trim() &&
+      !/לא הצלחתי להבין|יש לכם מספר הזמנה|רשומה על המספר/.test(recovered)
+    ) {
+      output = { ...output, reply: recovered, action: "reply" }
+    }
+  }
 
   const action = mapHomAction(output.action)
   const agent = mapHomAgent(output.action)

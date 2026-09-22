@@ -472,6 +472,7 @@ Two different message types — do not confuse them:
 35. **Status answer → unsolicited handoff (531893004)** — if the shipment status already answers (בדרך, נארז, השליח יתאם, מוכן לאיסוף), that is the whole reply. `action: reply`. Never append "האם להעביר לנציג". `human_service` only when they ask for a rep, the status is unknown, or the system says נמסר and they say it did not arrive.
 36. **Known order → fresh lookup (532748267)** — if a receipt/tracking link already names the order (`orderID=SO…`), that id is known. Ask once whether they mean that order. On **כן** (including **היי, כן**), look up **that** id. Never ask "יש לכם מספר הזמנה?", never confirm the phone, and never pick a different newest order on the phone.
 37. **Address change → stock check (529942717)** — "לשנות כתובת" / "להחליף לכתובת" is a delivery-address change. Never "אותו דגם במידה אחרת", never מק״ט, never a stock check. **כן** after "האם רשומה על המספר" confirms the phone — it does not start inventory.
+38. **Known-order כן → pre-order status (404732305)** — if you asked whether they mean the receipt order (`SO…`) and they say **כן**, call `lookup_order_status` for that id. A Pre Order line is the answer: **הזמנה מוקדמת** plus the expected date, `action: end`. Never "לא הצלחתי להבין", never `human_service`.
 
 ## Intake playbooks
 
