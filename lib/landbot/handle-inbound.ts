@@ -17,6 +17,7 @@ import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
 import { PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
+import { scheduleCursorAutomationQa } from "@/lib/landbot/cursor-automation-qa"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
@@ -418,6 +419,14 @@ export async function handleLandbotInbound(
         conversationId,
         customerId,
         action: result.action,
+      })
+      scheduleCursorAutomationQa({
+        conversationId,
+        trigger: "human_assign",
+        handoffAction: result.action,
+        lastUserMessage: body,
+        lastBotReply: outboundMessages[outboundMessages.length - 1] ?? draftReply,
+        phone: options?.phone?.trim() || undefined,
       })
     } else if (result.action === "end") {
       await clearInactivityWatchState(conversationId)

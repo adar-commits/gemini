@@ -16,6 +16,8 @@ Before editing, read `.cursor/rules/conversation-fix-playbook.mdc` and `.cursor/
 
 Stay on `main`. After code changes: `npm run verify:deploy`, commit, push, confirm the Vercel production deploy is not Error.
 
+**Cursor Automation (phase 1):** production sends `human_assign` webhooks to `CURSOR_AUTOMATION_WEBHOOK_URL` when the bot hands off to a rep. Payload schema and automation prompt: `.cursor/automations/hom-conversation-qa/instructions.md`. Same QA → teach → implement flow; skip false alarms (customer explicitly wanted a rep).
+
 ## 1. QA — read the thread
 
 Extract `<id>` from the URL. Run:
