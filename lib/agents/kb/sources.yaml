@@ -27,13 +27,6 @@ sources:
     tier: 1
     extract: curated_bullets
 
-  - id: carpet-terms
-    url: https://www.carpetshop.co.il/policies/terms-of-service
-    kb_file: faq.md
-    kb_section: "## Policy URLs to include when relevant"
-    tier: 1
-    extract: cite_only
-
   - id: carpet-faq
     url: https://www.carpetshop.co.il/pages/faq
     kb_file: faq.md
@@ -41,20 +34,6 @@ sources:
     tier: 1
     extract: curated_bullets
     secondary_kb_file: carpet-products-faq.md
-
-  - id: carpet-accessibility
-    url: https://www.carpetshop.co.il/pages/accessibility
-    kb_file: faq.md
-    kb_section: "## Accessibility"
-    tier: 1
-    extract: curated_bullets
-
-  - id: carpet-consulting
-    url: https://www.carpetshop.co.il/pages/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%99%D7%99%D7%A2%D7%95%D7%A5-%D7%90%D7%95%D7%A0%D7%9C%D7%99%D7%99%D7%9F-%D7%91%D7%90%D7%AA%D7%A8
-    kb_file: faq.md
-    kb_section: "## Online consulting terms"
-    tier: 1
-    extract: curated_bullets
 
   - id: carpet-branches
     url: https://www.carpetshop.co.il/pages/%D7%A1%D7%A0%D7%99%D7%A4%D7%99%D7%9D-%D7%94%D7%A9%D7%98%D7%99%D7%97-%D7%94%D7%90%D7%93%D7%95%D7%9D

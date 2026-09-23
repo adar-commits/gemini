@@ -12,6 +12,8 @@ Markdown files in this directory are injected into the HoM / Gemini agent prompt
 
 **Runner:** `.github/workflows/kb-sync.yml` — weekday ~08:00 Asia/Jerusalem change-detect, plus manual dispatch.
 
+**Weekday Tier 1 (7):** `carpet-shipping`, `carpet-refund`, `carpet-privacy`, `carpet-faq`, `carpet-branches`, `pozitive-shipping`, `pozitive-faq`. Terms, accessibility, and online-consulting pages are **not** auto-polled.
+
 **Write model:** diff → PR to `main` only. Never silent overwrite. Tier 1 legal/policy pages are **not** auto-merged.
 
 ### Local commands
