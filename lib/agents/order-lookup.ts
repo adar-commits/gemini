@@ -304,6 +304,54 @@ export function buildOrderPickExhaustedHandoffPrompt() {
 האם להעביר לנציג שירות שיבדוק עבורכם?`
 }
 
+const ORDER_PICK_EXHAUSTED_RECHECK_MARKER =
+  "לא מצאתי את ההזמנה הנכונה ברשימה."
+
+export function isOrderPickExhaustedRecheckMessage(content: string) {
+  return (
+    content.includes(ORDER_PICK_EXHAUSTED_RECHECK_MARKER) &&
+    (/האם בטוח שההזמנה רשומה על המספר/i.test(content) ||
+      mentionsChatPhoneConfirmAsk(content))
+  )
+}
+
+export function historyHasOrderPickExhaustedRecheck(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isOrderPickExhaustedRecheckMessage(message.content)
+  )
+}
+
+/** After all API order cards were rejected — re-confirm lookup phone before handoff. */
+export function buildOrderPickExhaustedPhoneRecheckPrompt(
+  lookupPhone: string,
+  whatsappPhone?: string | null
+) {
+  const channel = whatsappPhone ? channelPhone(whatsappPhone) : null
+  if (channel && phoneForOrderApi(channel) === phoneForOrderApi(lookupPhone)) {
+    return `${CUSTOMER_HEADER}
+${ORDER_PICK_EXHAUSTED_RECHECK_MARKER}
+קודם אמצא את ההזמנה שלכם בזריזות, האם היא רשומה על המספר ממנו אני מתכתב כרגע? ${formatDisplayPhone(whatsappPhone!)}
+אם לא, אשמח לקבל אותו.`
+  }
+  return `${CUSTOMER_HEADER}
+${ORDER_PICK_EXHAUSTED_RECHECK_MARKER}
+האם בטוח שההזמנה רשומה על המספר ${formatDisplayPhone(lookupPhone)}?
+אם לא, אשמח למספר טלפון אחר.`
+}
+
+function buildOrderPickExhaustedFallback(
+  lookupPhone: string,
+  history: HistoryMessage[],
+  whatsappPhone?: string | null
+) {
+  if (historyHasOrderPickExhaustedRecheck(history)) {
+    return buildOrderPickExhaustedHandoffPrompt()
+  }
+  return buildOrderPickExhaustedPhoneRecheckPrompt(lookupPhone, whatsappPhone)
+}
+
 export function describeShipmentStatus(order: OrderShipmentStatus) {
   const statusId = String(order.statusCode ?? "").trim()
   // No shipment code at all — customer copy comes from ORDSTATUSDES (Sheet2).
@@ -2337,6 +2385,7 @@ function mentionsChatPhoneConfirmAsk(content: string) {
 function isPhoneLookupConfirmAssistantMessage(content: string) {
   return (
     /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(content) ||
+    /האם בטוח שההזמנה רשומה על המספר/i.test(content) ||
     /האם ההזמנה (?:היא )?על טלפון/i.test(content) ||
     mentionsChatPhoneConfirmAsk(content) ||
     (/(?:מספר\s+)?אחר(?:\s|$|[?.!,])/i.test(content) &&
@@ -2525,6 +2574,7 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     if (isPriorityApiWaitAssistantMessage(message.content)) continue
     return (
       /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(message.content) ||
+      /האם בטוח שההזמנה רשומה על המספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
       /האם (?:ה)?טלפון.{0,60}שבוצעה עליו/i.test(message.content) ||
       mentionsChatPhoneConfirmAsk(message.content)
@@ -2846,7 +2896,11 @@ async function lookupAndStartOrderConfirm(
   }
   const next = pickNextOrderCandidate(sorted, history) ?? offerableOrders(sorted)[0]
   if (!next) {
-    const reply = buildOrderPickExhaustedHandoffPrompt()
+    const reply = buildOrderPickExhaustedFallback(
+      phone,
+      history,
+      getPriorityApiLogContext()?.whatsappPhone
+    )
     return empathize ? empathize(reply) : reply
   }
   const reply = buildOrderConfirmationPrompt(next, history, context?.body)
@@ -2938,13 +2992,11 @@ async function resolveOrderConfirmationFlow(input: {
     if (nextOrder) {
       return buildOrderConfirmationPrompt(nextOrder, input.history, input.body)
     }
-    if (
-      countOrderConfirmationPrompts(input.history) >= 2 ||
-      countOrderConfirmationPrompts(input.history) >= MAX_ORDER_PICK_ATTEMPTS
-    ) {
-      return buildOrderPickExhaustedHandoffPrompt()
-    }
-    return buildAlternatePhoneRequestPrompt()
+    return buildOrderPickExhaustedFallback(
+      threadLookupPhone,
+      input.history,
+      getPriorityApiLogContext()?.whatsappPhone
+    )
   }
 
   if (pendingOrder) {
@@ -3227,6 +3279,9 @@ export async function resolveOrderShippingReply(input: {
     }
 
     if (isPhoneLookupConfirmNo(body)) {
+      if (historyHasOrderPickExhaustedRecheck(history)) {
+        return buildAlternatePhoneRequestPrompt()
+      }
       return buildPhoneLookupDeclinedReply()
     }
 

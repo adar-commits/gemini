@@ -2,7 +2,9 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   buildOrderConfirmationPrompt,
+  buildAlternatePhoneRequestPrompt,
   buildOrderPickExhaustedHandoffPrompt,
+  buildOrderPickExhaustedPhoneRecheckPrompt,
   buildOrderStatusReply,
   buildPhoneLookupConfirmPrompt,
   isIdentifiedOrderRejection,
@@ -97,7 +99,7 @@ describe("multi-order pick after rejection", () => {
     assert.doesNotMatch(reply, /מה מספר הטלפון/)
   })
 
-  it("advances through three candidates then offers human handoff", async () => {
+  it("advances through three candidates then re-confirms lookup phone", async () => {
     clearOrdersLookupCache()
     resetPriorityApiTurnState()
     bindPriorityApiLogContext({
@@ -122,6 +124,77 @@ describe("multi-order pick after rejection", () => {
       { role: "assistant", content: buildOrderConfirmationPrompt(order76001) },
       { role: "user", content: "לא" },
       { role: "assistant", content: buildOrderConfirmationPrompt(order76100) },
+    ]
+
+    const reply = await resolveOrderShippingReply({
+      body: "לא",
+      phone: whatsappPhone,
+      history,
+    })
+
+    assert.equal(
+      reply.trim(),
+      buildOrderPickExhaustedPhoneRecheckPrompt("0528632111", "+972528632111").trim()
+    )
+  })
+
+  it("asks for alternate phone when customer rejects exhausted recheck", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-lorin-recheck-done",
+      whatsappPhone: "+972528632111",
+    })
+    rememberConversationOrdersLookup("conv-lorin-recheck-done", "0528632111", [
+      order75503,
+      order76001,
+    ])
+
+    const whatsappPhone = "+972528632111"
+    const recheck = buildOrderPickExhaustedPhoneRecheckPrompt(
+      whatsappPhone,
+      whatsappPhone
+    )
+    const history: HistoryMessage[] = [
+      { role: "assistant", content: buildOrderConfirmationPrompt(order75503) },
+      { role: "user", content: "לא" },
+      { role: "assistant", content: buildOrderConfirmationPrompt(order76001) },
+      { role: "user", content: "לא" },
+      { role: "assistant", content: recheck },
+    ]
+
+    const reply = await resolveOrderShippingReply({
+      body: "לא",
+      phone: whatsappPhone,
+      history,
+    })
+
+    assert.equal(reply.trim(), buildAlternatePhoneRequestPrompt().trim())
+  })
+
+  it("offers human handoff after phone recheck was already sent", async () => {
+    clearOrdersLookupCache()
+    resetPriorityApiTurnState()
+    bindPriorityApiLogContext({
+      conversationId: "conv-lorin-recheck-handoff",
+      whatsappPhone: "+972528632111",
+    })
+    rememberConversationOrdersLookup("conv-lorin-recheck-handoff", "0528632111", [
+      order75503,
+      order76001,
+    ])
+
+    const whatsappPhone = "+972528632111"
+    const recheck = buildOrderPickExhaustedPhoneRecheckPrompt(
+      whatsappPhone,
+      whatsappPhone
+    )
+    const history: HistoryMessage[] = [
+      { role: "assistant", content: recheck },
+      { role: "user", content: "כן" },
+      { role: "assistant", content: buildOrderConfirmationPrompt(order75503) },
+      { role: "user", content: "לא" },
+      { role: "assistant", content: buildOrderConfirmationPrompt(order76001) },
     ]
 
     const reply = await resolveOrderShippingReply({
@@ -196,7 +269,7 @@ describe("multi-order pick after rejection", () => {
     assert.doesNotMatch(reply, /נציג שירות/)
   })
 
-  it("after the last unused order is also rejected, offers a human", async () => {
+  it("after the last unused order is also rejected, re-confirms phone", async () => {
     clearOrdersLookupCache()
     resetPriorityApiTurnState()
     bindPriorityApiLogContext({
@@ -223,7 +296,10 @@ describe("multi-order pick after rejection", () => {
       history,
     })
 
-    assert.equal(reply.trim(), buildOrderPickExhaustedHandoffPrompt().trim())
+    assert.equal(
+      reply.trim(),
+      buildOrderPickExhaustedPhoneRecheckPrompt(whatsappPhone, whatsappPhone).trim()
+    )
   })
 
   it("treats 'יש עוד אחת' as rejection and shows next order", async () => {
