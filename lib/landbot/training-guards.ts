@@ -6,6 +6,24 @@ import type { HistoryMessage } from "@/lib/agents/types"
 
 export const TRAINER_CORRECTION_PREFIX = "לתיקון:"
 export const TRAINER_QUESTION_PREFIX = "שאלה:"
+export const TRAINER_GOKU_QA_COMMAND = "לימוד גוקו"
+
+export const TRAINER_GOKU_QA_ACK =
+  "*הום בוט :)*\nשלחתי את השיחה ל-Cursor Automation לבדיקה (human_assign)."
+export const TRAINER_GOKU_QA_SKIPPED =
+  "*הום בוט :)*\nCursor Automation כבוי — בדוק CURSOR_AUTOMATION_* ב-Vercel."
+
+function normalizeTrainerCommandText(text: string) {
+  return text
+    .replace(/[\u200e\u200f\u202a-\u202e\ufeff]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/** Trainer-only: fire Cursor Automation QA webhook on the current thread. */
+export function isTrainerGokuQaTestCommand(text: string) {
+  return normalizeTrainerCommandText(text) === TRAINER_GOKU_QA_COMMAND
+}
 
 /** Trainer-only correction command — message must start with this prefix. */
 export function isTrainerCorrectionCommand(text: string) {

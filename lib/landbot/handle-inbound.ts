@@ -17,7 +17,10 @@ import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
 import { PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
-import { scheduleCursorAutomationQa } from "@/lib/landbot/cursor-automation-qa"
+import {
+  scheduleCursorAutomationQa,
+  shouldNotifyCursorAutomationQa,
+} from "@/lib/landbot/cursor-automation-qa"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
@@ -29,7 +32,10 @@ import {
 import { scheduleGokuTrainerBeforeTrainerReset } from "@/lib/agents/goku-trainer"
 import {
   isTrainerCorrectionCommand,
+  isTrainerGokuQaTestCommand,
   isTrainerQuestionCommand,
+  TRAINER_GOKU_QA_ACK,
+  TRAINER_GOKU_QA_SKIPPED,
   stripTrainerQuestionPrefix,
 } from "@/lib/landbot/training-guards"
 import {
@@ -190,6 +196,46 @@ export async function handleLandbotInbound(
       }
       body = resetSplit.remainder
       activeTurn = { text: resetSplit.remainder, media: turn.media }
+    }
+  }
+
+  if (isTrainerPhone(options?.phone) && isTrainerGokuQaTestCommand(body)) {
+    const history = await getHistory(conversationId)
+    const lastAssistant = [...history]
+      .reverse()
+      .find((message) => message.role === "assistant")
+
+    scheduleCursorAutomationQa({
+      conversationId,
+      trigger: "human_assign",
+      lastUserMessage: body,
+      lastBotReply: lastAssistant?.content,
+      phone: options?.phone?.trim() || undefined,
+    })
+
+    const reply = shouldNotifyCursorAutomationQa("human_assign")
+      ? TRAINER_GOKU_QA_ACK
+      : TRAINER_GOKU_QA_SKIPPED
+
+    await appendTurn({
+      conversationId,
+      agent: "master",
+      userText: body,
+      assistantText: reply,
+      action: "reply",
+    })
+
+    if (replyEnabled) {
+      await sendCustomerText(customerId, reply)
+    }
+
+    return {
+      ok: true,
+      agent: "master",
+      reply,
+      action: "reply",
+      mode,
+      draft_reply: reply,
     }
   }
 

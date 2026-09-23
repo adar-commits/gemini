@@ -21,6 +21,8 @@ Webhook payload from production gemini (Landbot handoff):
 
 Only `trigger: human_assign` is sent (`CURSOR_AUTOMATION_QA_TRIGGERS=human_assign` on Vercel).
 
+**Trainer live test:** allowlisted trainer phone sends exact `לימוד גוקו` → fires the same webhook without a real rep handoff.
+
 Later triggers (not enabled yet): `reset`, `closed_unanswered`, `bot_failure`.
 
 ## Automation agent instructions (paste into Cursor Automation)
