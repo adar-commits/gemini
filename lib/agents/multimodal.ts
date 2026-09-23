@@ -1,3 +1,4 @@
+import type { VisionPolicy } from "@/lib/agents/vision-policy"
 import type { UserMediaPart, UserTurn } from "@/lib/agents/user-turn"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -79,18 +80,31 @@ export function buildUserContent(
   return parts
 }
 
-export function buildModelMessages(history: HistoryMessage[], turn: UserTurn) {
+export function buildModelMessages(
+  history: HistoryMessage[],
+  turn: UserTurn,
+  visionPolicy?: VisionPolicy
+) {
+  const effectiveTurn =
+    visionPolicy && !visionPolicy.attachCurrentTurnImages
+      ? {
+          text: turn.text,
+          media: turn.media.filter((part) => part.kind !== "image"),
+        }
+      : turn
+
   const wantsPriorImage =
+    visionPolicy?.allowPriorImageReinject &&
     /(?:כמו\s+ב(?:תמונה|צילום)|בתמונה\s+ש(?:שלחתי|צירפתי)|מה(?:ש)?(?:ראית|בתמונה))/i.test(
       turn.text
     )
-  const extraMedia = wantsPriorImage ? extractRecentMediaFromHistory(history) : []
+  const extraMedia = wantsPriorImage ? extractRecentMediaFromHistory(history, 1) : []
 
   return [
     ...history.map((message) => ({
       role: message.role as "user" | "assistant",
       content: message.content,
     })),
-    { role: "user" as const, content: buildUserContent(turn, extraMedia) },
+    { role: "user" as const, content: buildUserContent(effectiveTurn, extraMedia) },
   ]
 }

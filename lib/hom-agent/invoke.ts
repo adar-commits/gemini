@@ -5,7 +5,8 @@ import { ownerAnswersSection } from "@/lib/agents/goku-questions"
 import { extractTokenCounts, recordTokenUsage } from "@/lib/agent-core/token-usage"
 import { setRoutingPath } from "@/lib/agent-core/turn-metrics"
 import { buildModelMessages } from "@/lib/agents/multimodal"
-import type { HistoryMessage } from "@/lib/agents/types"
+import type { AgentId, HistoryMessage } from "@/lib/agents/types"
+import { resolveVisionPolicy } from "@/lib/agents/vision-policy"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { buildHomAgentSystemPromptAsync } from "@/lib/hom-agent/prompt"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
@@ -58,6 +59,7 @@ type InvokeContext = {
   model: string
   modelTier: ModelTier | null
   llmOwnsIntent: boolean
+  lastAgent: AgentId | null
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }
 
@@ -91,6 +93,7 @@ function buildInvokeContext(input: {
   modelOverride?: string
   modelTier?: ModelTier | null
   llmOwnsIntent?: boolean
+  lastAgent?: AgentId | null
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }): InvokeContext {
   return {
@@ -105,6 +108,7 @@ function buildInvokeContext(input: {
     model: homAgentModel(input.runtime, input.modelOverride),
     modelTier: input.modelTier ?? null,
     llmOwnsIntent: input.llmOwnsIntent ?? false,
+    lastAgent: input.lastAgent ?? null,
     runtime: input.runtime,
   }
 }
@@ -118,6 +122,7 @@ export async function invokeHomAgent(input: {
   sessionSummary?: string | null
   modelTier?: ModelTier | null
   llmOwnsIntent?: boolean
+  lastAgent?: AgentId | null
   /** Retry path — use a lighter model when the primary call failed instantly. */
   modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
@@ -163,7 +168,12 @@ async function invokeWithTools(ctx: InvokeContext) {
     history: ctx.history,
   })
 
-  const messages = buildModelMessages(ctx.history, ctx.turn)
+  const visionPolicy = resolveVisionPolicy({
+    history: ctx.history,
+    turn: ctx.turn,
+    lastAgent: ctx.lastAgent,
+  })
+  const messages = buildModelMessages(ctx.history, ctx.turn, visionPolicy)
 
   // Single pass: the model may call tools (up to MAX_TOOL_ROUNDS steps) and must
   // finish with the structured { reply, action } output in the same call — the
@@ -314,7 +324,12 @@ async function invokeKbOnly(ctx: InvokeContext) {
     modelTier: ctx.modelTier,
     llmOwnsIntent: ctx.llmOwnsIntent,
   })
-  const messages = buildModelMessages(ctx.history, ctx.turn)
+  const visionPolicy = resolveVisionPolicy({
+    history: ctx.history,
+    turn: ctx.turn,
+    lastAgent: ctx.lastAgent,
+  })
+  const messages = buildModelMessages(ctx.history, ctx.turn, visionPolicy)
 
   const structured = await generateText({
     model: ctx.model,

@@ -635,6 +635,7 @@ export async function runHomAgentTurn(
       sessionSummary: conversationSummary,
       modelTier: modelPick.tier,
       llmOwnsIntent: deferStructuredToLlm,
+      lastAgent,
       modelOverride: modelOverride ?? (modelPick.escalated ? modelPick.model : undefined),
     })
 

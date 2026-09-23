@@ -1903,7 +1903,7 @@ function questionOrder(kind: string) {
   return index === -1 ? 0 : index
 }
 
-function isServicePhotoAnalysisContext(history: HistoryMessage[], body: string) {
+export function isServicePhotoAnalysisContext(history: HistoryMessage[], body: string) {
   const transcript = allUserText(history, body)
   if (isServiceHandoffSummaryPending(history)) return true
   if (classifyPostPurchaseCase(body) === "defect") return true

@@ -125,7 +125,13 @@ import {
   hasRoomPhotoInHistory,
   isAwaitingSalesIntakeAnswer,
   isSalesPhotoRequestPending,
+  isServicePhotoAnalysisContext,
 } from "@/lib/agents/sales-intake"
+import {
+  isOrderDocumentScreenshotTurn,
+  shouldAnalyzeCustomerImage,
+} from "@/lib/agents/vision-policy"
+import type { UserTurn } from "@/lib/agents/user-turn"
 import {
   isInactivityAssistantMessage,
   isInactivityPingPending,
@@ -148,6 +154,18 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
     (message) =>
       message.role === "assistant" && /returns\.carpetshop\.co\.il/.test(message.content)
   )
+}
+
+function userTurnFromBody(body: string): UserTurn {
+  const media: UserTurn["media"] = []
+  for (const match of body.matchAll(/\[media:image:([^\]]+)\]/gi)) {
+    const url = match[1]?.trim()
+    if (url && !media.some((part) => part.url === url)) {
+      media.push({ kind: "image", url })
+    }
+  }
+  const text = body.replace(/\[media:image:[^\]]+\]/gi, "").trim()
+  return { text, media }
 }
 
 /** Dynamic turn hints — guide the LLM without bypassing it. */
@@ -797,6 +815,22 @@ export function buildConversationHints(input: {
     lines.push(
       "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. Do NOT describe/analyze the image."
     )
+  }
+
+  const imageTurn = /\[media:image:/i.test(body) ? userTurnFromBody(body) : null
+  if (
+    imageTurn &&
+    shouldAnalyzeCustomerImage({ history, turn: imageTurn, lastAgent: null })
+  ) {
+    if (isOrderNumberRequestPending(history) || isOrderDocumentScreenshotTurn(body)) {
+      lines.push(
+        "ORDER RECEIPT SCREENSHOT (vision on): read SO… / #36805 / IN… / RC… or a phone number from the image, then call lookup_order_status with that value — order identification, not fetch_digital_document. Never restart document-type menu."
+      )
+    } else if (isServicePhotoAnalysisContext(history, body) || isServiceOrderIdentificationFlow(history, body)) {
+      lines.push(
+        "SERVICE PHOTO VISION (vision on): briefly note visible damage/concern the customer reported — never pre-judge liability (no 'פגם מלכתחילה'). Continue service intake → rep summary → human_service when ready."
+      )
+    }
   }
 
   if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
