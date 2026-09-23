@@ -8,6 +8,7 @@ import {
   buildLlmFailureReply,
   buildNeverStuckReply,
   coerceOperationalReply,
+  isNeverStuckReply,
 } from "@/lib/agent-core/fallbacks"
 import {
   buildOrderStatusClarificationReply,
@@ -41,6 +42,8 @@ describe("never-stuck mechanism — proof suite", () => {
     assert.match(reply, /סליחה/)
     assert.match(reply, /לא הצלחתי להבין/)
     assert.match(reply, /נציג שירות/)
+    assert.equal(isNeverStuckReply(reply), true)
+    assert.equal(isNeverStuckReply(buildLlmFailureReply()), false)
   })
 
   it("Layer 2: all template fallbacks produce sendable customer text", () => {

@@ -54,7 +54,7 @@ import {
 } from "@/lib/landbot/inactivity-watcher"
 import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
 import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
-import { buildNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import { buildNeverStuckReply, isNeverStuckReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
 import { isHumanThreadActive, releaseHumanThread } from "@/lib/landbot/human-takeover"
@@ -487,6 +487,18 @@ export async function handleLandbotInbound(
       })
     } else if (outboundMessages.length > 0) {
       const lastOutbound = outboundMessages[outboundMessages.length - 1] ?? ""
+      if (
+        !isTrainerPhone(options?.phone) &&
+        isNeverStuckReply(lastOutbound)
+      ) {
+        scheduleCursorAutomationQa({
+          conversationId,
+          trigger: "bot_failure",
+          lastUserMessage: body,
+          lastBotReply: lastOutbound,
+          phone: options?.phone?.trim() || undefined,
+        })
+      }
       if (
         shouldSkipInactivityForHumanWait({
           lastAction: result.action,

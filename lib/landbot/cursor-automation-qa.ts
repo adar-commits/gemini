@@ -31,10 +31,10 @@ export function cursorAutomationWebhookUrl() {
   return process.env.CURSOR_AUTOMATION_WEBHOOK_URL?.trim() || ""
 }
 
-/** Week 1 default: human_assign only. Comma list, e.g. human_assign,reset */
+/** Default: human handoff + never-stuck bot failure. Comma list, e.g. human_assign,bot_failure */
 export function cursorAutomationQaTriggers(): Set<CursorAutomationQaTrigger> {
   const raw = process.env.CURSOR_AUTOMATION_QA_TRIGGERS?.trim()
-  const parts = (raw || "human_assign")
+  const parts = (raw || "human_assign,bot_failure")
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean)
@@ -47,7 +47,20 @@ export function cursorAutomationQaTriggers(): Set<CursorAutomationQaTrigger> {
   const selected = parts.filter((part): part is CursorAutomationQaTrigger =>
     allowed.has(part as CursorAutomationQaTrigger)
   )
-  return new Set(selected.length ? selected : ["human_assign"])
+  return new Set(selected.length ? selected : ["human_assign", "bot_failure"])
+}
+
+/** Per-turn dedupe for bot_failure — same session can confuse on multiple messages. */
+export function buildBotFailureIdempotencyKey(
+  sessionId: string,
+  lastUserMessage?: string | null
+) {
+  const normalized = (lastUserMessage ?? "").trim().replace(/\s+/g, " ").slice(0, 160)
+  let hash = 0
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) | 0
+  }
+  return `${sessionId.trim()}:bot_failure:${Math.abs(hash)}`
 }
 
 export function buildHomServiceConversationUrl(sessionId: string) {
@@ -70,6 +83,7 @@ export function buildCursorAutomationQaPayload(input: {
   lastUserMessage?: string
   lastBotReply?: string
   phone?: string | null
+  idempotencyKey?: string
 }): CursorAutomationQaPayload {
   const sessionId = input.sessionId.trim()
   return {
@@ -84,7 +98,8 @@ export function buildCursorAutomationQaPayload(input: {
     ...(input.lastBotReply?.trim()
       ? { last_bot_reply: input.lastBotReply.trim().slice(0, 800) }
       : {}),
-    idempotency_key: `${sessionId}:${input.trigger}`,
+    idempotency_key:
+      input.idempotencyKey ?? `${sessionId}:${input.trigger}`,
     phone_last4: phoneLastFour(input.phone),
     sent_at: new Date().toISOString(),
   }
@@ -133,6 +148,7 @@ export function scheduleCursorAutomationQa(input: {
   lastUserMessage?: string
   lastBotReply?: string
   phone?: string | null
+  idempotencyKey?: string
 }) {
   if (!shouldNotifyCursorAutomationQa(input.trigger)) return
 
@@ -140,6 +156,11 @@ export function scheduleCursorAutomationQa(input: {
     try {
       const row = await findCrmConversation(input.conversationId)
       const sessionId = row?.session_id?.trim() || input.conversationId.trim()
+      const idempotencyKey =
+        input.idempotencyKey ??
+        (input.trigger === "bot_failure"
+          ? buildBotFailureIdempotencyKey(sessionId, input.lastUserMessage)
+          : undefined)
       const payload = buildCursorAutomationQaPayload({
         sessionId,
         landbotCustomerId: row?.landbot_customer_id ?? input.conversationId,
@@ -148,6 +169,7 @@ export function scheduleCursorAutomationQa(input: {
         lastUserMessage: input.lastUserMessage,
         lastBotReply: input.lastBotReply,
         phone: input.phone,
+        idempotencyKey,
       })
 
       const result = await postCursorAutomationWebhook(payload)

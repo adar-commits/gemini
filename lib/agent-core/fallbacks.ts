@@ -102,3 +102,12 @@ export function buildNeverStuckReply() {
 אפשר לנסח שוב, או שאעביר לנציג שירות שימשיך מכאן?`
 }
 
+/** Detect the canonical never-stuck fallback sent to customers (QA bot_failure signal). */
+export function isNeverStuckReply(reply: string) {
+  const text = reply.replace(CUSTOMER_HEADER, "").trim()
+  return (
+    /לא הצלחתי להבין את ההודעה/.test(text) &&
+    /אפשר לנסח שוב, או שאעביר לנציג שירות שימשיך מכאן/.test(text)
+  )
+}
+

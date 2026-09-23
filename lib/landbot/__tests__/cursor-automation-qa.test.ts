@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it, beforeEach, afterEach } from "node:test"
 import {
+  buildBotFailureIdempotencyKey,
   buildCursorAutomationQaPayload,
   buildHomServiceConversationUrl,
   cursorAutomationQaEnabled,
@@ -30,10 +31,14 @@ describe("cursor automation qa webhook", () => {
     )
   })
 
-  it("defaults to human_assign only in week 1", () => {
+  it("defaults to human_assign and bot_failure", () => {
     delete process.env.CURSOR_AUTOMATION_QA_TRIGGERS
-    assert.deepEqual([...cursorAutomationQaTriggers()], ["human_assign"])
+    assert.deepEqual([...cursorAutomationQaTriggers()], [
+      "human_assign",
+      "bot_failure",
+    ])
     assert.equal(shouldNotifyCursorAutomationQa("human_assign"), true)
+    assert.equal(shouldNotifyCursorAutomationQa("bot_failure"), true)
     assert.equal(shouldNotifyCursorAutomationQa("reset"), false)
   })
 
@@ -65,5 +70,14 @@ describe("cursor automation qa webhook", () => {
   it("masks phone to last four digits", () => {
     assert.equal(phoneLastFour("0525368636"), "8636")
     assert.equal(phoneLastFour(null), null)
+  })
+
+  it("builds per-turn bot_failure idempotency keys", () => {
+    const a = buildBotFailureIdempotencyKey("508272038", "מתי יגיע המשלוח")
+    const b = buildBotFailureIdempotencyKey("508272038", "מתי יגיע המשלוח")
+    const c = buildBotFailureIdempotencyKey("508272038", "אחרת")
+    assert.equal(a, b)
+    assert.notEqual(a, c)
+    assert.match(a, /^508272038:bot_failure:\d+$/)
   })
 })

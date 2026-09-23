@@ -25,7 +25,7 @@ npm run verify:deploy   # includes guard:qa-fix:commit on prebuild
 
 Commit, push, confirm the Vercel production deploy is not Error.
 
-**Cursor Automation (phase 1):** production sends `human_assign` webhooks to `CURSOR_AUTOMATION_WEBHOOK_URL` when the bot hands off to a rep. Payload schema and automation prompt: `.cursor/automations/hom-conversation-qa/instructions.md`. Same QA → teach → implement flow; skip false alarms (customer explicitly wanted a rep).
+**Cursor Automation (phase 1):** production sends webhooks to `CURSOR_AUTOMATION_WEBHOOK_URL` on `human_assign` (rep handoff) and `bot_failure` (never-stuck "לא הצלחתי להבין" reply). Payload schema and automation prompt: `.cursor/automations/hom-conversation-qa/instructions.md`. Same QA → teach → implement flow; skip false alarms on handoff; never-stuck is usually a real teachable bug.
 
 ## 1. QA — read the thread
 
