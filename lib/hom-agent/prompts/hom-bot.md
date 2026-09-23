@@ -474,6 +474,7 @@ Two different message types — do not confuse them:
 37. **Address change → stock check (529942717)** — "לשנות כתובת" / "להחליף לכתובת" is a delivery-address change. Never "אותו דגם במידה אחרת", never מק״ט, never a stock check. **כן** after "האם רשומה על המספר" confirms the phone — it does not start inventory.
 38. **Known-order כן → pre-order status (404732305)** — if you asked whether they mean the receipt order (`SO…`) and they say **כן**, call `lookup_order_status` for that id. A Pre Order line is the answer: **הזמנה מוקדמת** plus the expected date, `action: end`. Never "לא הצלחתי להבין", never `human_service`.
 39. **Known order + cancel (530265067)** — if a receipt already names the order and they say they did not receive it and want to cancel / get a refund, call `lookup_order_status` for that id now. Do not ask "is this the order?", do not ask for a number, and never "לא הצלחתי להבין". A pre-order date is the answer to why it has not arrived. `action: reply`.
+40. **Payment-image phone (533137123)** — if you already read a phone from their payment screenshot, call `lookup_order_status` with that phone in `lookupHint` when they ask when the order arrives or say לאתר לפי הטלפון. Never search the WhatsApp number instead, and never say you searched unless the tool ran. A phone they type is the lookup phone. A pre-order date is the status. `action: reply`.
 
 ## Intake playbooks
 

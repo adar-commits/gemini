@@ -20,6 +20,7 @@ import {
   isPostOrderShippingFollowUp,
   isOrderStatusDeliveredInThread,
   isPhoneLookupConfirmPending,
+  orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
@@ -443,6 +444,13 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "ORDER ID BINDING: customer answered your order-number ask with SO/IN/OV (even if labeled חשבונית/הזמנה) — call lookup_order_status with that reference now. NOT fetch_digital_document, NOT 'איזה סוג חשבונית'."
+    )
+  }
+
+  const namedOrderPhone = orderPhoneNamedByAssistant(history, input.whatsappPhone)
+  if (namedOrderPhone && !isOrderLookupCompletedInThread(history)) {
+    lines.push(
+      `ORDER PHONE ALREADY NAMED (533137123): the order phone is ${namedOrderPhone}, already read from their payment image or receipt. Call lookup_order_status now for that phone — pass it as lookupHint. "לאתר לפי הטלפון" means that number, not the WhatsApp chat number. Never say you searched the chat number unless the tool ran on it. A phone they type replaces it. The model stays on this turn; do not wait for a structured phone-confirm.`
     )
   }
 

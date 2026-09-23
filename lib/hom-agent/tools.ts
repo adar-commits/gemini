@@ -24,7 +24,9 @@ export function createHomAgentTools(context: HomAgentToolContext) {
         lookupHint: z
           .string()
           .optional()
-          .describe("Optional order number or extra context from the customer message"),
+          .describe(
+            "Order number, or the mobile from a payment image / the phone the customer wants searched. When they agree to look up by a phone you already named, pass that phone here."
+          ),
       }),
       execute: async ({ lookupHint }) =>
         executeLookupOrderStatus({

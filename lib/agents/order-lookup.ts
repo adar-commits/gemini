@@ -416,8 +416,7 @@ function parseOrdersPayload(data: unknown): PriorityOrderRow[] {
   return []
 }
 
-/** Phone → orders sorted newest-first. Returns null when API fails. */
-export async function lookupOrdersByPhone(
+async function lookupOrdersByPhoneOnce(
   phone: string
 ): Promise<OrderShipmentStatus[] | null> {
   if (!isValidIsraeliMobilePhone(phone)) {
@@ -434,6 +433,16 @@ export async function lookupOrdersByPhone(
 
   const rows = parseOrdersPayload(data).map(normalizePriorityOrderRow)
   return sortOrdersNewestFirst(rows.map(mapPriorityOrderRow))
+}
+
+/** Phone → orders sorted newest-first. Returns null when API fails. One retry on a null response. */
+export async function lookupOrdersByPhone(
+  phone: string
+): Promise<OrderShipmentStatus[] | null> {
+  const first = await lookupOrdersByPhoneOnce(phone)
+  if (first != null) return first
+  if (!isValidIsraeliMobilePhone(phone)) return null
+  return lookupOrdersByPhoneOnce(phone)
 }
 
 export type DigitalDocumentLookupResult =
@@ -2242,11 +2251,43 @@ export function userProvidedPhone(body: string) {
   return phone && isValidIsraeliMobilePhone(phone) ? phone : null
 }
 
+/**
+ * A mobile the bot already read (payment image, receipt) that is not the WhatsApp channel.
+ * The next lookup uses this number — not the chat number.
+ */
+export function orderPhoneNamedByAssistant(
+  history: HistoryMessage[],
+  whatsappPhone?: string | null
+) {
+  const channel = channelPhone(whatsappPhone)
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    const phone = extractPhoneFromText(message.content)
+    if (!phone || phone === channel) continue
+    return phone
+  }
+  return null
+}
+
+/** A report that the chat number was already searched is not a new confirm question. */
+function isFailedChatPhoneSearchReport(content: string) {
+  if (/האם/i.test(content)) return false
+  return /(?:ניסיתי|ניסינו)\s+לאתר|לא הצלחתי למצוא|לא מצאתי (?:את )?ההזמנה/i.test(content)
+}
+
+function mentionsChatPhoneConfirmAsk(content: string) {
+  if (isFailedChatPhoneSearchReport(content)) return false
+  return /(?:ממנו|שממנו).{0,40}(?:מתכתב|מדבר)/i.test(content)
+}
+
 function isPhoneLookupConfirmAssistantMessage(content: string) {
   return (
     /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(content) ||
     /האם ההזמנה (?:היא )?על טלפון/i.test(content) ||
-    /(?:ממנו|שממנו).{0,40}(?:מתכתב|מדבר)/i.test(content) ||
+    mentionsChatPhoneConfirmAsk(content) ||
     (/(?:מספר\s+)?אחר(?:\s|$|[?.!,])/i.test(content) &&
       /(?:הזמנה|מספר|טלפון)/i.test(content))
   )
@@ -2435,7 +2476,7 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
       /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
       /האם (?:ה)?טלפון.{0,60}שבוצעה עליו/i.test(message.content) ||
-      /(?:ממנו|שממנו).{0,40}(?:מתכתב|מדבר)/i.test(message.content)
+      mentionsChatPhoneConfirmAsk(message.content)
     )
   }
   return false
@@ -2943,6 +2984,7 @@ export async function resolveOrderShippingReply(input: {
   body: string
   phone?: string
   history?: HistoryMessage[]
+  lookupHint?: string
 }) {
   const history = input.history ?? []
   const body = input.body.trim()
@@ -3118,6 +3160,13 @@ export async function resolveOrderShippingReply(input: {
   }
 
   if (isOrderNumberRequestPending(history)) {
+    const typedPhone =
+      userProvidedPhone(body) ??
+      (input.lookupHint ? userProvidedPhone(input.lookupHint) : null)
+    if (typedPhone) {
+      return lookupAndStartOrderConfirm(typedPhone, empathize, { history, body })
+    }
+
     if (isOrderNumberUnknownAnswer(body)) {
       if (whatsappPhone && channelPhone(whatsappPhone)) {
         return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
@@ -3141,6 +3190,11 @@ export async function resolveOrderShippingReply(input: {
         return buildShippingNoPhoneReply()
       }
       return lookupOrderByReference({ orderReference, lookupPhone, body, history })
+    }
+
+    const namedPhone = orderPhoneNamedByAssistant(history, whatsappPhone)
+    if (namedPhone) {
+      return lookupAndStartOrderConfirm(namedPhone, empathize, { history, body })
     }
 
     if (whatsappPhone) {

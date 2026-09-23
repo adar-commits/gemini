@@ -192,12 +192,14 @@ async function deliverOrderLookupReply(input: {
   body: string
   phone?: string
   history?: HistoryMessage[]
+  lookupHint?: string
 }) {
   try {
     const reply = await resolveOrderShippingReply({
       body: input.body,
       phone: input.phone,
       history: input.history ?? [],
+      lookupHint: input.lookupHint,
     })
     const trimmed = reply.trim()
     // Only a genuine confusion reply counts as non-definitive. The flow's own
