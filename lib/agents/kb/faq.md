@@ -44,7 +44,7 @@ Hever: one benefit per transaction. Cannot combine with another benefit.
 
 ## Shipping policy
 Source: https://www.carpetshop.co.il/policies/shipping-policy
-Updated 29.07.26
+Updated 23.09.26
 - Free home delivery for rugs on purchases over 199 ILS. Under 199 ILS: 29.90 ILS.
 - Free home delivery for poufs בהרכבה עצמית on purchases over 199 ILS. Under 199 ILS: 29.90 ILS.
 - Ready poufs: 100 ILS home delivery.
@@ -53,20 +53,29 @@ Updated 29.07.26
 - If the truck cannot reach the address, delivery may be by pickup truck at extra cost or at an agreed meeting point.
 - Extra costs are paid to the courier at delivery.
 - Customer may choose home delivery or self-pickup during checkout.
+- Company may change shipping terms (courier, zones, fees) at its discretion; changes do not apply to orders already approved and processed.
 - Green tax invoice is sent by SMS when products are packed for shipment.
 - Company supplies only a product paid in full by credit card.
 - Delivery times for rugs and poufs בהרכבה עצמית: up to 4 business days.
 - Delivery times for ready poufs: up to 14 business days.
-- Times counted from credit-card / payment approval, the later of the two, business days only, or another date stated on the order.
-- Friday, Saturday, holiday eves, holidays and Israeli memorial days are not business days.
+- Times counted from credit-card / payment approval, the later of the two, business days only, or another date stated on the order (including special-order / pre-order dates on the order confirmation).
+- Delivery per courier terms, distribution zones, and coordination with the customer.
+- Friday, Saturday, holiday eves, holidays, Chol HaMoed and Israeli memorial days are not business days.
 - Orders placed after 12:00 move to the next business day.
 - Times do not apply to out-of-stock products.
-- Possible delays for oversized rugs 240/340 and 300/400.
+- Possible delays for oversized rugs 240×340 and 300×400.
 - Service applies to delivery areas between Kiryat Gat and Zichron Yaakov.
+- Company may refuse delivery even within distribution areas when access is restricted (health, security, technical), special actions are required, or the courier faces danger — at company discretion.
 - Additional delay possible for remote towns and towns beyond the Green Line, Jordan Valley, Arava and Eilat.
-- Courier coordinates the delivery time by phone.
+- Courier company coordinates delivery time by phone; keep the order phone number available.
 - A specific delivery hour cannot be pre-booked in advance; courier coordination is done on delivery day near arrival.
-- Changing the address after handover to the courier costs money. Contact WhatsApp 077-9725055 or *3076.
+- If the courier contacts near delivery time and the customer is unavailable or not present, delivery is rescheduled accordingly.
+- Address change before handover to the courier company: delivery date may be delayed per customer-service update.
+- Changing the address after handover to the courier company costs money (live page lists WhatsApp 077-9725055 or *3076 for human CS).
+- If the courier cannot deliver to the address for any reason, the company notifies the customer and seeks an alternative acceptable to both sides.
+- Company is not responsible for delays caused by the customer, including difficulty reaching the customer during coordination hours.
+- Company is not responsible for delivery delays from events outside its control (strikes, courier outages, war, force majeure, IT/phone/email failures during checkout).
+- In exceptional cases (inventory changes or human error), the company may offer an alternative product or credit, which can delay delivery.
 - If the customer asks the courier to leave the parcel at the door, the company is not responsible for damage or loss.
 - Damage or defect must be reported within 3 days of receiving the product.
 - Special-order / pre-order products have longer production-based delivery dates shown on the product page.
@@ -78,6 +87,12 @@ Self-pickup:
 - Customer must show the pickup notice and invoice.
 - Rugs must be collected within 5 business days of ready notice. If not, the company may cancel without charging for the products. Repeat more than 3 times: company may block future website purchases.
 - Warehouse pickup hours (owner-confirmed): 08:00-15:45.
+
+### WhatsApp bot override (operator locked)
+When the customer asks to **change delivery address**, **cancel shipment**, or **stop delivery**:
+- Collect **order number** (and **new address** if changing address).
+- `action: human_service` handoff — do **not** deflect to *3076 / 077-9725055 as the primary bot reply.
+- Policy facts you may state briefly: update depends on whether the order was already handed to the courier; after handover there is a cost; before handover the delivery date may shift per CS.
 
 ## Owner-verified operational clarifications (from Goku Q&A)
 - These answers were provided directly by the business owner and should be preferred when phrasing customer replies in overlapping cases.
