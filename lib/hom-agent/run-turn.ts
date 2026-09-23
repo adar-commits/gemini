@@ -28,9 +28,11 @@ import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { coerceKbSelfServiceFaqAction } from "@/lib/agents/kb-self-service-faq"
 import {
   isOrderConfirmationPending,
+  isKnownOrderIdentificationMisroute,
   resolveOrderShippingReply,
   shouldBindKnownOrderTurn,
   shouldLookupKnownOrderForCancel,
+  shouldLookupReceiptOrderAfterWrongPick,
 } from "@/lib/agents/order-lookup"
 import {
   buildHumanHandoffConfirmedReply,
@@ -707,10 +709,15 @@ export async function runHomAgentTurn(
 
   output = coerceKbSelfServiceFaqAction(output, body, history)
 
+  const shouldRecoverKnownOrderLookup =
+    shouldBindKnownOrderTurn(body, history) ||
+    shouldLookupKnownOrderForCancel(body, history) ||
+    shouldLookupReceiptOrderAfterWrongPick(body, history)
+
   if (
-    /לא הצלחתי להבין את ההודעה/.test(output.reply) &&
-    (shouldBindKnownOrderTurn(body, history) ||
-      shouldLookupKnownOrderForCancel(body, history))
+    shouldRecoverKnownOrderLookup &&
+    (/לא הצלחתי להבין את ההודעה/.test(output.reply) ||
+      isKnownOrderIdentificationMisroute(output.reply))
   ) {
     const recovered = await resolveOrderShippingReply({
       body,
@@ -719,7 +726,9 @@ export async function runHomAgentTurn(
     })
     if (
       recovered.trim() &&
-      !/לא הצלחתי להבין|יש לכם מספר הזמנה|רשומה על המספר/.test(recovered)
+      !/לא הצלחתי להבין|יש לכם מספר הזמנה|רשומה על המספר|מספר(?:י)?\s+(?:ה)?הזמנה\s+או\s+(?:ה)?טלפון/.test(
+        recovered
+      )
     ) {
       output = { ...output, reply: recovered, action: "reply" }
     }

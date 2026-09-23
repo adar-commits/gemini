@@ -274,6 +274,16 @@ function shownOrderNumbersFromHistory(history: HistoryMessage[]) {
   return numbers
 }
 
+/** Receipt/tracking order already in thread — use it when it exists on this phone lookup. */
+function matchedKnownOrderOnPhone(
+  sorted: OrderShipmentStatus[],
+  history: HistoryMessage[]
+) {
+  const known = orderIdGivenInThread(history)
+  if (!known || isOrderLookupCompletedInThread(history)) return null
+  return findOrderByNumber(sorted, known)
+}
+
 function pickNextOrderCandidate(
   sorted: OrderShipmentStatus[],
   history: HistoryMessage[]
@@ -1948,6 +1958,47 @@ export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]
   return false
 }
 
+/** Bot re-asked for order id / phone after the customer already confirmed the receipt order. */
+export function isKnownOrderIdentificationMisroute(reply: string) {
+  const text = reply.trim()
+  if (!text) return false
+  if (/נדמה לי שמצאתי את ההזמנה/i.test(text)) return false
+  return (
+    /(?:שלח(?:ו|י)?|אפשר לשלוח|יש ל(?:כם|ך))\s*(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנה/i.test(
+      text
+    ) ||
+    /(?:מספר(?:י)?\s+)?(?:ה)?הזמנה\s+או\s+(?:ה)?טלפון/i.test(text) ||
+    /טלפון\s+ש(?:עליו|בו)\s+רשומ/i.test(text)
+  )
+}
+
+/**
+ * Wrong order card was shown — jump to the receipt order from the thread (508272038).
+ */
+export function shouldLookupReceiptOrderAfterWrongPick(
+  body: string,
+  history: HistoryMessage[]
+) {
+  const known = orderIdGivenInThread(history)
+  if (!known || isOrderLookupCompletedInThread(history)) return false
+  if (!knownOrderWasOffered(history)) return false
+  const pending = pendingOrderNumberFromHistory(history)
+  if (pending && pending.toUpperCase() === known.toUpperCase()) return false
+  if (
+    isOrderConfirmationPending(history) &&
+    (isOrderConfirmationNo(body) || isIdentifiedOrderRejection(body))
+  ) {
+    return true
+  }
+  if (
+    /לא הצלחתי להבין/.test(lastRealAssistantContent(history)) &&
+    (isOrderConfirmationNo(body) || isIdentifiedOrderRejection(body))
+  ) {
+    return true
+  }
+  return false
+}
+
 /** Order id is already in the thread and this turn is not a confirm of it. */
 export function shouldRefuseKnownOrderLookup(body: string, history: HistoryMessage[]) {
   const known = orderIdGivenInThread(history)
@@ -2782,6 +2833,17 @@ async function lookupAndStartOrderConfirm(
   const phoneChanged = Boolean(priorPhone && phoneKey && priorPhone !== phoneKey)
   const history = phoneChanged ? [] : (context?.history ?? [])
   const sorted = sortOrdersNewestFirst(orders)
+  if (knownOrderWasOffered(history)) {
+    const knownMatch = matchedKnownOrderOnPhone(sorted, history)
+    if (knownMatch) {
+      return replyAfterOrderIdentified(
+        knownMatch,
+        phone,
+        history,
+        context?.body ?? ""
+      )
+    }
+  }
   const next = pickNextOrderCandidate(sorted, history) ?? offerableOrders(sorted)[0]
   if (!next) {
     const reply = buildOrderPickExhaustedHandoffPrompt()
@@ -2849,6 +2911,20 @@ async function resolveOrderConfirmationFlow(input: {
       isIdentifiedOrderRejection(input.body) ||
       mentionsAnotherOrderSamePhone(input.body))
   ) {
+    const knownMatch = matchedKnownOrderOnPhone(sorted, input.history)
+    const known = orderIdGivenInThread(input.history)
+    if (
+      knownMatch &&
+      known &&
+      pendingOrder.toUpperCase() !== known.toUpperCase()
+    ) {
+      return replyAfterOrderIdentified(
+        knownMatch,
+        threadLookupPhone,
+        input.history,
+        input.body
+      )
+    }
     if (userProvidedPhone(input.body)) {
       return lookupAndStartOrderConfirm(userProvidedPhone(input.body)!, undefined, {
         history: input.history,
@@ -3015,7 +3091,11 @@ export async function resolveOrderShippingReply(input: {
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
 
-  if (shouldBindKnownOrderTurn(body, history) || shouldLookupKnownOrderForCancel(body, history)) {
+  if (
+    shouldBindKnownOrderTurn(body, history) ||
+    shouldLookupKnownOrderForCancel(body, history) ||
+    shouldLookupReceiptOrderAfterWrongPick(body, history)
+  ) {
     const known = orderIdGivenInThread(history)
     const lookupPhone =
       resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??

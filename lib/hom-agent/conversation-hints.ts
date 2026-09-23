@@ -6,7 +6,9 @@ import {
   customerOrderNumberStyleFromHistory,
   isDeliveryEstimateQuestion,
   isKnownOrderConfirmPending,
+  isOrderConfirmationNo,
   isOrderConfirmationPending,
+  pendingOrderNumberFromHistory,
   isOrderDeliveryStatusQuestion,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
@@ -747,8 +749,22 @@ export function buildConversationHints(input: {
   if (isKnownOrderConfirmPending(history)) {
     const known = orderIdGivenInThread(history)
     lines.push(
-      `KNOWN ORDER CONFIRM (404732305): you already asked if they mean order ${known ?? "from the receipt"}. כן means call lookup_order_status with that id now. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
+      `KNOWN ORDER CONFIRM (404732305 / 508272038): you already asked if they mean order ${known ?? "from the receipt"}. כן means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
     )
+  }
+
+  if (
+    orderIdGivenInThread(history) &&
+    isOrderConfirmationPending(history) &&
+    (isOrderConfirmationNo(body) || /לא/.test(body.trim()))
+  ) {
+    const known = orderIdGivenInThread(history)
+    const pending = pendingOrderNumberFromHistory(history)
+    if (known && pending && pending.toUpperCase() !== known.toUpperCase()) {
+      lines.push(
+        `WRONG ORDER CARD (508272038): customer rejected ${pending}. The receipt order is ${known} — call lookup_order_status for that id now, not another phone pick and not a service summary with the rejected card. Never "לא הצלחתי להבין".`
+      )
+    }
   }
 
   if (isShippingAddressChangeAsk(body, history) && !isShippingAddressUpdateThread(history)) {
