@@ -1,0 +1,88 @@
+name: KB sync
+
+on:
+  schedule:
+    # Weekdays ~08:00 Asia/Jerusalem (05:00 UTC during IDT)
+    - cron: "0 5 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      source_id:
+        description: "Source id from sources.yaml (blank = all tier 1)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Run KB sync
+        id: sync
+        run: |
+          set +e
+          ARGS="--apply"
+          if [ -n "${{ inputs.source_id }}" ]; then
+            ARGS="$ARGS --id=${{ inputs.source_id }}"
+          fi
+          npx tsx scripts/kb-sync.ts $ARGS
+          code=$?
+          if [ "$code" -eq 2 ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [ "$code" -eq 0 ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            exit "$code"
+          fi
+
+      - name: Build sync PR body
+        if: steps.sync.outputs.changed == 'true'
+        id: body
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const reportPath = 'lib/agents/kb/.sync-report.json';
+          let summary = 'Automated KB change-detect found live page updates.\n\n';
+          if (fs.existsSync(reportPath)) {
+            const { changes } = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            for (const c of changes) {
+              summary += `### ${c.id}\n`;
+              summary += `- URL: ${c.url}\n`;
+              summary += `- Stamp: ${c.stamp ?? '(none)'}\n`;
+              summary += `- KB: \`${c.kb_file}\` → ${c.kb_section}\n`;
+              if (c.draftPath) summary += `- Draft: \`${c.draftPath}\`\n`;
+              summary += '\n';
+            }
+          }
+          summary += '**Review required** — curated bullets are drafts; Tier 1 legal pages are not auto-merged.\n';
+          summary += 'Verify `preserve_notes` blocks remain intact before merge.\n';
+          fs.writeFileSync('kb-sync-pr-body.md', summary);
+          NODE
+
+      - name: Open PR
+        if: steps.sync.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/kb-sync-${{ github.run_id }}
+          base: main
+          title: "kb-sync: live page updates detected"
+          body-path: kb-sync-pr-body.md
+          labels: kb-sync
+          delete-branch: true

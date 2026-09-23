@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "entries": {
+    "carpet-shipping": {
+      "hash": "ba11d797f8a6fc609fc407f61db9a6fd0e3e0be37d700af351811aebbf669700",
+      "stamp": "23.09.26",
+      "fetched_at": "2026-09-23T11:38:45.152Z",
+      "url": "https://www.carpetshop.co.il/policies/shipping-policy"
+    },
+    "carpet-refund": {
+      "hash": "957612193878ab49512e83f10896046156dace8bd3a7068bf39f5139bff1e698",
+      "stamp": "07.07.25",
+      "fetched_at": "2026-09-23T11:38:45.472Z",
+      "url": "https://www.carpetshop.co.il/policies/refund-policy"
+    },
+    "carpet-privacy": {
+      "hash": "85fa3ccab2d7d20eeecdece67c115a0e5ae140fb5e09c8893c55728e2c636edf",
+      "stamp": "09.11.25",
+      "fetched_at": "2026-09-23T11:38:45.773Z",
+      "url": "https://www.carpetshop.co.il/policies/privacy-policy"
+    },
+    "carpet-terms": {
+      "hash": "9b65e559490b17694ea10cd2a51ad2a5f9c7abf97fb2f290efd81f2cb8977d0b",
+      "stamp": null,
+      "fetched_at": "2026-09-23T11:38:46.114Z",
+      "url": "https://www.carpetshop.co.il/policies/terms-of-service"
+    },
+    "carpet-faq": {
+      "hash": "3de67d16a3a665e8e55791062a652e5b1e092bf5bb8399d949f4fdb1c7c26585",
+      "stamp": null,
+      "fetched_at": "2026-09-23T11:38:46.505Z",
+      "url": "https://www.carpetshop.co.il/pages/faq"
+    },
+    "carpet-accessibility": {
+      "hash": "092ffd6815cd721954c8c2e82561482caee947eceaf1343ee241890b9be7979f",
+      "stamp": null,
+      "fetched_at": "2026-09-23T11:38:46.771Z",
+      "url": "https://www.carpetshop.co.il/pages/accessibility"
+    },
+    "carpet-consulting": {
+      "hash": "efa357618baecca8c7023566908566419423ca789f78847c5617fac74397d3ce",
+      "stamp": "16.03.26",
+      "fetched_at": "2026-09-23T11:38:46.983Z",
+      "url": "https://www.carpetshop.co.il/pages/%D7%AA%D7%A7%D7%A0%D7%95%D7%9F-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%99%D7%99%D7%A2%D7%95%D7%A5-%D7%90%D7%95%D7%A0%D7%9C%D7%99%D7%99%D7%9F-%D7%91%D7%90%D7%AA%D7%A8"
+    },
+    "carpet-branches": {
+      "hash": "30bac2800756003ebf5d4d846e167dcda61a888e4a8f023c0708716741d8a7ce",
+      "stamp": null,
+      "fetched_at": "2026-09-23T11:38:47.336Z",
+      "url": "https://www.carpetshop.co.il/pages/%D7%A1%D7%A0%D7%99%D7%A4%D7%99%D7%9D-%D7%94%D7%A9%D7%98%D7%99%D7%97-%D7%94%D7%90%D7%93%D7%95%D7%9D"
+    },
+    "pozitive-shipping": {
+      "hash": "c59e13309d1c89509ae493807610f4ae27012b9dca2c5268d55d79778588893d",
+      "stamp": "23.09.26",
+      "fetched_at": "2026-09-23T11:38:48.205Z",
+      "url": "https://www.pozitiveshop.co.il/policies/shipping-policy"
+    },
+    "pozitive-faq": {
+      "hash": "876ddfb42fa9d6309dfee6cfaa6443b92238691dc3304dba4e7e299cffa5c9e0",
+      "stamp": null,
+      "fetched_at": "2026-09-23T11:38:48.428Z",
+      "url": "https://www.pozitiveshop.co.il/pages/faq"
+    }
+  }
+}
