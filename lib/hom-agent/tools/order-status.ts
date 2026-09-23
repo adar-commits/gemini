@@ -24,6 +24,7 @@ import {
   isOrderLookupCompletedInThread,
   orderIdGivenInThread,
   isShippingAddressUpdateThread,
+  shouldLookupKnownOrderForCancel,
   shouldRefuseKnownOrderLookup,
   isOrderLookupPhoneReplyPending,
   isServiceOrderIdentificationFlow,
@@ -55,6 +56,10 @@ export async function executeLookupOrderStatus(input: {
   const body = input.body.trim()
 
   const knownOrder = orderIdGivenInThread(history)
+  if (shouldLookupKnownOrderForCancel(body, history)) {
+    return deliverOrderLookupReply(input)
+  }
+
   if (knownOrder && shouldRefuseKnownOrderLookup(body, history)) {
     return {
       ok: false as const,
@@ -180,6 +185,14 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
+  return deliverOrderLookupReply(input)
+}
+
+async function deliverOrderLookupReply(input: {
+  body: string
+  phone?: string
+  history?: HistoryMessage[]
+}) {
   try {
     const reply = await resolveOrderShippingReply({
       body: input.body,

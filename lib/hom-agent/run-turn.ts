@@ -30,6 +30,7 @@ import {
   isOrderConfirmationPending,
   resolveOrderShippingReply,
   shouldBindKnownOrderTurn,
+  shouldLookupKnownOrderForCancel,
 } from "@/lib/agents/order-lookup"
 import {
   buildHumanHandoffConfirmedReply,
@@ -708,7 +709,8 @@ export async function runHomAgentTurn(
 
   if (
     /לא הצלחתי להבין את ההודעה/.test(output.reply) &&
-    shouldBindKnownOrderTurn(body, history)
+    (shouldBindKnownOrderTurn(body, history) ||
+      shouldLookupKnownOrderForCancel(body, history))
   ) {
     const recovered = await resolveOrderShippingReply({
       body,

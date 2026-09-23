@@ -1905,6 +1905,20 @@ export function affirmsKnownOrder(body: string) {
 }
 
 /**
+ * Receipt order is already the order they want cancelled.
+ * Look that id up now — do not block the tool until they say כן (530265067).
+ * A bare "when will it arrive?" still asks once first (532748267).
+ */
+export function shouldLookupKnownOrderForCancel(body: string, history: HistoryMessage[]) {
+  const known = orderIdGivenInThread(history)
+  if (!known || isOrderLookupCompletedInThread(history)) return false
+  if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
+  const other = extractOrderNumber(body)
+  if (other && other.toUpperCase() !== known.toUpperCase()) return false
+  return mentionsCancellationDesire(body)
+}
+
+/**
  * Receipt order is already in the thread and the customer is confirming it.
  * Do not start phone lookup or ask for an order number.
  */
@@ -1930,6 +1944,7 @@ export function shouldRefuseKnownOrderLookup(body: string, history: HistoryMessa
   const known = orderIdGivenInThread(history)
   if (!known || isOrderLookupCompletedInThread(history)) return false
   if (shouldBindKnownOrderTurn(body, history)) return false
+  if (shouldLookupKnownOrderForCancel(body, history)) return false
   if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
   const other = extractOrderNumber(body)
   if (other && other.toUpperCase() !== known.toUpperCase()) return false
@@ -2958,7 +2973,7 @@ export async function resolveOrderShippingReply(input: {
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
 
-  if (shouldBindKnownOrderTurn(body, history)) {
+  if (shouldBindKnownOrderTurn(body, history) || shouldLookupKnownOrderForCancel(body, history)) {
     const known = orderIdGivenInThread(history)
     const lookupPhone =
       resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??

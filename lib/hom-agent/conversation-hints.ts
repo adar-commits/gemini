@@ -13,6 +13,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  mentionsCancellationDesire,
   orderIdGivenInThread,
   isShippingAddressUpdateThread,
   isPreorderEtaSharedInThread,
@@ -695,7 +696,9 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       forwardedWeezmoOrder
-        ? `FORWARDED WEEZMO TEMPLATE / KNOWN ORDER ${forwardedWeezmoOrder} (532748267): the receipt/tracking link already names this order. Do NOT ask for מספר הזמנה or phone, and do NOT start a fresh identification lookup. If you have not confirmed it yet, ask once whether they mean order ${forwardedWeezmoOrder}. On כן (including היי, כן / כן, ההזמנה האחרונה), lookup_order_status with that id only — never a different newest order on the phone. Not a document-copy request.`
+        ? mentionsCancellationDesire(body)
+          ? `KNOWN ORDER CANCEL (530265067): the receipt already names order ${forwardedWeezmoOrder} and the customer asked to cancel and get a refund. Call lookup_order_status with that id now. Do NOT ask whether they mean that order, do NOT ask for מספר הזמנה or a phone, and never reply "לא הצלחתי להבין". If it is a pre-order, explain הזמנה מוקדמת and the expected date — that is why it has not arrived. action reply.`
+          : `FORWARDED WEEZMO TEMPLATE / KNOWN ORDER ${forwardedWeezmoOrder} (532748267): the receipt/tracking link already names this order. Do NOT ask for מספר הזמנה or phone, and do NOT start a fresh identification lookup. If you have not confirmed it yet, ask once whether they mean order ${forwardedWeezmoOrder}. On כן (including היי, כן / כן, ההזמנה האחרונה), lookup_order_status with that id only — never a different newest order on the phone. Not a document-copy request.`
         : "FORWARDED WEEZMO TEMPLATE: automated receipt is order context, not a document copy. Do not open איזה סוג מסמך. If they ask about delivery, confirm the tracking order already in the thread — do not ask for a new order number."
     )
   }
