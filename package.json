@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run test:gold && npm run test:contracts",
+    "prebuild": "npm run test:gold && npm run test:contracts && npm run test:qa-guard && npm run guard:qa-fix:commit",
+    "test:qa-guard": "npx tsx --test lib/hom-agent/__tests__/qa-fix-guard.test.ts",
+    "guard:qa-fix": "npx tsx scripts/guard-qa-fix-diff.ts",
+    "guard:qa-fix:commit": "npx tsx scripts/guard-qa-fix-diff.ts --commit",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

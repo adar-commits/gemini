@@ -1,0 +1,45 @@
+---
+description: Hard bans for QA webhook / לימוד גוקו / conversation-fix automation — enforced by qa-fix-guard
+alwaysApply: true
+---
+
+# QA automation hard bans
+
+Applies to **Cursor Automation webhooks**, **לימוד גוקו**, and any **qa-teach-plan-implement** run.
+
+## Before any code edit
+
+1. Read `.cursor/rules/conversation-fix-playbook.mdc` and `.cursor/rules/structured-vs-llm-routing.mdc`.
+2. Name the fix layer (prompt → hints → tool guard → pending pre-turn → runtime).
+3. If ambiguous Hebrew policy → **AskQuestion**, do not guess.
+
+## Allowed first (preferred)
+
+| Layer | Files |
+|-------|-------|
+| LLM teaching | `lib/hom-agent/prompts/hom-bot.md` |
+| Turn hints | `lib/hom-agent/conversation-hints.ts` |
+| Tool / thread guards | `lib/hom-agent/tools/*.ts`, `lib/agents/order-lookup.ts`, `lib/agents/service-intake.ts` |
+| Pending bind only | `lib/hom-agent/pre-turn.ts` — **existing** helpers only |
+| Lock behavior | `lib/hom-agent/__tests__/`, `lib/agents/__tests__/` |
+
+## Hard bans (guard + playbook)
+
+- **No reply sanitizers** — no new/edited `sanitize*`, no stripping in `validate-reply.ts`.
+- **No new Hebrew intent regex on customer text** — no `/קבלה/`, `/כן.*תודה/` arms in `off-topic.ts`, `digital-document-flow.ts`, `order-lookup.ts`, etc.
+- **No new structured pre-turn arms** — no `runStructured*PreTurn` that re-decides intent from customer wording.
+- **No hijacking flows** — thread-state guards only, not keyword-on-latest-line routing.
+- **No docs the operator did not ask for.**
+
+If the only fix you can imagine violates a ban → reply **`no action`** and explain why teaching is needed — **do not ship a dumb regex fix**.
+
+## Mandatory before commit/push
+
+```bash
+npm run guard:qa-fix
+npm run verify:deploy
+```
+
+`guard:qa-fix:commit` runs on Vercel prebuild — **forbidden patterns block production deploy**.
+
+False alarm (customer wanted rep, bot OK) → **`no action`**, zero diff.

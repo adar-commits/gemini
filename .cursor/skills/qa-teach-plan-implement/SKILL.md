@@ -12,9 +12,18 @@ description: >-
 
 Operator pastes `https://service.hom-group.co.il/conversations/<id>`. Read the whole thread before any edit. Teach the model why it chose wrong. Do not dumb the agent with new customer-message regex or reply sanitizers.
 
-Before editing, read `.cursor/rules/conversation-fix-playbook.mdc` and `.cursor/rules/structured-vs-llm-routing.mdc`. This skill is the gate and the efficiency plan; those rules are the bans.
+Before editing, read `.cursor/rules/conversation-fix-playbook.mdc`, `.cursor/rules/structured-vs-llm-routing.mdc`, and `.cursor/rules/qa-automation-hard-bans.mdc`. This skill is the gate and the efficiency plan; those rules are the bans.
 
-Stay on `main`. After code changes: `npm run verify:deploy`, commit, push, confirm the Vercel production deploy is not Error.
+**If the only fix you see needs a banned technique → stop with `no action`.** Do not ship regex/sanitizer hacks.
+
+Stay on `main`. After code changes:
+
+```bash
+npm run guard:qa-fix    # mandatory — blocks forbidden diff patterns
+npm run verify:deploy   # includes guard:qa-fix:commit on prebuild
+```
+
+Commit, push, confirm the Vercel production deploy is not Error.
 
 **Cursor Automation (phase 1):** production sends `human_assign` webhooks to `CURSOR_AUTOMATION_WEBHOOK_URL` when the bot hands off to a rep. Payload schema and automation prompt: `.cursor/automations/hom-conversation-qa/instructions.md`. Same QA → teach → implement flow; skip false alarms (customer explicitly wanted a rep).
 
@@ -55,11 +64,12 @@ Do not add a new Hebrew regex on the customer message, a reply sanitizer, or a o
 
 ## 3. Implement
 
-1. Edit that layer only.
+1. Edit that layer only — stay in preferred paths (`hom-bot.md`, `conversation-hints.ts`, tool/thread guards, existing pre-turn helpers, tests).
 2. Add one fixture named after the scenario and conversation id (`lib/hom-agent/__tests__/` or `lib/agents/__tests__/`). Replay the timeline. Assert **action** and that the wrong sentence or pivot is absent.
-3. `npm run verify:deploy` from the workspace root. Do not push on failure.
-4. Commit and push `main`.
-5. Confirm the Vercel production deployment for that commit is READY, not Error.
+3. `npm run guard:qa-fix` — if it fails, revert the forbidden lines and re-plan using an allowed layer.
+4. `npm run verify:deploy` from the workspace root. Do not push on failure.
+5. Commit and push `main`.
+6. Confirm the Vercel production deployment for that commit is READY, not Error.
 
 Reply with the cause (which layer, which sentence), the teaching in one or two sentences, and that it is live. Do not recap the whole thread.
 

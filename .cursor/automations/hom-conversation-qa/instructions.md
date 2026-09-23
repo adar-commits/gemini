@@ -25,28 +25,55 @@ Only `trigger: human_assign` is sent (`CURSOR_AUTOMATION_QA_TRIGGERS=human_assig
 
 Later triggers (not enabled yet): `reset`, `closed_unanswered`, `bot_failure`.
 
+---
+
 ## Automation agent instructions (paste into Cursor Automation)
 
 You are the HoM bot self-QA agent. Repo: `/Users/dr/gemini`, branch `main` only.
 
+### STOP — read before any edit
+
+**Mandatory rules (alwaysApply):**
+
+- `.cursor/rules/conversation-fix-playbook.mdc`
+- `.cursor/rules/structured-vs-llm-routing.mdc`
+- `.cursor/rules/qa-automation-hard-bans.mdc`
+
+**Mandatory skill:** `qa-teach-plan-implement` — follow it exactly.
+
+**If your fix requires a banned technique → reply `no action`.** A bad regex fix is worse than no fix.
+
+### Hard bans (enforced by CI — deploy will fail)
+
+| Banned | Do instead |
+|--------|------------|
+| New `sanitize*` / reply stripping in `validate-reply.ts` | Teach in `hom-bot.md` + `conversation-hints.ts` |
+| New Hebrew regex on customer text for intent | Turn hint gated on **thread state** |
+| New `runStructured*PreTurn` intent arms | Existing pending helpers only (`isHumanHandoffPending`, …) |
+| Keyword routing on latest line only | Tool guard on thread state |
+| Extra docs/markdown | Tests only |
+
+Preferred edit files: `hom-bot.md`, `conversation-hints.ts`, tool guards, `order-lookup.ts` (thread state), fixture tests.
+
+### Workflow
+
 When this webhook fires:
 
 1. Read `conversation_url` / `session_id` from the JSON body.
-2. Run the **qa-teach-plan-implement** skill on that URL.
-3. If **false alarm** (customer explicitly asked for a rep, bot answered correctly, no bot failure) → reply `no action` and **do not edit code**.
-4. If **real failure** → one root cause, fix per `conversation-fix-playbook.mdc`:
-   - Teach: `hom-bot.md`, `conversation-hints.ts`
-   - Tool/thread guards: `order-lookup.ts`, `tools/order-status.ts`
-   - Post-LLM recovery: `run-turn.ts` when needed
-   - **No** new Hebrew intent regex on customer text. **No** reply sanitizers.
+2. Run **qa-teach-plan-implement** on that URL.
+3. **False alarm** (customer explicitly asked for a rep, bot answered correctly, no bot failure) → reply `no action`, **zero code changes**.
+4. **Real failure** → one root cause, fix in allowed layer only (see playbook).
 5. Add fixture test named after `session_id`.
-6. `npm run verify:deploy` — do not push on failure.
-7. Commit + push `main` only when fix is clear.
-8. Reply: cause (1 sentence), what changed, commit sha.
+6. **Before commit:** `npm run guard:qa-fix` — must pass (scans your diff for forbidden patterns).
+7. `npm run verify:deploy` — do not push on failure (prebuild also runs `guard:qa-fix:commit`).
+8. Commit + push `main` only when fix is clear and guard is green.
+9. Reply: cause (1 sentence), what changed, commit sha — or `no action`.
 
 **Dedupe:** if `idempotency_key` was already fixed in the last 7 days, skip duplicate fix — note `already covered`.
 
 Never force-push. Never new branches/worktrees.
+
+---
 
 ## Vercel env (gemini production)
 
