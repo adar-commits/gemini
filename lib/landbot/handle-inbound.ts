@@ -111,6 +111,8 @@ export async function handleLandbotInbound(
     turnSummary
   )
 
+  // Sticky last-human on reopen: Landbot reassigns forever; gemini stays silent only while
+  // human assignment/activity flags are active (see lib/landbot/sticky-human-cooperation.ts).
   if (
     replyEnabled &&
     !trainerResetBypass &&

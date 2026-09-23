@@ -73,7 +73,7 @@ export async function executeLookupOrderStatus(input: {
       ok: false as const,
       errorCode: "lookup_misroute",
       error:
-        "SHIPPING ADDRESS UPDATE (532692073): this thread is a request to change the delivery address, not a shipment-status ask. Do NOT call lookup_order_status and do NOT send a בדקתי status card. Answer from shipping-policy KB: updating the address is not always possible — it depends on whether the order was already handed to the courier. After handover there is a cost; WhatsApp 077-9725055 or *3076. Do not ask them to type the new address or an order number. action reply.",
+        "SHIPPING ADDRESS UPDATE (532521979): delivery-address change — not shipment status. Do NOT call lookup_order_status or send a בדקתי card. Ask for מספר הזמנה if missing, acknowledge the new address in your summary, then human_service with a short transfer line. Never primary-path deflect to *3076 or 077-9725055.",
     }
   }
 

@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   buildThanksAckReply,
   buildWarmConversationCloseLine,
+  buildWarmConversationCloseReply,
   endsWithOptionalFollowUpOffer,
 } from "@/lib/agents/conversation-close"
 import { buildReturnCancellationPolicyReply } from "@/lib/agents/policy-subjects"
@@ -38,12 +39,18 @@ describe("warm conversation close (532201347)", () => {
     assert.equal(buildWarmConversationCloseLine(), "שמחתי לעזור היום! 😊")
   })
 
-  it("thanks ack closes with warm line — no follow-up question", () => {
-    const reply = buildThanksAckReply(CUSTOMER)
+  it("resolved-thread close uses warm line — no follow-up question", () => {
+    const reply = buildWarmConversationCloseReply(CUSTOMER)
     assert.match(reply, /Maya, שמחתי לעזור היום/)
     assert.doesNotMatch(reply, /במה עוד/)
     assert.doesNotMatch(reply, /משהו נוסף/)
     assert.equal(endsWithOptionalFollowUpOffer(reply), true)
+  })
+
+  it("unresolved thanks ack stays open without forcing close", () => {
+    const reply = buildThanksAckReply(CUSTOMER)
+    assert.match(reply, /בשמחה/)
+    assert.doesNotMatch(reply, /שמחתי לעזור היום/)
   })
 
   it("pre-turn ends conversation on thanks after resolved answer", () => {

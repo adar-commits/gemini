@@ -180,13 +180,36 @@ async function callOrderWebhook(input: {
   return callPriorityWebhook(input)
 }
 
+const OLD_ORDER_CONFIRM_DAYS = 365
+
+function looksLikePersonName(label: string) {
+  const text = label.trim()
+  if (!text || /סניף|אתר\s+אינטרנט|מחסן|הום/i.test(text)) return false
+  if (/^\d+$/.test(text)) return false
+  const words = text.split(/\s+/).filter(Boolean)
+  if (words.length < 2 || words.length > 4) return false
+  return words.every((word) => /^[א-ת'"-]{2,}$/.test(word))
+}
+
+function formatStoreBranchLabel(raw: string) {
+  const label = raw.trim()
+  if (!label) return "הום"
+  if (/^סניף\s+/i.test(label)) return label
+  if (/אתר\s+אינטרנט/i.test(label)) return "אתר אינטרנט"
+  return `סניף ${label}`
+}
+
 function orderBranchLabel(row: PriorityOrderRow) {
-  return (
-    row.Y_7455_0_ESH?.trim() ||
-    row.LTRN_SELLERNAME?.trim() ||
-    row.ZPIT_DISTERIBRANCH?.trim() ||
-    "הום"
-  )
+  const distributionBranch = row.ZPIT_DISTERIBRANCH?.trim()
+  if (distributionBranch) return formatStoreBranchLabel(distributionBranch)
+
+  const seller =
+    row.Y_7455_0_ESH?.trim() || row.LTRN_SELLERNAME?.trim() || ""
+  if (seller && !looksLikePersonName(seller)) {
+    return formatStoreBranchLabel(seller)
+  }
+
+  return "סניף הום"
 }
 
 function daysSinceOrder(row: PriorityOrderRow) {
@@ -1022,7 +1045,8 @@ export function findOrderByNumber(
 function formatOrderBranchPhrase(branch: string) {
   const label = branch.trim()
   if (/אתר\s+אינטרנט/i.test(label)) return "באתר אינטרנט"
-  if (/^סניף\s+/i.test(label)) return `ב${label.replace(/^סניף\s+/i, "")}`
+  if (/^סניף\s+/i.test(label)) return `ב${label}`
+  if (/^ב/i.test(label)) return label
   return `ב${label}`
 }
 
@@ -1541,7 +1565,8 @@ export function buildOrderConfirmationPrompt(
 ) {
   const price = formatOrderPrice(order.totalPrice)
   const branchPhrase = formatOrderBranchPhrase(order.branchLabel)
-  const daysPhrase = formatDaysAgoPhrase(daysSinceOrder(order.raw))
+  const days = daysSinceOrder(order.raw)
+  const daysPhrase = formatDaysAgoPhrase(days)
   const placedPhrase = daysPhrase ? `, בוצעה ${daysPhrase}` : ""
   const pricePhrase = price ? ` על סך ${price} ש׳׳ח` : ""
   const displayOrder = formatCustomerOrderNumberForThread(
@@ -1550,9 +1575,13 @@ export function buildOrderConfirmationPrompt(
     body,
     order
   )
+  const oldOrderNote =
+    days != null && days > OLD_ORDER_CONFIRM_DAYS
+      ? "\n(הזמנה ישנה — אם זו לא הפנייה הנכונה, כתבו לא.)"
+      : ""
 
   return `${CUSTOMER_HEADER}
-אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${displayOrder})`
+אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${displayOrder})${oldOrderNote}`
 }
 
 export function buildOrderConfirmationClarifyPrompt() {

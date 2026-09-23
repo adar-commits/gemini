@@ -1,9 +1,11 @@
+import type { HistoryMessage } from "@/lib/agents/types"
 import {
   CUSTOMER_HEADER,
   CUSTOMER_NATURAL_CLOSE,
   ORDER_STATUS_HELP_OFFER,
   POLITE_HELP_CLOSE,
 } from "@/lib/agents/types"
+import { hasEmbeddedBusinessAsk } from "@/lib/agents/compound-reply"
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
 
 /** Warm resolution closings — not mandatory questions; silence means thread is done. */
@@ -82,10 +84,34 @@ export function looksLikeThanksTypo(body: string) {
   return /^תו?[דז][הא]?$|^ת[דז]וה$|^טודה$/u.test(core)
 }
 
+/** Thanks plus a new ask — must reach the LLM, never soft-close. */
+export function isThanksWithSubstance(body: string) {
+  const text = body.trim()
+  if (!text || !/תוד(?:ה|ים)/iu.test(text)) return false
+  if (hasEmbeddedBusinessAsk(text)) return true
+  if (/\?/.test(text) && text.length > 12) return true
+  if (/תודה.*(?:גם|רציתי|עוד|שאל|אבל|רק|אם\s+אני)/i.test(text)) return true
+  return false
+}
+
+/** Thread already got a full resolution card — thanks may close. */
+export function isThreadReadyForThanksClose(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isResolvedStatusCloseReply(message.content)) return true
+    if (endsWithOptionalFollowUpOffer(message.content)) return true
+    if (/בדקתי,/i.test(message.content)) return true
+    break
+  }
+  return false
+}
+
 /** Customer closing the thread — not a quiz answer and not "thanks, also I wanted to ask…". */
 export function isConversationClosing(body: string) {
   const text = body.trim()
   if (!text || text.length > 100) return false
+  if (isThanksWithSubstance(text)) return false
   if (hasImmediateBusinessAsk(text)) return false
   if (/תודה.*(?:גם|רציתי|עוד|שאל|אבל|רק)/i.test(text)) return false
   if (/^(?:לא|כן)[,\s]+(?:אבל|רק)/i.test(text)) return false
@@ -128,7 +154,13 @@ ${greeting} הנציג כבר קיבל את הפנייה ויצור קשר בה�
 בשמחה! 🙏 אם תרצו שאעביר לנציג — כתבו כן. יש עוד שאלה? אני כאן.`
   }
 
-  return buildWarmConversationCloseReply(customerName)
+  const name = customerName?.trim()
+  if (name) {
+    return `${CUSTOMER_HEADER}
+${name}, בשמחה! 😊 אם יש עוד משהו — אני כאן.`
+  }
+  return `${CUSTOMER_HEADER}
+בשמחה! 😊 אם יש עוד משהו — אני כאן.`
 }
 
 /** @deprecated Use buildThanksAckReply — kept for callers expecting the old name. */

@@ -34,7 +34,8 @@ describe("shipping address update 532692073", () => {
       history,
     })
     assert.match(hints ?? "", /SHIPPING ADDRESS UPDATE/)
-    assert.match(hints ?? "", /not always possible/)
+    assert.match(hints ?? "", /human_service/)
+    assert.match(hints ?? "", /מספר הזמנה/)
     assert.match(hints ?? "", /Do NOT call lookup_order_status/)
   })
 
@@ -47,7 +48,7 @@ describe("shipping address update 532692073", () => {
     assert.equal(result.ok, false)
     if (result.ok) return
     assert.match(result.error, /SHIPPING ADDRESS UPDATE/)
-    assert.match(result.error, /077-9725055/)
+    assert.match(result.error, /human_service/)
   })
 
   it("skips structured order lookup so the LLM can answer from KB", async () => {

@@ -1,8 +1,15 @@
 import {
+  buildCustomerImageAckReply,
+  shouldAckCustomerImageWithoutVision,
+} from "@/lib/agents/customer-image-turn"
+import {
   buildThanksAckReply,
+  buildWarmConversationCloseReply,
   endsWithOptionalFollowUpOffer,
   isResolvedStatusCloseReply,
+  isThreadReadyForThanksClose,
   isThanksAcknowledgment,
+  isThanksWithSubstance,
 } from "@/lib/agents/conversation-close"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import {
@@ -151,6 +158,23 @@ export function runPreTurnGuards(input: {
     }
   }
 
+  if (
+    shouldAckCustomerImageWithoutVision({
+      turn: input.turn,
+      history: input.history,
+    })
+  ) {
+    return {
+      kind: "handled",
+      reply: buildCustomerImageAckReply(body),
+      action: "reply",
+    }
+  }
+
+  if (isThanksWithSubstance(body)) {
+    return { kind: "skip", response: null }
+  }
+
   if (isWhatsappAutoresponder(body)) {
     return { kind: "handled", reply: "", action: "end" }
   }
@@ -273,10 +297,13 @@ export function runPreTurnGuards(input: {
     !isServiceHandoffSummaryPending(input.history) &&
     !isOrderLookupPhoneReplyPending(input.history)
   ) {
+    const closeThread = isThreadReadyForThanksClose(input.history)
     return {
       kind: "handled",
-      reply: buildThanksAckReply(input.customerName),
-      action: "end",
+      reply: closeThread
+        ? buildWarmConversationCloseReply(input.customerName)
+        : buildThanksAckReply(input.customerName),
+      action: closeThread ? "end" : "reply",
       suppressInactivityWatch: true,
     }
   }

@@ -32,6 +32,8 @@ import {
   isCreditRedemptionQuestion,
   isDefectReplacementStatusQuestion,
   isMissingOrPartialDeliveryComplaint,
+  mentionsExchangeIntent,
+  mentionsReturnIntent,
   isOrderModificationRequest,
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
@@ -195,7 +197,17 @@ export function buildConversationHints(input: {
 
   if (isShippingAddressUpdateThread(history)) {
     lines.push(
-      "SHIPPING ADDRESS UPDATE (532692073): they want to change the delivery address — not shipment status. Answer from shipping-policy KB: an update is not always possible; it depends on whether the order was already handed to the courier. After handover there is a cost — WhatsApp 077-9725055 or *3076. Do NOT call lookup_order_status, do NOT send בדקתי / סטטוס משלוח, do NOT ask for the new address or an order number. action reply — never אעביר with action reply."
+      "SHIPPING ADDRESS UPDATE (532521979): delivery-address change — not shipment status. Ask for מספר הזמנה if missing, acknowledge the new address in your note, then human_service with a short transfer line. Do NOT call lookup_order_status or send בדקתי. Never primary-path deflect to *3076 or 077-9725055."
+    )
+  }
+
+  if (
+    !isReturnPortalSelfServiceThread(history) &&
+    (mentionsReturnIntent(body) || mentionsExchangeIntent(body)) &&
+    /(?:לבטל|ביטול|לעצור|להחליף|החלפ)/i.test(body)
+  ) {
+    lines.push(
+      "CANCEL/EXCHANGE EXECUTION: empathize → ask for מספר הזמנה if missing → rep summary → human_service. Never loop לא הצלחתי להבין — use service intake, not FAQ phone deflect."
     )
   }
 
@@ -753,7 +765,7 @@ export function buildConversationHints(input: {
 
   if (isShippingAddressChangeAsk(body, history) && !isShippingAddressUpdateThread(history)) {
     lines.push(
-      "ADDRESS CHANGE NOT STOCK (529942717): לשנות/להחליף כתובת is a delivery-address change. Never alternate size, never מק״ט, never 'אותו דגם במידה אחרת', never lookup_inventory. Address policy from KB. If they also ask when it arrives, that part is shipment timing — do not turn להחליף into a size exchange. כן to a phone-confirm question confirms the phone."
+      "ADDRESS CHANGE (532521979): לשנות/להחליף כתובת למשלוח — ask מספר הזמנה if missing, include the new address in your summary, then human_service. Never alternate size, never מק״ט, never lookup_inventory. Never primary *3076/077 deflect."
     )
   }
 

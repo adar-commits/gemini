@@ -1764,9 +1764,9 @@ export function isSalesFinalSummaryPending(history: HistoryMessage[]) {
   return isConfirmationPending(history)
 }
 
-export function sanitizeSalesReply(reply: string, history: HistoryMessage[], body: string) {
-  if (!FORBIDDEN_HOUSEHOLD_Q.test(reply)) return reply
-  return buildSalesIntakeReply(history, body)
+/** @deprecated LLM owns sales intake wording — do not whole-reply swap to scripted quiz. */
+export function sanitizeSalesReply(reply: string, _history: HistoryMessage[], _body: string) {
+  return reply
 }
 
 function openingAckPrefix(history: HistoryMessage[], intake: SalesIntake, nextQuestion: string) {

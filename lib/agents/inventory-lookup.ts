@@ -1,4 +1,11 @@
 import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
+import { formatHebrewCustomerDate } from "@/lib/agents/hebrew-date-format"
+import {
+  findStatedSizeInTexts,
+  formatStatedSizeLabel,
+  sizeLabelFromSku,
+  statedSizeMatchesSku,
+} from "@/lib/agents/inventory-size-reconcile"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
@@ -159,6 +166,17 @@ function hasProductUrlInText(text: string) {
 
 function textWithoutProductUrls(text: string) {
   return text.replace(PRODUCT_URL_STRIP_RE, " ").trim()
+}
+
+/** SKU embedded in a product URL slug (e.g. …/products/luna-31503138-200290). */
+export function extractSkuFromProductUrl(text: string): string | null {
+  const urls = text.match(/https?:\/\/(?:www\.)?(?:carpetshop|pozitiveshop)\.co\.il\/products\/[^\s]+/gi)
+  if (!urls) return null
+  for (const url of urls) {
+    const homMatch = url.match(HOM_SKU_RE)
+    if (homMatch?.[1] && isValidInventorySku(homMatch[1])) return homMatch[1]
+  }
+  return null
 }
 
 /** SKU always contains a hyphen (e.g. 40400025-200290). Prefer Hom 8-6 digit format. */
@@ -600,6 +618,16 @@ function extractProductHintFromInventoryQuery(text: string) {
   return product
 }
 
+export function buildInventorySizeMismatchConfirmReply(input: {
+  statedSize: string
+  linkSize: string
+  sku: string
+}) {
+  return `${CUSTOMER_HEADER}
+רשמתם מידה ${input.statedSize}, והקישור מצביע על מידה ${input.linkSize} (מק״ט ${input.sku}).
+איזו מידה לבדוק — ${input.statedSize} או ${input.linkSize}?`
+}
+
 export function buildProductUrlSkuPrompt(productHint?: string | null) {
   const product = productHint?.trim()
   if (product) {
@@ -631,7 +659,8 @@ export function buildInventoryAvailabilityReply(
     ]
     const reqDate = row.preorder?.req_date?.trim()
     if (reqDate) {
-      lines.push(`צפי הגעה: ${reqDate}`)
+      const formatted = formatHebrewCustomerDate(reqDate) ?? reqDate
+      lines.push(`צפי הגעה: ${formatted}`)
     }
     lines.push("", CUSTOMER_NATURAL_CLOSE)
     return `${CUSTOMER_HEADER}\n${lines.join("\n")}`
@@ -750,6 +779,40 @@ function inventoryContextFromRecentMessages(
   return { branch, product }
 }
 
+function resolveInventorySkuWithSizeReconcile(input: {
+  body: string
+  history: HistoryMessage[]
+}) {
+  const contextTexts = recentUserTexts(input.body, input.history, 8)
+  const combined = contextTexts.join("\n")
+  const statedSize = findStatedSizeInTexts(contextTexts)
+  const skuInBody = extractSku(input.body)
+  const skuFromUrl = extractSkuFromProductUrl(combined)
+  const skuFromHistory = extractRecentSku(input.body, input.history)
+  const sku = skuInBody ?? skuFromUrl ?? skuFromHistory
+
+  if (!statedSize || !sku) {
+    return { sku, statedSize, mismatch: false as const }
+  }
+
+  if (statedSizeMatchesSku(statedSize, sku)) {
+    return { sku, statedSize, mismatch: false as const }
+  }
+
+  const linkSize = sizeLabelFromSku(sku)
+  if (!linkSize) {
+    return { sku, statedSize, mismatch: false as const }
+  }
+
+  return {
+    sku,
+    statedSize,
+    mismatch: true as const,
+    linkSize,
+    statedLabel: formatStatedSizeLabel(statedSize),
+  }
+}
+
 export async function resolveBranchInventoryReply(input: {
   body: string
   history?: HistoryMessage[]
@@ -758,7 +821,8 @@ export async function resolveBranchInventoryReply(input: {
   const body = input.body.trim()
   const skuInBody = extractSku(body)
   const recheck = isInventoryRecheckRequest(body) && isActiveInventoryThread(history)
-  const sku = skuInBody ?? (recheck ? null : extractRecentSku(body, history))
+  const reconcile = resolveInventorySkuWithSizeReconcile({ body, history })
+  const sku = reconcile.sku ?? (recheck ? null : extractRecentSku(body, history))
   const { branch, product } = inventoryContextFromRecentMessages(body, history)
   const skuContext = { branch, product }
 
@@ -770,6 +834,14 @@ export async function resolveBranchInventoryReply(input: {
     return buildInventoryColorSalesHandoffReply({
       sku: sku ?? undefined,
       branch,
+    })
+  }
+
+  if (reconcile.mismatch && reconcile.linkSize && reconcile.statedLabel && reconcile.sku) {
+    return buildInventorySizeMismatchConfirmReply({
+      statedSize: reconcile.statedLabel,
+      linkSize: reconcile.linkSize,
+      sku: reconcile.sku,
     })
   }
 
