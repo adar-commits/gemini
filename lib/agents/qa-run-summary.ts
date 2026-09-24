@@ -28,6 +28,16 @@ export function qaRunSolution(run: QaAutomationRunRow) {
   if (run.outcome === "triggered" || run.outcome === "webhook_failed") {
     return "בתהליך review — טרם הוחלט."
   }
+  if (
+    run.phase === "analyze" &&
+    (run.outcome === "chained" || run.outcome === "real_failure") &&
+    run.fix_plan.length
+  ) {
+    return `ממתין ליישום (Composer): ${run.fix_plan[0]}`
+  }
+  if (run.phase === "implement" && run.outcome !== "implemented") {
+    return "יישום רץ — טרם נרשם קומיט."
+  }
   return "—"
 }
 

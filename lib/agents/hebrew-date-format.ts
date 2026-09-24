@@ -51,6 +51,24 @@ export function formatHebrewCustomerDate(iso: string | null | undefined) {
   return `${day}/${month}/${year}`
 }
 
+/** Dashboard / ops UI — Hebrew short date-time in Asia/Jerusalem. */
+export function formatJerusalemDashboardDateTime(iso: string) {
+  const date = parseIsoDate(iso)
+  if (!date) return iso
+  try {
+    return new Intl.DateTimeFormat("he-IL", {
+      timeZone: JERUSALEM_TZ,
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date)
+  } catch {
+    return iso
+  }
+}
+
 /** Customer-facing date/time: dd/mm/yyyy, plus בשעה hh:mm only when time is known. */
 export function formatHebrewCustomerDateTime(iso: string | null | undefined) {
   const datePart = formatHebrewCustomerDate(iso)

@@ -1,11 +1,13 @@
 import Link from "next/link"
 import { qaOutcomeLabel, qaOutcomeTone, qaTriggerLabel } from "@/lib/agents/qa-automation-labels"
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
+import { formatJerusalemDashboardDateTime } from "@/lib/agents/hebrew-date-format"
 import {
   qaRunProblem,
   qaRunRiskLabel,
   qaRunSolution,
 } from "@/lib/agents/qa-run-summary"
+import { qaPhaseLabel } from "@/lib/agents/qa-automation-labels"
 
 const outcomeRing = {
   emerald: "bg-emerald-50 text-emerald-800 ring-emerald-600/15",
@@ -15,19 +17,6 @@ const outcomeRing = {
   sky: "bg-sky-50 text-sky-800 ring-sky-600/15",
   zinc: "bg-zinc-100 text-zinc-700 ring-zinc-200",
 } as const
-
-function formatDate(iso: string) {
-  try {
-    return new Intl.DateTimeFormat("he-IL", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso))
-  } catch {
-    return iso
-  }
-}
 
 export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
   if (!runs.length) {
@@ -56,7 +45,12 @@ export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
               <span className="rounded-md bg-zinc-100 px-2 py-0.5 font-medium text-zinc-600">
                 {qaTriggerLabel(run.trigger)}
               </span>
-              <span className="text-muted-foreground">{formatDate(run.created_at)}</span>
+              <span className="rounded-md bg-zinc-50 px-2 py-0.5 text-zinc-600">
+                {qaPhaseLabel(run.phase)}
+              </span>
+              <span className="text-muted-foreground" title="Asia/Jerusalem">
+                {formatJerusalemDashboardDateTime(run.created_at)}
+              </span>
               <Link
                 href={run.conversation_url}
                 className="font-mono text-[11px] text-sky-700 underline-offset-2 hover:underline"
