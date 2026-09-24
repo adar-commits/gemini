@@ -10,7 +10,9 @@ import {
   cursorAutomationQaImplementAuthToken,
   cursorAutomationQaImplementWebhookUrl,
   postCursorAutomationWebhook,
+  qaEventWindowPayloadFields,
 } from "@/lib/landbot/cursor-automation-qa"
+import type { QaEventWindowReason } from "@/lib/landbot/qa-event-window"
 
 export type ChainQaImplementInput = {
   analysis: QaAnalysis
@@ -46,6 +48,7 @@ export type ChainQaImplementResult =
     }
 
 function defaultSource(analysis: QaAnalysis): CursorAutomationQaPayload {
+  const window = qaEventWindowPayloadFields(null)
   return {
     conversation_url: analysis.conversation_url,
     session_id: analysis.session_id,
@@ -53,6 +56,41 @@ function defaultSource(analysis: QaAnalysis): CursorAutomationQaPayload {
     trigger: analysis.trigger,
     idempotency_key: `${analysis.session_id}:${analysis.trigger}`,
     sent_at: analysis.analyzed_at ?? new Date().toISOString(),
+    event_window_since: window.eventWindowSince,
+    event_window_reason: window.eventWindowReason,
+    event_window_message_count: window.eventWindowMessageCount,
+    total_message_count: window.totalMessageCount,
+  }
+}
+
+function parseEventWindowFields(sourceRow: Record<string, unknown>) {
+  const since =
+    typeof sourceRow.event_window_since === "string"
+      ? sourceRow.event_window_since.trim()
+      : ""
+  const reason = sourceRow.event_window_reason
+  const messageCount = sourceRow.event_window_message_count
+  const totalCount = sourceRow.total_message_count
+
+  if (!since) return qaEventWindowPayloadFields(null)
+
+  return {
+    eventWindowSince: since,
+    eventWindowReason:
+      reason === "trainer_reset" ||
+      reason === "agent_reset" ||
+      reason === "opened_at" ||
+      reason === "tail_fallback"
+        ? (reason as QaEventWindowReason)
+        : ("tail_fallback" as const),
+    eventWindowMessageCount:
+      typeof messageCount === "number" && Number.isFinite(messageCount)
+        ? messageCount
+        : 40,
+    totalMessageCount:
+      typeof totalCount === "number" && Number.isFinite(totalCount)
+        ? totalCount
+        : 0,
   }
 }
 
@@ -139,6 +177,15 @@ export function parseChainQaImplementBody(raw: unknown): ChainQaImplementInput |
           typeof sourceRow.sent_at === "string"
             ? sourceRow.sent_at
             : new Date().toISOString(),
+        ...(() => {
+          const window = parseEventWindowFields(sourceRow)
+          return {
+            event_window_since: window.eventWindowSince,
+            event_window_reason: window.eventWindowReason,
+            event_window_message_count: window.eventWindowMessageCount,
+            total_message_count: window.totalMessageCount,
+          }
+        })(),
         ...(typeof sourceRow.handoff_action === "string"
           ? {
               handoff_action: sourceRow.handoff_action as

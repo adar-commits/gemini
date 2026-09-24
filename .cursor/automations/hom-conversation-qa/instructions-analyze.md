@@ -4,6 +4,8 @@
 
 Repo: `adar-commits/gemini` · branch `main` only.
 
+**Target runtime:** ~1–2 minutes analyze. One QA event = one short incident (~5–40 messages), **not** the lifetime WhatsApp thread.
+
 ## Bootstrap
 
 1. Read `.cursor/rules/conversation-fix-playbook.mdc`, `structured-vs-llm-routing.mdc`, `qa-automation-hard-bans.mdc`.
@@ -11,9 +13,34 @@ Repo: `adar-commits/gemini` · branch `main` only.
 
 ## When webhook POST arrives
 
-Payload includes `conversation_url`, `session_id`, `trigger` (`human_assign` | `bot_failure`), optional `last_user_message` / `last_bot_reply`.
+Payload includes:
 
-1. Read the **full** thread (`npx tsx scripts/read-hom-conversation.ts <session_id>` or Supabase `walklyxhkhrdzbkfhtez`).
+| Field | Meaning |
+|-------|---------|
+| `conversation_url`, `session_id`, `trigger` | Which chat and why QA fired |
+| `last_user_message` / `last_bot_reply` | Handoff turn (start here) |
+| `event_window_since` | **Analyze only messages at/after this ISO time** |
+| `event_window_reason` | `trainer_reset` \| `agent_reset` \| `opened_at` \| `tail_fallback` |
+| `event_window_message_count` | Messages in scope (~5–40) |
+| `total_message_count` | Lifetime thread size — **ignore for analysis** |
+
+### Step 1 — Read the **event window only** (mandatory)
+
+```bash
+npx tsx scripts/read-hom-conversation.ts <session_id> --event-window
+```
+
+Or filter manually: Supabase `messages` where `session_id = …` AND `sent_at >= event_window_since`.
+
+**Hard rules:**
+
+- **Never** load the full thread when `total_message_count > 100`.
+- **Never** scan months of trainer history — the bug is in the last handoff window.
+- Read `last_user_message` / `last_bot_reply` first, then the window timeline + shadow logs for that window only.
+- If `event_window_message_count > 80`, analyze the **last 40 messages** in the window plus shadow for the failing turn.
+
+### Step 2 — Save source + decide verdict
+
 2. Save the inbound POST body to `.cursor/qa-queue/<session_id>.source.json`.
 3. Decide verdict — write `root_cause` and `fix_plan` in **easy Hebrew** (short sentences, no jargon). Dashboard labels are הבעיה / הפתרון.
 
@@ -71,7 +98,7 @@ npx tsx scripts/log-qa-run.ts --phase analyze --session <session_id> --trigger <
 
 Use `--outcome chained` only when chaining to implement. Include `--fix-layer` and `--fix-plan "bullet one|bullet two"` when chaining.
 
-6. Reply in chat: verdict + one-sentence cause + risk score.
+6. Reply in chat: verdict + one-sentence cause + risk score. Mention `event_window_message_count` vs `total_message_count` if the thread is large.
 
 7. If approved for implement — chain via **gemini production** (implement tokens live on Vercel only):
 
@@ -102,3 +129,4 @@ Otherwise stop — **no code edits on analyze.**
 - No edits to `hom-bot.md`, hints, tools, tests
 - No “while I'm here” refactors
 - No gender / semantics / tone rewrites in fix plans
+- **No full-thread reads** on WhatsApp mega-threads (use `event_window_since`)

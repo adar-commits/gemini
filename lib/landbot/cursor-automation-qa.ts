@@ -3,6 +3,10 @@ import {
   type QaAutomationRunRow,
 } from "@/lib/agents/qa-automation-log"
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
+import {
+  resolveQaEventWindow,
+  type QaEventWindowReason,
+} from "@/lib/landbot/qa-event-window"
 
 export type CursorAutomationQaTrigger =
   | "human_assign"
@@ -19,6 +23,11 @@ export type CursorAutomationQaPayload = {
   handoff_action?: "human_service" | "human_sales"
   last_user_message?: string
   last_bot_reply?: string
+  /** ISO timestamp — analyze ONLY messages at/after this time (not lifetime thread). */
+  event_window_since: string
+  event_window_reason: QaEventWindowReason
+  event_window_message_count: number
+  total_message_count: number
   idempotency_key: string
   phone_last4?: string | null
   sent_at: string
@@ -166,6 +175,20 @@ export function phoneLastFour(phone?: string | null) {
   return digits.slice(-4)
 }
 
+export function qaEventWindowPayloadFields(window?: {
+  since: string
+  reason: QaEventWindowReason
+  eventWindowMessageCount: number
+  totalMessageCount: number
+} | null) {
+  return {
+    eventWindowSince: window?.since ?? new Date().toISOString(),
+    eventWindowReason: window?.reason ?? ("tail_fallback" as const),
+    eventWindowMessageCount: window?.eventWindowMessageCount ?? 40,
+    totalMessageCount: window?.totalMessageCount ?? 0,
+  }
+}
+
 export function buildCursorAutomationQaPayload(input: {
   sessionId: string
   landbotCustomerId?: string | null
@@ -175,6 +198,10 @@ export function buildCursorAutomationQaPayload(input: {
   lastBotReply?: string
   phone?: string | null
   idempotencyKey?: string
+  eventWindowSince: string
+  eventWindowReason: QaEventWindowReason
+  eventWindowMessageCount: number
+  totalMessageCount: number
 }): CursorAutomationQaPayload {
   const sessionId = input.sessionId.trim()
   return {
@@ -189,6 +216,10 @@ export function buildCursorAutomationQaPayload(input: {
     ...(input.lastBotReply?.trim()
       ? { last_bot_reply: input.lastBotReply.trim().slice(0, 800) }
       : {}),
+    event_window_since: input.eventWindowSince,
+    event_window_reason: input.eventWindowReason,
+    event_window_message_count: input.eventWindowMessageCount,
+    total_message_count: input.totalMessageCount,
     idempotency_key:
       input.idempotencyKey ?? `${sessionId}:${input.trigger}`,
     phone_last4: phoneLastFour(input.phone),
@@ -262,6 +293,18 @@ export async function executeCursorAutomationQa(
       : input.trigger === "manual"
         ? buildManualQaIdempotencyKey(sessionId)
         : undefined)
+
+  let eventWindow
+  try {
+    eventWindow = await resolveQaEventWindow(sessionId)
+  } catch (windowError) {
+    console.warn("[cursor-automation-qa] event window lookup failed", {
+      sessionId,
+      error:
+        windowError instanceof Error ? windowError.message : windowError,
+    })
+  }
+
   const payload = buildCursorAutomationQaPayload({
     sessionId,
     landbotCustomerId:
@@ -272,6 +315,7 @@ export async function executeCursorAutomationQa(
     lastBotReply: input.lastBotReply,
     phone: input.phone,
     idempotencyKey,
+    ...qaEventWindowPayloadFields(eventWindow ?? null),
   })
 
   const webhook = await postCursorAutomationQaAnalyzeWebhook(payload)

@@ -17,7 +17,9 @@ import {
   cursorAutomationQaImplementAuthToken,
   cursorAutomationQaImplementWebhookUrl,
   postCursorAutomationWebhook,
+  qaEventWindowPayloadFields,
 } from "../lib/landbot/cursor-automation-qa"
+import { resolveQaEventWindow } from "../lib/landbot/qa-event-window"
 import {
   buildImplementWebhookPayload,
   parseQaAnalysis,
@@ -70,6 +72,8 @@ async function postAnalyze(input: { scenario: Scenario; sessionId: string }) {
   const ts = Date.now()
   const sessionId = input.sessionId
 
+  const eventWindow = await resolveQaEventWindow(sessionId).catch(() => null)
+
   const payload = buildCursorAutomationQaPayload({
     sessionId,
     landbotCustomerId: sessionId,
@@ -85,6 +89,7 @@ async function postAnalyze(input: { scenario: Scenario; sessionId: string }) {
         : "האם זו ההזמנה שביקשת?",
     phone: "+972525368636",
     idempotencyKey: `e2e-${input.scenario}-${sessionId}-${ts}`,
+    ...qaEventWindowPayloadFields(eventWindow),
   })
 
   const url = cursorAutomationQaAnalyzeWebhookUrl()
@@ -146,10 +151,13 @@ async function postImplementDryRun(sessionId: string) {
     process.exit(1)
   }
 
+  const eventWindow = await resolveQaEventWindow(sessionId).catch(() => null)
+
   const source = buildCursorAutomationQaPayload({
     sessionId,
     trigger: "human_assign",
     idempotencyKey: `e2e-implement-dry-${sessionId}-${Date.now()}`,
+    ...qaEventWindowPayloadFields(eventWindow),
   })
 
   const body = buildImplementWebhookPayload({ source, analysis })

@@ -1,10 +1,13 @@
 /**
  * Print one HoM CRM thread for QA. Argument is the id from
  * https://service.hom-group.co.il/conversations/<id>
+ *
+ * Default for QA automations: --event-window (current incident only, not lifetime thread).
  */
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { getAgentSupabase } from "@/lib/agents/supabase"
+import { resolveQaEventWindow } from "@/lib/landbot/qa-event-window"
 
 function loadEnvFile(name: string) {
   try {
@@ -45,11 +48,43 @@ if (!process.env.AGENT_SUPABASE_URL || !process.env.AGENT_SUPABASE_SERVICE_ROLE_
   process.exit(1)
 }
 
-const rawId = process.argv[2]?.trim() ?? ""
-const id = rawId.replace(/[^\dA-Za-z_-]/g, "")
-if (!id) {
-  console.error("Usage: npx tsx scripts/read-hom-conversation.ts <conversation-id>")
-  process.exit(1)
+type ReadMode =
+  | { kind: "all"; since?: undefined }
+  | { kind: "event_window" }
+  | { kind: "since"; since: string }
+
+function parseArgs(argv: string[]) {
+  const id = (argv[0]?.trim() ?? "").replace(/[^\dA-Za-z_-]/g, "")
+  if (!id) {
+    console.error(
+      "Usage: npx tsx scripts/read-hom-conversation.ts <conversation-id> [--event-window|--since-opened|--since-reset|--since=ISO]"
+    )
+    process.exit(1)
+  }
+
+  let mode: ReadMode = { kind: "event_window" }
+  for (const arg of argv.slice(1)) {
+    if (arg === "--event-window") {
+      mode = { kind: "event_window" }
+      continue
+    }
+    if (arg === "--since-opened" || arg === "--since-reset") {
+      mode = { kind: "since", since: arg }
+      continue
+    }
+    if (arg.startsWith("--since=")) {
+      mode = { kind: "since", since: arg.slice("--since=".length).trim() }
+      continue
+    }
+    if (arg === "--full-thread") {
+      mode = { kind: "all" }
+      continue
+    }
+    console.error(`Unknown flag: ${arg}`)
+    process.exit(1)
+  }
+
+  return { id, mode }
 }
 
 function clip(value: unknown, max = 700) {
@@ -58,12 +93,44 @@ function clip(value: unknown, max = 700) {
   return `${text.slice(0, max)}…`
 }
 
+async function resolveSince(id: string, mode: ReadMode) {
+  if (mode.kind === "all") return null
+
+  if (mode.kind === "since" && mode.since !== "--since-opened" && mode.since !== "--since-reset") {
+    return mode.since
+  }
+
+  const supabase = getAgentSupabase()
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("session_id, opened_at")
+    .or(`landbot_customer_id.eq.${id},session_id.eq.${id},conversation_ref.eq.${id}`)
+    .order("last_message_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (mode.kind === "since" && mode.since === "--since-opened") {
+    return conversation?.opened_at ?? null
+  }
+
+  const window = await resolveQaEventWindow(id)
+  if (mode.kind === "since" && mode.since === "--since-reset") {
+    if (window?.reason === "trainer_reset" || window?.reason === "agent_reset") {
+      return window.since
+    }
+    return window?.since ?? null
+  }
+
+  return window?.since ?? null
+}
+
 async function main() {
+  const { id, mode } = parseArgs(process.argv.slice(2))
   const supabase = getAgentSupabase()
   const { data: conversations, error: conversationError } = await supabase
     .from("conversations")
     .select(
-      "session_id, landbot_customer_id, conversation_ref, department, inquiry_type, closed_at, assigned_agent_code, assigned_at"
+      "session_id, landbot_customer_id, conversation_ref, department, inquiry_type, closed_at, assigned_agent_code, assigned_at, opened_at, message_count"
     )
     .or(
       `landbot_customer_id.eq.${id},session_id.eq.${id},conversation_ref.eq.${id}`
@@ -86,31 +153,68 @@ async function main() {
     )
   )
 
+  const eventWindow =
+    mode.kind === "event_window" ? await resolveQaEventWindow(id) : null
+  const since =
+    mode.kind === "event_window"
+      ? eventWindow?.since ?? null
+      : await resolveSince(id, mode)
+
   console.log("CRM")
   console.log(JSON.stringify(conversation, null, 2))
 
-  const { data: messages, error: messageError } = await supabase
+  if (eventWindow) {
+    console.log("\nEVENT WINDOW (analyze this scope only)")
+    console.log(
+      JSON.stringify(
+        {
+          since: eventWindow.since,
+          reason: eventWindow.reason,
+          event_window_message_count: eventWindow.eventWindowMessageCount,
+          total_message_count: eventWindow.totalMessageCount,
+        },
+        null,
+        2
+      )
+    )
+  } else if (since) {
+    console.log("\nFILTER")
+    console.log(JSON.stringify({ since }, null, 2))
+  } else if (mode.kind !== "all") {
+    console.log("\nFILTER")
+    console.log(JSON.stringify({ warning: "no window boundary — showing last 80 messages" }, null, 2))
+  }
+
+  let messageQuery = supabase
     .from("messages")
     .select("sent_at, direction, sender_type, body")
     .in("session_id", sessionIds)
     .not("body", "is", null)
     .order("sent_at", { ascending: true })
-    .limit(80)
 
+  if (since) messageQuery = messageQuery.gte("sent_at", since)
+  else if (mode.kind !== "all") messageQuery = messageQuery.limit(80)
+
+  const { data: messages, error: messageError } = await messageQuery
   if (messageError) throw messageError
+
   console.log("\nTIMELINE")
   for (const row of messages ?? []) {
     const who = row.direction === "incoming" || row.sender_type === "customer" ? "customer" : "bot"
     console.log(`[${row.sent_at}] ${who}: ${clip(row.body)}`)
   }
 
-  const { data: agentTurns, error: agentError } = await supabase
+  const agentSince = since ?? undefined
+  let agentQuery = supabase
     .from("hom_agent_messages")
     .select("created_at, role, action, agent, content")
     .in("conversation_id", sessionIds)
     .order("created_at", { ascending: true })
     .limit(40)
 
+  if (agentSince) agentQuery = agentQuery.gte("created_at", agentSince)
+
+  const { data: agentTurns, error: agentError } = await agentQuery
   if (agentError) throw agentError
   if (agentTurns?.length) {
     console.log("\nAGENT TURNS")
@@ -121,13 +225,16 @@ async function main() {
     }
   }
 
-  const { data: shadow, error: shadowError } = await supabase
+  let shadowQuery = supabase
     .from("hom_agent_shadow_logs")
     .select("created_at, action, llm_calls, routing_path, fallback_layer, user_text, draft_reply")
     .in("conversation_id", sessionIds)
     .order("created_at", { ascending: true })
     .limit(20)
 
+  if (agentSince) shadowQuery = shadowQuery.gte("created_at", agentSince)
+
+  const { data: shadow, error: shadowError } = await shadowQuery
   if (shadowError) throw shadowError
   if (shadow?.length) {
     console.log("\nSHADOW")

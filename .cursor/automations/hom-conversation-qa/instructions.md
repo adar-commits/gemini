@@ -106,6 +106,8 @@ Trainer `לימוד גוקו` → same analyze webhook (test).
 
 ## Source webhook payload
 
+Production sends an **event window** so analyze reads ~5–40 messages, not the lifetime WhatsApp thread.
+
 ```json
 {
   "conversation_url": "https://service.hom-group.co.il/conversations/{session_id}",
@@ -115,11 +117,17 @@ Trainer `לימוד גוקו` → same analyze webhook (test).
   "handoff_action": "human_service",
   "last_user_message": "...",
   "last_bot_reply": "...",
+  "event_window_since": "2026-09-24T20:17:50.000Z",
+  "event_window_reason": "trainer_reset",
+  "event_window_message_count": 24,
+  "total_message_count": 2197,
   "idempotency_key": "508272038:human_assign",
   "phone_last4": "8636",
   "sent_at": "2026-09-23T..."
 }
 ```
+
+`total_message_count` is informational only — Grok must analyze messages **since `event_window_since`** (newest of: last `איפוס`, agent `reset_at`, CRM `opened_at`).
 
 Implement webhook adds `"phase": "implement"` and `"analysis": { ... }` — see `analysis-schema.json`.
 

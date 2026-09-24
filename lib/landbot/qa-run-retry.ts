@@ -13,8 +13,10 @@ import {
   buildCursorAutomationQaPayload,
   cursorAutomationQaAnalyzeWebhookUrl,
   postCursorAutomationQaAnalyzeWebhook,
+  qaEventWindowPayloadFields,
   type CursorAutomationQaTrigger,
 } from "@/lib/landbot/cursor-automation-qa"
+import { resolveQaEventWindow } from "@/lib/landbot/qa-event-window"
 
 export type QaRunRetryTarget = "analyze" | "implement"
 
@@ -104,11 +106,14 @@ async function retryAnalyze(run: QaAutomationRunRow) {
     return { ok: false as const, error: "invalid_trigger" }
   }
 
+  const eventWindow = await resolveQaEventWindow(run.session_id).catch(() => null)
+
   const payload = buildCursorAutomationQaPayload({
     sessionId: run.session_id,
     landbotCustomerId: run.landbot_customer_id,
     trigger: run.trigger,
     idempotencyKey: retryIdempotencyKey(run),
+    ...qaEventWindowPayloadFields(eventWindow),
   })
 
   const result = await postCursorAutomationQaAnalyzeWebhook(payload)
@@ -142,11 +147,14 @@ async function retryImplement(run: QaAutomationRunRow) {
     return { ok: false as const, error: "missing_analysis_for_implement" }
   }
 
+  const eventWindow = await resolveQaEventWindow(run.session_id).catch(() => null)
+
   const source = buildCursorAutomationQaPayload({
     sessionId: run.session_id,
     landbotCustomerId: run.landbot_customer_id,
     trigger: run.trigger as CursorAutomationQaTrigger,
     idempotencyKey: retryIdempotencyKey(run),
+    ...qaEventWindowPayloadFields(eventWindow),
   })
 
   const result = await chainQaImplement({ analysis, source })

@@ -46,7 +46,7 @@ describe("cursor automation qa webhook", () => {
     assert.equal(shouldNotifyCursorAutomationQa("reset"), false)
   })
 
-  it("builds webhook payload with idempotency key", () => {
+  it("builds webhook payload with idempotency key and event window", () => {
     const payload = buildCursorAutomationQaPayload({
       sessionId: "508272038",
       landbotCustomerId: "508054404",
@@ -55,6 +55,10 @@ describe("cursor automation qa webhook", () => {
       lastUserMessage: "כן תודה",
       lastBotReply: "מעולה, העברתי את השיחה לנציג שירות",
       phone: "+972525368636",
+      eventWindowSince: "2026-09-24T20:17:50.000Z",
+      eventWindowReason: "trainer_reset",
+      eventWindowMessageCount: 24,
+      totalMessageCount: 2197,
     })
     assert.equal(payload.session_id, "508272038")
     assert.equal(payload.landbot_customer_id, "508054404")
@@ -62,6 +66,10 @@ describe("cursor automation qa webhook", () => {
     assert.equal(payload.handoff_action, "human_service")
     assert.equal(payload.idempotency_key, "508272038:human_assign")
     assert.equal(payload.phone_last4, "8636")
+    assert.equal(payload.event_window_since, "2026-09-24T20:17:50.000Z")
+    assert.equal(payload.event_window_reason, "trainer_reset")
+    assert.equal(payload.event_window_message_count, 24)
+    assert.equal(payload.total_message_count, 2197)
     assert.match(payload.conversation_url, /508272038/)
   })
 
