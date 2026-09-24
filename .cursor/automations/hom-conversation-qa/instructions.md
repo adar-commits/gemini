@@ -75,13 +75,16 @@ npx tsx scripts/verify-qa-automation-env.ts
 npx tsx scripts/e2e-verify-qa-automations.ts --session 532360395
 ```
 
-## Analyze automation secrets (Grok chaining)
+## Automation secrets
 
-Grok chains implement through **gemini production** — only one secret needed in the Analyze automation:
+Both automations need the same secret for dashboard logging / chaining:
 
 ```
 CRON_SECRET=<same as Vercel production CRON_SECRET>
 ```
+
+- **Analyze (Grok):** chains implement through gemini production proxy (step 7 in `instructions-analyze.md`).
+- **Implement (Composer):** `log-qa-automation-commit.ts` POSTs to `/api/agents/qa-runs` — without `CRON_SECRET`, fixes land in git but dashboard stays "בתהליך Review".
 
 Verify Vercel has implement vars (already required for the proxy):
 

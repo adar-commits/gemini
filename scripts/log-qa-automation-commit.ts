@@ -1,5 +1,6 @@
 /**
  * Append a plain-language row after QA implement push (for operator briefings).
+ * Also POSTs to production /api/agents/qa-runs when CRON_SECRET is set.
  *
  * Usage:
  *   npx tsx scripts/log-qa-automation-commit.ts \
@@ -9,6 +10,7 @@
  */
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { buildHomServiceConversationUrl } from "../lib/landbot/cursor-automation-qa"
 
 const ROOT = join(process.cwd(), ".cursor/automations/hom-conversation-qa")
 const LOG_PATH = join(ROOT, "commit-log.jsonl")
@@ -31,7 +33,80 @@ function arg(name: string) {
   return idx >= 0 ? process.argv[idx + 1]?.trim() : ""
 }
 
-function main() {
+function loadEnvFile(relativePath: string) {
+  const path = join(process.cwd(), relativePath)
+  try {
+    for (const line of readFileSync(path, "utf8").split("\n")) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#")) continue
+      const eq = trimmed.indexOf("=")
+      if (eq <= 0) continue
+      const key = trimmed.slice(0, eq)
+      if (process.env[key]?.trim()) continue
+      let value = trimmed.slice(eq + 1)
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1)
+      }
+      if (value) process.env[key] = value
+    }
+  } catch {
+    // optional env files
+  }
+}
+
+async function syncDashboard(row: LogRow) {
+  const secret = process.env.CRON_SECRET?.trim()
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+  const origin =
+    process.env.GEMINI_API_ORIGIN?.trim() ||
+    (productionHost
+      ? `https://${productionHost.replace(/^https?:\/\//, "")}`
+      : "https://gemini-xi-one-77.vercel.app")
+
+  if (!secret) {
+    console.warn(
+      "[log-qa-automation-commit] CRON_SECRET missing — dashboard not updated (add to Implement automation secrets)"
+    )
+    return { ok: false as const, reason: "missing_cron_secret" as const }
+  }
+
+  const conversationUrl = buildHomServiceConversationUrl(row.session_id)
+  const response = await fetch(`${origin}/api/agents/qa-runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      session_id: row.session_id,
+      conversation_url: conversationUrl,
+      trigger: row.trigger,
+      phase: "implement",
+      outcome: "implemented",
+      root_cause: row.cause,
+      commit_sha: row.sha,
+      changed_files: row.files,
+      idempotency_key: `${row.session_id}:implemented:${row.sha}`,
+    }),
+  })
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "")
+    console.warn(
+      `[log-qa-automation-commit] dashboard sync failed: HTTP ${response.status}${detail ? ` — ${detail.slice(0, 200)}` : ""}`
+    )
+    return { ok: false as const, reason: "dashboard_http_failed" as const, status: response.status }
+  }
+
+  return { ok: true as const }
+}
+
+async function main() {
+  loadEnvFile(".env.production.local")
+  loadEnvFile(".env.local")
   const sha = arg("--sha")
   const sessionId = arg("--session")
   const trigger = arg("--trigger")
@@ -82,7 +157,11 @@ function main() {
   }
 
   writeFileSync(BRIEF_PATH, brief, "utf8")
-  console.log(JSON.stringify({ ok: true, sha, brief: BRIEF_PATH }, null, 2))
+  const dashboard = await syncDashboard(row)
+  console.log(JSON.stringify({ ok: true, sha, brief: BRIEF_PATH, dashboard }, null, 2))
 }
 
-main()
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error)
+  process.exit(1)
+})

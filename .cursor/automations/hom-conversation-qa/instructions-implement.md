@@ -30,15 +30,18 @@ Re-read the chat only to **execute** `fix_plan` — do not override Grok unless 
 4. `npm run guard:qa-fix` — must pass.
 5. `npm run verify:deploy` — must pass.
 6. Commit + push `main`.
-7. Log to dashboard (required):
+7. Log to dashboard + BRIEF (required — needs `CRON_SECRET` in this automation's secrets):
 
 ```bash
-npx tsx scripts/log-qa-run.ts --phase implement --session "<session_id>" --trigger "<trigger>" \
-  --outcome implemented --risk <1-10 from analysis> \
-  --cause "<analysis.root_cause>" --sha "$(git rev-parse HEAD)" \
-  --files "hom-bot.md,conversation-hints.ts" \
-  --idempotency-key "<implement idempotency from webhook>"
+npx tsx scripts/log-qa-automation-commit.ts \
+  --sha "$(git rev-parse HEAD)" \
+  --session "<session_id>" \
+  --trigger "<trigger>" \
+  --cause "<one Hebrew sentence from analysis.root_cause>" \
+  --files "hom-bot.md,conversation-hints.ts"
 ```
+
+Secret: `CRON_SECRET` = same value as Vercel production. Without it, git commit succeeds but `/dashboard/qa` stays stuck on "נשלח ליישום".
 
 8. Reply: cause (1 sentence), files touched, commit sha, link `/dashboard/qa`.
 

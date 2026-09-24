@@ -2,7 +2,9 @@ import { NextResponse } from "next/server"
 import {
   insertQaAutomationRun,
   type InsertQaAutomationRunInput,
+  type QaAutomationOutcome,
 } from "@/lib/agents/qa-automation-log"
+import { getAgentSupabase } from "@/lib/agents/supabase"
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET?.trim()
@@ -88,6 +90,29 @@ export async function POST(request: Request) {
 
   try {
     const row = await insertQaAutomationRun(input)
+    if (input.phase === "implement" && input.outcome === "implemented") {
+      const supabase = getAgentSupabase()
+      const staleOutcomes: QaAutomationOutcome[] = [
+        "chained",
+        "real_failure",
+        "webhook_failed",
+        "triggered",
+      ]
+      await supabase
+        .from("hom_agent_qa_runs")
+        .update({
+          outcome: "implemented",
+          phase: "implement",
+          commit_sha: input.commitSha?.trim() || row.commit_sha,
+          changed_files: input.changedFiles?.length ? input.changedFiles : row.changed_files,
+          updated_at: new Date().toISOString(),
+          operator_notes: input.commitSha
+            ? `יושם בקומיט ${input.commitSha.trim().slice(0, 7)}`
+            : "יושם",
+        })
+        .eq("session_id", input.sessionId.trim())
+        .in("outcome", staleOutcomes)
+    }
     return NextResponse.json({ ok: true, id: row.id })
   } catch (error) {
     return NextResponse.json(
