@@ -54,14 +54,25 @@ Expect HTTP **200** (or agent-start), **not** 400 with `github-adar`.
 
 ## Vercel env (gemini production)
 
+**Analyze and Implement are two different Cursor automations** — copy each webhook URL from its own automation page. Using the Implement URL for both will 401 the Analyze token.
+
 ```
 CURSOR_AUTOMATION_QA_ENABLED=1
 CURSOR_AUTOMATION_QA_TRIGGERS=human_assign,bot_failure
-CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/fe797bbf-b811-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_ANALYZE_TOKEN=crsr_...   # Generate auth header on Analyze automation
-CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/fe797bbf-b811-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/80ca4069-b812-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on Implement automation
+CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/<ANALYZE-GROK-UUID>
+CURSOR_AUTOMATION_QA_ANALYZE_TOKEN=crsr_...   # Generate auth header on **HoM QA Analyze** (Grok) automation
+CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/<ANALYZE-GROK-UUID>
+CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/389581e6-b824-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on **Goku Training | Implementer (Composer)**
+```
+
+Current Implement automation (verified 2026-09-24): `Goku Training | Implementer (Composer)` → `389581e6-b824-11f1-977f-f6b8f2fcf9b2`.
+
+Verify locally before/after Vercel edit:
+
+```bash
+npx tsx scripts/verify-qa-automation-env.ts
+npx tsx scripts/e2e-verify-qa-automations.ts --session 532360395
 ```
 
 ## Analyze automation secrets (Grok chaining)
