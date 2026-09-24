@@ -3,6 +3,7 @@ import { qaOutcomeLabel, qaOutcomeTone, qaTriggerLabel } from "@/lib/agents/qa-a
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
 import { formatJerusalemDashboardDateTime } from "@/lib/agents/hebrew-date-format"
 import {
+  qaRunConversationUrl,
   qaRunProblem,
   qaRunRiskLabel,
   qaRunSolution,
@@ -55,13 +56,16 @@ export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
                   {formatJerusalemDashboardDateTime(run.created_at)}
                 </span>
                 <Link
-                  href={run.conversation_url}
-                  className="font-mono text-[11px] text-sky-700 underline-offset-2 hover:underline"
+                  href={qaRunConversationUrl(run)}
+                  className="text-sky-700 underline-offset-2 hover:underline"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  #{run.session_id}
+                  פתח שיחה
                 </Link>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  #{run.session_id}
+                </span>
                 {run.commit_sha ? (
                   <span className="font-mono text-[11px] text-muted-foreground">
                     {run.commit_sha.slice(0, 7)}

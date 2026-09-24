@@ -15,7 +15,7 @@ Payload includes `conversation_url`, `session_id`, `trigger` (`human_assign` | `
 
 1. Read the **full** thread (`npx tsx scripts/read-hom-conversation.ts <session_id>` or Supabase `walklyxhkhrdzbkfhtez`).
 2. Save the inbound POST body to `.cursor/qa-queue/<session_id>.source.json`.
-3. Decide verdict — use **plain language** in `root_cause`.
+3. Decide verdict — write `root_cause` and `fix_plan` in **easy Hebrew** (short sentences, no jargon). Dashboard labels are הבעיה / הפתרון.
 
 ### Verdicts
 
@@ -50,10 +50,10 @@ Example:
   "trigger": "bot_failure",
   "verdict": "real_failure",
   "confidence": "high",
-  "root_cause": "Bot sent never-stuck though receipt order was already in thread",
+  "root_cause": "הבוט שלח 'לא הצלחתי להבין' למרות שמספר ההזמנה מהקבלה כבר היה בשיחה.",
   "fix_layer": "hints",
   "fix_plan": [
-    "Add thread-state hint when receipt orderID present and customer confirmed כן"
+    "להוסיף hint לפי מצב השיחה כשיש orderID מהקבלה והלקוח אישר כן"
   ],
   "analyzed_at": "2026-09-24T07:00:00.000Z"
 }
@@ -65,7 +65,7 @@ Example:
 npx tsx scripts/log-qa-run.ts --phase analyze --session <session_id> --trigger <trigger> \
   --outcome <false_alarm|ask_operator|too_risky|already_covered|chained|no_action> \
   --verdict <verdict> --confidence <high|medium|low> --risk <1-10> \
-  --cause "<plain English root cause>" \
+  --cause "<easy Hebrew root cause — same text as root_cause>" \
   --idempotency-key "<from webhook payload>"
 ```
 

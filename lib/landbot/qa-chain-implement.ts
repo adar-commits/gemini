@@ -216,7 +216,7 @@ export async function chainQaImplement(
     analysis,
     source,
     outcome: "chained",
-    operatorNotes: "Implement webhook accepted — Composer run started.",
+    operatorNotes: "נשלח ליישום — Composer מריץ את התיקון עכשיו.",
     idempotencyKey: source.idempotency_key,
   })
 

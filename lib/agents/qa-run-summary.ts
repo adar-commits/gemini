@@ -1,7 +1,59 @@
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
+import { buildHomServiceConversationUrl } from "@/lib/landbot/cursor-automation-qa"
+
+function hasHebrew(text: string) {
+  return /[\u0590-\u05FF]/.test(text)
+}
+
+const OPERATOR_NOTES_HE: Record<string, string> = {
+  "Implement webhook accepted — Composer run started.":
+    "נשלח ליישום — Composer מריץ את התיקון עכשיו.",
+  "Reverted via qa:vanish": "בוטל ב-revert (qa:vanish)",
+}
+
+function localizeOperatorNotes(notes: string) {
+  const trimmed = notes.trim()
+  return OPERATOR_NOTES_HE[trimmed] ?? trimmed
+}
+
+function isSystemOperatorNote(notes: string) {
+  const trimmed = notes.trim()
+  if (!trimmed || trimmed.startsWith("HTTP")) return true
+  if (/^Implement webhook (accepted|failed)/i.test(trimmed)) return true
+  return trimmed in OPERATOR_NOTES_HE
+}
+
+/** Known English Grok summaries → easy Hebrew for the dashboard. */
+function hebrewFallbackProblem(cause: string) {
+  const lower = cause.toLowerCase()
+  if (lower.includes("return") && lower.includes("sales advisor")) {
+    return (
+      "הלקוח בחר החזרה ואמר כן לנציג כי קוד ההחזרה לא הגיע. " +
+      "הבוט אישר העברה — אבל במקום שירות הועבר למכירות, כי נסרקה אזכור ישנה של יועץ מכירות מהשיחה."
+    )
+  }
+  if (lower.includes("exchange") && lower.includes("service") && lower.includes("sales")) {
+    return (
+      "אחרי בחירת החלפה ואישור הזמנה, הבוט המשיך לזרימת שירות במקום לשאול סוג החלפה ולהעביר למכירות."
+    )
+  }
+  if (lower.includes("never-stuck") || lower.includes("never stuck")) {
+    return "הבוט שלח 'לא הצלחתי להבין' במקום להמשיך את הזרימה לפי מה שכבר ידוע בשיחה."
+  }
+  return cause
+}
+
+export function qaRunConversationUrl(run: QaAutomationRunRow) {
+  const url = run.conversation_url?.trim()
+  if (url && url.includes("service.hom-group.co.il")) return url
+  return buildHomServiceConversationUrl(run.session_id)
+}
 
 export function qaRunProblem(run: QaAutomationRunRow) {
-  if (run.root_cause?.trim()) return run.root_cause.trim()
+  if (run.root_cause?.trim()) {
+    const cause = run.root_cause.trim()
+    return hasHebrew(cause) ? cause : hebrewFallbackProblem(cause)
+  }
   if (run.trigger === "human_assign") {
     return "הלקוח/ה הועבר/ה לנציג — נדרש אימות אם זו העברה תקינה או כשל."
   }
@@ -12,10 +64,21 @@ export function qaRunProblem(run: QaAutomationRunRow) {
 }
 
 export function qaRunSolution(run: QaAutomationRunRow) {
-  if (run.operator_notes?.trim() && !run.operator_notes.startsWith("HTTP")) {
-    return run.operator_notes.trim()
+  if (
+    (run.outcome === "chained" || run.outcome === "real_failure") &&
+    run.fix_plan[0]?.trim()
+  ) {
+    const plan = run.fix_plan[0].trim()
+    return hasHebrew(plan) ? plan : `תיקון מתוכנן: ${plan}`
   }
-  if (run.fix_plan[0]?.trim()) return run.fix_plan[0].trim()
+
+  if (run.operator_notes?.trim()) {
+    const notes = run.operator_notes.trim()
+    if (!isSystemOperatorNote(notes)) {
+      return localizeOperatorNotes(notes)
+    }
+  }
+
   if (run.outcome === "implemented" && run.commit_sha) {
     return `תוקן בקומיט ${run.commit_sha.slice(0, 7)}`
   }
@@ -28,12 +91,8 @@ export function qaRunSolution(run: QaAutomationRunRow) {
   if (run.outcome === "triggered" || run.outcome === "webhook_failed") {
     return "בתהליך review — טרם הוחלט."
   }
-  if (
-    run.phase === "analyze" &&
-    (run.outcome === "chained" || run.outcome === "real_failure") &&
-    run.fix_plan.length
-  ) {
-    return `ממתין ליישום (Composer): ${run.fix_plan[0]}`
+  if (run.outcome === "chained") {
+    return "נשלח ליישום — Composer מריץ את התיקון עכשיו."
   }
   if (run.phase === "implement" && run.outcome !== "implemented") {
     return "יישום רץ — טרם נרשם קומיט."
