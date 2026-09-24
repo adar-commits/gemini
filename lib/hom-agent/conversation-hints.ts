@@ -22,6 +22,7 @@ import {
   isPreorderEtaSharedInThread,
   isPostOrderShippingFollowUp,
   isOrderStatusDeliveredInThread,
+  historyHasOrderPickExhaustedRecheck,
   isPhoneLookupConfirmPending,
   orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
@@ -777,6 +778,17 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "SHIPPING / PICKUP STATUS: customer asked when an order arrives or branch pickup — NOT a document copy request (even if they said זה הקבלה with a receipt ref). On phone confirm (כן / זה המספר / כן!!) call lookup_order_status with channel phone immediately — never repeat phone confirm or ask document type."
+    )
+  }
+
+  if (
+    isPhoneLookupConfirmPending(history) &&
+    historyHasOrderPickExhaustedRecheck(history) &&
+    pendingOrderNumberFromHistory(history)
+  ) {
+    const pending = pendingOrderNumberFromHistory(history)
+    lines.push(
+      `PHONE RECHECK + ORDER CARD (532360395): after all order cards were rejected you re-asked whether the lookup phone is correct. The last order card (${pending}) is still the candidate — if the customer confirms that card (כן/נכון/זה ההזמנה, even with a side FAQ like other sizes), call lookup_order_status now and answer the open delivery question first. A side product/size question does not cancel the confirm. Never empty reply, never "לא הצלחתי להבין".`
     )
   }
 
