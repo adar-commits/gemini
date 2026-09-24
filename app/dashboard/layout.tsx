@@ -28,6 +28,12 @@ export default function DashboardLayout({
             >
               אמינות
             </Link>
+            <Link
+              href="/dashboard/qa"
+              className="rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground"
+            >
+              QA
+            </Link>
           </nav>
           <span className="hidden text-xs text-muted-foreground sm:block">
             HoM · בקרת שיחות

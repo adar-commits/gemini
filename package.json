@@ -9,6 +9,7 @@
     "guard:qa-fix": "npx tsx scripts/guard-qa-fix-diff.ts",
     "guard:qa-fix:commit": "npx tsx scripts/guard-qa-fix-diff.ts --commit",
     "qa:vanish": "npx tsx scripts/vanish-qa-commit.ts",
+    "qa:log": "npx tsx scripts/log-qa-run.ts",
     "qa:chain-implement": "npx tsx scripts/chain-qa-implement-webhook.ts",
     "build": "next build",
     "start": "next start",

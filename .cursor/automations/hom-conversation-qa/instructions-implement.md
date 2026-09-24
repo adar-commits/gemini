@@ -30,18 +30,17 @@ Re-read the chat only to **execute** `fix_plan` — do not override Grok unless 
 4. `npm run guard:qa-fix` — must pass.
 5. `npm run verify:deploy` — must pass.
 6. Commit + push `main`.
-7. Log for operator briefing:
+7. Log to dashboard (required):
 
 ```bash
-npx tsx scripts/log-qa-automation-commit.ts \
-  --sha "$(git rev-parse HEAD)" \
-  --session "<session_id>" \
-  --trigger "<trigger>" \
-  --cause "<analysis.root_cause in plain English>" \
-  --files "hom-bot.md,conversation-hints.ts"
+npx tsx scripts/log-qa-run.ts --phase implement --session "<session_id>" --trigger "<trigger>" \
+  --outcome implemented --risk <1-10 from analysis> \
+  --cause "<analysis.root_cause>" --sha "$(git rev-parse HEAD)" \
+  --files "hom-bot.md,conversation-hints.ts" \
+  --idempotency-key "<implement idempotency from webhook>"
 ```
 
-8. Reply: cause (1 sentence), files touched, commit sha, link to `BRIEF.md`.
+8. Reply: cause (1 sentence), files touched, commit sha, link `/dashboard/qa`.
 
 ## Hard stops (no commit)
 

@@ -59,9 +59,21 @@ Example:
 }
 ```
 
-5. Reply in chat: verdict + one-sentence cause.
+5. Log to dashboard (required):
 
-6. If approved for implement:
+```bash
+npx tsx scripts/log-qa-run.ts --phase analyze --session <session_id> --trigger <trigger> \
+  --outcome <false_alarm|ask_operator|too_risky|already_covered|chained|no_action> \
+  --verdict <verdict> --confidence <high|medium|low> --risk <1-10> \
+  --cause "<plain English root cause>" \
+  --idempotency-key "<from webhook payload>"
+```
+
+Use `--outcome chained` only when chaining to implement. Include `--fix-layer` and `--fix-plan "bullet one|bullet two"` when chaining.
+
+6. Reply in chat: verdict + one-sentence cause + risk score.
+
+7. If approved for implement:
 
 ```bash
 export CURSOR_AUTOMATION_QA_IMPLEMENT_URL='https://api2.cursor.sh/automations/webhook/YOUR-IMPLEMENT-ID'

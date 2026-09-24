@@ -9,6 +9,7 @@
     "trigger",
     "verdict",
     "confidence",
+    "risk_score",
     "root_cause"
   ],
   "properties": {
@@ -27,6 +28,7 @@
       ]
     },
     "confidence": { "enum": ["high", "medium", "low"] },
+    "risk_score": { "type": "integer", "minimum": 1, "maximum": 10 },
     "root_cause": { "type": "string" },
     "fix_layer": {
       "enum": ["prompt", "hints", "tool_guard", "pre_turn", "runtime"]
