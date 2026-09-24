@@ -19,11 +19,38 @@ gemini handoff / never-stuck
 
 ## Repo binding (Cursor automations)
 
-- Repository: **`adar-commits/gemini`** from the GitHub dropdown (PAT) — **not** a local folder path.
-- Branch: **`main`**
-- Instructions say `Repo: adar-commits/gemini` — never `/Users/dr/gemini`.
-- Local clone remote must be `git@github.com:adar-commits/gemini.git` (not `github-adar` SSH alias).
-- If webhooks return `github-adar/adar-commits/gemini`, **delete and recreate** both automations after fixing remote.
+**Root cause of `github-adar/adar-commits/gemini` 400:** Cursor stores the SSH host from automation creation. If the automation was created from the **Cursor IDE** while the local clone used `git@github-adar:...` or `core.sshCommand` with the adar key, Cursor canonicalizes to `github-adar` forever — re-saving settings does not fix it.
+
+### Local clone (this Mac)
+
+```bash
+git remote set-url origin https://github.com/adar-commits/gemini.git
+git config --unset core.sshCommand   # if set — Cursor maps adar key → github-adar host
+```
+
+- **Do not** use `git@github-adar:...` as remote (Cursor treats it as GitHub Enterprise).
+- **Do not** set `core.sshCommand` on repos bound to Cursor automations/cloud agents.
+- First HTTPS push: enter an **adar-commits** PAT when prompted (stored in macOS Keychain).
+
+### Create automations (browser only — not IDE)
+
+1. Open **https://cursor.com/automations** in Safari/Chrome — **not** Cursor’s Automations panel.
+2. **Delete** both existing HoM QA automations (they have stale `github-adar` metadata).
+3. **New automation** → Repository: pick **`adar-commits/gemini`** from the GitHub PAT dropdown.
+4. Branch: **`main`**
+5. Paste instructions from `instructions-analyze.md` / `instructions-implement.md` (`Repo: adar-commits/gemini` — never `/Users/dr/gemini`).
+6. **Quit Cursor completely** (Cmd+Q), reopen, then test webhook — must **not** mention `github-adar`.
+
+### Verify before enabling in Vercel
+
+```bash
+curl -s -X POST "$ANALYZE_URL" \
+  -H "Authorization: Bearer $ANALYZE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"test":true,"session_id":"508272038","trigger":"human_assign","idempotency_key":"verify-'$(date +%s)'"}'
+```
+
+Expect HTTP **200** (or agent-start), **not** 400 with `github-adar`.
 
 ## Vercel env (gemini production)
 
