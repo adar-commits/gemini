@@ -245,10 +245,11 @@ export function buildConversationHints(input: {
   }
 
   const serviceFlowActive =
-    isServiceHandoffSummaryPending(history) ||
-    isServiceOrderIdentificationFlow(history, body) ||
-    isReturnPickupAwaitingThread(history, body) ||
-    isPostPurchaseServiceFlow(history)
+    !isExchangeIntakeActive(history) &&
+    (isServiceHandoffSummaryPending(history) ||
+      isServiceOrderIdentificationFlow(history, body) ||
+      isReturnPickupAwaitingThread(history, body) ||
+      isPostPurchaseServiceFlow(history))
 
   if (serviceFlowActive && !salesIntakeActive) {
     lines.push(
@@ -488,23 +489,35 @@ export function buildConversationHints(input: {
   }
 
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
-    if (isOrderConfirmationYes(body)) {
-      lines.push(
-        "ORDER CONFIRM YES: כן/נכון/אוקיי confirms the pending order card — call lookup_order_status immediately with the bound order/phone. Never never-stuck on this turn."
-      )
-    }
-    if (kbSelfServiceFaqThisTurn) {
-      lines.push(
-        "ORDER CONFIRM + KB FAQ: customer confirmed (or is confirming) the order card AND asks policy (fees/eligibility/care) — answer from KB first. Trailing כן/כן כן binds to the FAQ answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
-      )
-    } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
-      lines.push(
-        "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → אז מסכם את הפנייה (rep bullets) → אני צודק? → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
-      )
+    if (isExchangeIntakeActive(history)) {
+      if (isOrderConfirmationYes(body)) {
+        lines.push(
+          "EXCHANGE ORDER CONFIRM YES (530876768): order card confirmed during exchange intake — ask ONE A/B/C exchange-kind question now (action reply). Do NOT call lookup_order_status again. Do NOT service rep summary or human_service — stay on החלפה → create_switch_request → human_sales."
+        )
+      } else {
+        lines.push(
+          "EXCHANGE ORDER CONFIRM PENDING: bind short confirmations or corrections to the pending order card during exchange intake — call lookup_order_status only if they give a different order/phone. No service summary, no shipping status."
+        )
+      }
     } else {
-      lines.push(
-        "Order/shipment lookup in progress — bind short confirmations or corrections semantically to the pending lookup, not a new topic. Never repeat the order card."
-      )
+      if (isOrderConfirmationYes(body)) {
+        lines.push(
+          "ORDER CONFIRM YES: כן/נכון/אוקיי confirms the pending order card — call lookup_order_status immediately with the bound order/phone. Never never-stuck on this turn."
+        )
+      }
+      if (kbSelfServiceFaqThisTurn) {
+        lines.push(
+          "ORDER CONFIRM + KB FAQ: customer confirmed (or is confirming) the order card AND asks policy (fees/eligibility/care) — answer from KB first. Trailing כן/כן כן binds to the FAQ answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
+        )
+      } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
+        lines.push(
+          "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → אז מסכם את הפנייה (rep bullets) → אני צודק? → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
+        )
+      } else {
+        lines.push(
+          "Order/shipment lookup in progress — bind short confirmations or corrections semantically to the pending lookup, not a new topic. Never repeat the order card."
+        )
+      }
     }
   }
 
@@ -844,7 +857,10 @@ export function buildConversationHints(input: {
       lines.push(
         "ORDER RECEIPT SCREENSHOT (vision on): read SO… / #36805 / IN… / RC… or a phone number from the image, then call lookup_order_status with that value — order identification, not fetch_digital_document. Never restart document-type menu."
       )
-    } else if (isServicePhotoAnalysisContext(history, body) || isServiceOrderIdentificationFlow(history, body)) {
+    } else if (
+      !isExchangeIntakeActive(history) &&
+      (isServicePhotoAnalysisContext(history, body) || isServiceOrderIdentificationFlow(history, body))
+    ) {
       lines.push(
         "SERVICE PHOTO VISION (vision on): briefly note visible damage/concern the customer reported — never pre-judge liability (no 'פגם מלכתחילה'). Continue service intake → rep summary → human_service when ready."
       )
