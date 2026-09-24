@@ -59,9 +59,9 @@ Expect HTTP **200** (or agent-start), **not** 400 with `github-adar`.
 ```
 CURSOR_AUTOMATION_QA_ENABLED=1
 CURSOR_AUTOMATION_QA_TRIGGERS=human_assign,bot_failure
-CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/<ANALYZE-GROK-UUID>
+CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/03c21147-b824-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_ANALYZE_TOKEN=crsr_...   # Generate auth header on **HoM QA Analyze** (Grok) automation
-CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/<ANALYZE-GROK-UUID>
+CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/03c21147-b824-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/389581e6-b824-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on **Goku Training | Implementer (Composer)**
 ```
