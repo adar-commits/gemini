@@ -201,10 +201,34 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
   return mapRow(data as Record<string, unknown>)
 }
 
+export type QaDashboardBucket =
+  | "all"
+  | "in_review"
+  | "dismissed"
+  | "implemented"
+  | "too_risky"
+
+const QA_BUCKET_OUTCOMES: Record<
+  Exclude<QaDashboardBucket, "all">,
+  QaAutomationOutcome[]
+> = {
+  in_review: [
+    "triggered",
+    "webhook_failed",
+    "chained",
+    "real_failure",
+    "ask_operator",
+  ],
+  dismissed: ["false_alarm", "ignored"],
+  implemented: ["implemented"],
+  too_risky: ["too_risky"],
+}
+
 export async function listQaAutomationRuns(input?: {
   limit?: number
   offset?: number
   outcome?: string
+  bucket?: QaDashboardBucket
   phase?: QaAutomationPhase
   days?: number
 }) {
@@ -221,6 +245,9 @@ export async function listQaAutomationRuns(input?: {
     .range(offset, offset + limit - 1)
 
   if (input?.outcome) query = query.eq("outcome", input.outcome)
+  if (input?.bucket && input.bucket !== "all") {
+    query = query.in("outcome", QA_BUCKET_OUTCOMES[input.bucket])
+  }
   if (input?.phase) query = query.eq("phase", input.phase)
 
   const { data, error, count } = await query
@@ -243,34 +270,22 @@ export async function getQaAutomationStats(days = 7) {
   if (error) throw error
 
   const rows = data ?? []
-  const triggered = rows.filter((row) => row.outcome === "triggered").length
-  const webhookFailed = rows.filter((row) => row.outcome === "webhook_failed").length
+  const inReview = rows.filter((row) =>
+    QA_BUCKET_OUTCOMES.in_review.includes(row.outcome as QaAutomationOutcome)
+  ).length
+  const dismissed = rows.filter((row) =>
+    QA_BUCKET_OUTCOMES.dismissed.includes(row.outcome as QaAutomationOutcome)
+  ).length
   const implemented = rows.filter((row) => row.outcome === "implemented").length
-  const falseAlarms = rows.filter((row) => row.outcome === "false_alarm").length
-  const askOperator = rows.filter((row) => row.outcome === "ask_operator").length
   const tooRisky = rows.filter((row) => row.outcome === "too_risky").length
-  const chained = rows.filter((row) => row.outcome === "chained").length
-  const riskScores = rows
-    .map((row) => (typeof row.risk_score === "number" ? row.risk_score : null))
-    .filter((score): score is number => score != null)
-  const avgRisk =
-    riskScores.length > 0
-      ? Math.round(
-          (riskScores.reduce((sum, score) => sum + score, 0) / riskScores.length) * 10
-        ) / 10
-      : null
 
   return {
     days,
     total: rows.length,
-    triggered,
-    webhookFailed,
+    inReview,
+    dismissed,
     implemented,
-    falseAlarms,
-    askOperator,
     tooRisky,
-    chained,
-    avgRisk,
   }
 }
 

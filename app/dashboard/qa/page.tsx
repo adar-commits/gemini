@@ -4,29 +4,28 @@ import { QaStatsBar } from "@/components/qa/qa-stats-bar"
 import {
   getQaAutomationStats,
   listQaAutomationRuns,
+  type QaDashboardBucket,
 } from "@/lib/agents/qa-automation-log"
 
 export const dynamic = "force-dynamic"
 
-const OUTCOMES = [
-  { id: "", label: "הכל" },
-  { id: "triggered", label: "נשלח לניתוח" },
-  { id: "implemented", label: "יושם" },
-  { id: "false_alarm", label: "אזעקת שווא" },
-  { id: "chained", label: "נשלח ליישום" },
-  { id: "webhook_failed", label: "Webhook נכשל" },
-  { id: "ask_operator", label: "ממתין למפעיל" },
-  { id: "too_risky", label: "מסוכן" },
-  { id: "no_action", label: "ללא פעולה" },
-  { id: "vanished", label: "בוטל" },
-] as const
+const BUCKETS: { id: QaDashboardBucket; label: string }[] = [
+  { id: "all", label: "הכל" },
+  { id: "in_review", label: "בתהליך Review" },
+  { id: "dismissed", label: "אזעקות שווא / התעלמות" },
+  { id: "implemented", label: "תיקונים שבוצעו" },
+  { id: "too_risky", label: "מסוכן מדי" },
+]
 
 export default async function QaDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ outcome?: string; page?: string }>
+  searchParams: Promise<{ bucket?: string; page?: string }>
 }) {
-  const { outcome: outcomeFilter, page: pageParam } = await searchParams
+  const { bucket: bucketParam, page: pageParam } = await searchParams
+  const bucket = (BUCKETS.some((item) => item.id === bucketParam)
+    ? bucketParam
+    : "all") as QaDashboardBucket
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1)
   const limit = 30
   const offset = (page - 1) * limit
@@ -41,7 +40,7 @@ export default async function QaDashboardPage({
       listQaAutomationRuns({
         limit,
         offset,
-        outcome: outcomeFilter?.trim() || undefined,
+        bucket,
         days: 30,
       }),
       getQaAutomationStats(7),
@@ -67,31 +66,25 @@ export default async function QaDashboardPage({
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-5 py-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            QA Automation
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            מעקב אחר ניתוח Grok ויישום Composer — יושם / התעלמות / אזעקת שווא / סיכון
-          </p>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          revert: <code className="rounded bg-zinc-100 px-1">npm run qa:vanish -- &lt;sha&gt;</code>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">QA Automation</h1>
+        <p className="text-sm text-muted-foreground">
+          סיכום בעיה / פתרון / סיכון — auto-fix אלא אם מסוכן מדי (8+)
         </p>
       </header>
 
       {stats ? <QaStatsBar stats={stats} /> : null}
 
       <nav className="flex flex-wrap gap-2">
-        {OUTCOMES.map((item) => {
-          const active = (outcomeFilter ?? "") === item.id
-          const href = item.id
-            ? `/dashboard/qa?outcome=${encodeURIComponent(item.id)}`
-            : "/dashboard/qa"
+        {BUCKETS.map((item) => {
+          const active = bucket === item.id
+          const href =
+            item.id === "all"
+              ? "/dashboard/qa"
+              : `/dashboard/qa?bucket=${encodeURIComponent(item.id)}`
           return (
             <Link
-              key={item.id || "all"}
+              key={item.id}
               href={href}
               className={
                 active
@@ -111,7 +104,7 @@ export default async function QaDashboardPage({
         <div className="flex items-center justify-center gap-3 text-sm">
           {page > 1 ? (
             <Link
-              href={`/dashboard/qa?page=${page - 1}${outcomeFilter ? `&outcome=${outcomeFilter}` : ""}`}
+              href={`/dashboard/qa?page=${page - 1}${bucket !== "all" ? `&bucket=${bucket}` : ""}`}
               className="text-sky-700 hover:underline"
             >
               ← הקודם
@@ -122,7 +115,7 @@ export default async function QaDashboardPage({
           </span>
           {page < totalPages ? (
             <Link
-              href={`/dashboard/qa?page=${page + 1}${outcomeFilter ? `&outcome=${outcomeFilter}` : ""}`}
+              href={`/dashboard/qa?page=${page + 1}${bucket !== "all" ? `&bucket=${bucket}` : ""}`}
               className="text-sky-700 hover:underline"
             >
               הבא →

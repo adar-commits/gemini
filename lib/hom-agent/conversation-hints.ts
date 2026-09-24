@@ -8,6 +8,7 @@ import {
   isKnownOrderConfirmPending,
   isOrderConfirmationNo,
   isOrderConfirmationPending,
+  isOrderConfirmationYes,
   pendingOrderNumberFromHistory,
   isOrderDeliveryStatusQuestion,
   isOrderLookupPhoneReplyPending,
@@ -26,6 +27,7 @@ import {
   isServiceOrderIdentificationFlow,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
+import { customerExplicitlyRequestsHuman } from "@/lib/agents/kb-self-service-faq"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
   classifyPostPurchaseCase,
@@ -137,6 +139,7 @@ import {
   isInactivityPingPending,
 } from "@/lib/agents/inactivity"
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
+import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import {
   hasDeclarativeHandoffTransfer,
   inferHumanHandoffAction,
@@ -474,7 +477,22 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    customerExplicitlyRequestsHuman(body) &&
+    !isHumanHandoffPending(history) &&
+    !isPostHumanHandoff(null, history)
+  ) {
+    lines.push(
+      "EXPLICIT REP REQUEST: customer asks for a human (נציג / מענה אנושי / לא בוט) — set action human_service or human_sales NOW in the same JSON. Never never-stuck fallback on this turn."
+    )
+  }
+
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
+    if (isOrderConfirmationYes(body)) {
+      lines.push(
+        "ORDER CONFIRM YES: כן/נכון/אוקיי confirms the pending order card — call lookup_order_status immediately with the bound order/phone. Never never-stuck on this turn."
+      )
+    }
     if (kbSelfServiceFaqThisTurn) {
       lines.push(
         "ORDER CONFIRM + KB FAQ: customer confirmed (or is confirming) the order card AND asks policy (fees/eligibility/care) — answer from KB first. Trailing כן/כן כן binds to the FAQ answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
