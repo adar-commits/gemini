@@ -23,6 +23,7 @@ gemini handoff / never-stuck
 CURSOR_AUTOMATION_QA_ENABLED=1
 CURSOR_AUTOMATION_QA_TRIGGERS=human_assign,bot_failure
 CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/YOUR-ANALYZE-ID
+CURSOR_AUTOMATION_QA_ANALYZE_TOKEN=crsr_...   # Generate auth header on Analyze automation
 CURSOR_AUTOMATION_WEBHOOK_URL=...   # legacy alias for analyze URL
 ```
 
@@ -30,6 +31,7 @@ CURSOR_AUTOMATION_WEBHOOK_URL=...   # legacy alias for analyze URL
 
 ```
 CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/YOUR-IMPLEMENT-ID
+CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on Implement automation
 ```
 
 ## Triggers

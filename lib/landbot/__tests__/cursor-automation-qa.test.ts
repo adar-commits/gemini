@@ -3,7 +3,9 @@ import { describe, it, beforeEach, afterEach } from "node:test"
 import {
   buildBotFailureIdempotencyKey,
   buildCursorAutomationQaPayload,
+  buildCursorAutomationWebhookHeaders,
   buildHomServiceConversationUrl,
+  cursorAutomationQaAnalyzeAuthToken,
   cursorAutomationQaAnalyzeWebhookUrl,
   cursorAutomationQaEnabled,
   cursorAutomationQaTriggers,
@@ -83,6 +85,21 @@ describe("cursor automation qa webhook", () => {
   it("masks phone to last four digits", () => {
     assert.equal(phoneLastFour("0525368636"), "8636")
     assert.equal(phoneLastFour(null), null)
+  })
+
+  it("builds Authorization header from analyze token env", () => {
+    process.env.CURSOR_AUTOMATION_QA_ANALYZE_TOKEN =
+      "crsr_test_analyze_token"
+    assert.equal(
+      cursorAutomationQaAnalyzeAuthToken(),
+      "crsr_test_analyze_token"
+    )
+    assert.equal(
+      buildCursorAutomationWebhookHeaders("Bearer crsr_test_analyze_token")
+        .Authorization,
+      "Bearer crsr_test_analyze_token"
+    )
+    delete process.env.CURSOR_AUTOMATION_QA_ANALYZE_TOKEN
   })
 
   it("builds per-turn bot_failure idempotency keys", () => {

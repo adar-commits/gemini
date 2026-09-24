@@ -47,6 +47,67 @@ export function cursorAutomationQaImplementWebhookUrl() {
   return process.env.CURSOR_AUTOMATION_QA_IMPLEMENT_URL?.trim() || ""
 }
 
+/** Bearer token for analyze webhook (Cursor → Generate auth header). */
+export function cursorAutomationQaAnalyzeAuthToken() {
+  const raw =
+    process.env.CURSOR_AUTOMATION_QA_ANALYZE_TOKEN?.trim() ||
+    process.env.CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN?.trim() ||
+    ""
+  return raw.replace(/^Bearer\s+/i, "")
+}
+
+/** Bearer token for implement webhook. */
+export function cursorAutomationQaImplementAuthToken() {
+  const raw = process.env.CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN?.trim() || ""
+  return raw.replace(/^Bearer\s+/i, "")
+}
+
+export function buildCursorAutomationWebhookHeaders(token?: string | null) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  const normalized = token?.trim().replace(/^Bearer\s+/i, "")
+  if (normalized) headers.Authorization = `Bearer ${normalized}`
+  return headers
+}
+
+export async function postCursorAutomationWebhook(input: {
+  url: string
+  token?: string | null
+  body: unknown
+  timeoutMs?: number
+}) {
+  if (!input.url.trim()) {
+    return { ok: false as const, reason: "missing_webhook_url" as const }
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), input.timeoutMs ?? 8_000)
+  try {
+    const response = await fetch(input.url, {
+      method: "POST",
+      headers: buildCursorAutomationWebhookHeaders(input.token),
+      body: JSON.stringify(input.body),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      let detail = ""
+      try {
+        detail = (await response.text()).slice(0, 300)
+      } catch {
+        // ignore
+      }
+      return {
+        ok: false as const,
+        reason: "http_error" as const,
+        status: response.status,
+        detail: detail || undefined,
+      }
+    }
+    return { ok: true as const }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 /** Default: human handoff + never-stuck bot failure. Comma list, e.g. human_assign,bot_failure */
 export function cursorAutomationQaTriggers(): Set<CursorAutomationQaTrigger> {
   const raw = process.env.CURSOR_AUTOMATION_QA_TRIGGERS?.trim()
@@ -127,30 +188,12 @@ export function shouldNotifyCursorAutomationQa(
   return cursorAutomationQaEnabled() && cursorAutomationQaTriggers().has(trigger)
 }
 
-async function postCursorAutomationWebhook(payload: CursorAutomationQaPayload) {
-  const url = cursorAutomationQaAnalyzeWebhookUrl()
-  if (!url) return { ok: false as const, reason: "missing_webhook_url" as const }
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8_000)
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-    if (!response.ok) {
-      return {
-        ok: false as const,
-        reason: "http_error" as const,
-        status: response.status,
-      }
-    }
-    return { ok: true as const }
-  } finally {
-    clearTimeout(timeout)
-  }
+async function postAnalyzeWebhook(payload: CursorAutomationQaPayload) {
+  return postCursorAutomationWebhook({
+    url: cursorAutomationQaAnalyzeWebhookUrl(),
+    token: cursorAutomationQaAnalyzeAuthToken(),
+    body: payload,
+  })
 }
 
 /**
@@ -188,7 +231,7 @@ export function scheduleCursorAutomationQa(input: {
         idempotencyKey,
       })
 
-      const result = await postCursorAutomationWebhook(payload)
+      const result = await postAnalyzeWebhook(payload)
 
       try {
         await insertQaAutomationRun({
@@ -206,7 +249,7 @@ export function scheduleCursorAutomationQa(input: {
             result.ok
               ? null
               : "status" in result
-                ? `HTTP ${result.status}`
+                ? `HTTP ${result.status}${result.detail ? `: ${result.detail}` : ""}`
                 : result.reason,
         })
       } catch (logError) {

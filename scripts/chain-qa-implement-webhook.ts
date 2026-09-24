@@ -12,7 +12,11 @@ import {
   shouldChainQaImplement,
 } from "../lib/hom-agent/qa-analysis"
 import type { CursorAutomationQaPayload } from "../lib/landbot/cursor-automation-qa"
-import { cursorAutomationQaImplementWebhookUrl } from "../lib/landbot/cursor-automation-qa"
+import {
+  cursorAutomationQaImplementAuthToken,
+  cursorAutomationQaImplementWebhookUrl,
+  postCursorAutomationWebhook,
+} from "../lib/landbot/cursor-automation-qa"
 
 function readJson(path: string) {
   return JSON.parse(readFileSync(path, "utf8")) as unknown
@@ -74,13 +78,19 @@ async function main() {
 
   const payload = buildImplementWebhookPayload({ source, analysis })
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+  const result = await postCursorAutomationWebhook({
+    url,
+    token: cursorAutomationQaImplementAuthToken(),
+    body: payload,
   })
-  if (!response.ok) {
-    console.error(`Implement webhook failed: HTTP ${response.status}`)
+  if (!result.ok) {
+    console.error(
+      `Implement webhook failed: ${
+        "status" in result
+          ? `HTTP ${result.status}${result.detail ? ` — ${result.detail}` : ""}`
+          : result.reason
+      }`
+    )
     process.exit(1)
   }
   console.log(
