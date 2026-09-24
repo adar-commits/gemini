@@ -13,6 +13,8 @@ export function QaStatsBar({
   stats: {
     days: number
     total: number
+    triggered: number
+    webhookFailed: number
     implemented: number
     falseAlarms: number
     askOperator: number
@@ -23,6 +25,7 @@ export function QaStatsBar({
 }) {
   const cards = [
     { label: `אירועים (${stats.days} ימים)`, value: String(stats.total) },
+    { label: "נשלחו ל-Grok", value: String(stats.triggered) },
     { label: "יושמו", value: String(stats.implemented) },
     { label: "אזעקות שווא", value: String(stats.falseAlarms) },
     { label: "ממתין למפעיל", value: String(stats.askOperator) },

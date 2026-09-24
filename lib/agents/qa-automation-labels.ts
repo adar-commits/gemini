@@ -2,6 +2,8 @@ import type { QaAutomationOutcome, QaAutomationPhase } from "@/lib/agents/qa-aut
 
 export function qaOutcomeLabel(outcome: QaAutomationOutcome) {
   const labels: Record<QaAutomationOutcome, string> = {
+    triggered: "נשלח לניתוח",
+    webhook_failed: "Webhook נכשל",
     false_alarm: "אזעקת שווא",
     real_failure: "כשל אמיתי",
     ask_operator: "ממתין למפעיל",
@@ -25,9 +27,12 @@ export function qaOutcomeTone(outcome: QaAutomationOutcome) {
     case "already_covered":
     case "no_action":
       return "zinc"
+    case "triggered":
     case "chained":
     case "real_failure":
       return "sky"
+    case "webhook_failed":
+      return "rose"
     case "ask_operator":
       return "amber"
     case "too_risky":

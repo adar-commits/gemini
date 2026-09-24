@@ -10,9 +10,11 @@ export const dynamic = "force-dynamic"
 
 const OUTCOMES = [
   { id: "", label: "הכל" },
+  { id: "triggered", label: "נשלח לניתוח" },
   { id: "implemented", label: "יושם" },
   { id: "false_alarm", label: "אזעקת שווא" },
   { id: "chained", label: "נשלח ליישום" },
+  { id: "webhook_failed", label: "Webhook נכשל" },
   { id: "ask_operator", label: "ממתין למפעיל" },
   { id: "too_risky", label: "מסוכן" },
   { id: "no_action", label: "ללא פעולה" },

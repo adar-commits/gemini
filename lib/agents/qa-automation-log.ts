@@ -3,6 +3,8 @@ import { getAgentSupabase } from "@/lib/agents/supabase"
 export type QaAutomationPhase = "analyze" | "implement"
 
 export type QaAutomationOutcome =
+  | "triggered"
+  | "webhook_failed"
   | "false_alarm"
   | "real_failure"
   | "ask_operator"
@@ -56,6 +58,26 @@ export type InsertQaAutomationRunInput = {
   changedFiles?: string[]
   idempotencyKey?: string | null
   operatorNotes?: string | null
+  createdAt?: string
+}
+
+const PLACEHOLDER_OUTCOMES = new Set<QaAutomationOutcome>([
+  "triggered",
+  "webhook_failed",
+])
+
+function shouldReplaceQaOutcome(
+  existing: QaAutomationOutcome,
+  incoming: QaAutomationOutcome
+) {
+  if (existing === incoming) return true
+  if (PLACEHOLDER_OUTCOMES.has(existing)) return true
+  if (incoming === "implemented") return true
+  if (incoming === "vanished") return true
+  if (existing === "chained" && incoming !== "triggered" && incoming !== "webhook_failed") {
+    return true
+  }
+  return false
 }
 
 function mapRow(raw: Record<string, unknown>): QaAutomationRunRow {
@@ -102,7 +124,7 @@ function mapRow(raw: Record<string, unknown>): QaAutomationRunRow {
 export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
   const supabase = getAgentSupabase()
   const now = new Date().toISOString()
-  const payload = {
+  const payload: Record<string, unknown> = {
     session_id: input.sessionId.trim(),
     landbot_customer_id: input.landbotCustomerId?.trim() || null,
     conversation_url: input.conversationUrl.trim(),
@@ -122,6 +144,7 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
     operator_notes: input.operatorNotes?.trim() || null,
     updated_at: now,
   }
+  if (input.createdAt) payload.created_at = input.createdAt
 
   const { data, error } = await supabase
     .from("hom_agent_qa_runs")
@@ -140,7 +163,37 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
         .eq("idempotency_key", input.idempotencyKey)
         .maybeSingle()
       if (readError) throw readError
-      if (existing) return mapRow(existing as Record<string, unknown>)
+      if (existing) {
+        const existingOutcome = existing.outcome as QaAutomationOutcome
+        if (!shouldReplaceQaOutcome(existingOutcome, input.outcome)) {
+          return mapRow(existing as Record<string, unknown>)
+        }
+        const patch: Record<string, unknown> = { updated_at: now }
+        if (input.outcome) patch.outcome = input.outcome
+        if (input.phase) patch.phase = input.phase
+        if (input.verdict?.trim()) patch.verdict = input.verdict.trim()
+        if (input.confidence?.trim()) patch.confidence = input.confidence.trim()
+        if (input.riskScore != null) patch.risk_score = input.riskScore
+        if (input.rootCause?.trim()) patch.root_cause = input.rootCause.trim()
+        if (input.fixLayer?.trim()) patch.fix_layer = input.fixLayer.trim()
+        if (input.fixPlan?.length) patch.fix_plan = input.fixPlan
+        if (input.operatorQuestions?.length) {
+          patch.operator_questions = input.operatorQuestions
+        }
+        if (input.commitSha?.trim()) patch.commit_sha = input.commitSha.trim()
+        if (input.changedFiles?.length) patch.changed_files = input.changedFiles
+        if (input.operatorNotes !== undefined) {
+          patch.operator_notes = input.operatorNotes?.trim() || null
+        }
+        const { data: updated, error: updateError } = await supabase
+          .from("hom_agent_qa_runs")
+          .update(patch)
+          .eq("id", existing.id)
+          .select("*")
+          .single()
+        if (updateError) throw updateError
+        return mapRow(updated as Record<string, unknown>)
+      }
     }
     throw error
   }
@@ -190,6 +243,8 @@ export async function getQaAutomationStats(days = 7) {
   if (error) throw error
 
   const rows = data ?? []
+  const triggered = rows.filter((row) => row.outcome === "triggered").length
+  const webhookFailed = rows.filter((row) => row.outcome === "webhook_failed").length
   const implemented = rows.filter((row) => row.outcome === "implemented").length
   const falseAlarms = rows.filter((row) => row.outcome === "false_alarm").length
   const askOperator = rows.filter((row) => row.outcome === "ask_operator").length
@@ -208,6 +263,8 @@ export async function getQaAutomationStats(days = 7) {
   return {
     days,
     total: rows.length,
+    triggered,
+    webhookFailed,
     implemented,
     falseAlarms,
     askOperator,

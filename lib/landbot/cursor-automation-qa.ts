@@ -1,3 +1,4 @@
+import { insertQaAutomationRun } from "@/lib/agents/qa-automation-log"
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 
 export type CursorAutomationQaTrigger = "human_assign" | "reset" | "closed_unanswered" | "bot_failure"
@@ -188,6 +189,34 @@ export function scheduleCursorAutomationQa(input: {
       })
 
       const result = await postCursorAutomationWebhook(payload)
+
+      try {
+        await insertQaAutomationRun({
+          sessionId,
+          landbotCustomerId: payload.landbot_customer_id,
+          conversationUrl: payload.conversation_url,
+          trigger: payload.trigger,
+          phase: "analyze",
+          outcome: result.ok ? "triggered" : "webhook_failed",
+          rootCause: result.ok
+            ? `Webhook sent — awaiting Grok analyze (${payload.trigger})`
+            : "Webhook POST to Cursor analyze automation failed",
+          idempotencyKey: payload.idempotency_key,
+          operatorNotes:
+            result.ok
+              ? null
+              : "status" in result
+                ? `HTTP ${result.status}`
+                : result.reason,
+        })
+      } catch (logError) {
+        console.warn("[cursor-automation-qa] dashboard log failed", {
+          sessionId,
+          trigger: input.trigger,
+          error: logError instanceof Error ? logError.message : logError,
+        })
+      }
+
       if (!result.ok) {
         console.warn("[cursor-automation-qa] webhook failed", {
           conversationId: input.conversationId,
