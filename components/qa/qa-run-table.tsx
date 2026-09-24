@@ -8,7 +8,8 @@ import {
   qaRunSolution,
 } from "@/lib/agents/qa-run-summary"
 import { qaPhaseLabel } from "@/lib/agents/qa-automation-labels"
-import { QaRunDeleteButton } from "@/components/qa/qa-run-delete-button"
+import { QaRunToolbar } from "@/components/qa/qa-run-toolbar"
+import { resolveQaRunRetryTarget } from "@/lib/landbot/qa-run-retry"
 
 const outcomeRing = {
   emerald: "bg-emerald-50 text-emerald-800 ring-emerald-600/15",
@@ -38,8 +39,7 @@ export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
             className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/[0.06]"
           >
             <div className="mb-3 flex items-start justify-between gap-3">
-              <QaRunDeleteButton runId={run.id} />
-              <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
                 <span
                   className={`rounded-full px-2 py-0.5 font-medium ring-1 ${outcomeRing[tone]}`}
                 >
@@ -68,6 +68,10 @@ export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
                   </span>
                 ) : null}
               </div>
+              <QaRunToolbar
+                runId={run.id}
+                retryTarget={resolveQaRunRetryTarget(run)}
+              />
             </div>
 
             <dl className="space-y-2 text-sm leading-relaxed">

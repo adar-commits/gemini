@@ -296,8 +296,21 @@ export async function getQaAutomationStats(days = 7) {
   }
 }
 
+export async function getQaAutomationRunById(id: string) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_qa_runs")
+    .select("*")
+    .eq("id", id.trim())
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return mapRow(data as Record<string, unknown>)
+}
+
 export async function updateQaAutomationRun(input: {
   id: string
+  phase?: QaAutomationPhase
   outcome?: QaAutomationOutcome
   operatorNotes?: string
   riskScore?: number
@@ -306,6 +319,7 @@ export async function updateQaAutomationRun(input: {
   const patch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   }
+  if (input.phase) patch.phase = input.phase
   if (input.outcome) patch.outcome = input.outcome
   if (input.operatorNotes !== undefined) patch.operator_notes = input.operatorNotes
   if (input.riskScore !== undefined) patch.risk_score = input.riskScore

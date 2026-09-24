@@ -188,7 +188,9 @@ export function shouldNotifyCursorAutomationQa(
   return cursorAutomationQaEnabled() && cursorAutomationQaTriggers().has(trigger)
 }
 
-async function postAnalyzeWebhook(payload: CursorAutomationQaPayload) {
+export async function postCursorAutomationQaAnalyzeWebhook(
+  payload: CursorAutomationQaPayload
+) {
   return postCursorAutomationWebhook({
     url: cursorAutomationQaAnalyzeWebhookUrl(),
     token: cursorAutomationQaAnalyzeAuthToken(),
@@ -231,7 +233,7 @@ export function scheduleCursorAutomationQa(input: {
         idempotencyKey,
       })
 
-      const result = await postAnalyzeWebhook(payload)
+      const result = await postCursorAutomationQaAnalyzeWebhook(payload)
 
       try {
         await insertQaAutomationRun({
