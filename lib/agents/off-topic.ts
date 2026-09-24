@@ -163,6 +163,15 @@ export function isExplicitSalesHandoffIntent(text: string) {
   )
 }
 
+function isPendingServiceHandoffOffer(last: string) {
+  if (!last.trim()) return false
+  return (
+    /(?:האם\s+)?(?:להעביר|שאעביר|אעביר).{0,80}נציג\s+שירות/.test(last) ||
+    /(?:האם\s+)?(?:להעביר|שאעביר|אעביר).{0,80}שירות\s+לקוחות/.test(last) ||
+    /נציג\s+שירות\s+אנושי/.test(last)
+  )
+}
+
 export function inferHumanHandoffAction(
   history: HistoryMessage[],
   lastAgent: AgentId | null
@@ -180,6 +189,10 @@ export function inferHumanHandoffAction(
 
   if (/להעביר\s+(?:את\s+השיחה\s+)?ליועץ\s+מכירות/.test(last)) {
     return "human_sales"
+  }
+
+  if (isPendingServiceHandoffOffer(last)) {
+    return "human_service"
   }
 
   if (lastAgent === "sales" && isExplicitSalesHandoffIntent(transcript)) {
