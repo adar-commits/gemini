@@ -27,8 +27,10 @@ import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { coerceKbSelfServiceFaqAction } from "@/lib/agents/kb-self-service-faq"
 import {
+  extractShippingOrderDocumentReference,
   isOrderConfirmationPending,
   isKnownOrderIdentificationMisroute,
+  isPureOrderConfirmation,
   resolveOrderShippingReply,
   shouldBindKnownOrderTurn,
   shouldLookupKnownOrderForCancel,
@@ -713,7 +715,9 @@ export async function runHomAgentTurn(
   const shouldRecoverKnownOrderLookup =
     shouldBindKnownOrderTurn(body, history) ||
     shouldLookupKnownOrderForCancel(body, history) ||
-    shouldLookupReceiptOrderAfterWrongPick(body, history)
+    shouldLookupReceiptOrderAfterWrongPick(body, history) ||
+    Boolean(extractShippingOrderDocumentReference(body, history)) ||
+    (isOrderConfirmationPending(history) && isPureOrderConfirmation(body))
 
   if (
     shouldRecoverKnownOrderLookup &&

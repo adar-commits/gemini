@@ -578,6 +578,58 @@ export function classifyDocumentNumber(rawText: string): {
   }
 }
 
+/** Receipt/invoice id the customer pasted earlier in the thread (RC/IN/OV). */
+export function documentReferenceGivenInThread(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    const doc = classifyDocumentNumber(message.content)
+    if (doc) return doc.id
+  }
+  return null
+}
+
+const ORDER_DOCUMENT_AFFIRMATION = new Set([
+  "זו ההזמנה",
+  "זה ההזמנה",
+  "זו הזמנה",
+  "זה הזמנה",
+  "זו הקבלה",
+  "זה הקבלה",
+])
+
+export function extractShippingOrderDocumentReference(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const doc = classifyDocumentNumber(body)
+  if (doc) return doc.id
+  if (ORDER_DOCUMENT_AFFIRMATION.has(body.trim())) {
+    return documentReferenceGivenInThread(history)
+  }
+  return null
+}
+
+export function findOrderByDocumentReference(
+  orders: OrderShipmentStatus[],
+  documentId: string
+) {
+  const key = documentId.trim().toUpperCase()
+  if (!key) return null
+
+  const rawMatch =
+    orders.find((order) =>
+      JSON.stringify(order.raw).toUpperCase().includes(key)
+    ) ?? null
+  if (rawMatch) return rawMatch
+
+  const digits = key.replace(/\D/g, "")
+  if (digits.length >= 5) {
+    return findOrderByNumber(orders, digits)
+  }
+  return null
+}
+
 /** Customer labels an SO/IN/OV token as order/invoice ref — not a document copy request. */
 export function isOrderReferencePresentation(body: string) {
   const text = stripMediaAndUrls(body.trim())
@@ -1204,12 +1256,23 @@ export function isPurePhoneLookupConfirmYes(body: string) {
   return isPureOrderConfirmation(body)
 }
 
+const CHANNEL_PHONE_LOOKUP_PHRASES = new Set([
+  "לפי הטלפון",
+  "לפי מספר הטלפון",
+  "בטלפון",
+  "דרך הטלפון",
+  "לפי הטלפון שלי",
+  "אשמח לפי הטלפון",
+  "אפשר לפי הטלפון",
+])
+
 /** Customer means the WhatsApp/Landbot channel phone — not a typed alternate number. */
 export function isChannelPhoneSelfReference(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
   if (userProvidedPhone(text)) return false
   if (extractOrderNumber(text)) return false
+  if (CHANNEL_PHONE_LOOKUP_PHRASES.has(text)) return true
   return (
     /^(?:ה)?(?:מספר|טלפון)\s+(?:שלי|שלנו)(?:[\s,.!?]|$)/iu.test(text) ||
     /^(?:על|ב)(?:ה)?(?:מספר|טלפון)\s+(?:ה)?(?:זה|נוכחי)(?:[\s,.!?]|$)/iu.test(text) ||
@@ -2454,6 +2517,38 @@ export function authorizedLookupPhoneFromHistory(
       }
     }
 
+    if (isOrderLookupIdentificationAssistantMessage(message.content)) {
+      let phoneLookupPathWithoutOrder = false
+      for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
+        const reply = history[replyIndex]
+        if (reply.role === "assistant") {
+          if (
+            channel &&
+            phoneLookupPathWithoutOrder &&
+            isOrderConfirmationAssistantMessage(reply.content)
+          ) {
+            authorized = channel
+          }
+          if (shouldContinueReplyScanPastAssistant(reply.content)) continue
+          break
+        }
+        if (reply.role !== "user") continue
+        if (isChannelPhoneSelfReference(reply.content) && channel) {
+          authorized = channel
+          phoneLookupPathWithoutOrder = false
+        }
+        const typed = userProvidedPhone(reply.content)
+        if (typed) {
+          authorized = typed
+          phoneLookupPathWithoutOrder = false
+        } else if (extractOrderNumber(reply.content)) {
+          phoneLookupPathWithoutOrder = false
+        } else if (!isChannelPhoneSelfReference(reply.content)) {
+          phoneLookupPathWithoutOrder = true
+        }
+      }
+    }
+
     if (isAlternatePhoneAssistantMessage(message.content)) {
       for (let replyIndex = index + 1; replyIndex < history.length; replyIndex += 1) {
         const reply = history[replyIndex]
@@ -2527,11 +2622,7 @@ export function resolveLookupPhoneFromHistory(
     if (channel) return channel
   }
 
-  if (
-    body?.trim() &&
-    isChannelPhoneSelfReference(body) &&
-    isOrderNumberRequestPending(history)
-  ) {
+  if (body?.trim() && isChannelPhoneSelfReference(body) && isOrderNumberRequestPending(history)) {
     const channel = channelPhone(whatsappPhone)
     if (channel) return channel
   }
@@ -2545,6 +2636,12 @@ export function resolveLookupPhoneFromHistory(
 
     const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
     if (authorized) return authorized
+
+    // Order card already shown — do not re-ask phone when serverless cache is cold (533188424).
+    if (pendingOrderNumberFromHistory(history)) {
+      const channel = channelPhone(whatsappPhone)
+      if (channel) return channel
+    }
 
     return null
   }
@@ -3211,13 +3308,39 @@ export async function resolveOrderShippingReply(input: {
     }
   }
 
+  const shippingDocumentRef = extractShippingOrderDocumentReference(body, history)
+  if (shippingDocumentRef && orderLookupEnabled()) {
+    const lookupPhone =
+      resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+      channelPhone(whatsappPhone)
+    if (lookupPhone) {
+      const orders = await lookupOrdersForPhone(lookupPhone)
+      if (orders == null) return buildOrderLookupApiFailureReply()
+      const matched = findOrderByDocumentReference(orders, shippingDocumentRef)
+      if (matched) {
+        return replyAfterOrderIdentified(matched, lookupPhone, history, body)
+      }
+      if (orders.length > 0) {
+        return buildOrderNumberNotFoundReply(
+          shippingDocumentRef,
+          history,
+          body
+        )
+      }
+      return buildNoOrdersFoundReply(lookupPhone)
+    }
+  }
+
   if (isOrderConfirmationPending(history)) {
     const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) {
       return lookupAndStartOrderConfirm(alternatePhone, empathize, { history, body })
     }
 
-    const lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+    let lookupPhone = resolveLookupPhoneFromHistory(history, whatsappPhone, body)
+    if (!lookupPhone && pendingOrderNumberFromHistory(history)) {
+      lookupPhone = channelPhone(whatsappPhone)
+    }
     if (!lookupPhone) {
       if (whatsappPhone && channelPhone(whatsappPhone)) {
         return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))

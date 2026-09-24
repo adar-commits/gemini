@@ -95,7 +95,9 @@ import { buildGreetingReply, isCasualGreeting, isCasualSmallTalk } from "@/lib/a
 import {
   buildPostOrderLookupContinuationReply,
   isPostOrderShippingFollowUp,
+  classifyDocumentNumber,
   extractOrderNumber,
+  extractShippingOrderDocumentReference,
   isChannelPhoneSelfReference,
   isExplicitHumanRequest,
   isNumberedReturnPolicyChoicePending,
@@ -315,11 +317,13 @@ function isExplicitThanks(body: string) {
   return /תוד(?:ה|ים)/iu.test(text) || /\bthanks?\b/i.test(text)
 }
 
-function orderLookupStructuredBinding(body: string) {
+function orderLookupStructuredBinding(body: string, history: HistoryMessage[] = []) {
   return (
     userProvidedPhone(body) != null ||
     isChannelPhoneSelfReference(body) ||
-    extractOrderNumber(body) != null
+    extractOrderNumber(body) != null ||
+    classifyDocumentNumber(body) != null ||
+    extractShippingOrderDocumentReference(body, history) != null
   )
 }
 
@@ -701,14 +705,18 @@ export async function runStructuredOrderLookupPreTurn(input: {
   const deliveryLookupBinding =
     pendingLookupFlow &&
     (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body))
+  const documentReferenceBinding = Boolean(
+    extractShippingOrderDocumentReference(body, input.history)
+  )
 
   if (
     !openingShippingStatus &&
     !typedPhone &&
-    !orderLookupStructuredBinding(body) &&
+    !orderLookupStructuredBinding(body, input.history) &&
     !phoneConfirmBinding &&
     !orderConfirmBinding &&
     !deliveryLookupBinding &&
+    !documentReferenceBinding &&
     !knownOrderBind
   ) {
     return { kind: "skip", response: null }

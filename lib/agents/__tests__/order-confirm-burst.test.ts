@@ -43,7 +43,7 @@ describe("order confirm burst (Gali loop)", () => {
     assert.equal(isOrderDeliveryStatusQuestion(body), true)
   })
 
-  it("does not guess channel phone on confirm when cache and auth are cold", () => {
+  it("uses channel phone on confirm when order card is pending but lookup cache is cold (533188424)", () => {
     resetPriorityApiTurnState()
     clearOrdersLookupCache()
     bindPriorityApiLogContext({
@@ -53,7 +53,7 @@ describe("order confirm burst (Gali loop)", () => {
 
     assert.equal(pendingOrderNumberFromHistory(baseHistory), "SO26020772")
     const phone = resolveLookupPhoneFromHistory(baseHistory, "+972525926363", "נכון")
-    assert.equal(phone, null)
+    assert.equal(phone, "0525926363")
   })
 
   it("resolves conversation cache phone on confirm when cache is warm", () => {

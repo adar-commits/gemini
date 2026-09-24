@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   classifyDocumentNumber,
   extractOrderReference,
+  findOrderByDocumentReference,
   findOrderByNumber,
   inferCustomerOrderNumberStyle,
   mapPriorityOrderRow,
@@ -94,6 +95,21 @@ describe("order reference lookup", () => {
     byReference.orderNumber = "SO26099999"
     const orders: OrderShipmentStatus[] = [byOrdNameSuffix, byReference]
     assert.equal(findOrderByNumber(orders, "36805")?.raw.ORDNAME, "SO26099999")
+  })
+
+  it("finds orders by receipt id embedded in Priority raw", () => {
+    const orders: OrderShipmentStatus[] = [
+      mapPriorityOrderRow({
+        ORDNAME: "SO26023332",
+        REFERENCE: "23332",
+        BRANCHNAME: "3000",
+        RC: "RC269021234",
+      }),
+    ]
+    assert.equal(
+      findOrderByDocumentReference(orders, "RC269021234")?.orderNumber,
+      "23332"
+    )
   })
 
   it("treats RC as a receipt and IN/OV as invoices, not REFERENCE", () => {
