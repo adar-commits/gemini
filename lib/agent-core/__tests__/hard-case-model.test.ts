@@ -4,7 +4,7 @@ import { pickHomAgentModel } from "@/lib/agent-core/hard-case-model"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 const SONNET = "anthropic/claude-sonnet-5"
-const OPUS = "anthropic/claude-opus-5"
+const OPUS = "anthropic/claude-opus-5.5"
 
 describe("pickHomAgentModel", () => {
   it("keeps Sonnet for a simple shipping question", () => {

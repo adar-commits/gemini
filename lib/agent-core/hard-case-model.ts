@@ -6,7 +6,7 @@ import type { HistoryMessage } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
 
 export function homAgentHardCaseModel() {
-  return process.env.HOM_AGENT_HARD_CASE_MODEL?.trim() || "anthropic/claude-opus-5"
+  return process.env.HOM_AGENT_HARD_CASE_MODEL?.trim() || "anthropic/claude-opus-5.5"
 }
 
 export type HomAgentModelPick = {
