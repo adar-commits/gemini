@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { isCronAuthorized } from "@/lib/agents/cron-auth"
+import { isQaChainAuthorized } from "@/lib/landbot/qa-chain-auth"
 import {
   chainQaImplement,
   parseChainQaImplementBody,
@@ -14,13 +14,13 @@ export async function GET() {
     endpoint: `${internalApiOrigin()}/api/agents/qa-chain-implement`,
     env,
     analyze_automation_needs: {
-      CRON_SECRET: "Same value as Vercel production CRON_SECRET (Bearer for this endpoint)",
+      note: "No Secrets UI required — reuse this automation's inbound webhook Bearer token in step 7 curl",
     },
   })
 }
 
 export async function POST(request: Request) {
-  if (!isCronAuthorized(request)) {
+  if (!isQaChainAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

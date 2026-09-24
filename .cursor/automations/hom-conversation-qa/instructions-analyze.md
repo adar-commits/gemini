@@ -77,7 +77,7 @@ Use `--outcome chained` only when chaining to implement. Include `--fix-layer` a
 
 ```bash
 curl -s -X POST "https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-implement" \
-  -H "Authorization: Bearer $CRON_SECRET" \
+  -H "Authorization: <paste exact inbound webhook Authorization header from this run>" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
 {
@@ -87,7 +87,7 @@ curl -s -X POST "https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-impleme
 EOF
 ```
 
-Requires automation secret **`CRON_SECRET`** = same value as Vercel production `CRON_SECRET`. Do **not** set implement URL/token in Grok — the proxy uses Vercel env.
+Use the **same Bearer token** Vercel sent on the inbound POST (this automation's webhook auth header in Cursor → Automations). No separate Secrets field needed — the proxy accepts that token or Vercel `CRON_SECRET`.
 
 Fallback (local with `.env.production.local`):
 
