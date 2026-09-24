@@ -90,6 +90,9 @@ async function syncDashboard(row: LogRow) {
       commit_sha: row.sha,
       changed_files: row.files,
       idempotency_key: `${row.session_id}:implemented:${row.sha}`,
+      stage_timestamps: {
+        implement_completed_at: row.logged_at,
+      },
     }),
   })
 

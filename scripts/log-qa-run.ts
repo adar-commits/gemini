@@ -81,6 +81,22 @@ async function main() {
     process.exit(1)
   }
 
+  const stageNow = new Date().toISOString()
+  const stageTimestamps =
+    phase === "analyze" && outcome !== "triggered"
+      ? { analyze_completed_at: stageNow }
+      : phase === "implement" && outcome === "implemented"
+        ? { implement_completed_at: stageNow }
+        : phase === "analyze" && outcome === "triggered"
+          ? { event_at: stageNow, analyze_started_at: stageNow }
+          : outcome === "chained"
+            ? {
+                analyze_completed_at: stageNow,
+                chain_at: stageNow,
+                implement_started_at: stageNow,
+              }
+            : undefined
+
   const row = await insertQaAutomationRun({
     sessionId,
     conversationUrl:
@@ -116,6 +132,7 @@ async function main() {
       : [],
     idempotencyKey: arg("--idempotency-key") || null,
     operatorNotes: arg("--notes") || null,
+    stageTimestamps,
   })
 
   if (phase === "implement" && row.commit_sha) {

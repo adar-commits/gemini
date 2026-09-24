@@ -3,15 +3,15 @@ import type { QaDashboardBucket } from "@/lib/agents/qa-automation-log"
 
 const toneClasses = {
   default:
-    "bg-white/10 text-white ring-white/15 hover:bg-white/15 backdrop-blur-md",
+    "bg-white text-slate-900 ring-slate-200/80 shadow-md hover:shadow-lg hover:ring-slate-300",
   review:
-    "bg-sky-500/20 text-sky-50 ring-sky-300/30 hover:bg-sky-500/30 backdrop-blur-md",
+    "bg-sky-100 text-sky-950 ring-sky-300 shadow-md hover:shadow-lg hover:bg-sky-50",
   dismissed:
-    "bg-zinc-500/15 text-zinc-100 ring-zinc-300/20 hover:bg-zinc-500/25 backdrop-blur-md",
+    "bg-zinc-100 text-zinc-900 ring-zinc-300 shadow-md hover:shadow-lg hover:bg-zinc-50",
   implemented:
-    "bg-emerald-500/20 text-emerald-50 ring-emerald-300/30 hover:bg-emerald-500/30 backdrop-blur-md",
+    "bg-emerald-100 text-emerald-950 ring-emerald-300 shadow-md hover:shadow-lg hover:bg-emerald-50",
   risky:
-    "bg-rose-500/20 text-rose-50 ring-rose-300/30 hover:bg-rose-500/30 backdrop-blur-md",
+    "bg-rose-100 text-rose-950 ring-rose-300 shadow-md hover:shadow-lg hover:bg-rose-50",
 } as const
 
 export function QaStatsBar({
@@ -73,23 +73,26 @@ export function QaStatsBar({
   ]
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {cards.map((card, index) => {
-        const active = activeBucket === card.key
-        return (
-          <Link
-            key={card.key}
-            href={card.href}
-            className={`qa-fade-up rounded-2xl px-4 py-3 shadow-lg ring-1 transition duration-300 ${toneClasses[card.tone]} ${
-              active ? "scale-[1.02] ring-2 ring-white/40" : ""
-            }`}
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            <p className="text-3xl font-bold tabular-nums tracking-tight">{card.value}</p>
-            <p className="text-xs opacity-90">{card.label}</p>
-          </Link>
-        )
-      })}
+    <section className="rounded-3xl bg-white p-4 shadow-lg ring-1 ring-black/[0.06]">
+      <p className="mb-3 text-xs font-semibold text-slate-500">מדדים — 7 ימים אחרונים</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {cards.map((card, index) => {
+          const active = activeBucket === card.key
+          return (
+            <Link
+              key={card.key}
+              href={card.href}
+              className={`qa-fade-up rounded-2xl px-4 py-3 ring-1 transition duration-300 ${toneClasses[card.tone]} ${
+                active ? "scale-[1.03] ring-2 ring-indigo-400" : ""
+              }`}
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              <p className="text-3xl font-bold tabular-nums tracking-tight">{card.value}</p>
+              <p className="text-xs font-medium opacity-90">{card.label}</p>
+            </Link>
+          )
+        })}
+      </div>
     </section>
   )
 }

@@ -23,6 +23,7 @@ function baseRun(overrides: Partial<QaAutomationRunRow>): QaAutomationRunRow {
     changed_files: [],
     idempotency_key: "530876768:human_assign",
     operator_notes: null,
+    stage_timestamps: {},
     created_at: "2026-09-24T17:25:00.000Z",
     updated_at: "2026-09-24T17:25:00.000Z",
     ...overrides,

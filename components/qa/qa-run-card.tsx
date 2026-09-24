@@ -8,6 +8,7 @@ import {
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
 import { formatJerusalemDashboardDateTime } from "@/lib/agents/hebrew-date-format"
 import {
+  formatQaElapsedHebrew,
   isQaRunActive,
   qaConfidenceLabel,
   qaFixLayerLabel,
@@ -26,6 +27,8 @@ import { QaElapsedTimer } from "@/components/qa/qa-elapsed-timer"
 import { QaPipelineStepper } from "@/components/qa/qa-pipeline-stepper"
 import { QaRiskGauge } from "@/components/qa/qa-risk-gauge"
 import { QaRunToolbar } from "@/components/qa/qa-run-toolbar"
+import { QaStageTimeline } from "@/components/qa/qa-stage-timeline"
+import { buildQaStageTimeline, qaRunTotalElapsedMs } from "@/lib/agents/qa-stage-timing"
 
 const outcomeStyles = {
   emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-800 ring-emerald-500/25",
@@ -48,13 +51,17 @@ function MetaChip({ label, value }: { label: string; value: string }) {
 export function QaRunCard({
   run,
   index,
+  siblings = [],
 }: {
   run: QaAutomationRunRow
   index: number
+  siblings?: QaAutomationRunRow[]
 }) {
   const tone = qaOutcomeTone(run.outcome)
   const steps = qaPipelineSteps(run)
   const progress = qaPipelineProgress(steps)
+  const stageTimeline = buildQaStageTimeline(run, siblings)
+  const totalElapsed = formatQaElapsedHebrew(qaRunTotalElapsedMs(run, siblings))
   const active = isQaRunActive(run.outcome)
   const conversationUrl = qaRunConversationUrl(run)
   const anchorIso = run.updated_at || run.created_at
@@ -97,7 +104,15 @@ export function QaRunCard({
             </time>
             <span className="hidden h-3 w-px bg-zinc-200 sm:block" />
             <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-white">
-              <span className="opacity-70">עבר</span>
+              <span className="opacity-70">סה״כ</span>
+              {active ? (
+                <QaElapsedTimer sinceIso={run.created_at} live />
+              ) : (
+                totalElapsed
+              )}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-medium text-indigo-900">
+              <span className="opacity-70">עודכן לפני</span>
               <QaElapsedTimer sinceIso={anchorIso} live={active} />
             </span>
             <span className="font-mono text-[11px]">#{run.session_id}</span>
@@ -202,6 +217,7 @@ export function QaRunCard({
         </div>
 
         <aside className="space-y-4 lg:border-r lg:border-black/[0.05] lg:pr-5">
+          <QaStageTimeline segments={stageTimeline} />
           <QaPipelineStepper steps={steps} progress={progress} />
           <div className="flex items-center justify-center rounded-2xl bg-zinc-50/90 p-3 ring-1 ring-black/[0.04]">
             <QaRiskGauge score={run.risk_score} />

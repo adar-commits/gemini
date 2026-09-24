@@ -5,8 +5,10 @@ import { QaStatsBar } from "@/components/qa/qa-stats-bar"
 import {
   getQaAutomationStats,
   listQaAutomationRuns,
+  listQaRunsBySessionIds,
   type QaDashboardBucket,
 } from "@/lib/agents/qa-automation-log"
+import { buildQaStageTimeline } from "@/lib/agents/qa-stage-timing"
 
 export const dynamic = "force-dynamic"
 
@@ -53,8 +55,6 @@ export default async function QaDashboardPage({
     error = err instanceof Error ? err.message : "טעינת QA נכשלה"
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / limit))
-
   if (error) {
     return (
       <div className="mx-auto max-w-7xl px-5 py-8">
@@ -65,10 +65,20 @@ export default async function QaDashboardPage({
     )
   }
 
+  const totalPages = Math.max(1, Math.ceil(total / limit))
+  const siblingsBySession = runs.length
+    ? await listQaRunsBySessionIds(runs.map((run) => run.session_id))
+    : new Map()
+  const stageTimelines = runs.map((run) =>
+    buildQaStageTimeline(run, siblingsBySession.get(run.session_id) ?? [])
+  )
+
   return (
     <div className="qa-dashboard min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-slate-100 via-[#eef2ff] to-[#f6f5f3] pb-16">
       <div className="mx-auto max-w-7xl space-y-6 px-5 py-8">
-        {stats ? <QaDashboardHero stats={stats} /> : null}
+        {stats ? (
+          <QaDashboardHero stats={stats} stageTimelines={stageTimelines} />
+        ) : null}
 
         {stats ? (
           <QaStatsBar stats={stats} activeBucket={bucket} />
@@ -97,7 +107,7 @@ export default async function QaDashboardPage({
           })}
         </nav>
 
-        <QaRunTable runs={runs} />
+        <QaRunTable runs={runs} siblingsBySession={siblingsBySession} />
 
         {totalPages > 1 ? (
           <div className="flex items-center justify-center gap-3 text-sm">

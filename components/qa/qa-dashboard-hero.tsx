@@ -1,10 +1,14 @@
 "use client"
 
 import { QaHealthGauge } from "@/components/qa/qa-health-gauge"
+import { QaStageAverages } from "@/components/qa/qa-stage-averages"
 import { qaHealthScore, qaHealthSegments } from "@/lib/agents/qa-run-display"
+import type { QaStageTimingSegment } from "@/lib/agents/qa-stage-timing"
+import { qaStageAverageMs } from "@/lib/agents/qa-stage-timing"
 
 export function QaDashboardHero({
   stats,
+  stageTimelines = [],
 }: {
   stats: {
     days: number
@@ -14,9 +18,11 @@ export function QaDashboardHero({
     implemented: number
     tooRisky: number
   }
+  stageTimelines?: QaStageTimingSegment[][]
 }) {
   const score = qaHealthScore(stats)
   const segments = qaHealthSegments(stats)
+  const averages = qaStageAverageMs(stageTimelines)
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-bl from-indigo-950 via-slate-900 to-violet-950 p-6 shadow-2xl ring-1 ring-white/10 lg:p-8">
@@ -47,6 +53,11 @@ export function QaDashboardHero({
               </span>
             ))}
           </div>
+          {stageTimelines.length ? (
+            <div className="pt-3">
+              <QaStageAverages averages={averages} />
+            </div>
+          ) : null}
         </div>
         <QaHealthGauge score={score} segments={segments} total={stats.total} />
       </div>

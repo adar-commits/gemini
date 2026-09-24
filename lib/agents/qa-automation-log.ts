@@ -1,4 +1,9 @@
 import { getAgentSupabase } from "@/lib/agents/supabase"
+import {
+  mergeQaStageTimestamps,
+  parseQaStageTimestamps,
+  type QaStageTimestamps,
+} from "@/lib/agents/qa-stage-timing"
 
 export type QaAutomationPhase = "analyze" | "implement"
 
@@ -36,6 +41,7 @@ export type QaAutomationRunRow = {
   changed_files: string[]
   idempotency_key: string | null
   operator_notes: string | null
+  stage_timestamps: QaStageTimestamps
   created_at: string
   updated_at: string
 }
@@ -58,6 +64,7 @@ export type InsertQaAutomationRunInput = {
   changedFiles?: string[]
   idempotencyKey?: string | null
   operatorNotes?: string | null
+  stageTimestamps?: QaStageTimestamps
   createdAt?: string
 }
 
@@ -116,6 +123,7 @@ function mapRow(raw: Record<string, unknown>): QaAutomationRunRow {
       typeof raw.idempotency_key === "string" ? raw.idempotency_key : null,
     operator_notes:
       typeof raw.operator_notes === "string" ? raw.operator_notes : null,
+    stage_timestamps: parseQaStageTimestamps(raw.stage_timestamps),
     created_at: String(raw.created_at),
     updated_at: String(raw.updated_at),
   }
@@ -142,6 +150,7 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
     changed_files: input.changedFiles ?? [],
     idempotency_key: input.idempotencyKey?.trim() || null,
     operator_notes: input.operatorNotes?.trim() || null,
+    stage_timestamps: input.stageTimestamps ?? {},
     updated_at: now,
   }
   if (input.createdAt) payload.created_at = input.createdAt
@@ -184,6 +193,12 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
         if (input.changedFiles?.length) patch.changed_files = input.changedFiles
         if (input.operatorNotes !== undefined) {
           patch.operator_notes = input.operatorNotes?.trim() || null
+        }
+        if (input.stageTimestamps) {
+          patch.stage_timestamps = mergeQaStageTimestamps(
+            parseQaStageTimestamps(existing.stage_timestamps),
+            input.stageTimestamps
+          )
         }
         const { data: updated, error: updateError } = await supabase
           .from("hom_agent_qa_runs")
@@ -265,6 +280,29 @@ export async function listQaAutomationRuns(input?: {
     runs: (data ?? []).map((row) => mapRow(row as Record<string, unknown>)),
     total: count ?? 0,
   }
+}
+
+export async function listQaRunsBySessionIds(sessionIds: string[]) {
+  const unique = [...new Set(sessionIds.map((id) => id.trim()).filter(Boolean))]
+  if (!unique.length) return new Map<string, QaAutomationRunRow[]>()
+
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_qa_runs")
+    .select("*")
+    .in("session_id", unique)
+    .order("created_at", { ascending: true })
+
+  if (error) throw error
+
+  const map = new Map<string, QaAutomationRunRow[]>()
+  for (const row of data ?? []) {
+    const mapped = mapRow(row as Record<string, unknown>)
+    const list = map.get(mapped.session_id) ?? []
+    list.push(mapped)
+    map.set(mapped.session_id, list)
+  }
+  return map
 }
 
 export async function getQaAutomationStats(days = 7) {

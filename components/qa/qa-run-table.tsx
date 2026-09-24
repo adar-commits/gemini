@@ -1,7 +1,13 @@
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
 import { QaRunCard } from "@/components/qa/qa-run-card"
 
-export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
+export function QaRunTable({
+  runs,
+  siblingsBySession = new Map<string, QaAutomationRunRow[]>(),
+}: {
+  runs: QaAutomationRunRow[]
+  siblingsBySession?: Map<string, QaAutomationRunRow[]>
+}) {
   if (!runs.length) {
     return (
       <div className="qa-fade-up rounded-3xl border border-dashed border-white/20 bg-white/5 px-6 py-16 text-center backdrop-blur-sm">
@@ -14,7 +20,12 @@ export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
   return (
     <div className="space-y-5">
       {runs.map((run, index) => (
-        <QaRunCard key={run.id} run={run} index={index} />
+        <QaRunCard
+          key={run.id}
+          run={run}
+          index={index}
+          siblings={siblingsBySession.get(run.session_id) ?? []}
+        />
       ))}
     </div>
   )

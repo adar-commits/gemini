@@ -64,6 +64,7 @@ async function logChainOutcome(input: {
   idempotencyKey: string
 }) {
   try {
+    const stageNow = new Date().toISOString()
     await insertQaAutomationRun({
       sessionId: input.analysis.session_id,
       landbotCustomerId: input.source.landbot_customer_id,
@@ -79,6 +80,14 @@ async function logChainOutcome(input: {
       operatorQuestions: input.analysis.operator_questions ?? [],
       idempotencyKey: input.idempotencyKey,
       operatorNotes: input.operatorNotes ?? null,
+      stageTimestamps:
+        input.outcome === "chained"
+          ? {
+              analyze_completed_at: stageNow,
+              chain_at: stageNow,
+              implement_started_at: stageNow,
+            }
+          : { analyze_completed_at: stageNow },
     })
   } catch (error) {
     console.warn("[qa-chain-implement] dashboard log failed", {

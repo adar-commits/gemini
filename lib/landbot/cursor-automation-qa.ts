@@ -236,6 +236,7 @@ export function scheduleCursorAutomationQa(input: {
       const result = await postCursorAutomationQaAnalyzeWebhook(payload)
 
       try {
+        const stageNow = new Date().toISOString()
         await insertQaAutomationRun({
           sessionId,
           landbotCustomerId: payload.landbot_customer_id,
@@ -247,6 +248,9 @@ export function scheduleCursorAutomationQa(input: {
             ? `Webhook sent — awaiting Grok analyze (${payload.trigger})`
             : "Webhook POST to Cursor analyze automation failed",
           idempotencyKey: payload.idempotency_key,
+          stageTimestamps: result.ok
+            ? { event_at: stageNow, analyze_started_at: stageNow }
+            : { event_at: stageNow },
           operatorNotes:
             result.ok
               ? null

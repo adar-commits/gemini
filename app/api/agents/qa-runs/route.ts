@@ -5,6 +5,10 @@ import {
   type QaAutomationOutcome,
 } from "@/lib/agents/qa-automation-log"
 import { getAgentSupabase } from "@/lib/agents/supabase"
+import {
+  mergeQaStageTimestamps,
+  parseQaStageTimestamps,
+} from "@/lib/agents/qa-stage-timing"
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET?.trim()
@@ -82,6 +86,10 @@ export async function POST(request: Request) {
           : null,
     operatorNotes:
       typeof body.operator_notes === "string" ? body.operator_notes : null,
+    stageTimestamps:
+      body.stage_timestamps && typeof body.stage_timestamps === "object"
+        ? parseQaStageTimestamps(body.stage_timestamps)
+        : undefined,
   }
 
   if (!input.sessionId || !input.conversationUrl || !input.trigger) {
@@ -92,12 +100,31 @@ export async function POST(request: Request) {
     const row = await insertQaAutomationRun(input)
     if (input.phase === "implement" && input.outcome === "implemented") {
       const supabase = getAgentSupabase()
+      const now = new Date().toISOString()
+      const completedStages = mergeQaStageTimestamps(input.stageTimestamps ?? {}, {
+        implement_completed_at: now,
+      })
       const staleOutcomes: QaAutomationOutcome[] = [
         "chained",
         "real_failure",
         "webhook_failed",
         "triggered",
       ]
+      const { data: sessionRows } = await supabase
+        .from("hom_agent_qa_runs")
+        .select("id, stage_timestamps")
+        .eq("session_id", input.sessionId.trim())
+      for (const sessionRow of sessionRows ?? []) {
+        await supabase
+          .from("hom_agent_qa_runs")
+          .update({
+            stage_timestamps: mergeQaStageTimestamps(
+              parseQaStageTimestamps(sessionRow.stage_timestamps),
+              completedStages
+            ),
+          })
+          .eq("id", sessionRow.id)
+      }
       await supabase
         .from("hom_agent_qa_runs")
         .update({
@@ -105,7 +132,8 @@ export async function POST(request: Request) {
           phase: "implement",
           commit_sha: input.commitSha?.trim() || row.commit_sha,
           changed_files: input.changedFiles?.length ? input.changedFiles : row.changed_files,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
+          stage_timestamps: mergeQaStageTimestamps(row.stage_timestamps, completedStages),
           operator_notes: input.commitSha
             ? `יושם בקומיט ${input.commitSha.trim().slice(0, 7)}`
             : "יושם",
