@@ -18,9 +18,10 @@ import { summarizeTurn } from "@/lib/agents/user-turn"
 import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
 import { PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
 import {
-  scheduleCursorAutomationQa,
+  executeCursorAutomationQa,
   shouldNotifyCursorAutomationQa,
 } from "@/lib/landbot/cursor-automation-qa"
+import { scheduleCursorAutomationQa } from "@/lib/landbot/schedule-cursor-automation-qa"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
@@ -35,6 +36,7 @@ import {
   isTrainerGokuQaTestCommand,
   isTrainerQuestionCommand,
   TRAINER_GOKU_QA_ACK,
+  TRAINER_GOKU_QA_FAILED,
   TRAINER_GOKU_QA_SKIPPED,
   stripTrainerQuestionPrefix,
 } from "@/lib/landbot/training-guards"
@@ -205,17 +207,32 @@ export async function handleLandbotInbound(
       .reverse()
       .find((message) => message.role === "assistant")
 
-    scheduleCursorAutomationQa({
-      conversationId,
-      trigger: "human_assign",
-      lastUserMessage: body,
-      lastBotReply: lastAssistant?.content,
-      phone: options?.phone?.trim() || undefined,
-    })
-
-    const reply = shouldNotifyCursorAutomationQa("human_assign")
-      ? TRAINER_GOKU_QA_ACK
-      : TRAINER_GOKU_QA_SKIPPED
+    let reply = TRAINER_GOKU_QA_SKIPPED
+    if (shouldNotifyCursorAutomationQa("human_assign")) {
+      try {
+        const qaResult = await executeCursorAutomationQa({
+          conversationId,
+          trigger: "human_assign",
+          lastUserMessage: body,
+          lastBotReply: lastAssistant?.content,
+          phone: options?.phone?.trim() || undefined,
+        })
+        if ("skipped" in qaResult) {
+          reply = TRAINER_GOKU_QA_SKIPPED
+        } else if (!qaResult.webhook.ok) {
+          const detail =
+            "status" in qaResult.webhook
+              ? `HTTP ${qaResult.webhook.status}`
+              : qaResult.webhook.reason
+          reply = `${TRAINER_GOKU_QA_FAILED} (${detail})`
+        } else {
+          reply = TRAINER_GOKU_QA_ACK
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
+        reply = `${TRAINER_GOKU_QA_FAILED} (${detail})`
+      }
+    }
 
     await appendTurn({
       conversationId,

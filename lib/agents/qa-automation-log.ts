@@ -223,12 +223,8 @@ export type QaDashboardBucket =
   | "implemented"
   | "too_risky"
 
-/** Operator reset 2026-09-24 20:00 Asia/Jerusalem — hide pre-reset runs in dashboard. */
-export const QA_DASHBOARD_SINCE_ISO = "2026-09-24T17:00:00.000Z"
-
 function qaDashboardSince(days: number) {
-  const windowSince = new Date(Date.now() - days * 86400000).toISOString()
-  return windowSince > QA_DASHBOARD_SINCE_ISO ? windowSince : QA_DASHBOARD_SINCE_ISO
+  return new Date(Date.now() - days * 86400000).toISOString()
 }
 
 const QA_BUCKET_OUTCOMES: Record<

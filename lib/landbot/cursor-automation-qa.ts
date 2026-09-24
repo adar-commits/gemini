@@ -374,21 +374,3 @@ export async function executeCursorAutomationQa(
 
   return { sessionId, payload, webhook, run }
 }
-
-/**
- * Fire-and-forget wrapper around {@link executeCursorAutomationQa}.
- */
-export function scheduleCursorAutomationQa(input: ExecuteCursorAutomationQaInput) {
-  void (async () => {
-    try {
-      const result = await executeCursorAutomationQa(input)
-      if ("skipped" in result) return
-    } catch (error) {
-      console.warn("[cursor-automation-qa] notify failed", {
-        conversationId: input.conversationId,
-        trigger: input.trigger,
-        error: error instanceof Error ? error.message : error,
-      })
-    }
-  })()
-}

@@ -12,6 +12,8 @@ export const TRAINER_GOKU_QA_ACK =
   "*הום בוט :)*\nשלחתי את השיחה ל-Cursor Automation לבדיקה (human_assign)."
 export const TRAINER_GOKU_QA_SKIPPED =
   "*הום בוט :)*\nCursor Automation כבוי — בדוק CURSOR_AUTOMATION_* ב-Vercel."
+export const TRAINER_GOKU_QA_FAILED =
+  "*הום בוט :)*\nשליחה ל-Cursor Automation נכשלה — האירוע לא נשמר בדשבורד QA."
 
 function normalizeTrainerCommandText(text: string) {
   return text
