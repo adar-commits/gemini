@@ -56,6 +56,8 @@ export function qaTriggerLabel(trigger: string) {
       return "העברה לנציג"
     case "bot_failure":
       return "never-stuck"
+    case "manual":
+      return "בדיקה ידנית"
     default:
       return trigger
   }

@@ -1,7 +1,15 @@
-import { insertQaAutomationRun } from "@/lib/agents/qa-automation-log"
+import {
+  insertQaAutomationRun,
+  type QaAutomationRunRow,
+} from "@/lib/agents/qa-automation-log"
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 
-export type CursorAutomationQaTrigger = "human_assign" | "reset" | "closed_unanswered" | "bot_failure"
+export type CursorAutomationQaTrigger =
+  | "human_assign"
+  | "reset"
+  | "closed_unanswered"
+  | "bot_failure"
+  | "manual"
 
 export type CursorAutomationQaPayload = {
   conversation_url: string
@@ -120,6 +128,7 @@ export function cursorAutomationQaTriggers(): Set<CursorAutomationQaTrigger> {
     "reset",
     "closed_unanswered",
     "bot_failure",
+    "manual",
   ])
   const selected = parts.filter((part): part is CursorAutomationQaTrigger =>
     allowed.has(part as CursorAutomationQaTrigger)
@@ -128,6 +137,11 @@ export function cursorAutomationQaTriggers(): Set<CursorAutomationQaTrigger> {
 }
 
 /** Per-turn dedupe for bot_failure — same session can confuse on multiple messages. */
+/** Manual dashboard triggers always create a fresh analyze event. */
+export function buildManualQaIdempotencyKey(sessionId: string, at = Date.now()) {
+  return `manual:${sessionId.trim()}:${at}`
+}
+
 export function buildBotFailureIdempotencyKey(
   sessionId: string,
   lastUserMessage?: string | null
@@ -198,11 +212,7 @@ export async function postCursorAutomationQaAnalyzeWebhook(
   })
 }
 
-/**
- * Fire-and-forget: POST to Grok **analyze** automation (see CURSOR_AUTOMATION_QA_ANALYZE_URL).
- * Implement is chained from analyze via scripts/chain-qa-implement-webhook.ts.
- */
-export function scheduleCursorAutomationQa(input: {
+export type ExecuteCursorAutomationQaInput = {
   conversationId: string
   trigger: CursorAutomationQaTrigger
   handoffAction?: "human_service" | "human_sales"
@@ -210,78 +220,125 @@ export function scheduleCursorAutomationQa(input: {
   lastBotReply?: string
   phone?: string | null
   idempotencyKey?: string
-}) {
-  if (!shouldNotifyCursorAutomationQa(input.trigger)) return
+  sessionId?: string
+  landbotCustomerId?: string | null
+  skipTriggerCheck?: boolean
+}
 
+export type ExecuteCursorAutomationQaResult = {
+  sessionId: string
+  payload: CursorAutomationQaPayload
+  webhook: Awaited<ReturnType<typeof postCursorAutomationQaAnalyzeWebhook>>
+  run: QaAutomationRunRow
+}
+
+/**
+ * POST to Grok **analyze** automation and log a dashboard row (awaitable).
+ * Implement is chained from analyze via scripts/chain-qa-implement-webhook.ts.
+ */
+export async function executeCursorAutomationQa(
+  input: ExecuteCursorAutomationQaInput
+): Promise<
+  { skipped: true; reason: "disabled" | "trigger_filtered" } | ExecuteCursorAutomationQaResult
+> {
+  if (!input.skipTriggerCheck && !shouldNotifyCursorAutomationQa(input.trigger)) {
+    return { skipped: true, reason: "trigger_filtered" }
+  }
+  if (!cursorAutomationQaEnabled()) {
+    return { skipped: true, reason: "disabled" }
+  }
+
+  const row = input.sessionId
+    ? null
+    : await findCrmConversation(input.conversationId)
+  const sessionId =
+    input.sessionId?.trim() ||
+    row?.session_id?.trim() ||
+    input.conversationId.trim()
+  const idempotencyKey =
+    input.idempotencyKey ??
+    (input.trigger === "bot_failure"
+      ? buildBotFailureIdempotencyKey(sessionId, input.lastUserMessage)
+      : input.trigger === "manual"
+        ? buildManualQaIdempotencyKey(sessionId)
+        : undefined)
+  const payload = buildCursorAutomationQaPayload({
+    sessionId,
+    landbotCustomerId:
+      input.landbotCustomerId ?? row?.landbot_customer_id ?? input.conversationId,
+    trigger: input.trigger,
+    handoffAction: input.handoffAction,
+    lastUserMessage: input.lastUserMessage,
+    lastBotReply: input.lastBotReply,
+    phone: input.phone,
+    idempotencyKey,
+  })
+
+  const webhook = await postCursorAutomationQaAnalyzeWebhook(payload)
+  const stageNow = new Date().toISOString()
+  let run: QaAutomationRunRow
+
+  try {
+    run = await insertQaAutomationRun({
+      sessionId,
+      landbotCustomerId: payload.landbot_customer_id,
+      conversationUrl: payload.conversation_url,
+      trigger: payload.trigger,
+      phase: "analyze",
+      outcome: webhook.ok ? "triggered" : "webhook_failed",
+      rootCause: webhook.ok
+        ? input.trigger === "manual"
+          ? "בדיקה ידנית — נשלח לניתוח Grok"
+          : `Webhook sent — awaiting Grok analyze (${payload.trigger})`
+        : "Webhook POST to Cursor analyze automation failed",
+      idempotencyKey: payload.idempotency_key,
+      stageTimestamps: webhook.ok
+        ? { event_at: stageNow, analyze_started_at: stageNow }
+        : { event_at: stageNow },
+      operatorNotes: webhook.ok
+        ? input.trigger === "manual"
+          ? "טריגר ידני מהדשבורד"
+          : null
+        : "status" in webhook
+          ? `HTTP ${webhook.status}${webhook.detail ? `: ${webhook.detail}` : ""}`
+          : webhook.reason,
+    })
+  } catch (logError) {
+    console.warn("[cursor-automation-qa] dashboard log failed", {
+      sessionId,
+      trigger: input.trigger,
+      error: logError instanceof Error ? logError.message : logError,
+    })
+    throw logError
+  }
+
+  if (!webhook.ok) {
+    console.warn("[cursor-automation-qa] webhook failed", {
+      conversationId: input.conversationId,
+      sessionId,
+      trigger: input.trigger,
+      ...("status" in webhook ? { status: webhook.status } : { reason: webhook.reason }),
+    })
+  } else {
+    console.info("[cursor-automation-qa] webhook sent", {
+      conversationId: input.conversationId,
+      sessionId,
+      trigger: input.trigger,
+      idempotency_key: payload.idempotency_key,
+    })
+  }
+
+  return { sessionId, payload, webhook, run }
+}
+
+/**
+ * Fire-and-forget wrapper around {@link executeCursorAutomationQa}.
+ */
+export function scheduleCursorAutomationQa(input: ExecuteCursorAutomationQaInput) {
   void (async () => {
     try {
-      const row = await findCrmConversation(input.conversationId)
-      const sessionId = row?.session_id?.trim() || input.conversationId.trim()
-      const idempotencyKey =
-        input.idempotencyKey ??
-        (input.trigger === "bot_failure"
-          ? buildBotFailureIdempotencyKey(sessionId, input.lastUserMessage)
-          : undefined)
-      const payload = buildCursorAutomationQaPayload({
-        sessionId,
-        landbotCustomerId: row?.landbot_customer_id ?? input.conversationId,
-        trigger: input.trigger,
-        handoffAction: input.handoffAction,
-        lastUserMessage: input.lastUserMessage,
-        lastBotReply: input.lastBotReply,
-        phone: input.phone,
-        idempotencyKey,
-      })
-
-      const result = await postCursorAutomationQaAnalyzeWebhook(payload)
-
-      try {
-        const stageNow = new Date().toISOString()
-        await insertQaAutomationRun({
-          sessionId,
-          landbotCustomerId: payload.landbot_customer_id,
-          conversationUrl: payload.conversation_url,
-          trigger: payload.trigger,
-          phase: "analyze",
-          outcome: result.ok ? "triggered" : "webhook_failed",
-          rootCause: result.ok
-            ? `Webhook sent — awaiting Grok analyze (${payload.trigger})`
-            : "Webhook POST to Cursor analyze automation failed",
-          idempotencyKey: payload.idempotency_key,
-          stageTimestamps: result.ok
-            ? { event_at: stageNow, analyze_started_at: stageNow }
-            : { event_at: stageNow },
-          operatorNotes:
-            result.ok
-              ? null
-              : "status" in result
-                ? `HTTP ${result.status}${result.detail ? `: ${result.detail}` : ""}`
-                : result.reason,
-        })
-      } catch (logError) {
-        console.warn("[cursor-automation-qa] dashboard log failed", {
-          sessionId,
-          trigger: input.trigger,
-          error: logError instanceof Error ? logError.message : logError,
-        })
-      }
-
-      if (!result.ok) {
-        console.warn("[cursor-automation-qa] webhook failed", {
-          conversationId: input.conversationId,
-          sessionId,
-          trigger: input.trigger,
-          ...("status" in result ? { status: result.status } : { reason: result.reason }),
-        })
-        return
-      }
-
-      console.info("[cursor-automation-qa] webhook sent", {
-        conversationId: input.conversationId,
-        sessionId,
-        trigger: input.trigger,
-        idempotency_key: payload.idempotency_key,
-      })
+      const result = await executeCursorAutomationQa(input)
+      if ("skipped" in result) return
     } catch (error) {
       console.warn("[cursor-automation-qa] notify failed", {
         conversationId: input.conversationId,

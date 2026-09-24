@@ -23,7 +23,9 @@ import {
   qaRunSolution,
 } from "@/lib/agents/qa-run-summary"
 import { resolveQaRunRetryTarget } from "@/lib/landbot/qa-run-retry"
+import type { QaConversationContext } from "@/lib/landbot/qa-conversation-context"
 import { QaElapsedTimer } from "@/components/qa/qa-elapsed-timer"
+import { QaScorecard } from "@/components/qa/qa-scorecard"
 import { QaPipelineStepper } from "@/components/qa/qa-pipeline-stepper"
 import { QaRiskGauge } from "@/components/qa/qa-risk-gauge"
 import { QaRunToolbar } from "@/components/qa/qa-run-toolbar"
@@ -52,10 +54,12 @@ export function QaRunCard({
   run,
   index,
   siblings = [],
+  conversation = null,
 }: {
   run: QaAutomationRunRow
   index: number
   siblings?: QaAutomationRunRow[]
+  conversation?: QaConversationContext | null
 }) {
   const tone = qaOutcomeTone(run.outcome)
   const steps = qaPipelineSteps(run)
@@ -116,6 +120,21 @@ export function QaRunCard({
               <QaElapsedTimer sinceIso={anchorIso} live={active} />
             </span>
             <span className="font-mono text-[11px]">#{run.session_id}</span>
+            {conversation?.customerName ? (
+              <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-900">
+                {conversation.customerName}
+              </span>
+            ) : null}
+            {conversation?.messageCount != null ? (
+              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-700">
+                {conversation.messageCount} הודעות
+              </span>
+            ) : null}
+            {conversation?.department ? (
+              <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-medium text-violet-800">
+                {conversation.department}
+              </span>
+            ) : null}
           </div>
           <Link
             href={conversationUrl}
@@ -172,6 +191,8 @@ export function QaRunCard({
               </ul>
             ) : null}
           </section>
+
+          <QaScorecard run={run} />
 
           <details className="group/details rounded-2xl bg-zinc-50/80 p-4 ring-1 ring-black/[0.04]">
             <summary className="cursor-pointer text-sm font-semibold text-foreground marker:content-none">

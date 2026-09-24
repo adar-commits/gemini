@@ -1,7 +1,9 @@
 import Link from "next/link"
 import { QaDashboardHero } from "@/components/qa/qa-dashboard-hero"
+import { QaManualTrigger } from "@/components/qa/qa-manual-trigger"
 import { QaRunTable } from "@/components/qa/qa-run-table"
 import { QaStatsBar } from "@/components/qa/qa-stats-bar"
+import { listQaConversationContexts } from "@/lib/landbot/qa-conversation-context"
 import {
   getQaAutomationStats,
   listQaAutomationRuns,
@@ -72,6 +74,9 @@ export default async function QaDashboardPage({
   const stageTimelines = runs.map((run) =>
     buildQaStageTimeline(run, siblingsBySession.get(run.session_id) ?? [])
   )
+  const conversationContexts = runs.length
+    ? await listQaConversationContexts(runs.map((run) => run.session_id))
+    : new Map()
 
   return (
     <div className="qa-dashboard min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-slate-100 via-[#eef2ff] to-[#f6f5f3] pb-16">
@@ -83,6 +88,8 @@ export default async function QaDashboardPage({
         {stats ? (
           <QaStatsBar stats={stats} activeBucket={bucket} />
         ) : null}
+
+        <QaManualTrigger />
 
         <nav className="flex flex-wrap gap-2">
           {BUCKETS.map((item) => {
@@ -107,7 +114,11 @@ export default async function QaDashboardPage({
           })}
         </nav>
 
-        <QaRunTable runs={runs} siblingsBySession={siblingsBySession} />
+        <QaRunTable
+          runs={runs}
+          siblingsBySession={siblingsBySession}
+          conversationContexts={conversationContexts}
+        />
 
         {totalPages > 1 ? (
           <div className="flex items-center justify-center gap-3 text-sm">

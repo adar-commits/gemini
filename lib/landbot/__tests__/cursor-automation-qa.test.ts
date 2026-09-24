@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it, beforeEach, afterEach } from "node:test"
 import {
   buildBotFailureIdempotencyKey,
+  buildManualQaIdempotencyKey,
   buildCursorAutomationQaPayload,
   buildCursorAutomationWebhookHeaders,
   buildHomServiceConversationUrl,
@@ -100,6 +101,13 @@ describe("cursor automation qa webhook", () => {
       "Bearer crsr_test_analyze_token"
     )
     delete process.env.CURSOR_AUTOMATION_QA_ANALYZE_TOKEN
+  })
+
+  it("builds unique manual idempotency keys", () => {
+    const a = buildManualQaIdempotencyKey("532360395", 1_000)
+    const b = buildManualQaIdempotencyKey("532360395", 2_000)
+    assert.match(a, /^manual:532360395:\d+$/)
+    assert.notEqual(a, b)
   })
 
   it("builds per-turn bot_failure idempotency keys", () => {
