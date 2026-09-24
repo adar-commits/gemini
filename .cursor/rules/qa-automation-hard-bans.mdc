@@ -11,7 +11,8 @@ Applies to **Cursor Automation webhooks**, **לימוד גוקו**, and any **qa
 
 1. Read `.cursor/rules/conversation-fix-playbook.mdc` and `.cursor/rules/structured-vs-llm-routing.mdc`.
 2. Name the fix layer (prompt → hints → tool guard → pending pre-turn → runtime).
-3. If ambiguous Hebrew policy → **AskQuestion**, do not guess.
+3. If ambiguous Hebrew policy or fix necessity → **AskQuestion** / `ask_operator` verdict — do not guess.
+4. **Implement only when required** — skip nice-to-haves, style tweaks, and speculative hardening.
 
 ## Allowed first (preferred)
 
@@ -29,9 +30,15 @@ Applies to **Cursor Automation webhooks**, **לימוד גוקו**, and any **qa
 - **No new Hebrew intent regex on customer text** — no `/קבלה/`, `/כן.*תודה/` arms in `off-topic.ts`, `digital-document-flow.ts`, `order-lookup.ts`, etc.
 - **No new structured pre-turn arms** — no `runStructured*PreTurn` that re-decides intent from customer wording.
 - **No hijacking flows** — thread-state guards only, not keyword-on-latest-line routing.
-- **No docs the operator did not ask for.**
+- **No docs the operator did not ask for** (except `BRIEF.md` / `commit-log.jsonl` from implement automation).
+- **No gender / semantics / tone rewrites** — do not change לך/לכם, phrasing, or customer-facing meaning unless operator explicitly asked.
+- **Analyze (Grok) is read-only** — no code edits until Implement (Composer) webhook fires.
 
 If the only fix you can imagine violates a ban → reply **`no action`** and explain why teaching is needed — **do not ship a dumb regex fix**.
+
+## Commit tracking (implement only)
+
+After push, run `scripts/log-qa-automation-commit.ts`. Operator briefs from `BRIEF.md`. Revert with `npm run qa:vanish -- <sha>`.
 
 ## Mandatory before commit/push
 

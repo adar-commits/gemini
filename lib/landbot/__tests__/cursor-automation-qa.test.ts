@@ -4,6 +4,7 @@ import {
   buildBotFailureIdempotencyKey,
   buildCursorAutomationQaPayload,
   buildHomServiceConversationUrl,
+  cursorAutomationQaAnalyzeWebhookUrl,
   cursorAutomationQaEnabled,
   cursorAutomationQaTriggers,
   phoneLastFour,
@@ -61,8 +62,20 @@ describe("cursor automation qa webhook", () => {
     assert.match(payload.conversation_url, /508272038/)
   })
 
+  it("prefers analyze url over legacy webhook url", () => {
+    process.env.CURSOR_AUTOMATION_QA_ANALYZE_URL =
+      "https://api2.cursor.sh/automations/webhook/analyze-id"
+    process.env.CURSOR_AUTOMATION_WEBHOOK_URL =
+      "https://api2.cursor.sh/automations/webhook/legacy-id"
+    assert.equal(
+      cursorAutomationQaAnalyzeWebhookUrl(),
+      "https://api2.cursor.sh/automations/webhook/analyze-id"
+    )
+  })
+
   it("is disabled without webhook url", () => {
     delete process.env.CURSOR_AUTOMATION_WEBHOOK_URL
+    delete process.env.CURSOR_AUTOMATION_QA_ANALYZE_URL
     assert.equal(cursorAutomationQaEnabled(), false)
     assert.equal(shouldNotifyCursorAutomationQa("human_assign"), false)
   })

@@ -1,0 +1,77 @@
+# HoM QA — Analyze automation (Grok 4.7 High)
+
+**Model:** Grok 4.7 High · **Read-only** — do not edit bot code, do not commit, do not push.
+
+Repo: `/Users/dr/gemini` · branch `main` only.
+
+## Bootstrap
+
+1. Read `.cursor/rules/conversation-fix-playbook.mdc`, `structured-vs-llm-routing.mdc`, `qa-automation-hard-bans.mdc`.
+2. Read `qa-teach-plan-implement` skill — **QA section only** (steps 1–2).
+
+## When webhook POST arrives
+
+Payload includes `conversation_url`, `session_id`, `trigger` (`human_assign` | `bot_failure`), optional `last_user_message` / `last_bot_reply`.
+
+1. Read the **full** thread (`npx tsx scripts/read-hom-conversation.ts <session_id>` or Supabase `walklyxhkhrdzbkfhtez`).
+2. Save the inbound POST body to `.cursor/qa-queue/<session_id>.source.json`.
+3. Decide verdict — use **plain language** in `root_cause`.
+
+### Verdicts
+
+| Verdict | When |
+|---------|------|
+| `false_alarm` | Customer wanted a rep; bot behaved correctly |
+| `already_covered` | Same bug class fixed in last 7 days (check `commit-log.jsonl` / `BRIEF.md`) |
+| `too_risky` | Fix would touch routing policy, gender, semantics, or needs product call |
+| `ask_operator` | Hebrew policy ambiguous — **stop and ask operator** (fill `operator_questions`) |
+| `real_failure` | Clear bot mistake; fix layer obvious |
+
+### Implement gate (strict)
+
+Chain to Composer **only if ALL true**:
+
+- `verdict`: `real_failure`
+- `confidence`: `high` (not medium/low)
+- `fix_layer`: one of `prompt` | `hints` | `tool_guard` | `pre_turn` | `runtime`
+- `fix_plan`: 1–3 bullets — **no regex/sanitizer plans**
+- Fix is **required** — not a nice-to-have tweak
+
+If unsure → `ask_operator` with 1–3 multiple-choice questions. **Do not guess.**
+
+4. Write `.cursor/qa-queue/<session_id>.analysis.json` matching `analysis-schema.json`.
+
+Example:
+
+```json
+{
+  "session_id": "532452401",
+  "conversation_url": "https://service.hom-group.co.il/conversations/532452401",
+  "trigger": "bot_failure",
+  "verdict": "real_failure",
+  "confidence": "high",
+  "root_cause": "Bot sent never-stuck though receipt order was already in thread",
+  "fix_layer": "hints",
+  "fix_plan": [
+    "Add thread-state hint when receipt orderID present and customer confirmed כן"
+  ],
+  "analyzed_at": "2026-09-24T07:00:00.000Z"
+}
+```
+
+5. Reply in chat: verdict + one-sentence cause.
+
+6. If approved for implement:
+
+```bash
+export CURSOR_AUTOMATION_QA_IMPLEMENT_URL='https://api2.cursor.sh/automations/webhook/YOUR-IMPLEMENT-ID'
+npx tsx scripts/chain-qa-implement-webhook.ts .cursor/qa-queue/<session_id>.analysis.json --source-payload .cursor/qa-queue/<session_id>.source.json
+```
+
+Otherwise stop — **no code edits on analyze.**
+
+## Banned on analyze
+
+- No edits to `hom-bot.md`, hints, tools, tests
+- No “while I'm here” refactors
+- No gender / semantics / tone rewrites in fix plans

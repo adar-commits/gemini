@@ -24,11 +24,26 @@ export function cursorAutomationQaEnabled() {
   if (raw === "0" || raw === "false" || raw === "off" || raw === "no") {
     return false
   }
-  return Boolean(cursorAutomationWebhookUrl())
+  return Boolean(cursorAutomationQaAnalyzeWebhookUrl())
 }
 
+/** Legacy alias — production analyze phase (Grok automation). */
 export function cursorAutomationWebhookUrl() {
-  return process.env.CURSOR_AUTOMATION_WEBHOOK_URL?.trim() || ""
+  return cursorAutomationQaAnalyzeWebhookUrl()
+}
+
+/** Phase 1: Grok analyze automation. Falls back to CURSOR_AUTOMATION_WEBHOOK_URL. */
+export function cursorAutomationQaAnalyzeWebhookUrl() {
+  return (
+    process.env.CURSOR_AUTOMATION_QA_ANALYZE_URL?.trim() ||
+    process.env.CURSOR_AUTOMATION_WEBHOOK_URL?.trim() ||
+    ""
+  )
+}
+
+/** Phase 2: Composer implement automation — chained from analyze, not from production. */
+export function cursorAutomationQaImplementWebhookUrl() {
+  return process.env.CURSOR_AUTOMATION_QA_IMPLEMENT_URL?.trim() || ""
 }
 
 /** Default: human handoff + never-stuck bot failure. Comma list, e.g. human_assign,bot_failure */
@@ -112,7 +127,7 @@ export function shouldNotifyCursorAutomationQa(
 }
 
 async function postCursorAutomationWebhook(payload: CursorAutomationQaPayload) {
-  const url = cursorAutomationWebhookUrl()
+  const url = cursorAutomationQaAnalyzeWebhookUrl()
   if (!url) return { ok: false as const, reason: "missing_webhook_url" as const }
 
   const controller = new AbortController()
@@ -138,8 +153,8 @@ async function postCursorAutomationWebhook(payload: CursorAutomationQaPayload) {
 }
 
 /**
- * Fire-and-forget: notify Cursor Automation to QA this conversation.
- * Phase 1 (week 1): human_assign only — see CURSOR_AUTOMATION_QA_TRIGGERS.
+ * Fire-and-forget: POST to Grok **analyze** automation (see CURSOR_AUTOMATION_QA_ANALYZE_URL).
+ * Implement is chained from analyze via scripts/chain-qa-implement-webhook.ts.
  */
 export function scheduleCursorAutomationQa(input: {
   conversationId: string

@@ -48,3 +48,6 @@ next-env.d.ts
 .part*-validate-result.json
 .unified-create-result.json
 .workflow-details.json
+
+# QA automation temp (committed: BRIEF.md + commit-log.jsonl)
+.cursor/qa-queue/*.json

@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "npm run test:gold && npm run test:contracts && npm run test:qa-guard && npm run guard:qa-fix:commit",
-    "test:qa-guard": "npx tsx --test lib/hom-agent/__tests__/qa-fix-guard.test.ts",
+    "test:qa-guard": "npx tsx --test lib/hom-agent/__tests__/qa-fix-guard.test.ts lib/hom-agent/__tests__/qa-analysis.test.ts",
     "guard:qa-fix": "npx tsx scripts/guard-qa-fix-diff.ts",
     "guard:qa-fix:commit": "npx tsx scripts/guard-qa-fix-diff.ts --commit",
+    "qa:vanish": "npx tsx scripts/vanish-qa-commit.ts",
+    "qa:chain-implement": "npx tsx scripts/chain-qa-implement-webhook.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
