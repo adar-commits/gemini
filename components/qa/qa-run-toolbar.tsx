@@ -85,7 +85,7 @@ export function QaRunToolbar({
           disabled={pending}
           title={qaRunRetryLabel(retryTarget)}
           aria-label={qaRunRetryLabel(retryTarget)}
-          className={`${iconButtonClass(pending)} text-zinc-400 hover:bg-sky-50 hover:text-sky-700`}
+          className={`${iconButtonClass(pending)} text-zinc-400 ring-1 ring-transparent hover:bg-sky-50 hover:text-sky-700 hover:ring-sky-100`}
         >
           <RetryIcon />
         </button>
@@ -96,7 +96,7 @@ export function QaRunToolbar({
         disabled={pending}
         title="מחק אירוע"
         aria-label="מחק אירוע"
-        className={`${iconButtonClass(pending)} text-zinc-400 hover:bg-rose-50 hover:text-rose-600`}
+        className={`${iconButtonClass(pending)} text-zinc-400 ring-1 ring-transparent hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-100`}
       >
         <TrashIcon />
       </button>

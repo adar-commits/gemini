@@ -57,3 +57,92 @@ body {
 [dir="rtl"] summary {
   text-align: right;
 }
+
+/* QA dashboard motion */
+@keyframes qa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes qa-pulse-ring {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@keyframes qa-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qa-aurora-shift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-4%, 2%) scale(1.05);
+  }
+}
+
+@keyframes qa-progress-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.qa-spinner {
+  animation: qa-spin 0.9s linear infinite;
+}
+
+.qa-spin-ring {
+  animation: qa-spin 1.4s linear infinite;
+}
+
+.qa-pulse {
+  animation: qa-pulse-ring 1.6s ease-out infinite;
+}
+
+.qa-fade-up {
+  animation: qa-fade-up 0.55s ease-out both;
+}
+
+.qa-aurora {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.35), transparent 45%),
+    radial-gradient(circle at 80% 30%, rgba(14, 165, 233, 0.25), transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(139, 92, 246, 0.2), transparent 45%);
+  animation: qa-aurora-shift 12s ease-in-out infinite;
+}
+
+.qa-progress-bar {
+  background-size: 200% 100%;
+  animation: qa-progress-shimmer 2.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qa-spinner,
+  .qa-spin-ring,
+  .qa-pulse,
+  .qa-fade-up,
+  .qa-aurora,
+  .qa-progress-bar {
+    animation: none !important;
+  }
+}

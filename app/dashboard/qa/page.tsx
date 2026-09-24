@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { QaDashboardHero } from "@/components/qa/qa-dashboard-hero"
 import { QaRunTable } from "@/components/qa/qa-run-table"
 import { QaStatsBar } from "@/components/qa/qa-stats-bar"
 import {
@@ -56,7 +57,7 @@ export default async function QaDashboardPage({
 
   if (error) {
     return (
-      <div className="mx-auto max-w-6xl px-5 py-8">
+      <div className="mx-auto max-w-7xl px-5 py-8">
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
@@ -65,64 +66,63 @@ export default async function QaDashboardPage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-5 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">QA Automation</h1>
-        <p className="text-sm text-muted-foreground">
-          סיכום בעיה / פתרון / סיכון — auto-fix אלא אם מסוכן מדי (8+)
-        </p>
-      </header>
+    <div className="qa-dashboard min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-slate-100 via-[#eef2ff] to-[#f6f5f3] pb-16">
+      <div className="mx-auto max-w-7xl space-y-6 px-5 py-8">
+        {stats ? <QaDashboardHero stats={stats} /> : null}
 
-      {stats ? <QaStatsBar stats={stats} /> : null}
+        {stats ? (
+          <QaStatsBar stats={stats} activeBucket={bucket} />
+        ) : null}
 
-      <nav className="flex flex-wrap gap-2">
-        {BUCKETS.map((item) => {
-          const active = bucket === item.id
-          const href =
-            item.id === "all"
-              ? "/dashboard/qa"
-              : `/dashboard/qa?bucket=${encodeURIComponent(item.id)}`
-          return (
-            <Link
-              key={item.id}
-              href={href}
-              className={
-                active
-                  ? "rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background"
-                  : "rounded-full bg-white px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-black/6 hover:text-foreground"
-              }
-            >
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
+        <nav className="flex flex-wrap gap-2">
+          {BUCKETS.map((item) => {
+            const active = bucket === item.id
+            const href =
+              item.id === "all"
+                ? "/dashboard/qa"
+                : `/dashboard/qa?bucket=${encodeURIComponent(item.id)}`
+            return (
+              <Link
+                key={item.id}
+                href={href}
+                className={
+                  active
+                    ? "rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white shadow-md transition"
+                    : "rounded-full bg-white/80 px-4 py-1.5 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition hover:bg-white hover:text-slate-900"
+                }
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
 
-      <QaRunTable runs={runs} />
+        <QaRunTable runs={runs} />
 
-      {totalPages > 1 ? (
-        <div className="flex items-center justify-center gap-3 text-sm">
-          {page > 1 ? (
-            <Link
-              href={`/dashboard/qa?page=${page - 1}${bucket !== "all" ? `&bucket=${bucket}` : ""}`}
-              className="text-sky-700 hover:underline"
-            >
-              ← הקודם
-            </Link>
-          ) : null}
-          <span className="text-muted-foreground">
-            {page} / {totalPages}
-          </span>
-          {page < totalPages ? (
-            <Link
-              href={`/dashboard/qa?page=${page + 1}${bucket !== "all" ? `&bucket=${bucket}` : ""}`}
-              className="text-sky-700 hover:underline"
-            >
-              הבא →
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-center gap-3 text-sm">
+            {page > 1 ? (
+              <Link
+                href={`/dashboard/qa?page=${page - 1}${bucket !== "all" ? `&bucket=${bucket}` : ""}`}
+                className="rounded-lg bg-white px-3 py-1.5 font-medium text-indigo-700 shadow-sm ring-1 ring-black/[0.06] hover:bg-indigo-50"
+              >
+                ← הקודם
+              </Link>
+            ) : null}
+            <span className="text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            {page < totalPages ? (
+              <Link
+                href={`/dashboard/qa?page=${page + 1}${bucket !== "all" ? `&bucket=${bucket}` : ""}`}
+                className="rounded-lg bg-white px-3 py-1.5 font-medium text-indigo-700 shadow-sm ring-1 ring-black/[0.06] hover:bg-indigo-50"
+              >
+                הבא →
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
