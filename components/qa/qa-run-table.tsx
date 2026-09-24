@@ -8,6 +8,7 @@ import {
   qaRunSolution,
 } from "@/lib/agents/qa-run-summary"
 import { qaPhaseLabel } from "@/lib/agents/qa-automation-labels"
+import { QaRunDeleteButton } from "@/components/qa/qa-run-delete-button"
 
 const outcomeRing = {
   emerald: "bg-emerald-50 text-emerald-800 ring-emerald-600/15",
@@ -36,34 +37,37 @@ export function QaRunTable({ runs }: { runs: QaAutomationRunRow[] }) {
             key={run.id}
             className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/[0.06]"
           >
-            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-              <span
-                className={`rounded-full px-2 py-0.5 font-medium ring-1 ${outcomeRing[tone]}`}
-              >
-                {qaOutcomeLabel(run.outcome)}
-              </span>
-              <span className="rounded-md bg-zinc-100 px-2 py-0.5 font-medium text-zinc-600">
-                {qaTriggerLabel(run.trigger)}
-              </span>
-              <span className="rounded-md bg-zinc-50 px-2 py-0.5 text-zinc-600">
-                {qaPhaseLabel(run.phase)}
-              </span>
-              <span className="text-muted-foreground" title="Asia/Jerusalem">
-                {formatJerusalemDashboardDateTime(run.created_at)}
-              </span>
-              <Link
-                href={run.conversation_url}
-                className="font-mono text-[11px] text-sky-700 underline-offset-2 hover:underline"
-                target="_blank"
-                rel="noreferrer"
-              >
-                #{run.session_id}
-              </Link>
-              {run.commit_sha ? (
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {run.commit_sha.slice(0, 7)}
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <QaRunDeleteButton runId={run.id} />
+              <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+                <span
+                  className={`rounded-full px-2 py-0.5 font-medium ring-1 ${outcomeRing[tone]}`}
+                >
+                  {qaOutcomeLabel(run.outcome)}
                 </span>
-              ) : null}
+                <span className="rounded-md bg-zinc-100 px-2 py-0.5 font-medium text-zinc-600">
+                  {qaTriggerLabel(run.trigger)}
+                </span>
+                <span className="rounded-md bg-zinc-50 px-2 py-0.5 text-zinc-600">
+                  {qaPhaseLabel(run.phase)}
+                </span>
+                <span className="text-muted-foreground" title="Asia/Jerusalem">
+                  {formatJerusalemDashboardDateTime(run.created_at)}
+                </span>
+                <Link
+                  href={run.conversation_url}
+                  className="font-mono text-[11px] text-sky-700 underline-offset-2 hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  #{run.session_id}
+                </Link>
+                {run.commit_sha ? (
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {run.commit_sha.slice(0, 7)}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <dl className="space-y-2 text-sm leading-relaxed">

@@ -321,6 +321,12 @@ export async function updateQaAutomationRun(input: {
   return mapRow(data as Record<string, unknown>)
 }
 
+export async function deleteQaAutomationRun(id: string) {
+  const supabase = getAgentSupabase()
+  const { error } = await supabase.from("hom_agent_qa_runs").delete().eq("id", id.trim())
+  if (error) throw error
+}
+
 export async function markQaRunVanishedByCommitSha(commitSha: string) {
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
