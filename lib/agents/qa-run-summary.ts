@@ -23,9 +23,45 @@ function isSystemOperatorNote(notes: string) {
   return trimmed in OPERATOR_NOTES_HE
 }
 
+function localizeWebhookFailureNotes(notes: string) {
+  const lower = notes.toLowerCase()
+  if (
+    lower.includes("401") ||
+    lower.includes("authorization") ||
+    lower.includes("implement_token")
+  ) {
+    if (
+      lower.includes("no authorization") ||
+      lower.includes("missing authorization") ||
+      lower.includes("inbound webhook had no authorization")
+    ) {
+      return (
+        "התיקון אושר, אבל השליחה ליישום נכשלה — לא נשלח Authorization. " +
+        "לחץ ↻ לניסיון חוזר (Vercel כבר מוגדר)."
+      )
+    }
+    return "התיקון אושר, אבל השליחה ל-Composer נכשלה (401). לחץ ↻ לניסיון חוזר."
+  }
+  const httpMatch = notes.match(/Implement webhook failed: HTTP (\d+)/i)
+  if (httpMatch) {
+    return `שליחה ל-Composer נכשלה (HTTP ${httpMatch[1]}). לחץ ↻ לניסיון חוזר.`
+  }
+  return localizeOperatorNotes(notes)
+}
+
 /** Known English Grok summaries → easy Hebrew for the dashboard. */
 function hebrewFallbackProblem(cause: string) {
   const lower = cause.toLowerCase()
+  if (
+    (lower.includes("order card") || lower.includes("confirmed the order")) &&
+    (lower.includes("sizes") || lower.includes("other size"))
+  ) {
+    return (
+      "הלקוח אישר את כרטיס ההזמנה ושאל גם על מידות נוספות. " +
+      "הבוט שלח 'לא הצלחתי להבין' במקום סטטוס משלוח. " +
+      "קודם 'לא' על אותו כרטיס נתפס כדחייה, ולכן האישור המאוחר לא נקשר."
+    )
+  }
   if (lower.includes("return") && lower.includes("sales advisor")) {
     return (
       "הלקוח בחר החזרה ואמר כן לנציג כי קוד ההחזרה לא הגיע. " +
@@ -37,7 +73,13 @@ function hebrewFallbackProblem(cause: string) {
       "אחרי בחירת החלפה ואישור הזמנה, הבוט המשיך לזרימת שירות במקום לשאול סוג החלפה ולהעביר למכירות."
     )
   }
-  if (lower.includes("never-stuck") || lower.includes("never stuck")) {
+  if (
+    lower.includes("never-stuck") ||
+    lower.includes("never stuck") ||
+    lower.includes("didn't-understand") ||
+    lower.includes("didn't understand") ||
+    lower.includes("didnt understand")
+  ) {
     return "הבוט שלח 'לא הצלחתי להבין' במקום להמשיך את הזרימה לפי מה שכבר ידוע בשיחה."
   }
   return cause
@@ -65,11 +107,16 @@ export function qaRunProblem(run: QaAutomationRunRow) {
 
 export function qaRunSolution(run: QaAutomationRunRow) {
   if (
-    (run.outcome === "chained" || run.outcome === "real_failure") &&
-    run.fix_plan[0]?.trim()
+    run.fix_plan[0]?.trim() &&
+    run.outcome !== "false_alarm" &&
+    run.outcome !== "ignored"
   ) {
     const plan = run.fix_plan[0].trim()
     return hasHebrew(plan) ? plan : `תיקון מתוכנן: ${plan}`
+  }
+
+  if (run.outcome === "webhook_failed" && run.operator_notes?.trim()) {
+    return localizeWebhookFailureNotes(run.operator_notes.trim())
   }
 
   if (run.operator_notes?.trim()) {
@@ -88,7 +135,10 @@ export function qaRunSolution(run: QaAutomationRunRow) {
   if (run.outcome === "too_risky") {
     return "ממתין לאישור מפעיל לפני שינוי."
   }
-  if (run.outcome === "triggered" || run.outcome === "webhook_failed") {
+  if (run.outcome === "webhook_failed") {
+    return "שליחה ליישום נכשלה — לחץ ↻ לניסיון חוזר."
+  }
+  if (run.outcome === "triggered") {
     return "בתהליך review — טרם הוחלט."
   }
   if (run.outcome === "chained") {

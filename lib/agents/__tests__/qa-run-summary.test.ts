@@ -89,4 +89,29 @@ describe("qaRunSolution", () => {
       "נשלח ליישום — Composer מריץ את התיקון עכשיו."
     )
   })
+
+  it("localizes webhook_failed 401 implement chain notes to Hebrew", () => {
+    const run = baseRun({
+      outcome: "webhook_failed",
+      operator_notes:
+        "Implement approved but not started. Inbound webhook had no Authorization header, and this run has no CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN, so the production chain POST returned 401.",
+    })
+    const solution = qaRunSolution(run)
+    assert.match(solution, /401|Authorization/)
+    assert.match(solution, /↻/)
+    assert.doesNotMatch(solution, /Implement approved/)
+  })
+})
+
+describe("qaRunProblem order confirm", () => {
+  it("translates order card + sizes English summary to Hebrew", () => {
+    const run = baseRun({
+      root_cause:
+        "The customer confirmed the order card the bot had already shown, and also asked whether it comes in other sizes. The bot answered with the didn't-understand fallback and offered a service rep.",
+    })
+    const problem = qaRunProblem(run)
+    assert.match(problem, /כרטיס/)
+    assert.match(problem, /מידות/)
+    assert.doesNotMatch(problem, /^The customer/)
+  })
 })
