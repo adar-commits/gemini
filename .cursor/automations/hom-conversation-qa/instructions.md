@@ -30,17 +30,17 @@ gemini handoff / never-stuck
 ```
 CURSOR_AUTOMATION_QA_ENABLED=1
 CURSOR_AUTOMATION_QA_TRIGGERS=human_assign,bot_failure
-CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/fe797bbf-b811-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/e4f4b7a1-b820-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_ANALYZE_TOKEN=crsr_...   # Generate auth header on Analyze automation
-CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/fe797bbf-b811-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/80ca4069-b812-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/e4f4b7a1-b820-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/10bd1ba9-b821-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on Implement automation
 ```
 
 ## Analyze automation secrets (Grok chaining)
 
 ```
-CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/80ca4069-b812-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/10bd1ba9-b821-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Same as Vercel implement token
 ```
 
