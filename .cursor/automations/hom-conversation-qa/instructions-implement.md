@@ -2,7 +2,7 @@
 
 **Model:** Composer 2.5 · **Execute only** — do not re-analyze from scratch.
 
-Repo: `/Users/dr/gemini` · branch `main` only.
+Repo: `adar-commits/gemini` · branch `main` only.
 
 ## Bootstrap
 

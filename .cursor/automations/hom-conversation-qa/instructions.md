@@ -17,21 +17,31 @@ gemini handoff / never-stuck
 | **HoM QA Analyze** | Grok 4.7 High | `instructions-analyze.md` |
 | **HoM QA Implement** | Composer 2.5 | `instructions-implement.md` |
 
+## Repo binding (Cursor automations)
+
+- Repository: **`adar-commits/gemini`** from the GitHub dropdown (PAT) — **not** a local folder path.
+- Branch: **`main`**
+- Instructions say `Repo: adar-commits/gemini` — never `/Users/dr/gemini`.
+- Local clone remote must be `git@github.com:adar-commits/gemini.git` (not `github-adar` SSH alias).
+- If webhooks return `github-adar/adar-commits/gemini`, **delete and recreate** both automations after fixing remote.
+
 ## Vercel env (gemini production)
 
 ```
 CURSOR_AUTOMATION_QA_ENABLED=1
 CURSOR_AUTOMATION_QA_TRIGGERS=human_assign,bot_failure
-CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/YOUR-ANALYZE-ID
+CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/fe797bbf-b811-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_ANALYZE_TOKEN=crsr_...   # Generate auth header on Analyze automation
-CURSOR_AUTOMATION_WEBHOOK_URL=...   # legacy alias for analyze URL
-```
-
-## Local / Analyze automation env (for chaining)
-
-```
-CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/YOUR-IMPLEMENT-ID
+CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/fe797bbf-b811-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/80ca4069-b812-11f1-977f-f6b8f2fcf9b2
 CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on Implement automation
+```
+
+## Analyze automation secrets (Grok chaining)
+
+```
+CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/80ca4069-b812-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Same as Vercel implement token
 ```
 
 ## Triggers

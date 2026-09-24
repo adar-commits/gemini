@@ -2,7 +2,7 @@
 
 **Model:** Grok 4.7 High · **Read-only** — do not edit bot code, do not commit, do not push.
 
-Repo: `/Users/dr/gemini` · branch `main` only.
+Repo: `adar-commits/gemini` · branch `main` only.
 
 ## Bootstrap
 
