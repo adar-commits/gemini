@@ -73,10 +73,25 @@ Use `--outcome chained` only when chaining to implement. Include `--fix-layer` a
 
 6. Reply in chat: verdict + one-sentence cause + risk score.
 
-7. If approved for implement:
+7. If approved for implement — chain via **gemini production** (implement tokens live on Vercel only):
 
 ```bash
-export CURSOR_AUTOMATION_QA_IMPLEMENT_URL='https://api2.cursor.sh/automations/webhook/YOUR-IMPLEMENT-ID'
+curl -s -X POST "https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-implement" \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  -H "Content-Type: application/json" \
+  -d @- <<EOF
+{
+  "analysis": $(cat .cursor/qa-queue/<session_id>.analysis.json),
+  "source": $(cat .cursor/qa-queue/<session_id>.source.json)
+}
+EOF
+```
+
+Requires automation secret **`CRON_SECRET`** = same value as Vercel production `CRON_SECRET`. Do **not** set implement URL/token in Grok — the proxy uses Vercel env.
+
+Fallback (local with `.env.production.local`):
+
+```bash
 npx tsx scripts/chain-qa-implement-webhook.ts .cursor/qa-queue/<session_id>.analysis.json --source-payload .cursor/qa-queue/<session_id>.source.json
 ```
 

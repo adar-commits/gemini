@@ -12,6 +12,7 @@
     "qa:log": "npx tsx scripts/log-qa-run.ts",
     "qa:backfill": "npx tsx scripts/backfill-qa-runs.ts",
     "qa:chain-implement": "npx tsx scripts/chain-qa-implement-webhook.ts",
+    "verify:qa-automation": "npx tsx scripts/verify-qa-automation-env.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

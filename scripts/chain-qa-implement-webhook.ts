@@ -1,28 +1,47 @@
 /**
- * Grok analyze automation: POST approved analysis to Composer implement webhook.
+ * Chain Grok analyze → Composer implement (local / fallback).
+ * Prefer production proxy: POST /api/agents/qa-chain-implement (uses Vercel env).
  *
  * Usage:
  *   npx tsx scripts/chain-qa-implement-webhook.ts .cursor/qa-queue/532452401.analysis.json
  *   npx tsx scripts/chain-qa-implement-webhook.ts .cursor/qa-queue/532452401.analysis.json --source-payload .cursor/qa-queue/532452401.source.json
  */
 import { readFileSync } from "node:fs"
-import {
-  buildImplementWebhookPayload,
-  parseQaAnalysis,
-  shouldChainQaImplement,
-} from "../lib/hom-agent/qa-analysis"
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+import { parseQaAnalysis } from "../lib/hom-agent/qa-analysis"
 import type { CursorAutomationQaPayload } from "../lib/landbot/cursor-automation-qa"
-import {
-  cursorAutomationQaImplementAuthToken,
-  cursorAutomationQaImplementWebhookUrl,
-  postCursorAutomationWebhook,
-} from "../lib/landbot/cursor-automation-qa"
+import { chainQaImplement } from "../lib/landbot/qa-chain-implement"
+
+function loadEnvFile(relativePath: string) {
+  const path = join(process.cwd(), relativePath)
+  if (!existsSync(path)) return
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("#")) continue
+    const eq = trimmed.indexOf("=")
+    if (eq <= 0) continue
+    const key = trimmed.slice(0, eq)
+    if (process.env[key]?.trim()) continue
+    let value = trimmed.slice(eq + 1)
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    if (value) process.env[key] = value
+  }
+}
 
 function readJson(path: string) {
   return JSON.parse(readFileSync(path, "utf8")) as unknown
 }
 
 async function main() {
+  loadEnvFile(".env.production.local")
+  loadEnvFile(".env.local")
+
   const analysisPath = process.argv[2]
   if (!analysisPath) {
     console.error(
@@ -33,78 +52,24 @@ async function main() {
 
   const analysis = parseQaAnalysis(readJson(analysisPath))
   if (!analysis) {
-    console.error("Invalid analysis JSON — see .cursor/automations/hom-conversation-qa/analysis-schema.json")
-    process.exit(1)
-  }
-
-  if (!shouldChainQaImplement(analysis)) {
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          chained: false,
-          verdict: analysis.verdict,
-          confidence: analysis.confidence,
-          reason:
-            analysis.verdict === "ask_operator" || analysis.confidence !== "high"
-              ? "needs_operator"
-              : "not_approved_for_implement",
-        },
-        null,
-        2
-      )
+    console.error(
+      "Invalid analysis JSON — see .cursor/automations/hom-conversation-qa/analysis-schema.json"
     )
-    return
+    process.exit(1)
   }
 
   const sourceFlag = process.argv.indexOf("--source-payload")
   const sourcePath = sourceFlag >= 0 ? process.argv[sourceFlag + 1] : null
   const source = sourcePath
     ? (readJson(sourcePath) as CursorAutomationQaPayload)
-    : ({
-        conversation_url: analysis.conversation_url,
-        session_id: analysis.session_id,
-        landbot_customer_id: null,
-        trigger: analysis.trigger,
-        idempotency_key: `${analysis.session_id}:${analysis.trigger}`,
-        sent_at: analysis.analyzed_at ?? new Date().toISOString(),
-      } satisfies CursorAutomationQaPayload)
+    : undefined
 
-  const url = cursorAutomationQaImplementWebhookUrl()
-  if (!url) {
-    console.error("Missing CURSOR_AUTOMATION_QA_IMPLEMENT_URL in environment")
-    process.exit(1)
-  }
+  const result = await chainQaImplement({ analysis, source })
+  console.log(JSON.stringify(result, null, 2))
 
-  const payload = buildImplementWebhookPayload({ source, analysis })
-
-  const result = await postCursorAutomationWebhook({
-    url,
-    token: cursorAutomationQaImplementAuthToken(),
-    body: payload,
-  })
   if (!result.ok) {
-    console.error(
-      `Implement webhook failed: ${
-        "status" in result
-          ? `HTTP ${result.status}${result.detail ? ` — ${result.detail}` : ""}`
-          : result.reason
-      }`
-    )
     process.exit(1)
   }
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        chained: true,
-        session_id: analysis.session_id,
-        idempotency_key: payload.idempotency_key,
-      },
-      null,
-      2
-    )
-  )
 }
 
 main().catch((error) => {

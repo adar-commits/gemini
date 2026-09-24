@@ -66,10 +66,20 @@ CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on Implem
 
 ## Analyze automation secrets (Grok chaining)
 
+Grok chains implement through **gemini production** — only one secret needed in the Analyze automation:
+
 ```
-CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/80ca4069-b812-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Same as Vercel implement token
+CRON_SECRET=<same as Vercel production CRON_SECRET>
 ```
+
+Verify Vercel has implement vars (already required for the proxy):
+
+```bash
+npx tsx scripts/verify-qa-automation-env.ts
+curl -s https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-implement
+```
+
+Do **not** duplicate `CURSOR_AUTOMATION_QA_IMPLEMENT_*` into Grok — that caused HTTP 401.
 
 ## Triggers
 
