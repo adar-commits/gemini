@@ -22,7 +22,7 @@ import {
   qaRunRiskLabel,
   qaRunSolution,
 } from "@/lib/agents/qa-run-summary"
-import { resolveQaRunRetryTarget } from "@/lib/landbot/qa-run-retry"
+import { canRetryQaRun } from "@/lib/landbot/qa-run-retry"
 import type { QaConversationContext } from "@/lib/landbot/qa-conversation-context"
 import { QaElapsedTimer } from "@/components/qa/qa-elapsed-timer"
 import { QaScorecard } from "@/components/qa/qa-scorecard"
@@ -95,10 +95,7 @@ export function QaRunCard({
               {qaPhaseLabel(run.phase)}
             </span>
           </div>
-          <QaRunToolbar
-            runId={run.id}
-            retryTarget={resolveQaRunRetryTarget(run)}
-          />
+          <QaRunToolbar runId={run.id} canRetry={canRetryQaRun(run)} />
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">

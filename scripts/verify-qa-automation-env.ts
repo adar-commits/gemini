@@ -1,17 +1,16 @@
 /**
- * Verify Vercel-side QA automation env (production gemini).
+ * Verify QA self-improve automation env (production gemini).
  *
  *   npx tsx scripts/verify-qa-automation-env.ts
  */
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import { qaChainImplementEnvStatus } from "../lib/landbot/qa-chain-implement"
 import {
-  cursorAutomationQaAnalyzeWebhookUrl,
+  cursorAutomationQaAuthToken,
   cursorAutomationQaEnabled,
   cursorAutomationQaTriggers,
+  cursorAutomationQaWebhookUrl,
 } from "../lib/landbot/cursor-automation-qa"
-import { internalApiOrigin } from "../lib/landbot/sync-hook"
 
 function loadEnvFile(relativePath: string) {
   const path = join(process.cwd(), relativePath)
@@ -37,14 +36,11 @@ function loadEnvFile(relativePath: string) {
 loadEnvFile(".env.production.local")
 loadEnvFile(".env.local")
 
-const env = qaChainImplementEnvStatus()
 const required = [
-  ["CURSOR_AUTOMATION_QA_ENABLED", cursorAutomationQaEnabled()],
-  ["CURSOR_AUTOMATION_QA_ANALYZE_URL", Boolean(cursorAutomationQaAnalyzeWebhookUrl())],
-  ["CURSOR_AUTOMATION_QA_ANALYZE_TOKEN", env.analyze_token],
-  ["CURSOR_AUTOMATION_QA_IMPLEMENT_URL", env.implement_url],
-  ["CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN", env.implement_token],
-  ["CRON_SECRET", env.cron_secret],
+  ["CURSOR_AUTOMATION_QA_WEBHOOK_URL", Boolean(cursorAutomationQaWebhookUrl())],
+  ["CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN", Boolean(cursorAutomationQaAuthToken())],
+  ["CURSOR_AUTOMATION_QA_ENABLED (effective)", cursorAutomationQaEnabled()],
+  ["CRON_SECRET", Boolean(process.env.CRON_SECRET?.trim())],
 ] as const
 
 console.log("QA automation env (Vercel / local production files)\n")
@@ -52,12 +48,8 @@ for (const [name, ok] of required) {
   console.log(`${ok ? "OK" : "MISSING"}  ${name}`)
 }
 console.log(`\nTriggers: ${[...cursorAutomationQaTriggers()].join(", ")}`)
-console.log(`Chain proxy: ${internalApiOrigin()}/api/agents/qa-chain-implement`)
 console.log(
-  "\nAnalyze automation (Cursor secrets) needs only:\n  CRON_SECRET = same as Vercel production"
-)
-console.log(
-  "Optional local chain:\n  npx tsx scripts/chain-qa-implement-webhook.ts .cursor/qa-queue/<id>.analysis.json"
+  "\nAutomation secrets (Cursor → automation → Secrets):\n  CRON_SECRET, AGENT_SUPABASE_URL, AGENT_SUPABASE_SERVICE_ROLE_KEY = same as Vercel production"
 )
 
 const missing = required.filter(([, ok]) => !ok)

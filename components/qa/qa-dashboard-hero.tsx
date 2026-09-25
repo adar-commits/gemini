@@ -36,7 +36,7 @@ export function QaDashboardHero({
             QA Automation
           </h1>
           <p className="max-w-xl text-sm leading-relaxed text-indigo-100/75">
-            ניתוח Grok → יישום Composer. מעקב חי אחרי זמן המתנה, צינור התיקון,
+            אוטומציה אחת: QA → ניתוח → בריף → יישום. מעקב חי אחרי זמן המתנה, צינור התיקון,
             וציון סיכון — auto-fix אלא אם מסוכן מדי (8+).
           </p>
           <div className="flex flex-wrap gap-2 pt-1">

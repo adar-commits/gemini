@@ -1,33 +1,22 @@
 /**
- * End-to-end verification for HoM QA Analyze + Implement Cursor automations.
+ * Smoke-test the QA self-improve Cursor automation webhook (auth + reachability).
+ * Sends `test: true` — the automation must acknowledge and stop without edits.
  *
- * Usage (needs Vercel/Cursor webhook tokens in env or .env.production.local):
+ * Usage (needs CURSOR_AUTOMATION_QA_WEBHOOK_URL / _TOKEN in env or .env.production.local):
  *   npx tsx scripts/e2e-verify-qa-automations.ts
  *   npx tsx scripts/e2e-verify-qa-automations.ts --session 532360395
- *   npx tsx scripts/e2e-verify-qa-automations.ts --scenario false_alarm
- *   npx tsx scripts/e2e-verify-qa-automations.ts --skip-implement-dry-run
- *   npx tsx scripts/e2e-verify-qa-automations.ts --implement-only --session 532360395
+ *   npx tsx scripts/e2e-verify-qa-automations.ts --live   # real run, no test flag
  */
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   buildCursorAutomationQaPayload,
-  cursorAutomationQaAnalyzeAuthToken,
-  cursorAutomationQaAnalyzeWebhookUrl,
-  cursorAutomationQaImplementAuthToken,
-  cursorAutomationQaImplementWebhookUrl,
+  cursorAutomationQaAuthToken,
+  cursorAutomationQaWebhookUrl,
   postCursorAutomationWebhook,
   qaEventWindowPayloadFields,
 } from "../lib/landbot/cursor-automation-qa"
 import { resolveQaEventWindow } from "../lib/landbot/qa-event-window"
-import {
-  buildImplementWebhookPayload,
-  parseQaAnalysis,
-  shouldChainQaImplement,
-  type QaAnalysis,
-} from "../lib/hom-agent/qa-analysis"
-
-type Scenario = "false_alarm" | "real_failure"
 
 function loadEnvFile(relativePath: string) {
   const path = join(process.cwd(), relativePath)
@@ -55,179 +44,48 @@ function arg(name: string) {
   return idx >= 0 ? process.argv[idx + 1] : null
 }
 
-function hasFlag(name: string) {
-  return process.argv.includes(name)
-}
+async function main() {
+  loadEnvFile(".env.production.local")
+  loadEnvFile(".env.local")
 
-function requireEnv(name: string) {
-  const value = process.env[name]?.trim()
-  if (!value) {
-    console.error(`Missing ${name}`)
+  const url = cursorAutomationQaWebhookUrl()
+  const token = cursorAutomationQaAuthToken()
+  if (!url || !token) {
+    console.error("Missing CURSOR_AUTOMATION_QA_WEBHOOK_URL or CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN")
     process.exit(1)
   }
-  return value
-}
 
-async function postAnalyze(input: { scenario: Scenario; sessionId: string }) {
-  const ts = Date.now()
-  const sessionId = input.sessionId
-
-  const eventWindow = await resolveQaEventWindow(sessionId).catch(() => null)
-
+  const live = process.argv.includes("--live")
+  const sessionId = arg("--session") ?? "508272038"
+  const eventWindow = live
+    ? await resolveQaEventWindow(sessionId).catch(() => null)
+    : null
   const payload = buildCursorAutomationQaPayload({
     sessionId,
     landbotCustomerId: sessionId,
     trigger: "human_assign",
     handoffAction: "human_service",
-    lastUserMessage:
-      input.scenario === "false_alarm"
-        ? "כן תודה, אשמח לדבר עם נציג"
-        : "כן זה ההזמנה",
-    lastBotReply:
-      input.scenario === "false_alarm"
-        ? "מעולה, העברתי את השיחה לנציג שירות. נציג יחזור אליך בהקדם."
-        : "האם זו ההזמנה שביקשת?",
-    phone: "+972525368636",
-    idempotencyKey: `e2e-${input.scenario}-${sessionId}-${ts}`,
+    idempotencyKey: `e2e-${sessionId}-${Date.now()}`,
     ...qaEventWindowPayloadFields(eventWindow),
   })
+  const body = live ? payload : { ...payload, test: true }
 
-  const url = cursorAutomationQaAnalyzeWebhookUrl()
-  const token = cursorAutomationQaAnalyzeAuthToken()
-  if (!url || !token) {
-    console.error("Missing CURSOR_AUTOMATION_QA_ANALYZE_URL or ANALYZE_TOKEN")
-    process.exit(1)
-  }
+  console.log(JSON.stringify({ url, live, idempotency: payload.idempotency_key }, null, 2))
 
-  console.log("\n=== ANALYZE webhook ===")
-  console.log(
-    JSON.stringify(
-      { scenario: input.scenario, sessionId, url, idempotency: payload.idempotency_key },
-      null,
-      2
-    )
-  )
-
-  const result = await postCursorAutomationWebhook({
-    url,
-    token,
-    body: payload,
-    timeoutMs: 15_000,
-  })
-
+  const result = await postCursorAutomationWebhook({ url, token, body, timeoutMs: 15_000 })
   if (!result.ok) {
     console.error(
-      "Analyze webhook FAILED:",
+      "Webhook FAILED:",
       "status" in result ? `HTTP ${result.status} ${result.detail ?? ""}` : result.reason
     )
     console.error(
-      "\nIf HTTP 401 missing scope: token was generated on a different automation than ANALYZE_URL."
-    )
-    console.error(
-      "Open cursor.com/automations → HoM QA Analyze (Grok) → copy webhook URL + Generate auth header."
+      "HTTP 401 → token was generated on a different automation than the URL. Regenerate on the same automation."
     )
     process.exit(1)
   }
 
-  console.log("Analyze webhook: HTTP 200 — Grok run should start in Cursor automations dashboard.")
-  console.log("Check /dashboard/qa or hom_agent_qa_runs for a new analyze row within ~2–5 min.")
-}
-
-async function postImplementDryRun(sessionId: string) {
-  const analysis: QaAnalysis = {
-    session_id: sessionId,
-    conversation_url: `https://service.hom-group.co.il/conversations/${sessionId}`,
-    trigger: "human_assign",
-    verdict: "real_failure",
-    confidence: "high",
-    root_cause: "E2E dry-run — implement webhook smoke test only; do not commit.",
-    fix_layer: "hints",
-    fix_plan: ["E2E smoke test only — reply no action without code changes."],
-    analyzed_at: new Date().toISOString(),
-  }
-
-  if (!shouldChainQaImplement(analysis)) {
-    console.error("Analysis gate failed unexpectedly")
-    process.exit(1)
-  }
-
-  const eventWindow = await resolveQaEventWindow(sessionId).catch(() => null)
-
-  const source = buildCursorAutomationQaPayload({
-    sessionId,
-    trigger: "human_assign",
-    idempotencyKey: `e2e-implement-dry-${sessionId}-${Date.now()}`,
-    ...qaEventWindowPayloadFields(eventWindow),
-  })
-
-  const body = buildImplementWebhookPayload({ source, analysis })
-  if (!parseQaAnalysis(body.analysis)) {
-    console.error("Implement payload failed parseQaAnalysis")
-    process.exit(1)
-  }
-
-  const url = cursorAutomationQaImplementWebhookUrl()
-  const token = cursorAutomationQaImplementAuthToken()
-  if (!url || !token) {
-    console.error("Missing CURSOR_AUTOMATION_QA_IMPLEMENT_URL or IMPLEMENT_TOKEN")
-    process.exit(1)
-  }
-
-  console.log("\n=== IMPLEMENT webhook (dry-run analysis — expect no action) ===")
-  console.log(JSON.stringify({ session_id: body.session_id, url, idempotency: body.idempotency_key }, null, 2))
-
-  const result = await postCursorAutomationWebhook({
-    url,
-    token,
-    body,
-    timeoutMs: 15_000,
-  })
-
-  if (!result.ok) {
-    console.error(
-      "Implement webhook FAILED:",
-      "status" in result ? `HTTP ${result.status} ${result.detail ?? ""}` : result.reason
-    )
-    process.exit(1)
-  }
-
-  console.log("Implement webhook: HTTP 200 — Composer run should start.")
-  console.log("Expect chat reply: no action (dry-run plan says do not commit).")
-}
-
-async function main() {
-  loadEnvFile(".env.production.local")
-  loadEnvFile(".env.local")
-
-  const scenario = (arg("--scenario") as Scenario | null) ?? "false_alarm"
-  if (scenario !== "false_alarm" && scenario !== "real_failure") {
-    console.error("Use --scenario false_alarm | real_failure")
-    process.exit(1)
-  }
-
-  const sessionId = arg("--session") ?? (scenario === "false_alarm" ? "508272038" : "530876768")
-
-  requireEnv("CURSOR_AUTOMATION_QA_ANALYZE_URL")
-  requireEnv("CURSOR_AUTOMATION_QA_ANALYZE_TOKEN")
-  requireEnv("CURSOR_AUTOMATION_QA_IMPLEMENT_URL")
-  requireEnv("CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN")
-
-  if (hasFlag("--implement-only")) {
-    await postImplementDryRun(sessionId)
-    console.log("\n=== Done (implement-only) ===")
-    return
-  }
-
-  await postAnalyze({ scenario, sessionId })
-
-  if (!hasFlag("--skip-implement-dry-run")) {
-    await postImplementDryRun(sessionId)
-  }
-
-  console.log("\n=== Done ===")
-  console.log("1. Open cursor.com/automations — confirm both runs appear and complete.")
-  console.log("2. Query hom_agent_qa_runs for new rows (analyze outcome should NOT be chained for false_alarm).")
-  console.log("3. Implement dry-run should reply no action — no git commit on main.")
+  console.log("Webhook: HTTP 200 — run should appear at cursor.com/automations.")
+  if (!live) console.log("Test payload — the run should reply 'webhook OK' and stop without edits.")
 }
 
 main().catch((error) => {

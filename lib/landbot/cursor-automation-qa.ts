@@ -37,45 +37,23 @@ const SERVICE_CONVERSATION_BASE =
   process.env.HOM_SERVICE_CONVERSATION_BASE?.trim() ||
   "https://service.hom-group.co.il/conversations"
 
+/** Cursor rejects unauthenticated webhook POSTs, so a URL without a token counts as disabled. */
 export function cursorAutomationQaEnabled() {
   const raw = process.env.CURSOR_AUTOMATION_QA_ENABLED?.trim().toLowerCase()
   if (raw === "0" || raw === "false" || raw === "off" || raw === "no") {
     return false
   }
-  return Boolean(cursorAutomationQaAnalyzeWebhookUrl())
+  return Boolean(cursorAutomationQaWebhookUrl() && cursorAutomationQaAuthToken())
 }
 
-/** Legacy alias — production analyze phase (Grok automation). */
-export function cursorAutomationWebhookUrl() {
-  return cursorAutomationQaAnalyzeWebhookUrl()
+/** Single self-improve automation: QA → analyze → brief → implement. */
+export function cursorAutomationQaWebhookUrl() {
+  return process.env.CURSOR_AUTOMATION_QA_WEBHOOK_URL?.trim() || ""
 }
 
-/** Phase 1: Grok analyze automation. Falls back to CURSOR_AUTOMATION_WEBHOOK_URL. */
-export function cursorAutomationQaAnalyzeWebhookUrl() {
-  return (
-    process.env.CURSOR_AUTOMATION_QA_ANALYZE_URL?.trim() ||
-    process.env.CURSOR_AUTOMATION_WEBHOOK_URL?.trim() ||
-    ""
-  )
-}
-
-/** Phase 2: Composer implement automation — chained from analyze, not from production. */
-export function cursorAutomationQaImplementWebhookUrl() {
-  return process.env.CURSOR_AUTOMATION_QA_IMPLEMENT_URL?.trim() || ""
-}
-
-/** Bearer token for analyze webhook (Cursor → Generate auth header). */
-export function cursorAutomationQaAnalyzeAuthToken() {
-  const raw =
-    process.env.CURSOR_AUTOMATION_QA_ANALYZE_TOKEN?.trim() ||
-    process.env.CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN?.trim() ||
-    ""
-  return raw.replace(/^Bearer\s+/i, "")
-}
-
-/** Bearer token for implement webhook. */
-export function cursorAutomationQaImplementAuthToken() {
-  const raw = process.env.CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN?.trim() || ""
+/** Bearer token from the automation's "Generate auth header". */
+export function cursorAutomationQaAuthToken() {
+  const raw = process.env.CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN?.trim() || ""
   return raw.replace(/^Bearer\s+/i, "")
 }
 
@@ -233,12 +211,12 @@ export function shouldNotifyCursorAutomationQa(
   return cursorAutomationQaEnabled() && cursorAutomationQaTriggers().has(trigger)
 }
 
-export async function postCursorAutomationQaAnalyzeWebhook(
+export async function postCursorAutomationQaWebhook(
   payload: CursorAutomationQaPayload
 ) {
   return postCursorAutomationWebhook({
-    url: cursorAutomationQaAnalyzeWebhookUrl(),
-    token: cursorAutomationQaAnalyzeAuthToken(),
+    url: cursorAutomationQaWebhookUrl(),
+    token: cursorAutomationQaAuthToken(),
     body: payload,
   })
 }
@@ -259,14 +237,11 @@ export type ExecuteCursorAutomationQaInput = {
 export type ExecuteCursorAutomationQaResult = {
   sessionId: string
   payload: CursorAutomationQaPayload
-  webhook: Awaited<ReturnType<typeof postCursorAutomationQaAnalyzeWebhook>>
+  webhook: Awaited<ReturnType<typeof postCursorAutomationQaWebhook>>
   run: QaAutomationRunRow
 }
 
-/**
- * POST to Grok **analyze** automation and log a dashboard row (awaitable).
- * Implement is chained from analyze via scripts/chain-qa-implement-webhook.ts.
- */
+/** POST to the self-improve automation and log a dashboard row (awaitable). */
 export async function executeCursorAutomationQa(
   input: ExecuteCursorAutomationQaInput
 ): Promise<
@@ -318,7 +293,7 @@ export async function executeCursorAutomationQa(
     ...qaEventWindowPayloadFields(eventWindow ?? null),
   })
 
-  const webhook = await postCursorAutomationQaAnalyzeWebhook(payload)
+  const webhook = await postCursorAutomationQaWebhook(payload)
   const stageNow = new Date().toISOString()
   let run: QaAutomationRunRow
 
@@ -332,9 +307,9 @@ export async function executeCursorAutomationQa(
       outcome: webhook.ok ? "triggered" : "webhook_failed",
       rootCause: webhook.ok
         ? input.trigger === "manual"
-          ? "בדיקה ידנית — נשלח לניתוח Grok"
-          : `Webhook sent — awaiting Grok analyze (${payload.trigger})`
-        : "Webhook POST to Cursor analyze automation failed",
+          ? "בדיקה ידנית — נשלח לאוטומציה"
+          : `Webhook sent — awaiting automation analyze (${payload.trigger})`
+        : "Webhook POST to Cursor automation failed",
       idempotencyKey: payload.idempotency_key,
       stageTimestamps: webhook.ok
         ? { event_at: stageNow, analyze_started_at: stageNow }

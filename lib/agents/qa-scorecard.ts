@@ -39,7 +39,7 @@ export function buildQaScorecard(run: QaAutomationRunRow): QaScorecard {
     faultParts.length > 0
       ? faultParts.join(" · ")
       : run.outcome === "triggered" || run.outcome === "chained"
-        ? "ממתין לניתוח Grok"
+        ? "ממתין לניתוח"
         : "טרם נקבע"
 
   return { llmDominancy, mainFault }

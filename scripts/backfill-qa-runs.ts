@@ -93,7 +93,7 @@ async function main() {
         trigger: "human_assign",
         phase: "analyze",
         outcome: "triggered",
-        rootCause: `Backfill: human handoff (${row.action}) — awaiting Grok analyze`,
+        rootCause: `Backfill: human handoff (${row.action}) — awaiting automation analyze`,
         idempotencyKey: `backfill:${row.id}`,
         createdAt: row.created_at,
       })
@@ -129,7 +129,7 @@ async function main() {
         trigger: "bot_failure",
         phase: "analyze",
         outcome: "triggered",
-        rootCause: "Backfill: never-stuck reply — awaiting Grok analyze",
+        rootCause: "Backfill: never-stuck reply — awaiting automation analyze",
         idempotencyKey: `backfill:${row.id}`,
         operatorNotes: buildBotFailureIdempotencyKey(sessionId, lastUserMessage),
         createdAt: row.created_at,

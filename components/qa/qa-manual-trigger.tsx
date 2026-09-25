@@ -22,7 +22,7 @@ export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
       if (result.ok) {
         setFeedback({
           tone: "ok",
-          text: `נשלח לניתוח Grok — אירוע חדש לשיחה #${result.sessionId}`,
+          text: `נשלח לאוטומציה — אירוע חדש לשיחה #${result.sessionId}`,
         })
         setSessionId("")
         return
@@ -47,8 +47,8 @@ export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
         <div>
           <h2 className="text-base font-bold text-slate-900">בדיקה ידנית</h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">
-            הזינו מזהה שיחה (session / Landbot ID) — ניצור אירוע, נשלח ל-Grok
-            Analyze ונתחיל את תהליך הבדיקה.
+            הזינו מזהה שיחה (session / Landbot ID) — ניצור אירוע, נשלח
+            לאוטומציה ונתחיל את תהליך הבדיקה.
           </p>
         </div>
       </div>

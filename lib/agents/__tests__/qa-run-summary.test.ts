@@ -87,7 +87,7 @@ describe("qaRunSolution", () => {
     })
     assert.equal(
       qaRunSolution(run),
-      "נשלח ליישום — Composer מריץ את התיקון עכשיו."
+      "הניתוח אישר תיקון — האוטומציה מיישמת עכשיו."
     )
   })
 

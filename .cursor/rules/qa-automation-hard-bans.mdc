@@ -32,7 +32,7 @@ Applies to **Cursor Automation webhooks**, **לימוד גוקו**, and any **qa
 - **No hijacking flows** — thread-state guards only, not keyword-on-latest-line routing.
 - **No docs the operator did not ask for** (except `BRIEF.md` / `commit-log.jsonl` from implement automation).
 - **No gender / semantics / tone rewrites** — do not change לך/לכם, phrasing, or customer-facing meaning unless operator explicitly asked.
-- **Analyze (Grok) is read-only** — no code edits until Implement (Composer) webhook fires.
+- **Analyze is read-only** — in the single self-improve automation, no code edits until the implement gate passes (`real_failure` + `high` confidence + fix layer + 1–3 step plan).
 
 If the only fix you can imagine violates a ban → reply **`no action`** and explain why teaching is needed — **do not ship a dumb regex fix**.
 

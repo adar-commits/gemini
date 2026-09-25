@@ -7,7 +7,7 @@ function hasHebrew(text: string) {
 
 const OPERATOR_NOTES_HE: Record<string, string> = {
   "Implement webhook accepted — Composer run started.":
-    "נשלח ליישום — Composer מריץ את התיקון עכשיו.",
+    "נשלח ליישום — האוטומציה מריצה את התיקון עכשיו.",
   "Reverted via qa:vanish": "בוטל ב-revert (qa:vanish)",
 }
 
@@ -40,11 +40,11 @@ function localizeWebhookFailureNotes(notes: string) {
         "לחץ ↻ לניסיון חוזר (Vercel כבר מוגדר)."
       )
     }
-    return "התיקון אושר, אבל השליחה ל-Composer נכשלה (401). לחץ ↻ לניסיון חוזר."
+    return "השליחה לאוטומציה נכשלה (401) — בדוק CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN. לחץ ↻ לניסיון חוזר."
   }
-  const httpMatch = notes.match(/Implement webhook failed: HTTP (\d+)/i)
+  const httpMatch = notes.match(/(?:Implement webhook|Retry) failed: HTTP (\d+)/i)
   if (httpMatch) {
-    return `שליחה ל-Composer נכשלה (HTTP ${httpMatch[1]}). לחץ ↻ לניסיון חוזר.`
+    return `שליחה לאוטומציה נכשלה (HTTP ${httpMatch[1]}). לחץ ↻ לניסיון חוזר.`
   }
   return localizeOperatorNotes(notes)
 }
@@ -136,13 +136,13 @@ export function qaRunSolution(run: QaAutomationRunRow) {
     return "ממתין לאישור מפעיל לפני שינוי."
   }
   if (run.outcome === "webhook_failed") {
-    return "שליחה ליישום נכשלה — לחץ ↻ לניסיון חוזר."
+    return "שליחה לאוטומציה נכשלה — לחץ ↻ לניסיון חוזר."
   }
   if (run.outcome === "triggered") {
     return "בתהליך review — טרם הוחלט."
   }
   if (run.outcome === "chained") {
-    return "נשלח ליישום — Composer מריץ את התיקון עכשיו."
+    return "הניתוח אישר תיקון — האוטומציה מיישמת עכשיו."
   }
   if (run.phase === "implement" && run.outcome !== "implemented") {
     return "יישום רץ — טרם נרשם קומיט."

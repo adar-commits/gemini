@@ -1,54 +1,47 @@
 #!/usr/bin/env bash
-# Set gemini production QA automation env on Vercel.
-# Requires: VERCEL_TOKEN, project linked or VERCEL_ORG_ID + VERCEL_PROJECT_ID
+# Set gemini QA self-improve automation env on Vercel production and remove the
+# retired two-automation (analyze/implement) vars. Production only: a preview
+# deploy must never start a run that edits and pushes main.
 #
 # Usage:
-#   export VERCEL_TOKEN=...
-#   ./scripts/set-vercel-qa-env.sh
-#
-# Override defaults:
-#   ANALYZE_URL=... IMPLEMENT_URL=... ANALYZE_TOKEN=... IMPLEMENT_TOKEN=... ./scripts/set-vercel-qa-env.sh
+#   WEBHOOK_TOKEN=crsr_... ./scripts/set-vercel-qa-env.sh
+#   WEBHOOK_URL=... WEBHOOK_TOKEN=... ./scripts/set-vercel-qa-env.sh
 
-set -euo pipefail
+set -uo pipefail
 
-IMPLEMENT_URL="${IMPLEMENT_URL:-https://api2.cursor.sh/automations/webhook/389581e6-b824-11f1-977f-f6b8f2fcf9b2}"
-IMPLEMENT_TOKEN="${IMPLEMENT_TOKEN:-}"
-ANALYZE_URL="${ANALYZE_URL:-}"
-ANALYZE_TOKEN="${ANALYZE_TOKEN:-}"
+WEBHOOK_URL="${WEBHOOK_URL:-https://api2.cursor.sh/automations/webhook/03c21147-b824-11f1-977f-f6b8f2fcf9b2}"
+WEBHOOK_TOKEN="${WEBHOOK_TOKEN:-}"
+TRIGGERS="${TRIGGERS:-human_assign,bot_failure}"
 
-if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-  echo "Missing VERCEL_TOKEN — create at https://vercel.com/account/tokens"
+if [[ -z "$WEBHOOK_TOKEN" ]]; then
+  echo "Missing WEBHOOK_TOKEN — cursor.com/automations → this automation → Generate auth header"
   exit 1
 fi
 
-if [[ -z "$IMPLEMENT_TOKEN" ]]; then
-  echo "Missing IMPLEMENT_TOKEN — Generate auth header on Goku Training | Implementer (Composer)"
-  exit 1
-fi
-
-if [[ -z "$ANALYZE_URL" || -z "$ANALYZE_TOKEN" ]]; then
-  echo "Missing ANALYZE_URL / ANALYZE_TOKEN."
-  echo "These must come from the **Grok Analyze** automation (NOT the Implementer URL)."
-  echo "Open cursor.com/automations → HoM QA Analyze → copy webhook URL + Generate auth header."
-  exit 1
-fi
-
-add_env() {
-  local key="$1"
-  local value="$2"
-  printf '%s' "$value" | npx vercel env add "$key" production --force --yes
-  echo "set $key"
+set_env() {
+  if npx vercel env add "$1" production --value "$2" --force --yes </dev/null >/dev/null 2>&1; then
+    echo "set $1"
+  else
+    echo "FAILED $1"
+    exit 1
+  fi
 }
 
-add_env CURSOR_AUTOMATION_QA_ENABLED 1
-add_env CURSOR_AUTOMATION_QA_TRIGGERS "human_assign,bot_failure"
-add_env CURSOR_AUTOMATION_QA_ANALYZE_URL "$ANALYZE_URL"
-add_env CURSOR_AUTOMATION_QA_ANALYZE_TOKEN "$ANALYZE_TOKEN"
-add_env CURSOR_AUTOMATION_WEBHOOK_URL "$ANALYZE_URL"
-add_env CURSOR_AUTOMATION_QA_IMPLEMENT_URL "$IMPLEMENT_URL"
-add_env CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN "$IMPLEMENT_TOKEN"
+remove_env() {
+  npx vercel env rm "$1" --yes </dev/null >/dev/null 2>&1 && echo "removed $1" || echo "absent $1"
+}
+
+set_env CURSOR_AUTOMATION_QA_ENABLED 1
+set_env CURSOR_AUTOMATION_QA_TRIGGERS "$TRIGGERS"
+set_env CURSOR_AUTOMATION_QA_WEBHOOK_URL "$WEBHOOK_URL"
+set_env CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN "$WEBHOOK_TOKEN"
+
+remove_env CURSOR_AUTOMATION_WEBHOOK_URL
+remove_env CURSOR_AUTOMATION_QA_ANALYZE_URL
+remove_env CURSOR_AUTOMATION_QA_ANALYZE_TOKEN
+remove_env CURSOR_AUTOMATION_QA_IMPLEMENT_URL
+remove_env CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN
 
 echo ""
 echo "Done. Redeploy production, then:"
-echo "  curl -s https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-implement"
-echo "  npx tsx scripts/e2e-verify-qa-automations.ts --session 532360395"
+echo "  npx tsx scripts/e2e-verify-qa-automations.ts"

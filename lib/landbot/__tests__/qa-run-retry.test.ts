@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
-import { resolveQaRunRetryTarget } from "@/lib/landbot/qa-run-retry"
+import { canRetryQaRun } from "@/lib/landbot/qa-run-retry"
 
 function baseRun(overrides: Partial<QaAutomationRunRow>): QaAutomationRunRow {
   return {
@@ -30,16 +30,17 @@ function baseRun(overrides: Partial<QaAutomationRunRow>): QaAutomationRunRow {
   }
 }
 
-describe("resolveQaRunRetryTarget", () => {
-  it("retries analyze for triggered webhook", () => {
-    assert.equal(resolveQaRunRetryTarget(baseRun({ outcome: "triggered" })), "analyze")
+describe("canRetryQaRun", () => {
+  it("retries a triggered or failed webhook", () => {
+    assert.equal(canRetryQaRun(baseRun({ outcome: "triggered" })), true)
+    assert.equal(canRetryQaRun(baseRun({ outcome: "webhook_failed" })), true)
   })
 
-  it("retries implement when analyze approved a fix", () => {
+  it("retries an approved fix that never landed", () => {
     assert.equal(
-      resolveQaRunRetryTarget(
+      canRetryQaRun(
         baseRun({
-          outcome: "real_failure",
+          outcome: "chained",
           verdict: "real_failure",
           confidence: "high",
           root_cause: "Wrong handoff department",
@@ -47,14 +48,19 @@ describe("resolveQaRunRetryTarget", () => {
           fix_plan: ["Add exchange hint"],
         })
       ),
-      "implement"
+      true
     )
   })
 
-  it("does not retry implemented runs", () => {
+  it("does not retry finished runs", () => {
     assert.equal(
-      resolveQaRunRetryTarget(baseRun({ outcome: "implemented", phase: "implement" })),
-      null
+      canRetryQaRun(baseRun({ outcome: "implemented", phase: "implement" })),
+      false
     )
+    assert.equal(canRetryQaRun(baseRun({ outcome: "false_alarm" })), false)
+  })
+
+  it("does not retry unknown triggers", () => {
+    assert.equal(canRetryQaRun(baseRun({ trigger: "legacy" })), false)
   })
 })

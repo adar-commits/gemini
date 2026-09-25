@@ -127,8 +127,8 @@ export function qaPipelineSteps(run: QaAutomationRunRow): QaPipelineStep[] {
 
   return [
     trigger,
-    { id: "analyze", label: "ניתוח Grok", state: analyzeState },
-    { id: "chain", label: "שרשרת ל-Composer", state: chainState },
+    { id: "analyze", label: "ניתוח", state: analyzeState },
+    { id: "chain", label: "אישור תיקון", state: chainState },
     { id: "implement", label: "יישום + push", state: implementState },
   ]
 }

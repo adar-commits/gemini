@@ -6,8 +6,7 @@ import {
   buildCursorAutomationQaPayload,
   buildCursorAutomationWebhookHeaders,
   buildHomServiceConversationUrl,
-  cursorAutomationQaAnalyzeAuthToken,
-  cursorAutomationQaAnalyzeWebhookUrl,
+  cursorAutomationQaAuthToken,
   cursorAutomationQaEnabled,
   cursorAutomationQaTriggers,
   phoneLastFour,
@@ -18,8 +17,9 @@ describe("cursor automation qa webhook", () => {
   const env = { ...process.env }
 
   beforeEach(() => {
-    process.env.CURSOR_AUTOMATION_WEBHOOK_URL =
+    process.env.CURSOR_AUTOMATION_QA_WEBHOOK_URL =
       "https://api2.cursor.sh/automations/webhook/test-id"
+    process.env.CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN = "crsr_test_token"
     process.env.CURSOR_AUTOMATION_QA_ENABLED = "1"
     process.env.CURSOR_AUTOMATION_QA_TRIGGERS = "human_assign"
   })
@@ -73,22 +73,25 @@ describe("cursor automation qa webhook", () => {
     assert.match(payload.conversation_url, /508272038/)
   })
 
-  it("prefers analyze url over legacy webhook url", () => {
-    process.env.CURSOR_AUTOMATION_QA_ANALYZE_URL =
-      "https://api2.cursor.sh/automations/webhook/analyze-id"
-    process.env.CURSOR_AUTOMATION_WEBHOOK_URL =
-      "https://api2.cursor.sh/automations/webhook/legacy-id"
-    assert.equal(
-      cursorAutomationQaAnalyzeWebhookUrl(),
-      "https://api2.cursor.sh/automations/webhook/analyze-id"
-    )
+  it("is enabled with webhook url and token", () => {
+    assert.equal(cursorAutomationQaEnabled(), true)
+    assert.equal(shouldNotifyCursorAutomationQa("human_assign"), true)
   })
 
   it("is disabled without webhook url", () => {
-    delete process.env.CURSOR_AUTOMATION_WEBHOOK_URL
-    delete process.env.CURSOR_AUTOMATION_QA_ANALYZE_URL
+    delete process.env.CURSOR_AUTOMATION_QA_WEBHOOK_URL
     assert.equal(cursorAutomationQaEnabled(), false)
     assert.equal(shouldNotifyCursorAutomationQa("human_assign"), false)
+  })
+
+  it("is disabled without webhook token (Cursor would 401)", () => {
+    delete process.env.CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN
+    assert.equal(cursorAutomationQaEnabled(), false)
+  })
+
+  it("is disabled by CURSOR_AUTOMATION_QA_ENABLED=0", () => {
+    process.env.CURSOR_AUTOMATION_QA_ENABLED = "0"
+    assert.equal(cursorAutomationQaEnabled(), false)
   })
 
   it("masks phone to last four digits", () => {
@@ -96,19 +99,14 @@ describe("cursor automation qa webhook", () => {
     assert.equal(phoneLastFour(null), null)
   })
 
-  it("builds Authorization header from analyze token env", () => {
-    process.env.CURSOR_AUTOMATION_QA_ANALYZE_TOKEN =
-      "crsr_test_analyze_token"
+  it("builds Authorization header from webhook token env", () => {
+    process.env.CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN = "Bearer crsr_test_token"
+    assert.equal(cursorAutomationQaAuthToken(), "crsr_test_token")
     assert.equal(
-      cursorAutomationQaAnalyzeAuthToken(),
-      "crsr_test_analyze_token"
-    )
-    assert.equal(
-      buildCursorAutomationWebhookHeaders("Bearer crsr_test_analyze_token")
+      buildCursorAutomationWebhookHeaders(cursorAutomationQaAuthToken())
         .Authorization,
-      "Bearer crsr_test_analyze_token"
+      "Bearer crsr_test_token"
     )
-    delete process.env.CURSOR_AUTOMATION_QA_ANALYZE_TOKEN
   })
 
   it("builds unique manual idempotency keys", () => {

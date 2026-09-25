@@ -25,7 +25,7 @@ npm run verify:deploy   # includes guard:qa-fix:commit on prebuild
 
 Commit, push, confirm the Vercel production deploy is not Error.
 
-**Cursor Automation (two phases):** production POSTs to **Analyze** (Grok 4.7 High, read-only). High-confidence `real_failure` chains to **Implement** (Composer 2.5). Instructions: `.cursor/automations/hom-conversation-qa/instructions-analyze.md` + `instructions-implement.md`. Commits logged to `BRIEF.md`; revert with `npm run qa:vanish -- <sha>`. If unsure → `ask_operator`, do not implement.
+**Cursor Automation (single self-improve run):** production POSTs every human handoff / never-stuck reply to one automation (`CURSOR_AUTOMATION_QA_WEBHOOK_URL` + Bearer `CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN`). The run does QA → analyze → brief → implement; it edits code only after the implement gate passes (`real_failure` + `high` + fix layer + 1–3 step plan). Instructions: `.cursor/automations/hom-conversation-qa/instructions.md`. Commits logged to `BRIEF.md`; revert with `npm run qa:vanish -- <sha>`. If unsure → `ask_operator`, do not implement.
 
 ## 1. QA — read the thread
 

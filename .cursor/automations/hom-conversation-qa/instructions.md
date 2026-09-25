@@ -1,99 +1,149 @@
-# HoM conversation self-QA (two automations)
+# HoM self-improve automation (single run)
 
-Production **gemini** POSTs to **Analyze** only. Analyze (Grok) may chain to **Implement** (Composer).
+One Cursor automation does **QA → Analyze → Brief → Develop**.
 
 ```
-gemini handoff / never-stuck
-  → POST analyze webhook
-  → Grok: read thread, write analysis JSON
-  → if high-confidence real_failure → POST implement webhook
-  → Composer: fix + test + commit + log BRIEF.md
+gemini handoff (human_assign) / never-stuck (bot_failure) / dashboard ↻ / manual
+  → POST CURSOR_AUTOMATION_QA_WEBHOOK_URL  (Authorization: Bearer CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN)
+  → automation: read thread → verdict → log dashboard + brief
+  → only if implement gate passes: fix + test + guard + verify:deploy + push + BRIEF.md
 ```
 
-## Setup (Cursor Automations)
+Webhook: `https://api2.cursor.sh/automations/webhook/03c21147-b824-11f1-977f-f6b8f2fcf9b2`
 
-| Automation | Model | Paste instructions from |
-|------------|-------|-------------------------|
-| **HoM QA Analyze** | Grok 4.7 High | `instructions-analyze.md` |
-| **HoM QA Implement** | Composer 2.5 | `instructions-implement.md` |
+Only **gemini** fires the webhook (`lib/landbot/handle-inbound.ts` → `scheduleCursorAutomationQa`). The `landbot` repo must not — it would double-run every handoff.
 
-## Repo binding (Cursor automations)
-
-**Root cause of `github-adar/adar-commits/gemini` 400:** Cursor stores the SSH host from automation creation. If the automation was created from the **Cursor IDE** while the local clone used `git@github-adar:...` or `core.sshCommand` with the adar key, Cursor canonicalizes to `github-adar` forever — re-saving settings does not fix it.
-
-### Local clone (this Mac)
-
-```bash
-git remote set-url origin https://github.com/adar-commits/gemini.git
-git config --unset core.sshCommand   # if set — Cursor maps adar key → github-adar host
-```
-
-- **Do not** use `git@github-adar:...` as remote (Cursor treats it as GitHub Enterprise).
-- **Do not** set `core.sshCommand` on repos bound to Cursor automations/cloud agents.
-- First HTTPS push: enter an **adar-commits** PAT when prompted (stored in macOS Keychain).
-
-### Create automations (browser only — not IDE)
-
-1. Open **https://cursor.com/automations** in Safari/Chrome — **not** Cursor’s Automations panel.
-2. **Delete** both existing HoM QA automations (they have stale `github-adar` metadata).
-3. **New automation** → Repository: pick **`adar-commits/gemini`** from the GitHub PAT dropdown.
-4. Branch: **`main`**
-5. Paste instructions from `instructions-analyze.md` / `instructions-implement.md` (`Repo: adar-commits/gemini` — never `/Users/dr/gemini`).
-6. **Quit Cursor completely** (Cmd+Q), reopen, then test webhook — must **not** mention `github-adar`.
-
-### Verify before enabling in Vercel
-
-```bash
-curl -s -X POST "$ANALYZE_URL" \
-  -H "Authorization: Bearer $ANALYZE_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"test":true,"session_id":"508272038","trigger":"human_assign","idempotency_key":"verify-'$(date +%s)'"}'
-```
-
-Expect HTTP **200** (or agent-start), **not** 400 with `github-adar`.
-
-## Vercel env (gemini production)
-
-**Analyze and Implement are two different Cursor automations** — copy each webhook URL from its own automation page. Using the Implement URL for both will 401 the Analyze token.
+## Vercel env (gemini — production only; previews must never start a run that pushes main)
 
 ```
 CURSOR_AUTOMATION_QA_ENABLED=1
 CURSOR_AUTOMATION_QA_TRIGGERS=human_assign,bot_failure
-CURSOR_AUTOMATION_QA_ANALYZE_URL=https://api2.cursor.sh/automations/webhook/03c21147-b824-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_ANALYZE_TOKEN=crsr_...   # Generate auth header on **HoM QA Analyze** (Grok) automation
-CURSOR_AUTOMATION_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/03c21147-b824-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_IMPLEMENT_URL=https://api2.cursor.sh/automations/webhook/389581e6-b824-11f1-977f-f6b8f2fcf9b2
-CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN=crsr_...   # Generate auth header on **Goku Training | Implementer (Composer)**
+CURSOR_AUTOMATION_QA_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/03c21147-b824-11f1-977f-f6b8f2fcf9b2
+CURSOR_AUTOMATION_QA_WEBHOOK_TOKEN=crsr_...   # Generate auth header on this same automation
 ```
 
-Current Implement automation (verified 2026-09-24): `Goku Training | Implementer (Composer)` → `389581e6-b824-11f1-977f-f6b8f2fcf9b2`.
+Set / rotate with `WEBHOOK_TOKEN=crsr_... ./scripts/set-vercel-qa-env.sh` (also removes retired `*_ANALYZE_*`, `*_IMPLEMENT_*`, `CURSOR_AUTOMATION_WEBHOOK_URL`). Redeploy after changing.
 
-Verify locally before/after Vercel edit:
+URL without token = disabled (Cursor would 401).
+
+## Automation secrets (Cursor → automation → Secrets)
+
+Same values as Vercel production:
+
+```
+AGENT_SUPABASE_URL
+AGENT_SUPABASE_SERVICE_ROLE_KEY
+CRON_SECRET
+```
+
+- Supabase keys → `read-hom-conversation.ts` and `qa:log`.
+- `CRON_SECRET` → `log-qa-automation-commit.ts` marks the dashboard row "implemented".
+
+## Verify
 
 ```bash
 npx tsx scripts/verify-qa-automation-env.ts
-npx tsx scripts/e2e-verify-qa-automations.ts --session 532360395
+npx tsx scripts/e2e-verify-qa-automations.ts          # sends test:true → run replies "webhook OK"
 ```
 
-## Automation secrets
+## Repo binding
 
-Both automations need the same secret for dashboard logging / chaining:
+Create/edit the automation at **https://cursor.com/automations** in a browser (not the IDE panel). Repository `adar-commits/gemini`, branch `main`. Local clone remote must be `https://github.com/adar-commits/gemini.git` without `core.sshCommand`, otherwise Cursor stores a `github-adar` host and runs fail with 400.
 
+## Instructions (paste into the automation)
+
+<!-- paste-block:start -->
 ```
-CRON_SECRET=<same as Vercel production CRON_SECRET>
+# HoM self-improve automation — QA → Analyze → Brief → Develop
+
+Repo: adar-commits/gemini · branch main only. Never create branches or worktrees. Never force-push. Never amend.
+
+Trigger: gemini production POSTs here on every bot → human handoff (trigger=human_assign) and every never-stuck reply (trigger=bot_failure). /dashboard/qa retry (↻) and the manual dashboard trigger send the same payload.
+
+Payload (JSON body):
+conversation_url, session_id, landbot_customer_id, trigger, handoff_action?, last_user_message?, last_bot_reply?,
+event_window_since (ISO — analyze ONLY messages at/after this time), event_window_reason (trainer_reset|agent_reset|opened_at|tail_fallback),
+event_window_message_count (~5–40 in scope), total_message_count (lifetime thread size — ignore for analysis),
+idempotency_key, phone_last4, sent_at, test?
+
+Target: one QA event = one short incident, not the lifetime WhatsApp thread. Analyze in ~1–2 minutes.
+
+Required automation secrets (same values as Vercel production): AGENT_SUPABASE_URL, AGENT_SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET.
+
+## 0. Smoke test
+If the payload has "test": true → reply exactly "webhook OK <session_id>" and stop. No reads, no logs, no edits.
+
+## 1. Bootstrap (every run)
+Run `npm ci` if node_modules is missing. Read in full:
+- .cursor/rules/conversation-fix-playbook.mdc
+- .cursor/rules/structured-vs-llm-routing.mdc
+- .cursor/rules/qa-automation-hard-bans.mdc
+- .cursor/skills/qa-teach-plan-implement/SKILL.md
+- .cursor/automations/hom-conversation-qa/BRIEF.md (recent fixes — duplicate check)
+
+## 2. QA — read the event window (whole incident, not the lifetime thread)
+npx tsx scripts/read-hom-conversation.ts <session_id> --since=<event_window_since>
+(no event_window_since in payload → use --event-window)
+Start from last_user_message / last_bot_reply, then read every customer and bot line + shadow logs inside the window. Never judge from the last turn alone.
+Never use --full-thread when total_message_count > 100. If event_window_message_count > 80, analyze the last 40 messages of the window plus shadow for the failing turn.
+If the script fails on missing credentials → log step 4 with --outcome no_action --cause "חסרים סודות Supabase באוטומציה" and stop.
+
+## 3. Analyze — exactly one verdict
+- false_alarm — customer wanted a human; the bot behaved correctly.
+- already_covered — same bug class fixed in the last 7 days (BRIEF.md / commit-log.jsonl).
+- too_risky — fix would touch routing policy, gender forms, customer-facing semantics, or needs a product decision. Also any risk_score ≥ 8.
+- ask_operator — Hebrew policy or fix necessity is ambiguous. Write 1–3 multiple-choice operator questions. Do not guess.
+- real_failure — clear bot mistake with an obvious fix layer.
+
+Write root_cause and fix_plan in easy Hebrew (short sentences, no jargon) — the dashboard shows them as הבעיה / הפתרון.
+Name one fix_layer: prompt | hints | tool_guard | pre_turn | runtime. risk_score 1–10.
+
+IMPLEMENT GATE — go to step 5 only if ALL are true:
+- verdict real_failure, confidence high
+- fix_layer set, fix_plan has 1–3 steps, none uses customer-text regex or reply sanitizers
+- risk_score ≤ 7, and the fix is required (not a nice-to-have, style tweak, or speculative hardening)
+Otherwise the run ends after step 4. If unsure → ask_operator.
+
+## 4. Brief — log the analysis (always)
+npm run qa:log -- --phase analyze --session <session_id> --trigger <trigger> \
+  --outcome <false_alarm|already_covered|too_risky|ask_operator|chained|no_action> \
+  --verdict <verdict> --confidence <high|medium|low> --risk <1-10> \
+  --cause "<root_cause, Hebrew>" \
+  --fix-layer <layer> --fix-plan "<step 1>|<step 2>" \
+  --questions "<question 1>|<question 2>" \
+  --idempotency-key "<idempotency_key from payload>"
+Omit flags that do not apply. --outcome chained means "gate passed, implementing now" — use it only when the gate passed.
+Reply in chat: verdict · one-sentence cause · risk (mention event_window_message_count vs total_message_count on large threads). If the gate did not pass → stop here.
+
+## 5. Develop (gate passed only)
+1. Apply the smallest change in the named fix_layer only. Allowed files: lib/hom-agent/prompts/hom-bot.md, lib/hom-agent/conversation-hints.ts, lib/hom-agent/tools/*.ts, lib/agents/order-lookup.ts, lib/agents/service-intake.ts, lib/hom-agent/pre-turn.ts (existing pending-state helpers only), runtime files only for fix_layer runtime.
+2. Do not change gender forms (לך/לכם), customer-facing meaning, or Hebrew tone beyond what fix_plan requires. No drive-by refactors.
+3. Add one fixture test named after the scenario + session_id in lib/hom-agent/__tests__/ or lib/agents/__tests__/ that replays the timeline and asserts the action and that the wrong sentence / pivot is absent.
+4. npm run guard:qa-fix — must pass.
+5. npm run verify:deploy — must pass.
+   If 4 or 5 fails and no allowed fix remains: `git checkout -- . && git clean -fd lib`, then
+   npm run qa:log -- --phase implement --session <session_id> --trigger <trigger> --outcome failed_guard --cause "<why, Hebrew>" --idempotency-key "<idempotency_key>"
+   and stop with "no action".
+6. git add -A && git commit -m "fix(qa): <short English summary> (<session_id>)" && git push origin main
+   (push the fix on its own first — Vercel's prebuild guard checks the latest commit).
+7. npx tsx scripts/log-qa-automation-commit.ts --sha "$(git rev-parse HEAD)" --session <session_id> --trigger <trigger> --cause "<root_cause, Hebrew>" --files "<comma-separated touched files>"
+   (appends BRIEF.md + commit-log.jsonl and marks the dashboard row implemented via CRON_SECRET).
+8. git add .cursor/automations/hom-conversation-qa/BRIEF.md .cursor/automations/hom-conversation-qa/commit-log.jsonl && git commit -m "chore(qa): log implement commit <sha7> for <session_id>" && git push origin main
+9. Reply: cause (1 sentence) · files touched · fix commit sha · revert: npm run qa:vanish -- <sha> · https://gemini-xi-one-77.vercel.app/dashboard/qa
+
+## Hard stops — no commit, reply "no action" + reason
+- The only fix needs new Hebrew intent regex on customer text, a reply sanitizer (sanitize* / validate-reply.ts stripping), a new runStructured*PreTurn arm, or keyword routing on the latest line.
+- Policy is ambiguous (should be ask_operator), or duplicate of a recent BRIEF.md fix.
+- guard:qa-fix or verify:deploy fails.
+- No new docs/markdown besides BRIEF.md and commit-log.jsonl.
+
+Operator revert: "vanish commit <sha>" → npm run qa:vanish -- <sha>.
 ```
+<!-- paste-block:end -->
 
-- **Analyze (Grok):** chains implement through gemini production proxy (step 7 in `instructions-analyze.md`).
-- **Implement (Composer):** `log-qa-automation-commit.ts` POSTs to `/api/agents/qa-runs` — without `CRON_SECRET`, fixes land in git but dashboard stays "בתהליך Review".
+## Event window
 
-Verify Vercel has implement vars (already required for the proxy):
-
-```bash
-npx tsx scripts/verify-qa-automation-env.ts
-curl -s https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-implement
-```
-
-Do **not** duplicate `CURSOR_AUTOMATION_QA_IMPLEMENT_*` into Grok — that caused HTTP 401.
+Production sends `event_window_since` = newest of: last trainer `איפוס`, agent `reset_at`, CRM `opened_at` (`lib/landbot/qa-event-window.ts`). The run reads only that window (~5–40 messages); `total_message_count` is informational.
 
 ## Triggers
 
@@ -101,48 +151,12 @@ Do **not** duplicate `CURSOR_AUTOMATION_QA_IMPLEMENT_*` into Grok — that cause
 |---------|------|
 | `human_assign` | Rep handoff (`human_service` / `human_sales`) |
 | `bot_failure` | Never-stuck: "לא הצלחתי להבין את ההודעה…" |
+| `manual` | `/dashboard/qa` → manual trigger by conversation ID |
 
-Trainer `לימוד גוקו` → same analyze webhook (test).
-
-## Source webhook payload
-
-Production sends an **event window** so analyze reads ~5–40 messages, not the lifetime WhatsApp thread.
-
-```json
-{
-  "conversation_url": "https://service.hom-group.co.il/conversations/{session_id}",
-  "session_id": "508272038",
-  "landbot_customer_id": "508054404",
-  "trigger": "human_assign",
-  "handoff_action": "human_service",
-  "last_user_message": "...",
-  "last_bot_reply": "...",
-  "event_window_since": "2026-09-24T20:17:50.000Z",
-  "event_window_reason": "trainer_reset",
-  "event_window_message_count": 24,
-  "total_message_count": 2197,
-  "idempotency_key": "508272038:human_assign",
-  "phone_last4": "8636",
-  "sent_at": "2026-09-23T..."
-}
-```
-
-`total_message_count` is informational only — Grok must analyze messages **since `event_window_since`** (newest of: last `איפוס`, agent `reset_at`, CRM `opened_at`).
-
-Implement webhook adds `"phase": "implement"` and `"analysis": { ... }` — see `analysis-schema.json`.
+Trainer `לימוד גוקו` → same webhook (test).
 
 ## Operator briefing & revert
 
-- **Brief:** `.cursor/automations/hom-conversation-qa/BRIEF.md` (plain language, updated each implement push)
+- **Brief:** `BRIEF.md` (plain language, updated after each fix push)
 - **Full log:** `commit-log.jsonl`
 - **Revert:** `npm run qa:vanish -- <commit-sha>` or tell any agent: **vanish commit `<sha>`**
-
-## Shared rules (both automations)
-
-- `.cursor/rules/conversation-fix-playbook.mdc`
-- `.cursor/rules/structured-vs-llm-routing.mdc`
-- `.cursor/rules/qa-automation-hard-bans.mdc`
-- `qa-teach-plan-implement` skill
-- CI: `qa-fix-guard` on every implement commit
-
-**If unsure whether to fix → `ask_operator` on analyze — never guess on implement.**

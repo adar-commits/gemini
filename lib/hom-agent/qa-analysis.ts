@@ -1,4 +1,4 @@
-import type { CursorAutomationQaPayload, CursorAutomationQaTrigger } from "@/lib/landbot/cursor-automation-qa"
+import type { CursorAutomationQaTrigger } from "@/lib/landbot/cursor-automation-qa"
 
 export type QaAnalysisVerdict =
   | "false_alarm"
@@ -28,11 +28,6 @@ export type QaAnalysis = {
   duplicate_of_commit?: string | null
   risk_notes?: string
   analyzed_at?: string
-}
-
-export type CursorAutomationQaImplementPayload = CursorAutomationQaPayload & {
-  phase: "implement"
-  analysis: QaAnalysis
 }
 
 const VERDICTS = new Set<QaAnalysisVerdict>([
@@ -120,41 +115,11 @@ export function parseQaAnalysis(raw: unknown): QaAnalysis | null {
   }
 }
 
-/** Grok analyze → Composer implement gate. */
-export function shouldChainQaImplement(analysis: QaAnalysis) {
+/** Analyze → implement gate inside the single self-improve automation. */
+export function shouldImplementQaFix(analysis: QaAnalysis) {
   if (analysis.verdict !== "real_failure") return false
   if (analysis.confidence !== "high") return false
   if (!analysis.fix_layer) return false
   if (!analysis.fix_plan?.length) return false
   return true
-}
-
-export function buildImplementIdempotencyKey(sessionId: string, analysis: QaAnalysis) {
-  const seed = [
-    analysis.root_cause,
-    analysis.fix_layer ?? "",
-    ...(analysis.fix_plan ?? []),
-  ]
-    .join("|")
-    .slice(0, 200)
-  let hash = 0
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0
-  }
-  return `${sessionId.trim()}:implement:${Math.abs(hash)}`
-}
-
-export function buildImplementWebhookPayload(input: {
-  source: CursorAutomationQaPayload
-  analysis: QaAnalysis
-}): CursorAutomationQaImplementPayload {
-  return {
-    ...input.source,
-    phase: "implement",
-    analysis: input.analysis,
-    idempotency_key: buildImplementIdempotencyKey(
-      input.source.session_id,
-      input.analysis
-    ),
-  }
 }

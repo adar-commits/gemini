@@ -47,7 +47,7 @@ export function qaOutcomeTone(outcome: QaAutomationOutcome) {
 }
 
 export function qaPhaseLabel(phase: QaAutomationPhase) {
-  return phase === "analyze" ? "ניתוח (Grok)" : "יישום (Composer)"
+  return phase === "analyze" ? "ניתוח" : "יישום"
 }
 
 export function qaTriggerLabel(trigger: string) {

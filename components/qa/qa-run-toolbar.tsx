@@ -2,8 +2,7 @@
 
 import { useTransition } from "react"
 import { deleteQaRunAction, retryQaRunAction } from "@/app/dashboard/qa/actions"
-import type { QaRunRetryTarget } from "@/lib/landbot/qa-run-retry"
-import { qaRunRetryLabel } from "@/lib/landbot/qa-run-retry"
+import { QA_RUN_RETRY_LABEL } from "@/lib/landbot/qa-run-retry"
 
 function iconButtonClass(disabled: boolean) {
   return `rounded-lg p-1.5 transition disabled:opacity-50 ${disabled ? "" : ""}`
@@ -52,10 +51,10 @@ function RetryIcon() {
 
 export function QaRunToolbar({
   runId,
-  retryTarget,
+  canRetry,
 }: {
   runId: string
-  retryTarget: QaRunRetryTarget | null
+  canRetry: boolean
 }) {
   const [pending, startTransition] = useTransition()
 
@@ -67,7 +66,7 @@ export function QaRunToolbar({
   }
 
   function handleRetry() {
-    if (!retryTarget) return
+    if (!canRetry) return
     startTransition(async () => {
       const result = await retryQaRunAction(runId)
       if (!result.ok && result.error) {
@@ -78,13 +77,13 @@ export function QaRunToolbar({
 
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      {retryTarget ? (
+      {canRetry ? (
         <button
           type="button"
           onClick={handleRetry}
           disabled={pending}
-          title={qaRunRetryLabel(retryTarget)}
-          aria-label={qaRunRetryLabel(retryTarget)}
+          title={QA_RUN_RETRY_LABEL}
+          aria-label={QA_RUN_RETRY_LABEL}
           className={`${iconButtonClass(pending)} text-zinc-400 ring-1 ring-transparent hover:bg-sky-50 hover:text-sky-700 hover:ring-sky-100`}
         >
           <RetryIcon />

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "HoM QA analyze output (Grok → Composer gate)",
+  "title": "HoM QA analyze output (analyze → implement gate)",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,7 +16,7 @@
     "session_id": { "type": "string" },
     "conversation_url": { "type": "string" },
     "trigger": {
-      "enum": ["human_assign", "bot_failure", "reset", "closed_unanswered"]
+      "enum": ["human_assign", "bot_failure", "reset", "closed_unanswered", "manual"]
     },
     "verdict": {
       "enum": [
