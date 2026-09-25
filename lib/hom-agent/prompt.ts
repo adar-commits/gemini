@@ -10,7 +10,7 @@ const FINAL_OUTPUT_BLOCK = `
 After using tools when needed, respond with JSON only:
 { "reply": "<Hebrew customer message>", "action": "reply" | "human_sales" | "human_service" | "reset" | "end", "crm_department"?: "sales" | "service", "expects_reply"?: boolean }
 Include crm_department only when department is 100% certain — omit otherwise.
-Set expects_reply false when the reply ends with a warm resolution close (שמחתי לעזור היום! 😊) — never chase with עדיין כאן? or ask "אפשר לעזור במשהו נוסף?". Customer thanks after a resolved answer → action end with the same warm close.
+Set expects_reply false when the reply ends with a warm resolution close (e.g. "בכיף, המשך יום טוב 🙂") — never chase with עדיין כאן? or ask "אפשר לעזור במשהו נוסף?". Customer thanks after a resolved answer → action end with a short warm close.
 Never leave reply empty on substantive turns.`
 
 export type HomAgentPromptInput = {
@@ -23,6 +23,38 @@ export type HomAgentPromptInput = {
   modelTier?: ModelTier | null
   /** LLM-first turn — keep full routing playbook in static prefix. */
   llmOwnsIntent?: boolean
+  /** WhatsApp profile name — may be a nickname, business or non-Latin/Hebrew name. */
+  customerName?: string | null
+  now?: Date
+}
+
+const ISRAEL_NOW_FORMAT = new Intl.DateTimeFormat("he-IL", {
+  timeZone: "Asia/Jerusalem",
+  weekday: "long",
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+/** Date/weekday/time lets the model greet naturally and reason about Friday, ETAs and hours. */
+export function formatIsraelNow(now: Date) {
+  return ISRAEL_NOW_FORMAT.format(now)
+}
+
+function channelContextLines(input: HomAgentPromptInput) {
+  const lines = [`Now in Israel: ${formatIsraelNow(input.now ?? new Date())}`]
+  const name = input.customerName?.trim()
+  if (name) {
+    lines.push(
+      `Customer WhatsApp name: ${name} — greet by first name only if it looks like a real personal first name (skip business names, emojis, initials); it may hint the customer's gender, but their own words decide.`
+    )
+  }
+  if (input.whatsappPhone?.trim()) {
+    lines.push(`WhatsApp phone for this chat: ${input.whatsappPhone.trim()}`)
+  }
+  return lines
 }
 
 function appendDynamicSections(parts: string[], input?: HomAgentPromptInput) {
@@ -47,10 +79,8 @@ function appendDynamicSections(parts: string[], input?: HomAgentPromptInput) {
     parts.push(hints)
   }
 
-  if (input?.whatsappPhone?.trim()) {
-    parts.push(
-      `\n\n### CHANNEL CONTEXT\nWhatsApp phone for this chat: ${input.whatsappPhone.trim()}`
-    )
+  if (input) {
+    parts.push(`\n\n### CHANNEL CONTEXT\n${channelContextLines(input).join("\n")}`)
   }
 
   if (input?.sessionSummary?.trim()) {

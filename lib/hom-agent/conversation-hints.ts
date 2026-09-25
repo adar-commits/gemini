@@ -248,7 +248,7 @@ export function buildConversationHints(input: {
 
   if (salesIntakeActive) {
     lines.push(
-      'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר/ה ליועץ מכירות) — never אני צודק? and never wait for approval.'
+      'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר ליועץ מכירות) — never אני צודק? and never wait for approval.'
     )
   }
 

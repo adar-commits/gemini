@@ -54,6 +54,7 @@ type InvokeContext = {
   body: string
   phone?: string
   sessionSummary?: string | null
+  customerName?: string | null
   learnedRules?: string | null
   ownerAnswers?: string | null
   model: string
@@ -88,6 +89,7 @@ function buildInvokeContext(input: {
   body: string
   phone?: string
   sessionSummary?: string | null
+  customerName?: string | null
   learnedRules?: string | null
   ownerAnswers?: string | null
   modelOverride?: string
@@ -103,6 +105,7 @@ function buildInvokeContext(input: {
     body: input.body,
     phone: input.phone,
     sessionSummary: input.sessionSummary,
+    customerName: input.customerName,
     learnedRules: input.learnedRules,
     ownerAnswers: input.ownerAnswers,
     model: homAgentModel(input.runtime, input.modelOverride),
@@ -120,6 +123,7 @@ export async function invokeHomAgent(input: {
   body: string
   phone?: string
   sessionSummary?: string | null
+  customerName?: string | null
   modelTier?: ModelTier | null
   llmOwnsIntent?: boolean
   lastAgent?: AgentId | null
@@ -154,6 +158,7 @@ export async function invokeHomAgent(input: {
 async function invokeWithTools(ctx: InvokeContext) {
   const system = await buildHomAgentSystemPromptAsync({
     sessionSummary: ctx.sessionSummary,
+    customerName: ctx.customerName,
     whatsappPhone: ctx.phone,
     userText: ctx.body,
     history: ctx.history,
@@ -316,6 +321,7 @@ async function invokeWithTools(ctx: InvokeContext) {
 async function invokeKbOnly(ctx: InvokeContext) {
   const system = await buildHomAgentSystemPromptAsync({
     sessionSummary: ctx.sessionSummary,
+    customerName: ctx.customerName,
     whatsappPhone: ctx.phone,
     userText: ctx.body,
     history: ctx.history,

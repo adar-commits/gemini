@@ -344,7 +344,7 @@ export function buildExchangeSwitchSuccessReply(switchRequestId: string, intake:
   return `${CUSTOMER_HEADER}
 ${EXCHANGE_SWITCH_CREATED_MARKER} מספר ${switchRequestId} ✅
 סוג החלפה: ${kindLabel}${intake.orderNumber ? ` | הזמנה ${intake.orderNumber}` : ""}.
-מעביר/ה עכשיו ליועץ/ת מכירות שימשיך מכאן.`
+מעביר עכשיו ליועץ מכירות שימשיך מכאן.`
 }
 
 export function exchangeKindToApiCode(kind: ExchangeKind): "A" | "B" | "C" {

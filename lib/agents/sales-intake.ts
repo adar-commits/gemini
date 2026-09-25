@@ -1667,7 +1667,7 @@ export function buildConfirmationSummary(intake: SalesIntake) {
 }
 
 const SALES_HANDOFF_TAIL =
-  "מעביר/ה עכשיו ליועץ מכירות שימשיך מכאן."
+  "מעביר עכשיו ליועץ מכירות שימשיך מכאן."
 
 function formatSalesHandoffSummary(summaryBody: string) {
   return `אוקיי, אז לסיכום ${summaryBody}.\n\n${SALES_HANDOFF_TAIL}`

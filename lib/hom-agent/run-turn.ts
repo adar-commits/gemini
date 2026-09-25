@@ -635,6 +635,7 @@ export async function runHomAgentTurn(
       body,
       phone: phone || undefined,
       sessionSummary: conversationSummary,
+      customerName: options?.customerName,
       modelTier: modelPick.tier,
       llmOwnsIntent: deferStructuredToLlm,
       lastAgent,

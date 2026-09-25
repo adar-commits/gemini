@@ -330,8 +330,11 @@ export async function handleLandbotInbound(
   }
 
   let result: AgentResponse
-  let headerAlreadySent = options?.headerAlreadySent ?? false
   const conversationHistory = await getHistory(conversationId)
+  // The "*הום בוט :)*" title introduces the bot once; repeating it on every bubble reads robotic.
+  let headerAlreadySent =
+    (options?.headerAlreadySent ?? false) ||
+    conversationHistory.some((message) => message.role === "assistant")
   const stuckContext = {
     customerName: customerName || undefined,
     history: conversationHistory,

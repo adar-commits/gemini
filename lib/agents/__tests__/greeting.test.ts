@@ -75,7 +75,6 @@ describe("greeting reply", () => {
     const cleaned = sanitizeCustomerAddress(raw)
     assert.match(cleaned, /31503138-200290/)
     assert.doesNotMatch(cleaned, /SKU/i)
-    assert.match(cleaned, /מה תעדיפו/)
   })
 
   it("replaces letter SKU placeholders with real מק״ט example", () => {
@@ -86,17 +85,18 @@ describe("greeting reply", () => {
     assert.doesNotMatch(cleaned, /ABC-12345/i)
   })
 
-  it("sanitizes masculine singular customer address to plural", () => {
-    const raw =
-      "איך תעדיף להמשיך? אפשר לחבר אותך ליועץ — שלח/י את הפרטים אם יש לך."
-    const cleaned = sanitizeCustomerAddress(raw)
-    assert.match(cleaned, /איך תרצו/)
-    assert.doesNotMatch(cleaned, /תעדיף/)
-    assert.match(cleaned, /לחבר אתכם/)
-    assert.doesNotMatch(cleaned, /אותך/)
-    assert.match(cleaned, /שלחו/)
-    assert.match(cleaned, /יש לכם/)
-    assert.doesNotMatch(cleaned, /\/י/)
+  it("keeps singular customer address like human reps, but never slash forms", () => {
+    const feminine = "היי ליטל, ההזמנה שלך תגיע ביום שני. תרצי שאבדוק גם את השטיח השני?"
+    assert.equal(sanitizeCustomerAddress(feminine), feminine)
+    const masculine = "היי אייל, הזיכוי בוצע. אם תרצה עוד משהו — אני כאן."
+    assert.equal(sanitizeCustomerAddress(masculine), masculine)
+    const slashes = sanitizeCustomerAddress("שלח/י את הפרטים ותרצו/י לבחור")
+    assert.match(slashes, /שלחו/)
+    assert.doesNotMatch(slashes, /\/י/)
+  })
+
+  it("keeps the bot's own voice masculine", () => {
+    assert.match(sanitizeCustomerAddress("אני שמחה לעזור"), /אני שמח לעזור/)
   })
 
   it("removes duplicate bot name after the header", () => {
