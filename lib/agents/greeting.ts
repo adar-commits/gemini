@@ -167,11 +167,12 @@ export function sanitizeCustomerAddress(text: string) {
   return sanitizeBotEmojis(normalizeSkuExamplesInReply(out))
 }
 
-const FORBIDDEN_EMOJIS_RE = /🔍|🔎|😀|✨|📷|🙂/g
+const FORBIDDEN_EMOJIS_RE = /🔍|🔎|😀|✨|📷/g
 
 function isAllowedBotEmoji(emoji: string) {
   return (
     emoji === "😊" ||
+    emoji === "🙂" ||
     emoji === "🙏" ||
     emoji === "👍" ||
     emoji === "👋" ||

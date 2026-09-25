@@ -20,8 +20,8 @@ import { createHomAgentTools } from "@/lib/hom-agent/tools"
 import { isLikelyTruncatedBotReply, validateHomAgentReply } from "@/lib/hom-agent/validate-reply"
 
 const MAX_TOOL_ROUNDS = 2
-/** Error fallback must be cheaper than the primary model, never more expensive. */
-const INVOKE_FALLBACK_MODEL = "anthropic/claude-haiku-4.5"
+/** Error fallback: cheaper than the Opus primary, but strong enough to hold Hebrew voice and flow. */
+const INVOKE_FALLBACK_MODEL = "anthropic/claude-sonnet-5"
 
 /**
  * Gateway-managed prompt caching: adds Anthropic cache markers automatically
