@@ -69,7 +69,7 @@ const ORDER: QaEventStageId[] = [
 
 const INSTANT_STAGES = new Set<QaEventStageId>(["sent", "decision", "shipped"])
 
-const STALE_AFTER_MS = 30 * 60_000
+const STALE_AFTER_MS = 10 * 60_000
 
 function parseMs(iso?: string | null) {
   if (!iso) return null

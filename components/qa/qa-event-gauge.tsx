@@ -112,7 +112,7 @@ export function QaEventGauge({ progress }: { progress: QaEventProgress }) {
       </p>
       {progress.stale ? (
         <p className="rounded-lg bg-amber-50 px-2 py-1 text-center text-[11px] text-amber-800 ring-1 ring-amber-100">
-          אין עדכון מהאוטומציה 30+ דק׳ — בדוק ב-cursor.com/automations או לחץ ↻
+          אין עדכון מהאוטומציה 10+ דק׳ — בדוק ב-cursor.com/automations או לחץ ↻
         </p>
       ) : null}
 

@@ -12,6 +12,7 @@ import {
   type CursorAutomationQaTrigger,
 } from "@/lib/landbot/cursor-automation-qa"
 import { resolveQaEventWindow } from "@/lib/landbot/qa-event-window"
+import { buildQaTranscript } from "@/lib/landbot/qa-transcript"
 
 const TRIGGERS = new Set<CursorAutomationQaTrigger>([
   "human_assign",
@@ -57,9 +58,14 @@ export async function retryQaAutomationRun(id: string) {
   }
 
   const eventWindow = await resolveQaEventWindow(run.session_id).catch(() => null)
+  const transcript = await buildQaTranscript({
+    conversationId: run.session_id,
+    since: eventWindow?.since ?? null,
+  }).catch(() => null)
 
   const payload = buildCursorAutomationQaPayload({
     sessionId: run.session_id,
+    transcript,
     landbotCustomerId: run.landbot_customer_id,
     trigger: run.trigger as CursorAutomationQaTrigger,
     idempotencyKey: retryIdempotencyKey(run),

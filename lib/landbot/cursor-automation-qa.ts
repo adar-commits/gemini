@@ -7,6 +7,7 @@ import {
   resolveQaEventWindow,
   type QaEventWindowReason,
 } from "@/lib/landbot/qa-event-window"
+import { buildQaTranscript } from "@/lib/landbot/qa-transcript"
 
 export type CursorAutomationQaTrigger =
   | "human_assign"
@@ -32,6 +33,8 @@ export type CursorAutomationQaPayload = {
   phone_last4?: string | null
   /** Operator's own description of what went wrong (manual trigger / retry). */
   operator_notes?: string
+  /** Event-window timeline + agent turns + shadow — analyze from this, no DB read needed. */
+  transcript?: string
   sent_at: string
 }
 
@@ -181,6 +184,7 @@ export function buildCursorAutomationQaPayload(input: {
   phone?: string | null
   idempotencyKey?: string
   operatorNotes?: string | null
+  transcript?: string | null
   eventWindowSince: string
   eventWindowReason: QaEventWindowReason
   eventWindowMessageCount: number
@@ -209,6 +213,7 @@ export function buildCursorAutomationQaPayload(input: {
     ...(input.operatorNotes?.trim()
       ? { operator_notes: input.operatorNotes.trim().slice(0, OPERATOR_NOTES_MAX) }
       : {}),
+    ...(input.transcript?.trim() ? { transcript: input.transcript } : {}),
     sent_at: new Date().toISOString(),
   }
 }
@@ -289,8 +294,21 @@ export async function executeCursorAutomationQa(
     })
   }
 
+  const transcript = await buildQaTranscript({
+    conversationId: sessionId,
+    since: eventWindow?.since ?? null,
+  }).catch((transcriptError) => {
+    console.warn("[cursor-automation-qa] transcript build failed", {
+      sessionId,
+      error:
+        transcriptError instanceof Error ? transcriptError.message : transcriptError,
+    })
+    return null
+  })
+
   const payload = buildCursorAutomationQaPayload({
     sessionId,
+    transcript,
     landbotCustomerId:
       input.landbotCustomerId ?? row?.landbot_customer_id ?? input.conversationId,
     trigger: input.trigger,

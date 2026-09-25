@@ -5,20 +5,25 @@ import {
   type QaAutomationOutcome,
 } from "@/lib/agents/qa-automation-log"
 import { getAgentSupabase } from "@/lib/agents/supabase"
+import { isCronAuthorized } from "@/lib/agents/cron-auth"
+import { buildHomServiceConversationUrl } from "@/lib/landbot/cursor-automation-qa"
 import {
   mergeQaStageTimestamps,
   parseQaStageTimestamps,
 } from "@/lib/agents/qa-stage-timing"
 
-function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim()
-  if (!secret) return false
-  const header = request.headers.get("authorization")?.trim()
-  return header === `Bearer ${secret}`
+/** Same stamps scripts/log-qa-run.ts writes, so curl-only automation runs move the gauge too. */
+function autoStageTimestamps(input: InsertQaAutomationRunInput) {
+  const now = new Date().toISOString()
+  if (input.phase !== "analyze" || input.outcome === "triggered") return undefined
+  if (input.outcome === "chained") {
+    return { analyze_completed_at: now, chain_at: now, implement_started_at: now }
+  }
+  return { analyze_completed_at: now }
 }
 
 export async function POST(request: Request) {
-  if (!authorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -29,13 +34,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
+  const sessionId = String(body.session_id ?? body.sessionId ?? "").trim()
   const input: InsertQaAutomationRunInput = {
-    sessionId: String(body.session_id ?? body.sessionId ?? ""),
+    sessionId,
     landbotCustomerId:
       typeof body.landbot_customer_id === "string"
         ? body.landbot_customer_id
         : null,
-    conversationUrl: String(body.conversation_url ?? body.conversationUrl ?? ""),
+    conversationUrl: String(
+      body.conversation_url ??
+        body.conversationUrl ??
+        (sessionId ? buildHomServiceConversationUrl(sessionId) : "")
+    ),
     trigger: String(body.trigger ?? ""),
     phase: body.phase === "implement" ? "implement" : "analyze",
     outcome: String(body.outcome ?? "no_action") as InsertQaAutomationRunInput["outcome"],
@@ -95,6 +105,9 @@ export async function POST(request: Request) {
   if (!input.sessionId || !input.conversationUrl || !input.trigger) {
     return NextResponse.json({ error: "Missing session_id / conversation_url / trigger" }, { status: 400 })
   }
+
+  const autoStages = autoStageTimestamps(input)
+  if (autoStages) input.stageTimestamps = { ...autoStages, ...input.stageTimestamps }
 
   try {
     const row = await insertQaAutomationRun(input)

@@ -120,7 +120,7 @@ describe("qaEventProgress", () => {
   })
 
   it("flags stale in-progress events", () => {
-    const later = Date.parse("2026-09-25T07:45:00.000Z")
+    const later = Date.parse("2026-09-25T07:15:00.000Z")
     assert.equal(qaEventProgress(run({}), later).stale, true)
     assert.equal(qaEventProgress(run({ outcome: "false_alarm" }), later).stale, false)
   })
