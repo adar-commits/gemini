@@ -10,6 +10,7 @@
     "guard:qa-fix:commit": "npx tsx scripts/guard-qa-fix-diff.ts --commit",
     "qa:vanish": "npx tsx scripts/vanish-qa-commit.ts",
     "qa:log": "npx tsx scripts/log-qa-run.ts",
+    "qa:stage": "npx tsx scripts/qa-stage.ts",
     "qa:backfill": "npx tsx scripts/backfill-qa-runs.ts",
     "verify:qa-automation": "npx tsx scripts/verify-qa-automation-env.ts",
     "build": "next build",

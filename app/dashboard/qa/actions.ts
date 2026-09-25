@@ -33,8 +33,11 @@ export async function retryQaRunAction(id: string) {
   return result
 }
 
-export async function createManualQaEventAction(conversationId: string) {
-  const result = await triggerManualQaReview(conversationId)
+export async function createManualQaEventAction(
+  conversationId: string,
+  operatorNotes?: string
+) {
+  const result = await triggerManualQaReview(conversationId, operatorNotes)
   revalidatePath("/dashboard/qa")
   return result
 }

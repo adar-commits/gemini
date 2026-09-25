@@ -3,10 +3,12 @@ import { formatQaElapsedHebrew, isQaRunActive, qaRunElapsedMs } from "@/lib/agen
 
 export type QaStageTimestamps = {
   event_at?: string
+  reading_started_at?: string
   analyze_started_at?: string
   analyze_completed_at?: string
   chain_at?: string
   implement_started_at?: string
+  testing_started_at?: string
   implement_completed_at?: string
 }
 
@@ -53,10 +55,12 @@ export function parseQaStageTimestamps(raw: unknown): QaStageTimestamps {
     typeof row[key] === "string" ? row[key]!.trim() : undefined
   return {
     event_at: pick("event_at"),
+    reading_started_at: pick("reading_started_at"),
     analyze_started_at: pick("analyze_started_at"),
     analyze_completed_at: pick("analyze_completed_at"),
     chain_at: pick("chain_at"),
     implement_started_at: pick("implement_started_at"),
+    testing_started_at: pick("testing_started_at"),
     implement_completed_at: pick("implement_completed_at"),
   }
 }

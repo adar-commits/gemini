@@ -1,13 +1,5 @@
 import type { QaAutomationOutcome, QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
 
-export type QaPipelineStepId = "trigger" | "analyze" | "chain" | "implement"
-
-export type QaPipelineStep = {
-  id: QaPipelineStepId
-  label: string
-  state: "done" | "active" | "pending" | "failed"
-}
-
 const ACTIVE_OUTCOMES = new Set<QaAutomationOutcome>(["triggered", "chained"])
 
 export function isQaRunActive(outcome: QaAutomationOutcome) {
@@ -85,59 +77,6 @@ export function qaVerdictLabel(verdict: string | null) {
     default:
       return verdict ?? "—"
   }
-}
-
-export function qaPipelineSteps(run: QaAutomationRunRow): QaPipelineStep[] {
-  const { outcome, phase } = run
-  const failed = outcome === "webhook_failed" || outcome === "failed_guard"
-  const implemented = outcome === "implemented" || outcome === "vanished"
-  const chained = outcome === "chained" || (phase === "implement" && !implemented)
-  const analyzed =
-    implemented ||
-    chained ||
-    outcome === "real_failure" ||
-    outcome === "ask_operator" ||
-    outcome === "too_risky" ||
-    outcome === "already_covered" ||
-    outcome === "false_alarm" ||
-    outcome === "ignored" ||
-    outcome === "no_action" ||
-    failed
-
-  const trigger: QaPipelineStep = {
-    id: "trigger",
-    label: "טריגר מ-production",
-    state: "done",
-  }
-
-  let analyzeState: QaPipelineStep["state"] = "pending"
-  if (failed && !analyzed) analyzeState = "failed"
-  else if (outcome === "triggered") analyzeState = "active"
-  else if (analyzed) analyzeState = "done"
-
-  let chainState: QaPipelineStep["state"] = "pending"
-  if (failed && analyzed && !chained && !implemented) chainState = "failed"
-  else if (outcome === "chained" || (phase === "implement" && !implemented)) chainState = "active"
-  else if (chained || implemented) chainState = "done"
-
-  let implementState: QaPipelineStep["state"] = "pending"
-  if (implemented) implementState = "done"
-  else if (phase === "implement" && !implemented) implementState = "active"
-  else if (failed && chained) implementState = "failed"
-
-  return [
-    trigger,
-    { id: "analyze", label: "ניתוח", state: analyzeState },
-    { id: "chain", label: "אישור תיקון", state: chainState },
-    { id: "implement", label: "יישום + push", state: implementState },
-  ]
-}
-
-export function qaPipelineProgress(steps: QaPipelineStep[]) {
-  const weights = { done: 1, active: 0.55, pending: 0, failed: 0.35 }
-  const total = steps.length
-  const score = steps.reduce((sum, step) => sum + weights[step.state], 0)
-  return Math.round((score / total) * 100)
 }
 
 export function qaHealthScore(stats: {

@@ -21,7 +21,8 @@ export type ManualQaTriggerResult =
     }
 
 export async function triggerManualQaReview(
-  conversationId: string
+  conversationId: string,
+  operatorNotes?: string | null
 ): Promise<ManualQaTriggerResult> {
   const trimmed = conversationId.trim()
   if (!trimmed) {
@@ -46,6 +47,7 @@ export async function triggerManualQaReview(
     lastBotReply: context.lastBotReply ?? undefined,
     phone: context.phone,
     idempotencyKey: buildManualQaIdempotencyKey(context.sessionId),
+    operatorNotes,
     skipTriggerCheck: true,
   })
 

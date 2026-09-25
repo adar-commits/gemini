@@ -30,8 +30,12 @@ export type CursorAutomationQaPayload = {
   total_message_count: number
   idempotency_key: string
   phone_last4?: string | null
+  /** Operator's own description of what went wrong (manual trigger / retry). */
+  operator_notes?: string
   sent_at: string
 }
+
+const OPERATOR_NOTES_MAX = 2000
 
 const SERVICE_CONVERSATION_BASE =
   process.env.HOM_SERVICE_CONVERSATION_BASE?.trim() ||
@@ -176,6 +180,7 @@ export function buildCursorAutomationQaPayload(input: {
   lastBotReply?: string
   phone?: string | null
   idempotencyKey?: string
+  operatorNotes?: string | null
   eventWindowSince: string
   eventWindowReason: QaEventWindowReason
   eventWindowMessageCount: number
@@ -201,6 +206,9 @@ export function buildCursorAutomationQaPayload(input: {
     idempotency_key:
       input.idempotencyKey ?? `${sessionId}:${input.trigger}`,
     phone_last4: phoneLastFour(input.phone),
+    ...(input.operatorNotes?.trim()
+      ? { operator_notes: input.operatorNotes.trim().slice(0, OPERATOR_NOTES_MAX) }
+      : {}),
     sent_at: new Date().toISOString(),
   }
 }
@@ -231,6 +239,7 @@ export type ExecuteCursorAutomationQaInput = {
   idempotencyKey?: string
   sessionId?: string
   landbotCustomerId?: string | null
+  operatorNotes?: string | null
   skipTriggerCheck?: boolean
 }
 
@@ -290,6 +299,7 @@ export async function executeCursorAutomationQa(
     lastBotReply: input.lastBotReply,
     phone: input.phone,
     idempotencyKey,
+    operatorNotes: input.operatorNotes,
     ...qaEventWindowPayloadFields(eventWindow ?? null),
   })
 
@@ -311,9 +321,8 @@ export async function executeCursorAutomationQa(
           : `Webhook sent — awaiting automation analyze (${payload.trigger})`
         : "Webhook POST to Cursor automation failed",
       idempotencyKey: payload.idempotency_key,
-      stageTimestamps: webhook.ok
-        ? { event_at: stageNow, analyze_started_at: stageNow }
-        : { event_at: stageNow },
+      operatorInput: payload.operator_notes ?? null,
+      stageTimestamps: { event_at: stageNow },
       operatorNotes: webhook.ok
         ? input.trigger === "manual"
           ? "טריגר ידני מהדשבורד"

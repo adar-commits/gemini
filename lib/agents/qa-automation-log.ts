@@ -41,6 +41,8 @@ export type QaAutomationRunRow = {
   changed_files: string[]
   idempotency_key: string | null
   operator_notes: string | null
+  /** Notes the operator typed on the manual trigger — never overwritten by automation logs. */
+  operator_input: string | null
   stage_timestamps: QaStageTimestamps
   created_at: string
   updated_at: string
@@ -64,6 +66,7 @@ export type InsertQaAutomationRunInput = {
   changedFiles?: string[]
   idempotencyKey?: string | null
   operatorNotes?: string | null
+  operatorInput?: string | null
   stageTimestamps?: QaStageTimestamps
   createdAt?: string
 }
@@ -123,6 +126,8 @@ function mapRow(raw: Record<string, unknown>): QaAutomationRunRow {
       typeof raw.idempotency_key === "string" ? raw.idempotency_key : null,
     operator_notes:
       typeof raw.operator_notes === "string" ? raw.operator_notes : null,
+    operator_input:
+      typeof raw.operator_input === "string" ? raw.operator_input : null,
     stage_timestamps: parseQaStageTimestamps(raw.stage_timestamps),
     created_at: String(raw.created_at),
     updated_at: String(raw.updated_at),
@@ -153,6 +158,7 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
     stage_timestamps: input.stageTimestamps ?? {},
     updated_at: now,
   }
+  if (input.operatorInput?.trim()) payload.operator_input = input.operatorInput.trim()
   if (input.createdAt) payload.created_at = input.createdAt
 
   const { data, error } = await supabase
@@ -348,6 +354,8 @@ export async function updateQaAutomationRun(input: {
   outcome?: QaAutomationOutcome
   operatorNotes?: string
   riskScore?: number
+  /** Replaces (not merges) stage timestamps — used when a retry restarts the event. */
+  stageTimestamps?: QaStageTimestamps
 }) {
   const supabase = getAgentSupabase()
   const patch: Record<string, unknown> = {
@@ -357,6 +365,7 @@ export async function updateQaAutomationRun(input: {
   if (input.outcome) patch.outcome = input.outcome
   if (input.operatorNotes !== undefined) patch.operator_notes = input.operatorNotes
   if (input.riskScore !== undefined) patch.risk_score = input.riskScore
+  if (input.stageTimestamps) patch.stage_timestamps = input.stageTimestamps
 
   const { data, error } = await supabase
     .from("hom_agent_qa_runs")
@@ -365,6 +374,79 @@ export async function updateQaAutomationRun(input: {
     .select("*")
     .single()
 
+  if (error) throw error
+  return mapRow(data as Record<string, unknown>)
+}
+
+export type QaReportedStage = "reading" | "analyzing" | "coding" | "testing"
+
+export const QA_REPORTED_STAGES: QaReportedStage[] = [
+  "reading",
+  "analyzing",
+  "coding",
+  "testing",
+]
+
+function reportedStageKey(stage: QaReportedStage): keyof QaStageTimestamps {
+  switch (stage) {
+    case "reading":
+      return "reading_started_at"
+    case "analyzing":
+      return "analyze_started_at"
+    case "coding":
+      return "implement_started_at"
+    case "testing":
+      return "testing_started_at"
+    default: {
+      const exhaustive: never = stage
+      return exhaustive
+    }
+  }
+}
+
+/** Automation progress ping — stamps the event row found by idempotency key (else latest row for the session). */
+export async function markQaRunStage(input: {
+  stage: QaReportedStage
+  idempotencyKey?: string | null
+  sessionId?: string | null
+}) {
+  const supabase = getAgentSupabase()
+  let existing: Record<string, unknown> | null = null
+
+  if (input.idempotencyKey?.trim()) {
+    const { data, error } = await supabase
+      .from("hom_agent_qa_runs")
+      .select("*")
+      .eq("idempotency_key", input.idempotencyKey.trim())
+      .maybeSingle()
+    if (error) throw error
+    existing = data
+  }
+  if (!existing && input.sessionId?.trim()) {
+    const { data, error } = await supabase
+      .from("hom_agent_qa_runs")
+      .select("*")
+      .eq("session_id", input.sessionId.trim())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    existing = data
+  }
+  if (!existing) return null
+
+  const now = new Date().toISOString()
+  const key = reportedStageKey(input.stage)
+  const current = parseQaStageTimestamps(existing.stage_timestamps)
+  const { data, error } = await supabase
+    .from("hom_agent_qa_runs")
+    .update({
+      stage_timestamps: mergeQaStageTimestamps(current, { [key]: current[key] ?? now }),
+      updated_at: now,
+    })
+    .eq("id", existing.id as string)
+    .select("*")
+    .single()
   if (error) throw error
   return mapRow(data as Record<string, unknown>)
 }

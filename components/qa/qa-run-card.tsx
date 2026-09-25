@@ -12,8 +12,6 @@ import {
   isQaRunActive,
   qaConfidenceLabel,
   qaFixLayerLabel,
-  qaPipelineProgress,
-  qaPipelineSteps,
   qaVerdictLabel,
 } from "@/lib/agents/qa-run-display"
 import {
@@ -26,7 +24,8 @@ import { canRetryQaRun } from "@/lib/landbot/qa-run-retry"
 import type { QaConversationContext } from "@/lib/landbot/qa-conversation-context"
 import { QaElapsedTimer } from "@/components/qa/qa-elapsed-timer"
 import { QaScorecard } from "@/components/qa/qa-scorecard"
-import { QaPipelineStepper } from "@/components/qa/qa-pipeline-stepper"
+import { QaEventGauge } from "@/components/qa/qa-event-gauge"
+import { qaEventProgress } from "@/lib/agents/qa-event-stages"
 import { QaRiskGauge } from "@/components/qa/qa-risk-gauge"
 import { QaRunToolbar } from "@/components/qa/qa-run-toolbar"
 import { QaStageTimeline } from "@/components/qa/qa-stage-timeline"
@@ -62,8 +61,7 @@ export function QaRunCard({
   conversation?: QaConversationContext | null
 }) {
   const tone = qaOutcomeTone(run.outcome)
-  const steps = qaPipelineSteps(run)
-  const progress = qaPipelineProgress(steps)
+  const eventProgress = qaEventProgress(run)
   const stageTimeline = buildQaStageTimeline(run, siblings)
   const totalElapsed = formatQaElapsedHebrew(qaRunTotalElapsedMs(run, siblings))
   const active = isQaRunActive(run.outcome)
@@ -159,6 +157,20 @@ export function QaRunCard({
 
       <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="space-y-4">
+          {run.operator_input ? (
+            <section className="rounded-2xl bg-gradient-to-l from-indigo-50/90 to-transparent p-4 ring-1 ring-indigo-100">
+              <h3 className="mb-1.5 flex items-center gap-2 text-sm font-bold text-indigo-900">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-100 text-xs">
+                  ✎
+                </span>
+                ההערות שלך לאוטומציה
+              </h3>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-indigo-950/80">
+                {run.operator_input}
+              </p>
+            </section>
+          ) : null}
+
           <section className="rounded-2xl bg-gradient-to-l from-rose-50/80 to-transparent p-4 ring-1 ring-rose-100/80">
             <h3 className="mb-1.5 flex items-center gap-2 text-sm font-bold text-rose-900">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-100 text-xs">
@@ -235,8 +247,8 @@ export function QaRunCard({
         </div>
 
         <aside className="space-y-4 lg:border-r lg:border-black/[0.05] lg:pr-5">
+          <QaEventGauge progress={eventProgress} />
           <QaStageTimeline segments={stageTimeline} />
-          <QaPipelineStepper steps={steps} progress={progress} />
           <div className="flex items-center justify-center rounded-2xl bg-zinc-50/90 p-3 ring-1 ring-black/[0.04]">
             <QaRiskGauge score={run.risk_score} />
           </div>

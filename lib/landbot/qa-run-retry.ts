@@ -40,9 +40,9 @@ export function canRetryQaRun(run: QaAutomationRunRow) {
   return !NO_RETRY_OUTCOMES.has(run.outcome) && isTrigger(run.trigger)
 }
 
+/** Same key as the original event so automation stage/verdict logs update this card instead of a new row. */
 function retryIdempotencyKey(run: QaAutomationRunRow) {
-  const base = run.idempotency_key?.trim() || `${run.session_id}:${run.trigger}`
-  return `${base}:retry:${Date.now()}`
+  return run.idempotency_key?.trim() || `${run.session_id}:${run.trigger}`
 }
 
 export async function retryQaAutomationRun(id: string) {
@@ -63,6 +63,7 @@ export async function retryQaAutomationRun(id: string) {
     landbotCustomerId: run.landbot_customer_id,
     trigger: run.trigger as CursorAutomationQaTrigger,
     idempotencyKey: retryIdempotencyKey(run),
+    operatorNotes: run.operator_input,
     ...qaEventWindowPayloadFields(eventWindow),
   })
 
@@ -86,6 +87,7 @@ export async function retryQaAutomationRun(id: string) {
     id: run.id,
     outcome: "triggered",
     operatorNotes: "Retry — automation webhook sent.",
+    stageTimestamps: { event_at: new Date().toISOString() },
   })
 
   return { ok: true as const }

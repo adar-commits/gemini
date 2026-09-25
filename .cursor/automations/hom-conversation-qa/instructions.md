@@ -64,9 +64,18 @@ Payload (JSON body):
 conversation_url, session_id, landbot_customer_id, trigger, handoff_action?, last_user_message?, last_bot_reply?,
 event_window_since (ISO — analyze ONLY messages at/after this time), event_window_reason (trainer_reset|agent_reset|opened_at|tail_fallback),
 event_window_message_count (~5–40 in scope), total_message_count (lifetime thread size — ignore for analysis),
-idempotency_key, phone_last4, sent_at, test?
+idempotency_key, phone_last4, operator_notes?, sent_at, test?
 
 Target: one QA event = one short incident, not the lifetime WhatsApp thread. Analyze in ~1–2 minutes.
+
+OPERATOR NOTES — if operator_notes is present, the operator (a human reviewing the chat) wrote what went wrong. Treat it as the behavior spec for this run:
+- Verify it against the thread, then answer it directly in root_cause (agree, or explain in Hebrew why the bot was actually right).
+- It outranks your own guess about what the problem is, but never the hard bans or the implement gate.
+- If the note asks for something ambiguous or policy-level → ask_operator with multiple-choice questions.
+
+PROGRESS — the operator watches a 7-stage gauge on /dashboard/qa. Report each stage with:
+npm run qa:stage -- --stage <reading|analyzing|coding|testing> --key "<idempotency_key>" --session <session_id>
+(sent / decision / pushed are stamped automatically by the webhook, qa:log and log-qa-automation-commit.ts). Never skip these calls; they never fail the run.
 
 Required automation secrets (same values as Vercel production): AGENT_SUPABASE_URL, AGENT_SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET.
 
@@ -82,6 +91,7 @@ Run `npm ci` if node_modules is missing. Read in full:
 - .cursor/automations/hom-conversation-qa/BRIEF.md (recent fixes — duplicate check)
 
 ## 2. QA — read the event window (whole incident, not the lifetime thread)
+npm run qa:stage -- --stage reading --key "<idempotency_key>" --session <session_id>
 npx tsx scripts/read-hom-conversation.ts <session_id> --since=<event_window_since>
 (no event_window_since in payload → use --event-window)
 Start from last_user_message / last_bot_reply, then read every customer and bot line + shadow logs inside the window. Never judge from the last turn alone.
@@ -89,6 +99,7 @@ Never use --full-thread when total_message_count > 100. If event_window_message_
 If the script fails on missing credentials → log step 4 with --outcome no_action --cause "חסרים סודות Supabase באוטומציה" and stop.
 
 ## 3. Analyze — exactly one verdict
+npm run qa:stage -- --stage analyzing --key "<idempotency_key>" --session <session_id>
 - false_alarm — customer wanted a human; the bot behaved correctly.
 - already_covered — same bug class fixed in the last 7 days (BRIEF.md / commit-log.jsonl).
 - too_risky — fix would touch routing policy, gender forms, customer-facing semantics, or needs a product decision. Also any risk_score ≥ 8.
@@ -116,10 +127,12 @@ Omit flags that do not apply. --outcome chained means "gate passed, implementing
 Reply in chat: verdict · one-sentence cause · risk (mention event_window_message_count vs total_message_count on large threads). If the gate did not pass → stop here.
 
 ## 5. Develop (gate passed only)
+npm run qa:stage -- --stage coding --key "<idempotency_key>" --session <session_id>
 1. Apply the smallest change in the named fix_layer only. Allowed files: lib/hom-agent/prompts/hom-bot.md, lib/hom-agent/conversation-hints.ts, lib/hom-agent/tools/*.ts, lib/agents/order-lookup.ts, lib/agents/service-intake.ts, lib/hom-agent/pre-turn.ts (existing pending-state helpers only), runtime files only for fix_layer runtime.
 2. Do not change gender forms (לך/לכם), customer-facing meaning, or Hebrew tone beyond what fix_plan requires. No drive-by refactors.
 3. Add one fixture test named after the scenario + session_id in lib/hom-agent/__tests__/ or lib/agents/__tests__/ that replays the timeline and asserts the action and that the wrong sentence / pivot is absent.
-4. npm run guard:qa-fix — must pass.
+4. npm run qa:stage -- --stage testing --key "<idempotency_key>" --session <session_id>
+   then npm run guard:qa-fix — must pass.
 5. npm run verify:deploy — must pass.
    If 4 or 5 fails and no allowed fix remains: `git checkout -- . && git clean -fd lib`, then
    npm run qa:log -- --phase implement --session <session_id> --trigger <trigger> --outcome failed_guard --cause "<why, Hebrew>" --idempotency-key "<idempotency_key>"
@@ -140,6 +153,22 @@ Reply in chat: verdict · one-sentence cause · risk (mention event_window_messa
 Operator revert: "vanish commit <sha>" → npm run qa:vanish -- <sha>.
 ```
 <!-- paste-block:end -->
+
+## Event gauge (7 stages)
+
+`lib/agents/qa-event-stages.ts` → `components/qa/qa-event-gauge.tsx`:
+
+| # | Stage | Stamped by |
+|---|-------|-----------|
+| 1 | נשלח לאוטומציה | webhook (`event_at`) |
+| 2 | קריאת השיחה | `qa:stage reading` |
+| 3 | ניתוח | `qa:stage analyzing` |
+| 4 | החלטה | `qa:log --phase analyze` (`analyze_completed_at`) — amber "waiting" on ask_operator / too_risky, fix stages skipped on false_alarm |
+| 5 | תיקון קוד | `qa:stage coding` / `--outcome chained` |
+| 6 | בדיקות ו-build | `qa:stage testing` |
+| 7 | נדחף ל-main | `log-qa-automation-commit.ts` (outcome `implemented`) |
+
+Retry (↻) reuses the event's idempotency key, resets the stages and re-sends the operator's notes.
 
 ## Event window
 

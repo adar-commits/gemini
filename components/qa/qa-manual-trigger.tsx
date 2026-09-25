@@ -5,6 +5,7 @@ import { createManualQaEventAction } from "@/app/dashboard/qa/actions"
 
 export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
   const [sessionId, setSessionId] = useState("")
+  const [notes, setNotes] = useState("")
   const [feedback, setFeedback] = useState<{
     tone: "ok" | "error"
     text: string
@@ -18,13 +19,14 @@ export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
 
     setFeedback(null)
     startTransition(async () => {
-      const result = await createManualQaEventAction(id)
+      const result = await createManualQaEventAction(id, notes.trim() || undefined)
       if (result.ok) {
         setFeedback({
           tone: "ok",
-          text: `נשלח לאוטומציה — אירוע חדש לשיחה #${result.sessionId}`,
+          text: `נשלח לאוטומציה — אירוע חדש לשיחה #${result.sessionId}${notes.trim() ? " (כולל ההערות שלך)" : ""}`,
         })
         setSessionId("")
+        setNotes("")
         return
       }
 
@@ -48,16 +50,17 @@ export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
           <h2 className="text-base font-bold text-slate-900">בדיקה ידנית</h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">
             הזינו מזהה שיחה (session / Landbot ID) — ניצור אירוע, נשלח
-            לאוטומציה ונתחיל את תהליך הבדיקה.
+            לאוטומציה ונתחיל את תהליך הבדיקה. הערות שתכתבו יגיעו לאוטומציה
+            כתיאור הבעיה שלכם.
           </p>
         </div>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="mt-4 flex flex-wrap items-end gap-3"
+        className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:items-end"
       >
-        <label className="min-w-[min(100%,14rem)] flex-1">
+        <label className="min-w-0">
           <span className="mb-1.5 block text-xs font-semibold text-slate-700">
             מזהה שיחה
           </span>
@@ -71,6 +74,21 @@ export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
             onChange={(event) => setSessionId(event.target.value)}
             disabled={disabled || pending}
             className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 font-mono text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/0 transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+          />
+        </label>
+        <label className="min-w-0">
+          <span className="mb-1.5 flex items-baseline justify-between text-xs font-semibold text-slate-700">
+            הערות לאוטומציה
+            <span className="font-normal text-slate-400">אופציונלי · {notes.length}/2000</span>
+          </span>
+          <textarea
+            rows={1}
+            maxLength={2000}
+            placeholder="מה השתבש? למשל: הבוט העביר למכירות במקום לשירות אחרי שאישרתי הזמנה"
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            disabled={disabled || pending}
+            className="field-sizing-content max-h-40 min-h-[2.75rem] w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
           />
         </label>
         <button

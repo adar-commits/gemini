@@ -136,10 +136,25 @@ body {
   animation: qa-progress-shimmer 2.5s linear infinite;
 }
 
+@keyframes qa-segment-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.qa-segment-blink {
+  animation: qa-segment-blink 1.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .qa-spinner,
   .qa-spin-ring,
   .qa-pulse,
+  .qa-segment-blink,
   .qa-fade-up,
   .qa-aurora,
   .qa-progress-bar {
