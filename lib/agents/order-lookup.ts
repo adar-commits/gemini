@@ -20,6 +20,7 @@ import {
   POLITE_HELP_CLOSE,
 } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
+import { messageAwaits } from "@/lib/agents/bot-awaiting"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   isReturnFlowCorrection,
@@ -1295,6 +1296,7 @@ export function isOrderConfirmationPending(history: HistoryMessage[]) {
     if (isInactivityAssistantMessage(message.content)) continue
     if (isPriorityApiWaitAssistantMessage(message.content)) continue
     return (
+      messageAwaits(message, "order_confirm") ||
       /(?:האם מדובר (?:על )?הזמנה|נדמה לי שמצאתי את ההזמנה)/i.test(message.content) ||
       /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(message.content) ||
       /\(מס(?:'|׳)?\s*הזמנה\s+\d{4,8}\)/i.test(message.content)
@@ -2670,6 +2672,7 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     if (isInactivityAssistantMessage(message.content)) continue
     if (isPriorityApiWaitAssistantMessage(message.content)) continue
     return (
+      messageAwaits(message, "order_phone_confirm") ||
       /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(message.content) ||
       /האם בטוח שההזמנה רשומה על המספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||

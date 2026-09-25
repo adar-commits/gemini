@@ -1,5 +1,6 @@
 import { generateText, stepCountIs } from "ai"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
+import { normalizeBotAwaiting } from "@/lib/agents/bot-awaiting"
 import { homAgentLearnedRulesSection } from "@/lib/agents/learned-rules"
 import { ownerAnswersSection } from "@/lib/agents/goku-questions"
 import { extractTokenCounts, recordTokenUsage } from "@/lib/agent-core/token-usage"
@@ -457,8 +458,17 @@ function extractUsableOutput(structured: StructuredResultLike): HomAgentOutput |
   const action = normalizeHomAgentAction(raw.action ?? "reply")
   // Non-reply actions (end/reset/handoffs) are meaningful even without text.
   if (!reply && action === "reply") return null
-  const crm_department = normalizeHomAgentCrmDepartment(parsed?.crm_department)
-  return crm_department ? { reply, action, crm_department } : { reply, action }
+  return { reply, action, ...optionalOutputFields(raw) }
+}
+
+function optionalOutputFields(raw: Partial<HomAgentOutput>): Partial<HomAgentOutput> {
+  const crm_department = normalizeHomAgentCrmDepartment(raw.crm_department)
+  const awaiting = normalizeBotAwaiting(raw.awaiting)
+  return {
+    ...(crm_department ? { crm_department } : {}),
+    ...(typeof raw.expects_reply === "boolean" ? { expects_reply: raw.expects_reply } : {}),
+    ...(awaiting ? { awaiting } : {}),
+  }
 }
 
 async function finalizeStructuredOutput(
@@ -476,11 +486,10 @@ async function finalizeStructuredOutput(
     parsed = null
   }
   const raw = parsed ?? parseFallbackOutput(structured.text)
-  const crm_department = normalizeHomAgentCrmDepartment(raw.crm_department)
   const normalized: HomAgentOutput = {
     reply: raw.reply ?? "",
     action: normalizeHomAgentAction(raw.action ?? "reply"),
-    ...(crm_department ? { crm_department } : {}),
+    ...optionalOutputFields(raw),
   }
 
   return deliverValidatedOutput({
@@ -539,14 +548,15 @@ function extractDeterministicToolReply(
   for (const step of steps ?? []) {
     for (const result of step.toolResults ?? []) {
       const output = result.output as
-        | { ok?: boolean; reply?: string; action?: string }
+        | { ok?: boolean; reply?: string; action?: string; awaiting?: string }
         | undefined
       if (!output?.ok || !output.reply?.trim()) continue
       const action =
         output.action === "human_service" || output.action === "human_sales"
           ? output.action
           : "reply"
-      return { reply: output.reply.trim(), action }
+      const awaiting = normalizeBotAwaiting(output.awaiting)
+      return { reply: output.reply.trim(), action, ...(awaiting ? { awaiting } : {}) }
     }
   }
   return null

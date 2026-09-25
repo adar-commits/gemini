@@ -1,3 +1,4 @@
+import { messageAwaits } from "@/lib/agents/bot-awaiting"
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import {
   isPostPurchaseServiceFlow,
@@ -18,14 +19,18 @@ export const OFF_TOPIC_HANDOFF_OFFER =
 export const OFF_TOPIC_REDIRECT =
   "כן, אני הום בוט :) כאן בעיקר לגבי הזמנות, מוצרים ושירות. במה אפשר לעזור?"
 
-function lastAssistantText(history: HistoryMessage[]) {
+function lastAssistantMessage(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return message.content
+    return message
   }
-  return ""
+  return null
+}
+
+function lastAssistantText(history: HistoryMessage[]) {
+  return lastAssistantMessage(history)?.content ?? ""
 }
 
 function matchesOffTopicPattern(text: string) {
@@ -87,14 +92,17 @@ export function sanitizeRedundantHandoffConfirm(reply: string) {
 }
 
 export function isHumanHandoffPending(history: HistoryMessage[]) {
-  const last = lastAssistantText(history)
+  const message = lastAssistantMessage(history)
+  if (messageAwaits(message, "handoff_confirm")) return true
+  const last = message?.content ?? ""
   return isHumanHandoffOfferText(last) || hasDeclarativeHandoffTransfer(last)
 }
 
 /** Offer still open — customer confirm should assign. Not after declarative "אני מעביר". */
 export function isHumanHandoffOfferPending(history: HistoryMessage[]) {
-  const last = lastAssistantText(history)
-  return isHumanHandoffOfferText(last)
+  const message = lastAssistantMessage(history)
+  if (messageAwaits(message, "handoff_confirm")) return true
+  return isHumanHandoffOfferText(message?.content ?? "")
 }
 
 /** Customer answering a pending handoff — must not be silenced by stale takeover flags. */

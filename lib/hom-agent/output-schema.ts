@@ -1,4 +1,5 @@
 import { jsonSchema, Output } from "ai"
+import { BOT_AWAITING_KINDS, type BotAwaiting } from "@/lib/agents/bot-awaiting"
 
 export const HOM_AGENT_ACTIONS = [
   "reply",
@@ -21,6 +22,8 @@ export type HomAgentOutput = {
   crm_department?: CrmDepartmentSlug
   /** False when reply ends with an optional follow-up offer — silence is OK. */
   expects_reply?: boolean
+  /** What the reply waits for from the customer — lets the next turn bind a short answer (כן / לא). */
+  awaiting?: BotAwaiting
 }
 
 export function homAgentOutputSchema() {
@@ -53,6 +56,12 @@ export function homAgentOutputSchema() {
           type: "boolean",
           description:
             "Default true. Set false when the reply ends with a warm resolution close (e.g. שמחתי לעזור היום! 😊) — customer silence means the thread is naturally done; never chase with עדיין כאן? or ask another follow-up question.",
+        },
+        awaiting: {
+          type: "string",
+          enum: [...BOT_AWAITING_KINDS],
+          description:
+            "Set when your reply ends with a yes/no question the next turn must bind to: order_confirm (is this the order you meant?), order_phone_confirm (is the order on this phone?), handoff_confirm (should I transfer you to a rep?), service_summary_confirm (did I summarize the case correctly before a rep?). Omit otherwise.",
         },
       },
     }),

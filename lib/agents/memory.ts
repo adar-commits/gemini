@@ -1,3 +1,4 @@
+import { normalizeBotAwaiting, type BotAwaiting } from "@/lib/agents/bot-awaiting"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import {
   isSpecialistId,
@@ -25,6 +26,16 @@ function asText(value: unknown) {
 
 function safeId(value: string) {
   return value.replace(/[,()]/g, "").slice(0, 200)
+}
+
+type MessageRow = {
+  conversation_id: string
+  role: "user" | "assistant"
+  content: string
+  agent: AgentId
+  action: string | null
+  awaiting?: BotAwaiting
+  created_at?: string
 }
 
 export type ConversationContext = {
@@ -70,9 +81,13 @@ export async function getConversationContext(
     asAgentId(lastStored?.agent) ?? asAgentId(session?.last_agent)
   const lastAction = asText(lastStored?.action) || null
 
-  const storedHistory = stored
+  const storedHistory: HistoryMessage[] = stored
     .filter((item) => item.content)
-    .map((item) => ({ role: item.role, content: item.content }))
+    .map((item) =>
+      item.awaiting
+        ? { role: item.role, content: item.content, awaiting: item.awaiting }
+        : { role: item.role, content: item.content }
+    )
 
   if (resetAt) {
     return {
@@ -155,7 +170,7 @@ async function loadStoredMessages(
   // orders and answers from stale context).
   let query = supabase
     .from("hom_agent_messages")
-    .select("role, content, created_at, agent, action")
+    .select("role, content, created_at, agent, action, awaiting")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(limit)
@@ -173,6 +188,7 @@ async function loadStoredMessages(
       content: asText(row.content),
       agent: asText(row.agent),
       action: asText(row.action),
+      awaiting: row.role === "assistant" ? normalizeBotAwaiting(row.awaiting) : null,
     }))
 }
 
@@ -412,6 +428,7 @@ export async function appendTurn(input: {
   userText: string
   assistantText: string
   action: string
+  awaiting?: BotAwaiting | null
   persistUser?: boolean
   preview?: boolean
 }): Promise<{ assistantInserted: boolean }> {
@@ -424,14 +441,7 @@ export async function appendTurn(input: {
   const nowMs = Date.now()
   const userCreatedAt = new Date(nowMs).toISOString()
   const assistantCreatedAt = new Date(nowMs + 1).toISOString()
-  const rows: Array<{
-    conversation_id: string
-    role: "user" | "assistant"
-    content: string
-    agent: AgentId
-    action: string | null
-    created_at?: string
-  }> = persistUser
+  const rows: Array<MessageRow> = persistUser
     ? [
         {
           conversation_id: conversationId,
@@ -470,6 +480,7 @@ export async function appendTurn(input: {
         content: input.assistantText,
         agent: input.agent,
         action: input.action,
+        ...(input.awaiting ? { awaiting: input.awaiting } : {}),
         created_at:
           persistUser && input.userText.trim() ? assistantCreatedAt : userCreatedAt,
       })
@@ -541,6 +552,7 @@ export async function appendMultiReplyTurn(input: {
   userText: string
   assistantTexts: string[]
   action: string
+  awaiting?: BotAwaiting | null
   persistUser?: boolean
   preview?: boolean
 }): Promise<{ assistantInserted: boolean }> {
@@ -559,14 +571,7 @@ export async function appendMultiReplyTurn(input: {
   const supabase = getAgentSupabase()
   const nowMs = Date.now()
   const userCreatedAt = new Date(nowMs).toISOString()
-  const rows: Array<{
-    conversation_id: string
-    role: "user" | "assistant"
-    content: string
-    agent: AgentId
-    action: string | null
-    created_at?: string
-  }> = persistUser
+  const rows: Array<MessageRow> = persistUser
     ? [
         {
           conversation_id: conversationId,
@@ -580,12 +585,14 @@ export async function appendMultiReplyTurn(input: {
     : []
 
   texts.forEach((text, index) => {
+    const isLast = index === texts.length - 1
     rows.push({
       conversation_id: conversationId,
       role: "assistant",
       content: text,
       agent: input.agent,
-      action: index === texts.length - 1 ? input.action : "reply",
+      action: isLast ? input.action : "reply",
+      ...(isLast && input.awaiting ? { awaiting: input.awaiting } : {}),
       created_at: new Date(nowMs + index + 1).toISOString(),
     })
   })

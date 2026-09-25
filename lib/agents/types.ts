@@ -1,3 +1,5 @@
+import type { BotAwaiting } from "@/lib/agents/bot-awaiting"
+
 export const AGENT_IDS = ["master", "sales", "faq", "service"] as const
 export type AgentId = (typeof AGENT_IDS)[number]
 
@@ -77,6 +79,8 @@ export const POLITE_HELP_CLOSE = "אם יש משהו נוסף שאוכל לעז�
 export type HistoryMessage = {
   role: "user" | "assistant"
   content: string
+  /** Assistant rows only — what the bot waits for next (see `lib/agents/bot-awaiting.ts`). */
+  awaiting?: BotAwaiting | null
 }
 
 export type AgentRequest = {
@@ -113,6 +117,8 @@ export type AgentResponse = {
   crmDepartment?: CrmDepartmentSlug
   /** Optional follow-up closing — do not schedule inactivity ping. */
   suppressInactivityWatch?: boolean
+  /** What this reply waits for — persisted with the assistant message. */
+  awaiting?: BotAwaiting | null
 }
 
 export const MASTER_ROUTE_MAP: Record<MasterAction, AgentId | "shipping"> = {

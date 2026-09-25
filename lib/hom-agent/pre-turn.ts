@@ -5,6 +5,7 @@ import {
   isThanksAcknowledgment,
 } from "@/lib/agents/conversation-close"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
+import type { BotAwaiting } from "@/lib/agents/bot-awaiting"
 import {
   buildInactivityDeferAck,
   buildInactivityStillHereAck,
@@ -135,6 +136,7 @@ export type PreTurnResult =
       reply: string
       action: HomAgentAction
       suppressInactivityWatch?: boolean
+      awaiting?: BotAwaiting
     }
 
 export function runPreTurnGuards(input: {

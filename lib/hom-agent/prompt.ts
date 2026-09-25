@@ -13,8 +13,9 @@ import type { HistoryMessage } from "@/lib/agents/types"
 const FINAL_OUTPUT_BLOCK = `
 ### FINAL OUTPUT
 After using tools when needed, respond with JSON only:
-{ "reply": "<Hebrew customer message>", "action": "reply" | "human_sales" | "human_service" | "reset" | "end", "crm_department"?: "sales" | "service", "expects_reply"?: boolean }
+{ "reply": "<Hebrew customer message>", "action": "reply" | "human_sales" | "human_service" | "reset" | "end", "crm_department"?: "sales" | "service", "expects_reply"?: boolean, "awaiting"?: "order_confirm" | "order_phone_confirm" | "handoff_confirm" | "service_summary_confirm" }
 Include crm_department only when department is 100% certain — omit otherwise.
+Set awaiting when your reply ends with that yes/no question (this order? this phone? transfer to a rep? summary correct?) — the system binds the customer's short answer to it, so phrase the question naturally in your own words.
 Set expects_reply false when the reply ends with a warm resolution close (e.g. "בכיף, המשך יום טוב 🙂") — never chase with עדיין כאן? or ask "אפשר לעזור במשהו נוסף?". Customer thanks after a resolved answer → action end with a short warm close.
 Never leave reply empty on substantive turns.`
 

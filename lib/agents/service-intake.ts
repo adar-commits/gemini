@@ -1,6 +1,7 @@
 import { DEFECT_ISSUE_REPORT_LABEL } from "@/lib/agents/service-defect-wording"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { messageAwaits } from "@/lib/agents/bot-awaiting"
 import {
   classifyPostPurchaseCase,
   type PostPurchaseCaseKind,
@@ -336,7 +337,10 @@ export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return SERVICE_SUMMARY_PENDING_RE.test(message.content)
+    return (
+      messageAwaits(message, "service_summary_confirm") ||
+      SERVICE_SUMMARY_PENDING_RE.test(message.content)
+    )
   }
   return false
 }

@@ -388,6 +388,7 @@ export async function handleLandbotInbound(
         userText: body,
         assistantText: result.reply ?? "",
         action: result.action ?? "reply",
+        awaiting: result.awaiting,
       })
     }
   } catch (error) {
