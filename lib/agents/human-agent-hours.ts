@@ -34,9 +34,16 @@ function teamHours(action: HumanHandoffAction): { start: HourMinute; end: HourMi
     }
   }
   return {
-    start: parseHourMinute(process.env.LANDBOT_HUMAN_SERVICE_START, { hour: 8, minute: 0 }),
+    start: parseHourMinute(process.env.LANDBOT_HUMAN_SERVICE_START, { hour: 9, minute: 0 }),
     end: parseHourMinute(process.env.LANDBOT_HUMAN_SERVICE_END, { hour: 16, minute: 0 }),
   }
+}
+
+/** Service reps work Sunday–Thursday only; stores keep their own Friday/Saturday hours. */
+const SERVICE_CLOSED_WEEKDAYS = new Set(["Fri", "Sat"])
+
+function wallClockWeekday(now: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(now)
 }
 
 function agentTimeZone() {
@@ -57,13 +64,18 @@ function wallClockMinutes(now: Date, timeZone: string) {
 
 export function humanAgentTeamHoursLabel(action: HumanHandoffAction) {
   const { start, end } = teamHours(action)
-  return `${formatHourMinute(start)}-${formatHourMinute(end)}`
+  const range = `${formatHourMinute(start)}-${formatHourMinute(end)}`
+  return action === "human_service" ? `א'-ה' ${range}` : range
 }
 
 /** Live rep pool is online within configured hours (Israel time, start inclusive, end exclusive). */
 export function isHumanAgentTeamOnline(action: HumanHandoffAction, now = new Date()) {
   const { start, end } = teamHours(action)
-  const nowMinutes = wallClockMinutes(now, agentTimeZone())
+  const timeZone = agentTimeZone()
+  if (action === "human_service" && SERVICE_CLOSED_WEEKDAYS.has(wallClockWeekday(now, timeZone))) {
+    return false
+  }
+  const nowMinutes = wallClockMinutes(now, timeZone)
   const startMinutes = toMinutes(start)
   const endMinutes = toMinutes(end)
   return nowMinutes >= startMinutes && nowMinutes < endMinutes

@@ -7,7 +7,7 @@ Brands: השטיח האדום (https://www.carpetshop.co.il), Pozitive / Positiv
 Both brands can be purchased in one cart.
 
 ## Contact
-Customer service hours: א'-ה' 09:00-16:00.
+Customer service hours: א'-ה' 09:00-16:00. Customer service is closed on Friday and Saturday.
 Phone: *3076
 Email: service@hom-group.co.il
 Address-change WhatsApp listed in shipping policy: 077-9725055
@@ -18,6 +18,7 @@ Contact form: https://www.carpetshop.co.il/pages/contact-us
 ## Store hours
 Network stores: א'-ה' 09:30-19:30. Airport City only until 18:00.
 Friday: 09:00-14:00.
+Friday and Saturday are not regular store hours. For Saturday there are no fixed hours here — do not quote any; send the branch page or the branch phone.
 Source: https://www.carpetshop.co.il/pages/%D7%A1%D7%A0%D7%99%D7%A4%D7%99%D7%9D-%D7%94%D7%A9%D7%98%D7%99%D7%97-%D7%94%D7%90%D7%93%D7%95%D7%9D
 
 ## Branches — השטיח האדום / shared network
@@ -55,8 +56,9 @@ Updated 29.07.26
 - Customer may choose home delivery or self-pickup during checkout.
 - Green tax invoice is sent by SMS when products are packed for shipment.
 - Company supplies only a product paid in full by credit card.
-- Delivery times for rugs and poufs בהרכבה עצמית: up to 4 business days.
-- Delivery times for ready poufs: up to 14 business days.
+- Delivery times for rugs: up to 4 business days.
+- Delivery times for poufs בהרכבה עצמית (arrive packed in a box): 5–8 business days.
+- Delivery times for ready poufs (filled by hand at our warehouse after the order): up to 14 business days.
 - Times counted from credit-card / payment approval, the later of the two, business days only, or another date stated on the order.
 - Friday, Saturday, holiday eves, holidays and Israeli memorial days are not business days.
 - Orders placed after 12:00 move to the next business day.

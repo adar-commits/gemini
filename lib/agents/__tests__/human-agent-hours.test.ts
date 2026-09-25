@@ -10,22 +10,29 @@ import {
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 
 describe("human agent hours", () => {
-  it("defaults service hours to 08:00-16:00", () => {
-    assert.equal(humanAgentTeamHoursLabel("human_service"), "08:00-16:00")
+  it("defaults service hours to Sunday–Thursday 09:00-16:00", () => {
+    assert.equal(humanAgentTeamHoursLabel("human_service"), "א'-ה' 09:00-16:00")
   })
 
   it("defaults sales hours to 09:30-18:00", () => {
     assert.equal(humanAgentTeamHoursLabel("human_sales"), "09:30-18:00")
   })
 
-  it("considers service offline before 08:00 Israel time", () => {
-    const at0700 = new Date("2026-09-09T04:00:00.000Z") // 07:00 IST
-    assert.equal(isHumanAgentTeamOnline("human_service", at0700), false)
+  it("considers service offline before 09:00 Israel time", () => {
+    const at0830 = new Date("2026-09-09T05:30:00.000Z") // Wed 08:30 IST
+    assert.equal(isHumanAgentTeamOnline("human_service", at0830), false)
   })
 
-  it("considers service online during 08:00-16:00 Israel time", () => {
-    const at1000 = new Date("2026-09-09T07:00:00.000Z") // 10:00 IST
+  it("considers service online during 09:00-16:00 Israel time", () => {
+    const at1000 = new Date("2026-09-09T07:00:00.000Z") // Wed 10:00 IST
     assert.equal(isHumanAgentTeamOnline("human_service", at1000), true)
+  })
+
+  it("considers service offline all day Friday and Saturday", () => {
+    const friday1000 = new Date("2026-09-11T07:00:00.000Z") // Fri 10:00 IST
+    const saturday1000 = new Date("2026-09-12T07:00:00.000Z") // Sat 10:00 IST
+    assert.equal(isHumanAgentTeamOnline("human_service", friday1000), false)
+    assert.equal(isHumanAgentTeamOnline("human_service", saturday1000), false)
   })
 
   it("considers service offline from 16:00 Israel time", () => {
@@ -84,6 +91,6 @@ describe("human agent hours", () => {
   })
 
   it("builds service after-hours prefix with full hours label", () => {
-    assert.match(buildAfterHoursHandoffPrefix("human_service"), /08:00-16:00/)
+    assert.match(buildAfterHoursHandoffPrefix("human_service"), /א'-ה' 09:00-16:00/)
   })
 })
