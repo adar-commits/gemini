@@ -102,7 +102,23 @@ export function buildNeverStuckReply() {
 אפשר לנסח שוב, או שאעביר לנציג שירות שימשיך מכאן?`
 }
 
-/** Detect the canonical never-stuck fallback sent to customers (QA bot_failure signal). */
+/**
+ * Our own "I got stuck" templates — must stay in sync with buildNeverStuckReply,
+ * buildLlmFailureReply and replaceRepeatedReply (validate-reply.ts).
+ */
+const BOT_FAILURE_MARKERS = [
+  "לא הצלחתי להבין את ההודעה",
+  "לא הצלחתי לעבד את ההודעה",
+  "משהו נתקע בצד שלי",
+  "נראה שלא הצלחתי להבין אתכם נכון",
+]
+
+/** QA bot_failure signal: the bot sent one of its own stuck/failure templates. */
+export function isBotFailureReply(reply: string) {
+  return BOT_FAILURE_MARKERS.some((marker) => reply.includes(marker))
+}
+
+/** Detect the canonical never-stuck fallback sent to customers. */
 export function isNeverStuckReply(reply: string) {
   const text = reply.replace(CUSTOMER_HEADER, "").trim()
   return (

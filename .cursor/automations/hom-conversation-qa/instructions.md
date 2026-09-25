@@ -158,13 +158,15 @@ Production sends `event_window_since` = newest of: last trainer `איפוס`, ag
 
 ## Triggers
 
-| Trigger | When |
-|---------|------|
-| `human_assign` | Rep handoff (`human_service` / `human_sales`) |
-| `bot_failure` | Never-stuck: "לא הצלחתי להבין את ההודעה…" |
-| `manual` | `/dashboard/qa` → manual trigger by conversation ID |
+Every row is a new dashboard event (its own idempotency key). A re-delivered identical turn within 10 minutes collapses into the existing event and does not start a second run.
 
-Trainer `לימוד גוקו` → same webhook (test).
+| Trigger | When | Code |
+|---------|------|------|
+| `human_assign` | Bot hands the chat to a rep (`human_service` / `human_sales`) — live reply or inactivity recovery | `handle-inbound.ts`, `inactivity-handoff-recovery.ts` |
+| `bot_failure` | Bot sent a stuck template: "לא הצלחתי להבין את ההודעה", "לא הצלחתי לעבד את ההודעה", "משהו נתקע בצד שלי", "נראה שלא הצלחתי להבין אתכם נכון" (trainer phone included) | `isBotFailureReply` in `lib/agent-core/fallbacks.ts` |
+| `manual` | Trainer phone message containing "לימוד גוקו" (text around it → `operator_notes`), or `/dashboard/qa` manual trigger | `parseTrainerGokuQaCommand` in `training-guards.ts` |
+
+Priority/API outage replies ("תקלה זמנית במערכת") are not QA events.
 
 ## Operator briefing & revert
 

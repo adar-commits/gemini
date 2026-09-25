@@ -18,8 +18,8 @@ import { summarizeTurn } from "@/lib/agents/user-turn"
 import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
 import { PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
 import {
+  cursorAutomationQaEnabled,
   executeCursorAutomationQa,
-  shouldNotifyCursorAutomationQa,
 } from "@/lib/landbot/cursor-automation-qa"
 import { scheduleCursorAutomationQa } from "@/lib/landbot/schedule-cursor-automation-qa"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
@@ -35,7 +35,9 @@ import {
   isTrainerCorrectionCommand,
   isTrainerGokuQaTestCommand,
   isTrainerQuestionCommand,
+  parseTrainerGokuQaCommand,
   TRAINER_GOKU_QA_ACK,
+  TRAINER_GOKU_QA_ACK_WITH_NOTES,
   TRAINER_GOKU_QA_FAILED,
   TRAINER_GOKU_QA_SKIPPED,
   stripTrainerQuestionPrefix,
@@ -56,7 +58,7 @@ import {
 } from "@/lib/landbot/inactivity-watcher"
 import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
 import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
-import { buildNeverStuckReply, isNeverStuckReply } from "@/lib/agent-core/fallbacks"
+import { buildNeverStuckReply, isBotFailureReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
 import { isHumanThreadActive, releaseHumanThread } from "@/lib/landbot/human-takeover"
@@ -201,21 +203,29 @@ export async function handleLandbotInbound(
     }
   }
 
-  if (isTrainerPhone(options?.phone) && isTrainerGokuQaTestCommand(body)) {
+  const gokuQaCommand = isTrainerPhone(options?.phone)
+    ? parseTrainerGokuQaCommand(body)
+    : null
+  if (gokuQaCommand) {
     const history = await getHistory(conversationId)
     const lastAssistant = [...history]
       .reverse()
       .find((message) => message.role === "assistant")
+    const lastCustomer = [...history]
+      .reverse()
+      .find((message) => message.role === "user" && !isTrainerGokuQaTestCommand(message.content))
 
     let reply = TRAINER_GOKU_QA_SKIPPED
-    if (shouldNotifyCursorAutomationQa("human_assign")) {
+    if (cursorAutomationQaEnabled()) {
       try {
         const qaResult = await executeCursorAutomationQa({
           conversationId,
-          trigger: "human_assign",
-          lastUserMessage: body,
+          trigger: "manual",
+          lastUserMessage: lastCustomer?.content,
           lastBotReply: lastAssistant?.content,
           phone: options?.phone?.trim() || undefined,
+          operatorNotes: gokuQaCommand.notes || null,
+          skipTriggerCheck: true,
         })
         if ("skipped" in qaResult) {
           reply = TRAINER_GOKU_QA_SKIPPED
@@ -226,7 +236,7 @@ export async function handleLandbotInbound(
               : qaResult.webhook.reason
           reply = `${TRAINER_GOKU_QA_FAILED} (${detail})`
         } else {
-          reply = TRAINER_GOKU_QA_ACK
+          reply = gokuQaCommand.notes ? TRAINER_GOKU_QA_ACK_WITH_NOTES : TRAINER_GOKU_QA_ACK
         }
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
@@ -504,15 +514,13 @@ export async function handleLandbotInbound(
       })
     } else if (outboundMessages.length > 0) {
       const lastOutbound = outboundMessages[outboundMessages.length - 1] ?? ""
-      if (
-        !isTrainerPhone(options?.phone) &&
-        isNeverStuckReply(lastOutbound)
-      ) {
+      const failureReply = outboundMessages.find(isBotFailureReply)
+      if (failureReply) {
         scheduleCursorAutomationQa({
           conversationId,
           trigger: "bot_failure",
           lastUserMessage: body,
-          lastBotReply: lastOutbound,
+          lastBotReply: failureReply,
           phone: options?.phone?.trim() || undefined,
         })
       }

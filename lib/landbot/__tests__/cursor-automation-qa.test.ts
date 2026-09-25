@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it, beforeEach, afterEach } from "node:test"
 import {
   buildBotFailureIdempotencyKey,
+  buildHandoffIdempotencyKey,
   buildManualQaIdempotencyKey,
   buildCursorAutomationQaPayload,
   buildCursorAutomationWebhookHeaders,
@@ -133,11 +134,21 @@ describe("cursor automation qa webhook", () => {
   })
 
   it("builds per-turn bot_failure idempotency keys", () => {
-    const a = buildBotFailureIdempotencyKey("508272038", "מתי יגיע המשלוח")
-    const b = buildBotFailureIdempotencyKey("508272038", "מתי יגיע המשלוח")
-    const c = buildBotFailureIdempotencyKey("508272038", "אחרת")
+    const at = Date.parse("2026-09-25T08:00:00.000Z")
+    const a = buildBotFailureIdempotencyKey("508272038", "מתי יגיע המשלוח", at)
+    const b = buildBotFailureIdempotencyKey("508272038", "מתי יגיע המשלוח", at + 60_000)
+    const c = buildBotFailureIdempotencyKey("508272038", "אחרת", at)
     assert.equal(a, b)
     assert.notEqual(a, c)
-    assert.match(a, /^508272038:bot_failure:\d+$/)
+    assert.match(a, /^508272038:bot_failure:\d+:\d+$/)
+  })
+
+  it("gives every handoff its own event, collapsing only a re-delivered turn", () => {
+    const at = Date.parse("2026-09-25T08:00:00.000Z")
+    const first = buildHandoffIdempotencyKey("508272038", "כן תודה", at)
+    assert.equal(first, buildHandoffIdempotencyKey("508272038", "כן תודה", at + 60_000))
+    assert.notEqual(first, buildHandoffIdempotencyKey("508272038", "כן תודה", at + 3 * 3600_000))
+    assert.notEqual(first, buildHandoffIdempotencyKey("508272038", "אשמח לנציג", at))
+    assert.match(first, /^508272038:human_assign:\d+:\d+$/)
   })
 })

@@ -9,7 +9,9 @@ export const TRAINER_QUESTION_PREFIX = "שאלה:"
 export const TRAINER_GOKU_QA_COMMAND = "לימוד גוקו"
 
 export const TRAINER_GOKU_QA_ACK =
-  "*הום בוט :)*\nשלחתי את השיחה ל-Cursor Automation לבדיקה (human_assign)."
+  "*הום בוט :)*\nשלחתי את השיחה ל-Cursor Automation לבדיקה."
+export const TRAINER_GOKU_QA_ACK_WITH_NOTES =
+  "*הום בוט :)*\nשלחתי את השיחה ל-Cursor Automation לבדיקה, כולל ההערה שלך."
 export const TRAINER_GOKU_QA_SKIPPED =
   "*הום בוט :)*\nCursor Automation כבוי — בדוק CURSOR_AUTOMATION_* ב-Vercel."
 export const TRAINER_GOKU_QA_FAILED =
@@ -22,9 +24,26 @@ function normalizeTrainerCommandText(text: string) {
     .trim()
 }
 
-/** Trainer-only: fire Cursor Automation QA webhook on the current thread. */
+/**
+ * Trainer-only: any trainer message containing "לימוד גוקו" fires a QA event on the current
+ * thread. Text around the command ("לימוד גוקו: שים לב ש…") becomes the operator notes.
+ */
+export function parseTrainerGokuQaCommand(text: string): { notes: string } | null {
+  const normalized = normalizeTrainerCommandText(text)
+  const index = normalized.indexOf(TRAINER_GOKU_QA_COMMAND)
+  if (index < 0) return null
+  const notes = [
+    normalized.slice(0, index),
+    normalized.slice(index + TRAINER_GOKU_QA_COMMAND.length),
+  ]
+    .map((part) => part.replace(/^[\s:：,،\-–—]+|[\s:：,،\-–—]+$/g, ""))
+    .filter(Boolean)
+    .join(" ")
+  return { notes }
+}
+
 export function isTrainerGokuQaTestCommand(text: string) {
-  return normalizeTrainerCommandText(text) === TRAINER_GOKU_QA_COMMAND
+  return parseTrainerGokuQaCommand(text) !== null
 }
 
 /** Trainer-only correction command — message must start with this prefix. */

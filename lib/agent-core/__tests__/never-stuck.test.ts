@@ -8,6 +8,7 @@ import {
   buildLlmFailureReply,
   buildNeverStuckReply,
   coerceOperationalReply,
+  isBotFailureReply,
   isNeverStuckReply,
 } from "@/lib/agent-core/fallbacks"
 import {
@@ -44,6 +45,18 @@ describe("never-stuck mechanism — proof suite", () => {
     assert.match(reply, /נציג שירות/)
     assert.equal(isNeverStuckReply(reply), true)
     assert.equal(isNeverStuckReply(buildLlmFailureReply()), false)
+  })
+
+  it("QA bot_failure fires on every stuck/failure template, not on API outages or normal replies", () => {
+    assert.equal(isBotFailureReply(buildNeverStuckReply()), true)
+    assert.equal(isBotFailureReply(buildLlmFailureReply()), true)
+    assert.equal(isBotFailureReply(buildLlmFailureReply({ gatewayBudgetExceeded: true })), true)
+    assert.equal(
+      isBotFailureReply(`${CUSTOMER_HEADER}\nסליחה, נראה שלא הצלחתי להבין אתכם נכון 🙏\nהאם להעביר לנציג שירות?`),
+      true
+    )
+    assert.equal(isBotFailureReply(buildApiFailureReply()), false)
+    assert.equal(isBotFailureReply(`${CUSTOMER_HEADER}\nבדקתי, ההזמנה בדרך אליך.`), false)
   })
 
   it("Layer 2: all template fallbacks produce sendable customer text", () => {

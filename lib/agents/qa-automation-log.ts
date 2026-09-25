@@ -355,6 +355,17 @@ export async function getQaAutomationStats(days = 7) {
   }
 }
 
+export async function getQaAutomationRunByIdempotencyKey(idempotencyKey: string) {
+  const supabase = getAgentSupabase()
+  const { data, error } = await supabase
+    .from("hom_agent_qa_runs")
+    .select("*")
+    .eq("idempotency_key", idempotencyKey.trim())
+    .maybeSingle()
+  if (error) throw error
+  return data ? mapRow(data as Record<string, unknown>) : null
+}
+
 export async function getQaAutomationRunById(id: string) {
   const supabase = getAgentSupabase()
   const { data, error } = await supabase

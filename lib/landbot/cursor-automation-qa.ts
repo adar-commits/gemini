@@ -1,4 +1,5 @@
 import {
+  getQaAutomationRunByIdempotencyKey,
   insertQaAutomationRun,
   type QaAutomationRunRow,
 } from "@/lib/agents/qa-automation-log"
@@ -154,16 +155,38 @@ export function buildManualQaIdempotencyKey(sessionId: string, at = Date.now()) 
   return `manual:${sessionId.trim()}:${at}`
 }
 
-export function buildBotFailureIdempotencyKey(
+/** Same turn re-delivered within this window (Landbot retries) collapses into one event. */
+const EVENT_DEDUPE_BUCKET_MS = 10 * 60_000
+
+function turnEventKey(
   sessionId: string,
-  lastUserMessage?: string | null
+  trigger: "bot_failure" | "human_assign",
+  lastUserMessage: string | null | undefined,
+  at: number
 ) {
   const normalized = (lastUserMessage ?? "").trim().replace(/\s+/g, " ").slice(0, 160)
   let hash = 0
   for (let i = 0; i < normalized.length; i += 1) {
     hash = (hash * 31 + normalized.charCodeAt(i)) | 0
   }
-  return `${sessionId.trim()}:bot_failure:${Math.abs(hash)}`
+  return `${sessionId.trim()}:${trigger}:${Math.abs(hash)}:${Math.floor(at / EVENT_DEDUPE_BUCKET_MS)}`
+}
+
+export function buildBotFailureIdempotencyKey(
+  sessionId: string,
+  lastUserMessage?: string | null,
+  at = Date.now()
+) {
+  return turnEventKey(sessionId, "bot_failure", lastUserMessage, at)
+}
+
+/** One event per handoff — a later handoff in the same chat is a new event. */
+export function buildHandoffIdempotencyKey(
+  sessionId: string,
+  lastUserMessage?: string | null,
+  at = Date.now()
+) {
+  return turnEventKey(sessionId, "human_assign", lastUserMessage, at)
 }
 
 export function buildHomServiceConversationUrl(sessionId: string) {
@@ -283,7 +306,8 @@ export type ExecuteCursorAutomationQaResult = {
 export async function executeCursorAutomationQa(
   input: ExecuteCursorAutomationQaInput
 ): Promise<
-  { skipped: true; reason: "disabled" | "trigger_filtered" } | ExecuteCursorAutomationQaResult
+  | { skipped: true; reason: "disabled" | "trigger_filtered" | "duplicate" }
+  | ExecuteCursorAutomationQaResult
 > {
   if (!input.skipTriggerCheck && !shouldNotifyCursorAutomationQa(input.trigger)) {
     return { skipped: true, reason: "trigger_filtered" }
@@ -303,9 +327,16 @@ export async function executeCursorAutomationQa(
     input.idempotencyKey ??
     (input.trigger === "bot_failure"
       ? buildBotFailureIdempotencyKey(sessionId, input.lastUserMessage)
-      : input.trigger === "manual"
-        ? buildManualQaIdempotencyKey(sessionId)
-        : undefined)
+      : input.trigger === "human_assign"
+        ? buildHandoffIdempotencyKey(sessionId, input.lastUserMessage)
+        : input.trigger === "manual"
+          ? buildManualQaIdempotencyKey(sessionId)
+          : undefined)
+
+  if (idempotencyKey && input.trigger !== "manual") {
+    const existing = await getQaAutomationRunByIdempotencyKey(idempotencyKey).catch(() => null)
+    if (existing) return { skipped: true, reason: "duplicate" }
+  }
 
   let eventWindow
   try {

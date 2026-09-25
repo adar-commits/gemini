@@ -17,6 +17,7 @@ import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { sendCustomerText } from "@/lib/landbot/client"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
+import { scheduleCursorAutomationQa } from "@/lib/landbot/schedule-cursor-automation-qa"
 
 export function resolveInactivityHandoffAction(
   history: HistoryMessage[],
@@ -70,6 +71,20 @@ export async function executeInactivityHandoffRecovery(input: {
   }
 
   await clearInactivityWatchState(input.conversationId)
+
+  const lastCustomer = [...input.history].reverse().find((message) => message.role === "user")
+  const lastAssistant = [...input.history]
+    .reverse()
+    .find((message) => message.role === "assistant")
+  scheduleCursorAutomationQa({
+    conversationId: input.conversationId,
+    trigger: "human_assign",
+    handoffAction: action,
+    lastUserMessage: lastCustomer?.content,
+    lastBotReply: input.silent
+      ? lastAssistant?.content
+      : buildInactivityHandoffRecoveryReply(action),
+  })
 
   return {
     ok: true as const,
