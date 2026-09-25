@@ -71,6 +71,17 @@ const INSTANT_STAGES = new Set<QaEventStageId>(["sent", "decision", "shipped"])
 
 const STALE_AFTER_MS = 10 * 60_000
 
+const WAITING_OUTCOMES = new Set<QaAutomationRunRow["outcome"]>([
+  "ask_operator",
+  "too_risky",
+  "real_failure",
+])
+
+/** Automation stopped and needs the operator (amber "decision" stage). */
+export function isQaRunWaitingForOperator(run: Pick<QaAutomationRunRow, "outcome">) {
+  return WAITING_OUTCOMES.has(run.outcome)
+}
+
 function parseMs(iso?: string | null) {
   if (!iso) return null
   const ms = Date.parse(iso)
@@ -173,7 +184,7 @@ export function qaEventProgress(run: QaAutomationRunRow, nowMs = Date.now()): Qa
     position = failedAt + 1
     tone = "failed"
     headline = "הבדיקות נכשלו — לא נדחף"
-  } else if (outcome === "ask_operator" || outcome === "too_risky" || outcome === "real_failure") {
+  } else if (isQaRunWaitingForOperator(run)) {
     for (let i = 0; i < 3; i += 1) states[i] = "done"
     states[3] = "waiting"
     position = 4

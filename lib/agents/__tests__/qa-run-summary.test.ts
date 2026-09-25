@@ -30,6 +30,7 @@ function baseRun(
     idempotency_key: null,
     operator_notes: null,
     operator_input: null,
+    operator_replies: [],
     stage_timestamps: {},
     created_at: "2026-09-24T20:13:00.000Z",
     updated_at: "2026-09-24T20:13:00.000Z",

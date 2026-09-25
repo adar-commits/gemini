@@ -6,7 +6,7 @@ import {
   updateQaAutomationRun,
   type QaAutomationOutcome,
 } from "@/lib/agents/qa-automation-log"
-import { retryQaAutomationRun } from "@/lib/landbot/qa-run-retry"
+import { replyToQaAutomationRun, retryQaAutomationRun } from "@/lib/landbot/qa-run-retry"
 import { triggerManualQaReview } from "@/lib/landbot/qa-manual-trigger"
 
 export async function updateQaRunOutcomeAction(input: {
@@ -29,6 +29,12 @@ export async function deleteQaRunAction(id: string) {
 
 export async function retryQaRunAction(id: string) {
   const result = await retryQaAutomationRun(id)
+  revalidatePath("/dashboard/qa")
+  return result
+}
+
+export async function replyToQaRunAction(id: string, reply: string) {
+  const result = await replyToQaAutomationRun(id, reply)
   revalidatePath("/dashboard/qa")
   return result
 }

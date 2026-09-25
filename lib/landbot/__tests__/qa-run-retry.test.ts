@@ -24,6 +24,7 @@ function baseRun(overrides: Partial<QaAutomationRunRow>): QaAutomationRunRow {
     idempotency_key: "530876768:human_assign",
     operator_notes: null,
     operator_input: null,
+    operator_replies: [],
     stage_timestamps: {},
     created_at: "2026-09-24T17:25:00.000Z",
     updated_at: "2026-09-24T17:25:00.000Z",

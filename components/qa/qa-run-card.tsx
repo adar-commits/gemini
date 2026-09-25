@@ -25,7 +25,8 @@ import type { QaConversationContext } from "@/lib/landbot/qa-conversation-contex
 import { QaElapsedTimer } from "@/components/qa/qa-elapsed-timer"
 import { QaScorecard } from "@/components/qa/qa-scorecard"
 import { QaEventGauge } from "@/components/qa/qa-event-gauge"
-import { qaEventProgress } from "@/lib/agents/qa-event-stages"
+import { isQaRunWaitingForOperator, qaEventProgress } from "@/lib/agents/qa-event-stages"
+import { QaOperatorReply } from "@/components/qa/qa-operator-reply"
 import { QaRiskGauge } from "@/components/qa/qa-risk-gauge"
 import { QaRunToolbar } from "@/components/qa/qa-run-toolbar"
 import { QaStageTimeline } from "@/components/qa/qa-stage-timeline"
@@ -168,6 +169,25 @@ export function QaRunCard({
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-indigo-950/80">
                 {run.operator_input}
               </p>
+            </section>
+          ) : null}
+
+          {isQaRunWaitingForOperator(run) ? (
+            <QaOperatorReply
+              runId={run.id}
+              questions={run.operator_questions}
+              previousReplies={run.operator_replies}
+            />
+          ) : run.operator_replies.length ? (
+            <section className="rounded-2xl bg-zinc-50/80 p-4 ring-1 ring-black/[0.04]">
+              <h3 className="mb-1.5 text-sm font-bold text-foreground">התשובות שלך לאוטומציה</h3>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {run.operator_replies.map((item) => (
+                  <li key={item.at} className="whitespace-pre-wrap">
+                    {item.text}
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 

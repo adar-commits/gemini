@@ -2,7 +2,7 @@
 
 import { useTransition } from "react"
 import { deleteQaRunAction, retryQaRunAction } from "@/app/dashboard/qa/actions"
-import { QA_RUN_RETRY_LABEL } from "@/lib/landbot/qa-run-retry"
+const QA_RUN_RETRY_LABEL = "שלח שוב לאוטומציה"
 
 function iconButtonClass(disabled: boolean) {
   return `rounded-lg p-1.5 transition disabled:opacity-50 ${disabled ? "" : ""}`

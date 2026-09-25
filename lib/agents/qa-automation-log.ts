@@ -22,6 +22,22 @@ export type QaAutomationOutcome =
   | "failed_guard"
   | "vanished"
 
+export type QaOperatorReply = {
+  at: string
+  text: string
+}
+
+function parseOperatorReplies(raw: unknown): QaOperatorReply[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((item) => {
+    if (!item || typeof item !== "object") return []
+    const row = item as Record<string, unknown>
+    return typeof row.text === "string" && typeof row.at === "string"
+      ? [{ at: row.at, text: row.text }]
+      : []
+  })
+}
+
 export type QaAutomationRunRow = {
   id: string
   session_id: string
@@ -43,6 +59,8 @@ export type QaAutomationRunRow = {
   operator_notes: string | null
   /** Notes the operator typed on the manual trigger — never overwritten by automation logs. */
   operator_input: string | null
+  /** Operator answers to a waiting event, oldest first. */
+  operator_replies: QaOperatorReply[]
   stage_timestamps: QaStageTimestamps
   created_at: string
   updated_at: string
@@ -128,6 +146,7 @@ function mapRow(raw: Record<string, unknown>): QaAutomationRunRow {
       typeof raw.operator_notes === "string" ? raw.operator_notes : null,
     operator_input:
       typeof raw.operator_input === "string" ? raw.operator_input : null,
+    operator_replies: parseOperatorReplies(raw.operator_replies),
     stage_timestamps: parseQaStageTimestamps(raw.stage_timestamps),
     created_at: String(raw.created_at),
     updated_at: String(raw.updated_at),
@@ -356,6 +375,7 @@ export async function updateQaAutomationRun(input: {
   riskScore?: number
   /** Replaces (not merges) stage timestamps — used when a retry restarts the event. */
   stageTimestamps?: QaStageTimestamps
+  operatorReplies?: QaOperatorReply[]
 }) {
   const supabase = getAgentSupabase()
   const patch: Record<string, unknown> = {
@@ -366,6 +386,7 @@ export async function updateQaAutomationRun(input: {
   if (input.operatorNotes !== undefined) patch.operator_notes = input.operatorNotes
   if (input.riskScore !== undefined) patch.risk_score = input.riskScore
   if (input.stageTimestamps) patch.stage_timestamps = input.stageTimestamps
+  if (input.operatorReplies) patch.operator_replies = input.operatorReplies
 
   const { data, error } = await supabase
     .from("hom_agent_qa_runs")

@@ -38,7 +38,22 @@ export type CursorAutomationQaPayload = {
   transcript?: string
   /** Bearer for this event's dashboard callbacks (automations have no secrets store). */
   callback_token?: string
+  /** Operator answers to this event's earlier questions, oldest first (last = newest reply). */
+  operator_replies?: { at: string; text: string }[]
+  /** The automation's previous verdict for this event — continue from it when replying. */
+  previous_analysis?: QaPreviousAnalysis
   sent_at: string
+}
+
+export type QaPreviousAnalysis = {
+  outcome: string
+  verdict: string | null
+  confidence: string | null
+  risk_score: number | null
+  root_cause: string | null
+  fix_layer: string | null
+  fix_plan: string[]
+  operator_questions: string[]
 }
 
 const OPERATOR_NOTES_MAX = 2000
@@ -188,6 +203,8 @@ export function buildCursorAutomationQaPayload(input: {
   idempotencyKey?: string
   operatorNotes?: string | null
   transcript?: string | null
+  operatorReplies?: { at: string; text: string }[]
+  previousAnalysis?: QaPreviousAnalysis | null
   eventWindowSince: string
   eventWindowReason: QaEventWindowReason
   eventWindowMessageCount: number
@@ -219,6 +236,8 @@ export function buildCursorAutomationQaPayload(input: {
       : {}),
     ...(input.transcript?.trim() ? { transcript: input.transcript } : {}),
     ...(callbackToken ? { callback_token: callbackToken } : {}),
+    ...(input.operatorReplies?.length ? { operator_replies: input.operatorReplies } : {}),
+    ...(input.previousAnalysis ? { previous_analysis: input.previousAnalysis } : {}),
     sent_at: new Date().toISOString(),
   }
 }

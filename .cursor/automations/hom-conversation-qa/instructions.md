@@ -62,12 +62,18 @@ Payload (JSON body):
 conversation_url, session_id, landbot_customer_id, trigger, handoff_action?, last_user_message?, last_bot_reply?,
 transcript (event-window TIMELINE + AGENT TURNS + SHADOW — the whole incident, already filtered),
 event_window_since, event_window_reason, event_window_message_count, total_message_count (ignore),
-idempotency_key, callback_token, phone_last4, operator_notes?, sent_at, test?
+idempotency_key, callback_token, phone_last4, operator_notes?, operator_replies?, previous_analysis?, sent_at, test?
 
 OPERATOR NOTES — if operator_notes is present, a human reviewing the chat wrote what went wrong. Treat it as the behavior spec:
 - Verify it against the transcript, then answer it directly in root_cause (agree, or explain in Hebrew why the bot was right).
 - It outranks your own guess, but never the hard bans or the implement gate.
 - Ambiguous / policy-level request → ask_operator with multiple-choice questions.
+
+OPERATOR REPLIES — if operator_replies is present, you already analyzed this event (previous_analysis) and stopped to wait for the operator; the last item is their newest answer.
+- Do not re-analyze from scratch. Start from previous_analysis, apply the answer, and log a new verdict.
+- An answer that settles the open question (e.g. gives the missing policy / hours / wording) removes the ambiguity: re-check the gate — it can now pass as real_failure + high.
+- An explicit approval ("כן, תתקן" / "מאשר") lets you implement a too_risky or unconfirmed real_failure plan despite risk_score ≥ 8 — but never the hard bans.
+- If the answer is "no" / "leave it" → log no_action with the reason and stop. Still unclear → ask_operator again with a sharper question.
 
 No secrets needed. Dashboard calls authenticate with payload.callback_token (valid only for this event). git push uses the repo connection.
 
@@ -100,7 +106,7 @@ fix_layer: prompt | hints | tool_guard | pre_turn | runtime. risk_score 1–10.
 IMPLEMENT GATE — continue to step 4 only if ALL are true:
 - verdict real_failure, confidence high
 - fix_layer set, fix_plan 1–3 steps, none uses customer-text regex or reply sanitizers
-- risk_score ≤ 7 and the fix is required (not a nice-to-have, style tweak or speculative hardening)
+- risk_score ≤ 7 (or the operator explicitly approved in operator_replies) and the fix is required (not a nice-to-have, style tweak or speculative hardening)
 If unsure → ask_operator.
 
 ## 3. Brief — log the verdict (always)

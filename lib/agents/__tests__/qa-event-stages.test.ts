@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
-import { qaEventProgress } from "@/lib/agents/qa-event-stages"
+import { isQaRunWaitingForOperator, qaEventProgress } from "@/lib/agents/qa-event-stages"
 
 const T0 = "2026-09-25T07:00:00.000Z"
 
@@ -26,6 +26,7 @@ function run(overrides: Partial<QaAutomationRunRow>): QaAutomationRunRow {
     idempotency_key: "manual:346228669:1",
     operator_notes: null,
     operator_input: null,
+    operator_replies: [],
     stage_timestamps: { event_at: T0 },
     created_at: T0,
     updated_at: T0,
@@ -117,6 +118,15 @@ describe("qaEventProgress", () => {
       now
     )
     assert.equal(older.stages[0]!.state, "failed")
+  })
+
+  it("offers the operator reply box only while the automation waits", () => {
+    assert.equal(isQaRunWaitingForOperator({ outcome: "ask_operator" }), true)
+    assert.equal(isQaRunWaitingForOperator({ outcome: "too_risky" }), true)
+    assert.equal(isQaRunWaitingForOperator({ outcome: "real_failure" }), true)
+    assert.equal(isQaRunWaitingForOperator({ outcome: "triggered" }), false)
+    assert.equal(isQaRunWaitingForOperator({ outcome: "chained" }), false)
+    assert.equal(isQaRunWaitingForOperator({ outcome: "false_alarm" }), false)
   })
 
   it("flags stale in-progress events", () => {
