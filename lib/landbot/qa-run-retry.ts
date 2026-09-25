@@ -22,6 +22,7 @@ const TRIGGERS = new Set<CursorAutomationQaTrigger>([
   "closed_unanswered",
   "bot_failure",
   "manual",
+  "violation",
 ])
 
 const NO_RETRY_OUTCOMES = new Set([

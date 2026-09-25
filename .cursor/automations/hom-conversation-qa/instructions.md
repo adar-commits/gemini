@@ -57,6 +57,7 @@ TIME BUDGET — analyze ≤ 2 min, implement ≤ 4 min. Many events arrive; be f
 - Only the implement path (step 4) installs dependencies.
 
 Trigger: gemini production POSTs here on every bot → human handoff (trigger=human_assign) and every never-stuck reply (trigger=bot_failure). /dashboard/qa retry (↻) and the manual dashboard trigger send the same payload.
+trigger=violation comes from the daily deterministic scanner, not a human: operator_notes names the suspected rule break and last_bot_reply is the flagged turn. Verify it against the transcript like any other claim — false_alarm is fine when the bot was right.
 
 Payload (JSON body):
 conversation_url, session_id, landbot_customer_id, trigger, handoff_action?, last_user_message?, last_bot_reply?,
@@ -165,6 +166,7 @@ Every row is a new dashboard event (its own idempotency key). A re-delivered ide
 | `human_assign` | Bot hands the chat to a rep (`human_service` / `human_sales`) — live reply or inactivity recovery | `handle-inbound.ts`, `inactivity-handoff-recovery.ts` |
 | `bot_failure` | Bot sent a stuck template: "לא הצלחתי להבין את ההודעה", "לא הצלחתי לעבד את ההודעה", "משהו נתקע בצד שלי", "נראה שלא הצלחתי להבין אתכם נכון" (trainer phone included) | `isBotFailureReply` in `lib/agent-core/fallbacks.ts` |
 | `manual` | Trainer phone message containing "לימוד גוקו" (text around it → `operator_notes`), or `/dashboard/qa` manual trigger | `parseTrainerGokuQaCommand` in `training-guards.ts` |
+| `violation` | Daily scanner cron (06:30 UTC, no LLM) found a silent failure in the last 24h — e.g. reply says "מעביר" but no handoff happened. Max 5 per run, one per chat; handoff turns are skipped (they already fire `human_assign`). Disable with `VIOLATION_SCANNER_QA=0` | `notifyViolationsToQa` in `lib/hom-agent/violation-scanner.ts` |
 
 Priority/API outage replies ("תקלה זמנית במערכת") are not QA events.
 

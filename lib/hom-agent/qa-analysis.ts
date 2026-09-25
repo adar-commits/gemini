@@ -44,6 +44,7 @@ const TRIGGERS = new Set<CursorAutomationQaTrigger>([
   "closed_unanswered",
   "bot_failure",
   "manual",
+  "violation",
 ])
 
 const FIX_LAYERS = new Set<QaFixLayer>([

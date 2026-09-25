@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAuthorized } from "@/lib/agents/auth"
-import { runViolationScanner } from "@/lib/hom-agent/violation-scanner"
+import { notifyViolationsToQa, runViolationScanner } from "@/lib/hom-agent/violation-scanner"
 
 export const maxDuration = 120
 export const runtime = "nodejs"
@@ -15,11 +15,12 @@ function isCronAuthorized(request: Request) {
 async function handleRun() {
   try {
     const result = await runViolationScanner({
-      limit: 300,
+      limit: 500,
       hours: 24,
-      includeGoku: true,
+      includeGoku: false,
       writeDrafts: process.env.VIOLATION_SCANNER_WRITE_DRAFTS?.trim() === "1",
     })
+    const qa = await notifyViolationsToQa(result.violations)
 
     console.log("[violation-scanner] complete", {
       scanned: result.scanned,
@@ -28,6 +29,7 @@ async function handleRun() {
         acc[row.type] = (acc[row.type] ?? 0) + 1
         return acc
       }, {}),
+      qa,
     })
 
     return NextResponse.json({
@@ -36,6 +38,7 @@ async function handleRun() {
       violationCount: result.violations.length,
       violations: result.violations.slice(0, 20),
       draftCount: result.draftContracts.length,
+      qa,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Violation scan failed"

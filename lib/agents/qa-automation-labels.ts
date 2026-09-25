@@ -58,6 +58,8 @@ export function qaTriggerLabel(trigger: string) {
       return "never-stuck"
     case "manual":
       return "בדיקה ידנית"
+    case "violation":
+      return "זיהוי אוטומטי"
     default:
       return trigger
   }

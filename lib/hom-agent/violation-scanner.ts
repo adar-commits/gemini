@@ -10,6 +10,7 @@ import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
 import type { HistoryMessage } from "@/lib/agents/types"
 import type { ConversationContract } from "@/lib/hom-agent/contracts/types"
+import { executeCursorAutomationQa } from "@/lib/landbot/cursor-automation-qa"
 
 export type ViolationType =
   | "transfer_words_reply_action"
@@ -62,8 +63,15 @@ function detectViolation(
   const botReply = assistantRow.content
   const action = assistantRow.action
 
+  const alreadyHandedOff = prior.some(
+    (row) =>
+      row.role === "assistant" &&
+      (row.action === "human_service" || row.action === "human_sales")
+  )
+
   if (
     action === "reply" &&
+    !alreadyHandedOff &&
     /(?:מעביר|העברתי|מעבירה)/i.test(botReply)
   ) {
     return {
@@ -233,6 +241,87 @@ export async function scanMessagesForViolations(
     violations,
     draftContracts,
   }
+}
+
+/** Max QA automation events one scan may start — keeps the operator dashboard readable. */
+export const VIOLATION_QA_MAX_PER_SCAN = 5
+
+function violationOperatorNote(finding: ViolationFinding) {
+  const prefix = "זיהוי אוטומטי מהסורק היומי (לא נכתב על ידי נציג):"
+  switch (finding.type) {
+    case "transfer_words_reply_action":
+      return `${prefix} הבוט כתב ללקוח שהוא מעביר לנציג, אבל לא הייתה העברה בפועל (action=reply) — הלקוח מחכה לנציג שלא יגיע.`
+    case "document_flow_on_shipping":
+      return `${prefix} באמצע שיחת משלוח הבוט נכנס לתהליך מסמכים (קבלה/חשבונית) במקום להמשיך בבירור ההזמנה.`
+    case "faq_turn_handoff":
+      return `${prefix} שאלת מדיניות שהבוט אמור לענות עליה בעצמו הועברה לנציג.`
+    case "service_sales_pivot_missing":
+      return `${prefix} אחרי שיחת משלוח הלקוח עבר לשאלה על מוצר, והבוט העביר לשירות במקום למכירות.`
+    default: {
+      const unhandled: never = finding.type
+      return `${prefix} ${unhandled}`
+    }
+  }
+}
+
+/**
+ * Findings worth a QA run: handoff turns already start a human_assign event, so only
+ * silent failures (no handoff happened) are sent. One per conversation, newest first.
+ */
+export function selectViolationsForQa(
+  violations: ViolationFinding[],
+  max = VIOLATION_QA_MAX_PER_SCAN
+) {
+  const picked: ViolationFinding[] = []
+  const seen = new Set<string>()
+  const newestFirst = [...violations].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+  for (const finding of newestFirst) {
+    if (finding.action === "human_service" || finding.action === "human_sales") continue
+    if (seen.has(finding.conversationId)) continue
+    seen.add(finding.conversationId)
+    picked.push(finding)
+    if (picked.length >= max) break
+  }
+  return picked
+}
+
+export function violationQaEnabled() {
+  const raw = process.env.VIOLATION_SCANNER_QA?.trim().toLowerCase()
+  return !(raw === "0" || raw === "false" || raw === "off" || raw === "no")
+}
+
+/** Sends silent failures to the Cursor QA automation (Cursor tokens — no AI Gateway call). */
+export async function notifyViolationsToQa(violations: ViolationFinding[]) {
+  if (!violationQaEnabled()) return { sent: 0, skipped: 0, failed: 0 }
+  let sent = 0
+  let skipped = 0
+  let failed = 0
+  for (const finding of selectViolationsForQa(violations)) {
+    try {
+      const result = await executeCursorAutomationQa({
+        conversationId: finding.conversationId,
+        trigger: "violation",
+        lastUserMessage: finding.userText,
+        lastBotReply: finding.botReply,
+        idempotencyKey: `violation:${finding.conversationId}:${finding.messageId}`,
+        operatorNotes: violationOperatorNote(finding),
+        skipTriggerCheck: true,
+      })
+      if ("skipped" in result) skipped += 1
+      else if (result.webhook.ok) sent += 1
+      else failed += 1
+    } catch (error) {
+      failed += 1
+      console.warn("[violation-scanner] QA notify failed", {
+        conversationId: finding.conversationId,
+        type: finding.type,
+        error: error instanceof Error ? error.message : error,
+      })
+    }
+  }
+  return { sent, skipped, failed }
 }
 
 export async function runViolationScanner(input?: {

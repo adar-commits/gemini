@@ -16,7 +16,7 @@
     "session_id": { "type": "string" },
     "conversation_url": { "type": "string" },
     "trigger": {
-      "enum": ["human_assign", "bot_failure", "reset", "closed_unanswered", "manual"]
+      "enum": ["human_assign", "bot_failure", "reset", "closed_unanswered", "manual", "violation"]
     },
     "verdict": {
       "enum": [

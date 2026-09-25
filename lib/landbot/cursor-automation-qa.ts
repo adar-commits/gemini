@@ -17,6 +17,7 @@ export type CursorAutomationQaTrigger =
   | "closed_unanswered"
   | "bot_failure"
   | "manual"
+  | "violation"
 
 export type CursorAutomationQaPayload = {
   conversation_url: string
@@ -142,6 +143,7 @@ export function cursorAutomationQaTriggers(): Set<CursorAutomationQaTrigger> {
     "closed_unanswered",
     "bot_failure",
     "manual",
+    "violation",
   ])
   const selected = parts.filter((part): part is CursorAutomationQaTrigger =>
     allowed.has(part as CursorAutomationQaTrigger)
