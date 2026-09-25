@@ -4,6 +4,7 @@ import {
   isLiveHumanLastOutbound,
   markHumanAgentActivity,
 } from "@/lib/agents/memory"
+import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { isLandbotApiAgentId, landbotApiAgentIds } from "@/lib/landbot/api-agent-ids"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 
@@ -87,13 +88,28 @@ export function shouldDeferToHumanAgent(input: {
   return Boolean(input.humanAgentLastAt?.trim())
 }
 
+export async function resolveEffectiveAssignedAgentId(
+  conversationId: string,
+  assignedAgentId?: number | null
+) {
+  if (isAssignedToHumanAgent(assignedAgentId ?? null)) return assignedAgentId ?? null
+  const row = await findCrmConversation(conversationId).catch(() => null)
+  const crmAgentId = Number(row?.assigned_agent_code)
+  if (isAssignedToHumanAgent(crmAgentId)) return crmAgentId
+  return assignedAgentId ?? null
+}
+
 export async function isHumanThreadActive(
   conversationId: string,
   assignedAgentId?: number | null
 ) {
+  const effectiveAssignedAgentId = await resolveEffectiveAssignedAgentId(
+    conversationId,
+    assignedAgentId
+  )
   const state = await getHumanTakeoverState(conversationId)
   let defer = shouldDeferToHumanAgent({
-    assignedAgentId,
+    assignedAgentId: effectiveAssignedAgentId,
     humanAgentLastAt: state?.human_agent_last_at ?? null,
     lastUserAt: state?.last_user_at ?? null,
   })
@@ -101,10 +117,10 @@ export async function isHumanThreadActive(
   if (
     defer &&
     state?.human_agent_last_at &&
-    !isAssignedToHumanAgent(assignedAgentId ?? null) &&
-    assignedAgentId != null &&
-    assignedAgentId > 0 &&
-    isLandbotApiAgentId(assignedAgentId)
+    !isAssignedToHumanAgent(effectiveAssignedAgentId ?? null) &&
+    effectiveAssignedAgentId != null &&
+    effectiveAssignedAgentId > 0 &&
+    isLandbotApiAgentId(effectiveAssignedAgentId)
   ) {
     await releaseHumanThread(conversationId)
     defer = false

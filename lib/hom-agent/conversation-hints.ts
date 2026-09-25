@@ -63,6 +63,7 @@ import {
   shouldReleaseStructuredDocumentFlow,
 } from "@/lib/agents/digital-document-flow"
 import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
+import { salesOutreachTemplateInThread } from "@/lib/agents/sales-outreach"
 import {
   isDissatisfactionRescuePending,
   isDissatisfactionWithoutDefect,
@@ -220,6 +221,12 @@ export function buildConversationHints(input: {
   if (isShippingAddressUpdateThread(history)) {
     lines.push(
       "SHIPPING ADDRESS UPDATE (532692073): they want to change the delivery address — not shipment status. Answer from shipping-policy KB: an update is not always possible; it depends on whether the order was already handed to the courier. After handover there is a cost — WhatsApp 077-9725055 or *3076. Do NOT call lookup_order_status, do NOT send בדקתי / סטטוס משלוח, do NOT ask for the new address or an order number. action reply — never אעביר with action reply."
+    )
+  }
+
+  if (salesOutreachTemplateInThread(history)) {
+    lines.push(
+      'SALES OUTREACH (533322535): rep already sent abandoned-cart outreach (מאיר / לא השלמת את הרכישה). This is מכירות — answer product/promotion/color hesitation directly or hand off with action human_sales + crm_department sales. Never never-stuck / לא הצלחתי להבין. Never human_service / נציג שירות — the assigned rep owns this lead.'
     )
   }
 

@@ -2,9 +2,13 @@ import {
   setCrmConversationDepartmentForHandoff,
   type HandoffAction,
 } from "@/lib/crm/conversation-department"
+import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { assignToHuman, unassignCustomer } from "@/lib/landbot/client"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
-import { recordHumanAgentActivity } from "@/lib/landbot/human-takeover"
+import {
+  isAssignedToHumanAgent,
+  recordHumanAgentActivity,
+} from "@/lib/landbot/human-takeover"
 
 /**
  * Human handoff = CRM department (actual system) + optional Landbot rep assign.
@@ -35,9 +39,21 @@ export async function executeHumanHandoff(input: {
     })
   }
 
-  const human = pickHumanAgentId(input.action, input.customerId)
+  const human = await resolveHandoffHumanAgentId(input)
   if (human) await assignToHuman(input.customerId, human)
   else await unassignCustomer(input.customerId)
 
   await recordHumanAgentActivity(input.conversationId)
+}
+
+/** Keep the rep already on the thread (e.g. outreach template) instead of round-robin. */
+async function resolveHandoffHumanAgentId(input: {
+  conversationId: string
+  action: HandoffAction
+  customerId: number
+}) {
+  const row = await findCrmConversation(input.conversationId).catch(() => null)
+  const crmAgentId = Number(row?.assigned_agent_code)
+  if (isAssignedToHumanAgent(crmAgentId)) return crmAgentId
+  return pickHumanAgentId(input.action, input.customerId)
 }
