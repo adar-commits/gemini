@@ -5,6 +5,7 @@ import {
   POLITE_HELP_CLOSE,
 } from "@/lib/agents/types"
 import { hasImmediateBusinessAsk } from "@/lib/agents/greeting"
+import { isServiceHandoffSummaryText } from "@/lib/agents/service-intake"
 
 /** Warm resolution closings — not mandatory questions; silence means thread is done. */
 const WARM_CONVERSATION_CLOSES = [
@@ -33,7 +34,7 @@ export function isResolvedStatusCloseReply(content: string) {
   if (/האם להעביר/i.test(body)) return false
   if (/איזה פריט לא הגיע/i.test(body)) return false
   if (/לא ניתן להציג כרגע סטטוס משלוח/i.test(body)) return false
-  if (/אז מסכם את הפנייה/i.test(body)) return false
+  if (isServiceHandoffSummaryText(body)) return false
   return /בדקתי/i.test(body) && endsWithOptionalFollowUpOffer(content)
 }
 

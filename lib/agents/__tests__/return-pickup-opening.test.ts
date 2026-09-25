@@ -10,6 +10,8 @@ import {
   buildServiceHandoffConfirmReply,
   extractServiceIntake,
   isReturnPickupAwaitingThread,
+  isServiceHandoffSummaryPending,
+  isServiceHandoffSummaryText,
   needsServiceSummaryConfirm,
   salvageReturnPickupAwaitingReply,
 } from "@/lib/agents/service-intake"
@@ -29,8 +31,8 @@ describe("return pickup opening message", () => {
   it("salvages service summary when the main pipeline returns empty", () => {
     const reply = salvageReturnPickupAwaitingReply(EXACT_PRODUCTION_OPENING)
     assert.ok(reply)
-    assert.match(reply!, /כבר פתחתם בקשת החזרה/)
-    assert.match(reply!, /מסכם את הפנייה/)
+    assert.match(reply!, /בקשת ההחזרה כבר פתוחה/)
+    assert.equal(isServiceHandoffSummaryText(reply!), true)
     assert.match(reply!, /נוצרה בקשת איסוף/)
   })
 
@@ -43,8 +45,9 @@ describe("return pickup opening message", () => {
     const intake = extractServiceIntake([], OPENING)
     intake.issueKind = "return_pickup_pending"
     const reply = buildReturnPickupAwaitingServiceReply(intake, OPENING)
-    assert.match(reply, /כבר פתחתם בקשת החזרה/)
-    assert.match(reply, /מסכם את הפנייה/)
+    assert.match(reply, /בקשת ההחזרה כבר פתוחה/)
+    assert.match(reply, /מצטער על ההמתנה/)
+    assert.equal(isServiceHandoffSummaryPending([{ role: "assistant", content: reply }]), true)
     assert.match(reply, /נוצרה בקשת איסוף/)
     assert.doesNotMatch(reply, /מוכנה לאיסוף/)
     assert.doesNotMatch(reply, /מה מספר ההזמנה/)
@@ -57,7 +60,8 @@ describe("return pickup opening message", () => {
     assert.equal(needsServiceSummaryConfirm(intake), true)
 
     const summary = buildServiceHandoffConfirmReply(intake, OPENING)
-    assert.match(summary, /מסכם את הפנייה/)
+    assert.equal(isServiceHandoffSummaryText(summary), true)
+    assert.match(summary, /זה מדויק, או שחסר משהו\?/)
     assert.match(summary, /נוצרה בקשת איסוף/)
     assert.match(summary, /סטטוס איסוף/)
   })

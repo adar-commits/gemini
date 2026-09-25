@@ -241,13 +241,23 @@ export function hasDeliveryStatusData(order: OrderShipmentStatus) {
   return Boolean(order.statusCode?.trim() || order.statusLabel?.trim())
 }
 
+const ORDER_CARD_INTRO = "מצאתי הזמנה"
+const ORDER_CARD_CHECK = "זו ההזמנה?"
+/** Current order-card wording + legacy "נדמה לי שמצאתי את ההזמנה" rows written before the rewording. */
+const ORDER_CARD_RE = /נדמה לי שמצאתי את ההזמנה|מצאתי הזמנה[^\n]{0,160}זו ההזמנה\?/i
+
+/** Bot text is the single-order confirmation card (current or legacy wording). */
+export function isOrderCardText(content: string) {
+  return ORDER_CARD_RE.test(content)
+}
+
 export function countOrderConfirmationPrompts(history: HistoryMessage[]) {
   let count = 0
   for (const message of history) {
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
     if (isPriorityApiWaitAssistantMessage(message.content)) continue
-    if (/נדמה לי שמצאתי את ההזמנה/i.test(message.content)) count += 1
+    if (isOrderCardText(message.content)) count += 1
   }
   return count
 }
@@ -1297,7 +1307,8 @@ export function isOrderConfirmationPending(history: HistoryMessage[]) {
     if (isPriorityApiWaitAssistantMessage(message.content)) continue
     return (
       messageAwaits(message, "order_confirm") ||
-      /(?:האם מדובר (?:על )?הזמנה|נדמה לי שמצאתי את ההזמנה)/i.test(message.content) ||
+      /האם מדובר (?:על )?הזמנה/i.test(message.content) ||
+      isOrderCardText(message.content) ||
       /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(message.content) ||
       /\(מס(?:'|׳)?\s*הזמנה\s+\d{4,8}\)/i.test(message.content)
     )
@@ -1321,7 +1332,8 @@ function shouldContinueReplyScanPastAssistant(content: string) {
 
 function isOrderConfirmationAssistantMessage(content: string) {
   return (
-    /(?:נדמה לי שמצאתי את ההזמנה|האם מדובר (?:על )?הזמנה)/i.test(content) ||
+    isOrderCardText(content) ||
+    /האם מדובר (?:על )?הזמנה/i.test(content) ||
     /\(מס(?:'|׳)?\s*הזמנה\s+/i.test(content)
   )
 }
@@ -1486,7 +1498,7 @@ export function extractOrderLineItems(row: PriorityOrderRow): OrderLineItem[] {
 function formatOrderLineItemLine(item: OrderLineItem) {
   const price = formatOrderPrice(item.price)
   if (!item.name.trim()) return null
-  let line = price ? `${item.name.trim()} (${price} ש׳׳ח)` : item.name.trim()
+  let line = price ? `${item.name.trim()} (${price} ש״ח)` : item.name.trim()
   if (isPreorderLineItem(item)) {
     const date = item.preorderExpectedDate
       ? formatHebrewCustomerDate(item.preorderExpectedDate)
@@ -1665,17 +1677,23 @@ export function buildOrderConfirmationPrompt(
   const price = formatOrderPrice(order.totalPrice)
   const branchPhrase = formatOrderBranchPhrase(order.branchLabel)
   const daysPhrase = formatDaysAgoPhrase(daysSinceOrder(order.raw))
-  const placedPhrase = daysPhrase ? `, בוצעה ${daysPhrase}` : ""
-  const pricePhrase = price ? ` על סך ${price} ש׳׳ח` : ""
   const displayOrder = formatCustomerOrderNumberForThread(
     order.orderNumber,
     history,
     body,
     order
   )
+  const found = [
+    ORDER_CARD_INTRO,
+    daysPhrase ? `שבוצעה ${daysPhrase}` : "",
+    branchPhrase,
+  ]
+    .filter(Boolean)
+    .join(" ")
+  const pricePhrase = price ? `, על סך ${price} ש״ח` : ""
 
   return `${CUSTOMER_HEADER}
-אוקיי נדמה לי שמצאתי את ההזמנה${placedPhrase} ${branchPhrase}${pricePhrase} נכון? (מס׳ הזמנה ${displayOrder})`
+${found}${pricePhrase}. ${ORDER_CARD_CHECK} (מס׳ הזמנה ${displayOrder})`
 }
 
 export function buildOrderConfirmationClarifyPrompt() {
@@ -1857,7 +1875,7 @@ export function isOrderStatusDeliveredInThread(history: HistoryMessage[]) {
     }
     if (isSkippableClosingAssistantMessage(message.content)) continue
     if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return false
-    if (/נדמה לי שמצאתי את ההזמנה/i.test(message.content)) continue
+    if (isOrderCardText(message.content)) continue
     if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return false
     break
   }
@@ -2075,7 +2093,7 @@ export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]
 export function isKnownOrderIdentificationMisroute(reply: string) {
   const text = reply.trim()
   if (!text) return false
-  if (/נדמה לי שמצאתי את ההזמנה/i.test(text)) return false
+  if (isOrderCardText(text)) return false
   return (
     /(?:שלח(?:ו|י)?|אפשר לשלוח|יש ל(?:כם|ך))\s*(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנה/i.test(
       text

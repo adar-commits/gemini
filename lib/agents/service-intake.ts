@@ -71,7 +71,15 @@ function formatServiceReportOrderLabel(
   )
 }
 
-const SERVICE_SUMMARY_PENDING_RE = /מסכם\s+את\s+הפנייה/i
+const SERVICE_SUMMARY_INTRO = "כדי שהנציג לא יצטרך לשאול שוב, זה מה שאעביר לו:"
+const SERVICE_SUMMARY_CHECK = "זה מדויק, או שחסר משהו?"
+/** Current template intro + legacy "אז מסכם את הפנייה…" rows written before the rewording. */
+const SERVICE_SUMMARY_PENDING_RE = /מסכם\s+את\s+הפנייה|שהנציג לא יצטרך לשאול שוב, זה מה שאעביר לו/i
+
+/** Bot text is the service rep-summary template (current or legacy wording). */
+export function isServiceHandoffSummaryText(text: string) {
+  return SERVICE_SUMMARY_PENDING_RE.test(text)
+}
 
 const WAIT_DURATION_RE =
   /(?:כבר|מ(?:זה|על)?|במשך|כ(?:\"|״|')?ל)\s*(?:כ)?(?:\"|״|')?(?:שבוע(?:יים|יים|)?|יום(?:יים|)?|חודש(?:יים|)?|\d+\s+(?:ימים|שבועות|חודשים))|(?:שבוע(?:יים|יים|)|יום(?:יים|)?)\s+(?:ש(?:אני|אנחנו)|(?:ש)?(?:מ)?(?:חכ(?:ה|ים|ות)|ממתינ(?:ה|ים|ות)?))/i
@@ -275,12 +283,12 @@ export function buildReturnPickupAwaitingServiceReply(
   const report = buildServiceHandoffReportBlock(intake, body, history)
 
   return `${CUSTOMER_HEADER}
-הבנתי שכבר פתחתם בקשת החזרה וממתינים שהשליח יגיע לאסוף את ${product} מהבית ${waitAck}.
+הבנתי, בקשת ההחזרה כבר פתוחה ואתם מחכים ${waitAck} שהשליח יאסוף את ${product} מהבית. מצטער על ההמתנה.
 
-אז מסכם את הפנייה שלכם עבור נציג שירות הלקוחות שלנו:
+${SERVICE_SUMMARY_INTRO}
 ${report}
 
-אני צודק?`
+${SERVICE_SUMMARY_CHECK}`
 }
 
 /** Service cases that may still need order ID before handoff (not return-pickup-wait). */
@@ -326,10 +334,10 @@ export function buildServiceHandoffConfirmReply(
 ) {
   const report = buildServiceHandoffReportBlock(intake, body, history)
   return `${CUSTOMER_HEADER}
-אז מסכם את הפנייה שלכם עבור נציג שירות הלקוחות שלנו:
+${SERVICE_SUMMARY_INTRO}
 ${report}
 
-אני צודק?`
+${SERVICE_SUMMARY_CHECK}`
 }
 
 export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {
@@ -339,7 +347,7 @@ export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {
     if (isInactivityAssistantMessage(message.content)) continue
     return (
       messageAwaits(message, "service_summary_confirm") ||
-      SERVICE_SUMMARY_PENDING_RE.test(message.content)
+      isServiceHandoffSummaryText(message.content)
     )
   }
   return false

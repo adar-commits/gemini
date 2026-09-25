@@ -143,7 +143,7 @@ export async function executeLookupOrderStatus(input: {
     return {
       ok: false as const,
       error:
-        "Service thread — order lookup is only for מס׳ הזמנה. After customer confirms the order card, continue service rep report (אז מסכם את הפנייה…) → אני צודק? → human_service. Never shipping status or משהו נוסף.",
+        "Service thread — order lookup is only for מס׳ הזמנה. After customer confirms the order card, continue service rep report (summary bullets + check, awaiting service_summary_confirm) → human_service. Never shipping status or משהו נוסף.",
     }
   }
 

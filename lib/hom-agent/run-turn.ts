@@ -77,6 +77,7 @@ import {
   buildReturnPickupAwaitingServiceReply,
   extractServiceIntake,
   isReturnPickupAwaitingThread,
+  isServiceHandoffSummaryText,
 } from "@/lib/agents/service-intake"
 import { enrichReturnPickupIntake } from "@/lib/agents/order-lookup"
 import { enrichHandoffReply } from "@/lib/agents/human-agent-hours"
@@ -118,7 +119,7 @@ async function rebuildReturnPickupServiceReplyIfNeeded(input: {
   history: HistoryMessage[]
 }) {
   if (!isReturnPickupAwaitingThread(input.history, input.body)) return input.reply
-  if (!/מסכם את הפנייה/i.test(input.reply)) return input.reply
+  if (!isServiceHandoffSummaryText(input.reply)) return input.reply
 
   let intake = extractServiceIntake(input.history, input.body)
   intake.issueKind = "return_pickup_pending"

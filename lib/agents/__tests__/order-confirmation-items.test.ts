@@ -3,6 +3,8 @@ import { describe, it } from "node:test"
 import {
   buildOrderConfirmationPrompt,
   extractOrderLineItems,
+  isOrderCardText,
+  isOrderConfirmationPending,
   mapPriorityOrderRow,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
@@ -39,7 +41,10 @@ describe("order confirmation line items", () => {
     const prompt = buildOrderConfirmationPrompt(orderWithItems)
     assert.match(prompt, /SO26018130/)
     assert.match(prompt, /644\.8/)
-    assert.match(prompt, /נכון\?/)
+    assert.match(prompt, /זו ההזמנה\?/)
+    assert.match(prompt, /ש״ח/)
+    assert.equal(isOrderCardText(prompt), true)
+    assert.equal(isOrderConfirmationPending([{ role: "assistant", content: prompt }]), true)
     assert.doesNotMatch(prompt, /שטיח שאגי/)
     assert.doesNotMatch(prompt, /כרית נוי/)
   })

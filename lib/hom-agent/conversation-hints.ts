@@ -287,7 +287,7 @@ export function buildConversationHints(input: {
 
   if (isServiceHandoffSummaryPending(history)) {
     lines.push(
-      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (אני צודק? here is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
+      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (this is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
     )
   }
 
@@ -383,7 +383,7 @@ export function buildConversationHints(input: {
       )
     } else {
       lines.push(
-        "Waiting for customer to confirm service summary (אני צודק?). Treat confirmation semantically (including slang/short affirmations), not as exact keywords. If they correct details, update summary and ask again; if they confirm, action human_service."
+        "Waiting for customer to confirm the service summary. Treat confirmation semantically (including slang/short affirmations), not as exact keywords. If they correct details, update summary and ask again; if they confirm, action human_service."
       )
     }
   }
@@ -394,7 +394,7 @@ export function buildConversationHints(input: {
     !isPostPurchaseIntentConfirmPending(history)
   ) {
     lines.push(
-      "RETURN PICKUP WAIT (advanced service, not FAQ): identify order via lookup_order_status if needed, then rep-report bullets ('אז מסכם את הפנייה…') → human_service after confirm. Never tell customer outbound shipping/self-pickup status — rep handles pickup logistics."
+      "RETURN PICKUP WAIT (advanced service, not FAQ): identify order via lookup_order_status if needed, then rep-report bullets + summary check (awaiting service_summary_confirm) → human_service after confirm. Never tell customer outbound shipping/self-pickup status — rep handles pickup logistics."
     )
   }
 
@@ -519,7 +519,7 @@ export function buildConversationHints(input: {
         )
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
-          "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → אז מסכם את הפנייה (rep bullets) → אני צודק? → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
+          "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → rep summary bullets → summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
         )
       } else {
         lines.push(
