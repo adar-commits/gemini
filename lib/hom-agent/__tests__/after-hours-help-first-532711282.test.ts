@@ -11,7 +11,7 @@ describe("after hours: help first 532711282", () => {
   it("tells the model which rep teams are offline right now", () => {
     const wed1900 = new Date("2026-09-09T16:00:00.000Z")
     const prompt = buildHomAgentSystemPrompt({ history: [], userText: body, now: wed1900 })
-    assert.match(prompt, /Human reps right now: service OFFLINE \(א'-ה' 09:00-16:00\), sales OFFLINE \(09:30-18:00\)/)
+    assert.match(prompt, /Human reps right now: service OFFLINE \(א'-ה' 09:00-16:00\), sales OFFLINE \(א'-ה' 09:30-18:00, ו' 09:00-14:00\)/)
     assert.match(prompt, /you are the one on shift/)
     assert.match(prompt, /Do \*\*not\*\* hand off on the first message/)
   })

@@ -14,8 +14,8 @@ describe("human agent hours", () => {
     assert.equal(humanAgentTeamHoursLabel("human_service"), "א'-ה' 09:00-16:00")
   })
 
-  it("defaults sales hours to 09:30-18:00", () => {
-    assert.equal(humanAgentTeamHoursLabel("human_sales"), "09:30-18:00")
+  it("defaults sales hours to Sunday–Thursday 09:30-18:00 and Friday 09:00-14:00", () => {
+    assert.equal(humanAgentTeamHoursLabel("human_sales"), "א'-ה' 09:30-18:00, ו' 09:00-14:00")
   })
 
   it("considers service offline before 09:00 Israel time", () => {
@@ -78,7 +78,7 @@ describe("human agent hours", () => {
     const once = enrichHandoffReply(llm, "human_sales", at1900)
     const twice = enrichHandoffReply(once, "human_sales", at1900)
     assert.ok(once.startsWith(`${CUSTOMER_HEADER}\nאפשר להחליף למידה גדולה יותר`))
-    assert.match(once, /אין יועצי מכירות זמינים \(שעות הפעילות 09:30-18:00\)/)
+    assert.match(once, /אין יועצי מכירות זמינים \(שעות הפעילות א'-ה' 09:30-18:00, ו' 09:00-14:00\)/)
     assert.equal(once.split(CUSTOMER_HEADER).length, 2)
     assert.equal(once, twice)
   })
@@ -96,6 +96,6 @@ describe("human agent hours", () => {
   })
 
   it("builds service after-hours prefix with full hours label", () => {
-    assert.match(buildAfterHoursHandoffPrefix("human_service"), /א'-ה' 09:00-16:00/)
+    assert.match(buildAfterHoursHandoffPrefix("human_service", new Date("2026-09-09T16:00:00.000Z")), /א'-ה' 09:00-16:00/)
   })
 })

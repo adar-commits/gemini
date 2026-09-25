@@ -26,7 +26,9 @@ function formatHourMinute(value: HourMinute) {
   return `${String(value.hour).padStart(2, "0")}:${String(value.minute).padStart(2, "0")}`
 }
 
-function teamHours(action: HumanHandoffAction): { start: HourMinute; end: HourMinute } {
+type DayHours = { start: HourMinute; end: HourMinute }
+
+function teamHours(action: HumanHandoffAction): DayHours {
   if (action === "human_sales") {
     return {
       start: parseHourMinute(process.env.LANDBOT_HUMAN_SALES_START, { hour: 9, minute: 30 }),
@@ -39,11 +41,20 @@ function teamHours(action: HumanHandoffAction): { start: HourMinute; end: HourMi
   }
 }
 
-/** Service reps work Sunday–Thursday only; stores keep their own Friday/Saturday hours. */
-const SERVICE_CLOSED_WEEKDAYS = new Set(["Fri", "Sat"])
+/** Sales works short Friday hours (same as the stores); service is closed Friday. Nobody works Saturday. */
+const SALES_FRIDAY_HOURS: DayHours = { start: { hour: 9, minute: 0 }, end: { hour: 14, minute: 0 } }
 
-function wallClockWeekday(now: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(now)
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
+
+function hoursOnWeekday(action: HumanHandoffAction, weekdayIndex: number): DayHours | null {
+  if (weekdayIndex <= 4) return teamHours(action)
+  if (weekdayIndex === 5 && action === "human_sales") return SALES_FRIDAY_HOURS
+  return null
+}
+
+function wallClockWeekdayIndex(now: Date, timeZone: string) {
+  const short = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(now)
+  return WEEKDAYS.indexOf(short as (typeof WEEKDAYS)[number])
 }
 
 function agentTimeZone() {
@@ -62,31 +73,45 @@ function wallClockMinutes(now: Date, timeZone: string) {
   return hour * 60 + minute
 }
 
+function formatRange(hours: DayHours) {
+  return `${formatHourMinute(hours.start)}-${formatHourMinute(hours.end)}`
+}
+
 export function humanAgentTeamHoursLabel(action: HumanHandoffAction) {
-  const { start, end } = teamHours(action)
-  const range = `${formatHourMinute(start)}-${formatHourMinute(end)}`
-  return action === "human_service" ? `א'-ה' ${range}` : range
+  const weekdays = `א'-ה' ${formatRange(teamHours(action))}`
+  return action === "human_sales" ? `${weekdays}, ו' ${formatRange(SALES_FRIDAY_HOURS)}` : weekdays
 }
 
 /** Live rep pool is online within configured hours (Israel time, start inclusive, end exclusive). */
 export function isHumanAgentTeamOnline(action: HumanHandoffAction, now = new Date()) {
-  const { start, end } = teamHours(action)
   const timeZone = agentTimeZone()
-  if (action === "human_service" && SERVICE_CLOSED_WEEKDAYS.has(wallClockWeekday(now, timeZone))) {
-    return false
-  }
+  const today = hoursOnWeekday(action, wallClockWeekdayIndex(now, timeZone))
+  if (!today) return false
   const nowMinutes = wallClockMinutes(now, timeZone)
-  const startMinutes = toMinutes(start)
-  const endMinutes = toMinutes(end)
-  return nowMinutes >= startMinutes && nowMinutes < endMinutes
+  return nowMinutes >= toMinutes(today.start) && nowMinutes < toMinutes(today.end)
 }
 
-export function buildAfterHoursHandoffPrefix(action: HumanHandoffAction) {
-  const hours = humanAgentTeamHoursLabel(action)
-  if (action === "human_sales") {
-    return `כרגע אין יועצי מכירות זמינים (שעות הפעילות ${hours}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
+/** Team is next online on Sunday (weekend or end of the work week), not later today or tomorrow. */
+function nextOpeningIsSunday(action: HumanHandoffAction, now: Date) {
+  const timeZone = agentTimeZone()
+  const weekdayIndex = wallClockWeekdayIndex(now, timeZone)
+  const today = hoursOnWeekday(action, weekdayIndex)
+  if (today && wallClockMinutes(now, timeZone) < toMinutes(today.start)) return false
+  for (let offset = 1; offset <= 7; offset++) {
+    const dayIndex = (weekdayIndex + offset) % 7
+    if (hoursOnWeekday(action, dayIndex)) return dayIndex === 0
   }
-  return `כרגע אין נציגי שירות זמינים (שעות הפעילות ${hours}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
+  return false
+}
+
+export function buildAfterHoursHandoffPrefix(action: HumanHandoffAction, now = new Date()) {
+  const team = action === "human_sales" ? "יועצי מכירות" : "נציגי שירות"
+  if (nextOpeningIsSunday(action, now)) {
+    const sundayStart = formatHourMinute(teamHours(action).start)
+    return `כרגע אין ${team} זמינים, אבל אל דאגה — קיבלנו את הפנייה. הצוות חוזר ביום ראשון מ-${sundayStart}, ניצור איתכם קשר.`
+  }
+  const hours = humanAgentTeamHoursLabel(action)
+  return `כרגע אין ${team} זמינים (שעות הפעילות ${hours}), אבל אל דאגה — קיבלנו את הפנייה וניצור איתכם קשר מיד עם חזרת הצוות לזמינות.`
 }
 
 function onlineHandoffCore(action: HumanHandoffAction) {
@@ -101,7 +126,7 @@ export function buildHumanHandoffConfirmedReply(
   now = new Date()
 ) {
   if (!isHumanAgentTeamOnline(action, now)) {
-    return buildAfterHoursHandoffPrefix(action)
+    return buildAfterHoursHandoffPrefix(action, now)
   }
   return onlineHandoffCore(action)
 }
@@ -120,7 +145,7 @@ export function enrichHandoffReply(
     return text || onlineHandoffCore(action)
   }
 
-  const canonical = buildAfterHoursHandoffPrefix(action)
+  const canonical = buildAfterHoursHandoffPrefix(action, now)
   if (reply.includes(canonical)) return reply
 
   const hasHeader = reply.trimStart().startsWith(CUSTOMER_HEADER)
