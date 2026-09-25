@@ -73,6 +73,22 @@ describe("cursor automation qa webhook", () => {
     assert.match(payload.conversation_url, /508272038/)
   })
 
+  it("adds a per-event callback token when CRON_SECRET is set", () => {
+    process.env.CRON_SECRET = "cron-test-secret"
+    const base = {
+      sessionId: "508272038",
+      trigger: "manual" as const,
+      eventWindowSince: "2026-09-24T20:17:50.000Z",
+      eventWindowReason: "opened_at" as const,
+      eventWindowMessageCount: 5,
+      totalMessageCount: 5,
+    }
+    const a = buildCursorAutomationQaPayload({ ...base, idempotencyKey: "manual:508272038:1" })
+    const b = buildCursorAutomationQaPayload({ ...base, idempotencyKey: "manual:508272038:2" })
+    assert.match(a.callback_token ?? "", /^[0-9a-f]{40}$/)
+    assert.notEqual(a.callback_token, b.callback_token)
+  })
+
   it("is enabled with webhook url and token", () => {
     assert.equal(cursorAutomationQaEnabled(), true)
     assert.equal(shouldNotifyCursorAutomationQa("human_assign"), true)

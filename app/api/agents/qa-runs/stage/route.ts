@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { isCronAuthorized } from "@/lib/agents/cron-auth"
+import { isQaCallbackAuthorized } from "@/lib/agents/qa-callback-token"
 import {
   markQaRunStage,
   QA_REPORTED_STAGES,
@@ -8,10 +9,6 @@ import {
 
 /** Automation progress ping for the /dashboard/qa event gauge (curl, no npm install needed). */
 export async function POST(request: Request) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
@@ -21,7 +18,12 @@ export async function POST(request: Request) {
 
   const stage = body.stage as QaReportedStage
   const idempotencyKey = typeof body.idempotency_key === "string" ? body.idempotency_key : null
-  const sessionId = typeof body.session_id === "string" ? body.session_id : null
+  if (!isQaCallbackAuthorized(request, idempotencyKey)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  // Session-wide fallback only for CRON_SECRET callers; callback tokens stay on their own event.
+  const sessionId =
+    isCronAuthorized(request) && typeof body.session_id === "string" ? body.session_id : null
 
   if (!QA_REPORTED_STAGES.includes(stage) || (!idempotencyKey && !sessionId)) {
     return NextResponse.json(

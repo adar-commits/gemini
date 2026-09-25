@@ -8,6 +8,7 @@ import {
   type QaEventWindowReason,
 } from "@/lib/landbot/qa-event-window"
 import { buildQaTranscript } from "@/lib/landbot/qa-transcript"
+import { qaCallbackToken } from "@/lib/agents/qa-callback-token"
 
 export type CursorAutomationQaTrigger =
   | "human_assign"
@@ -35,6 +36,8 @@ export type CursorAutomationQaPayload = {
   operator_notes?: string
   /** Event-window timeline + agent turns + shadow — analyze from this, no DB read needed. */
   transcript?: string
+  /** Bearer for this event's dashboard callbacks (automations have no secrets store). */
+  callback_token?: string
   sent_at: string
 }
 
@@ -191,6 +194,8 @@ export function buildCursorAutomationQaPayload(input: {
   totalMessageCount: number
 }): CursorAutomationQaPayload {
   const sessionId = input.sessionId.trim()
+  const idempotencyKey = input.idempotencyKey ?? `${sessionId}:${input.trigger}`
+  const callbackToken = qaCallbackToken(idempotencyKey)
   return {
     conversation_url: buildHomServiceConversationUrl(sessionId),
     session_id: sessionId,
@@ -207,13 +212,13 @@ export function buildCursorAutomationQaPayload(input: {
     event_window_reason: input.eventWindowReason,
     event_window_message_count: input.eventWindowMessageCount,
     total_message_count: input.totalMessageCount,
-    idempotency_key:
-      input.idempotencyKey ?? `${sessionId}:${input.trigger}`,
+    idempotency_key: idempotencyKey,
     phone_last4: phoneLastFour(input.phone),
     ...(input.operatorNotes?.trim()
       ? { operator_notes: input.operatorNotes.trim().slice(0, OPERATOR_NOTES_MAX) }
       : {}),
     ...(input.transcript?.trim() ? { transcript: input.transcript } : {}),
+    ...(callbackToken ? { callback_token: callbackToken } : {}),
     sent_at: new Date().toISOString(),
   }
 }

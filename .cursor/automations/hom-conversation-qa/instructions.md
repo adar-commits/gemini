@@ -28,17 +28,9 @@ Set / rotate with `WEBHOOK_TOKEN=crsr_... ./scripts/set-vercel-qa-env.sh` (also 
 
 URL without token = disabled (Cursor would 401).
 
-## Automation secrets (Cursor → automation → Secrets)
+## Automation secrets
 
-Required — same value as Vercel production:
-
-```
-CRON_SECRET
-```
-
-`CRON_SECRET` authorizes the curl stage/verdict calls and `log-qa-automation-commit.ts`.
-
-Optional fallback (only used when a payload has no transcript): `AGENT_SUPABASE_URL`, `AGENT_SUPABASE_SERVICE_ROLE_KEY`.
+None. Cursor automations have no secrets store, so each webhook payload carries `callback_token` = HMAC(`CRON_SECRET`, idempotency_key) (`lib/agents/qa-callback-token.ts`). `/api/agents/qa-runs` and `/api/agents/qa-runs/stage` accept it only for that event's key (or the full `CRON_SECRET` for operator scripts).
 
 ## Verify
 
@@ -70,20 +62,20 @@ Payload (JSON body):
 conversation_url, session_id, landbot_customer_id, trigger, handoff_action?, last_user_message?, last_bot_reply?,
 transcript (event-window TIMELINE + AGENT TURNS + SHADOW — the whole incident, already filtered),
 event_window_since, event_window_reason, event_window_message_count, total_message_count (ignore),
-idempotency_key, phone_last4, operator_notes?, sent_at, test?
+idempotency_key, callback_token, phone_last4, operator_notes?, sent_at, test?
 
 OPERATOR NOTES — if operator_notes is present, a human reviewing the chat wrote what went wrong. Treat it as the behavior spec:
 - Verify it against the transcript, then answer it directly in root_cause (agree, or explain in Hebrew why the bot was right).
 - It outranks your own guess, but never the hard bans or the implement gate.
 - Ambiguous / policy-level request → ask_operator with multiple-choice questions.
 
-Only secret needed: CRON_SECRET (same value as Vercel production).
+No secrets needed. Dashboard calls authenticate with payload.callback_token (valid only for this event). git push uses the repo connection.
 
 DASHBOARD CALLS (curl, never block the run — ignore failures):
 STAGE ping (replace <stage> with reading | analyzing | coding | testing):
-curl -s -X POST https://gemini-xi-one-77.vercel.app/api/agents/qa-runs/stage -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" -d '{"stage":"<stage>","idempotency_key":"<idempotency_key>","session_id":"<session_id>"}'
+curl -s -X POST https://gemini-xi-one-77.vercel.app/api/agents/qa-runs/stage -H "Authorization: Bearer <callback_token>" -H "Content-Type: application/json" -d '{"stage":"<stage>","idempotency_key":"<idempotency_key>","session_id":"<session_id>"}'
 VERDICT log (JSON body, Hebrew allowed; omit fields that don't apply):
-curl -s -X POST https://gemini-xi-one-77.vercel.app/api/agents/qa-runs -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" --data-binary @- <<'EOF'
+curl -s -X POST https://gemini-xi-one-77.vercel.app/api/agents/qa-runs -H "Authorization: Bearer <callback_token>" -H "Content-Type: application/json" --data-binary @- <<'EOF'
 {"session_id":"<session_id>","trigger":"<trigger>","idempotency_key":"<idempotency_key>","phase":"analyze","outcome":"<false_alarm|already_covered|too_risky|ask_operator|chained|no_action>","verdict":"<verdict>","confidence":"<high|medium|low>","risk_score":<1-10>,"root_cause":"<Hebrew>","fix_layer":"<layer>","fix_plan":["<step>"],"operator_questions":["<question>"]}
 EOF
 
@@ -93,7 +85,7 @@ If the payload has "test": true → reply exactly "webhook OK <session_id>" and 
 ## 1. Read (≤ 30 s)
 STAGE ping: reading.
 Read payload.transcript top to bottom. Start from last_user_message / last_bot_reply, then the timeline, agent actions and shadow lines. Never judge from the last turn alone.
-Only if transcript is missing: npm ci --no-audit --no-fund && npx tsx scripts/read-hom-conversation.ts <session_id> --since=<event_window_since> (needs AGENT_SUPABASE_URL / AGENT_SUPABASE_SERVICE_ROLE_KEY secrets).
+Only if transcript is missing: npm ci --no-audit --no-fund && npx tsx scripts/read-hom-conversation.ts <session_id> --since=<event_window_since> — needs DB env the automation does not have; if it fails, VERDICT log outcome no_action with root_cause "חסר תמליל בפיילואד" and stop.
 
 ## 2. Analyze — exactly one verdict (≤ 90 s)
 STAGE ping: analyzing.
@@ -125,8 +117,8 @@ npm ci --no-audit --no-fund --prefer-offline
 5. npm run verify:deploy — must pass (it already runs the prebuild test suites; don't run them separately).
    If 4 or 5 fails and no allowed fix remains: git checkout -- . && git clean -fd lib, then VERDICT log with "phase":"implement","outcome":"failed_guard","root_cause":"<why, Hebrew>", and stop with "no action".
 6. git add -A && git commit -m "fix(qa): <short English summary> (<session_id>)" && git push origin main
-7. npx tsx scripts/log-qa-automation-commit.ts --sha "$(git rev-parse HEAD)" --session <session_id> --trigger <trigger> --cause "<root_cause, Hebrew>" --files "<comma-separated touched files>"
-   (marks the dashboard event "נדחף ל-main" via CRON_SECRET, appends BRIEF.md + commit-log.jsonl)
+7. npx tsx scripts/log-qa-automation-commit.ts --sha "$(git rev-parse HEAD)" --session <session_id> --trigger <trigger> --cause "<root_cause, Hebrew>" --files "<comma-separated touched files>" --key "<idempotency_key>" --token "<callback_token>"
+   (marks the dashboard event "נדחף ל-main", appends BRIEF.md + commit-log.jsonl)
 8. git add .cursor/automations/hom-conversation-qa/BRIEF.md .cursor/automations/hom-conversation-qa/commit-log.jsonl && git commit -m "chore(qa): log implement commit <sha7> for <session_id>" && git push origin main
 9. Reply: cause (1 sentence) · files · fix commit sha · revert: npm run qa:vanish -- <sha>
 

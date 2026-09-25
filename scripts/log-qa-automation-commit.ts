@@ -6,7 +6,11 @@
  *   npx tsx scripts/log-qa-automation-commit.ts \
  *     --sha abc1234 --session 532452401 --trigger bot_failure \
  *     --cause "Bot sent never-stuck instead of lookup on known receipt order" \
- *     --files "hom-bot.md,conversation-hints.ts"
+ *     --files "hom-bot.md,conversation-hints.ts" \
+ *     --key "<payload idempotency_key>" --token "<payload callback_token>"
+ *
+ * --key/--token come from the webhook payload (automations have no secrets store);
+ * CRON_SECRET still works for local/operator runs.
  */
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -57,8 +61,8 @@ function loadEnvFile(relativePath: string) {
   }
 }
 
-async function syncDashboard(row: LogRow) {
-  const secret = process.env.CRON_SECRET?.trim()
+async function syncDashboard(row: LogRow, eventKey: string, callbackToken: string) {
+  const secret = callbackToken || process.env.CRON_SECRET?.trim()
   const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
   const origin =
     process.env.GEMINI_API_ORIGIN?.trim() ||
@@ -68,9 +72,9 @@ async function syncDashboard(row: LogRow) {
 
   if (!secret) {
     console.warn(
-      "[log-qa-automation-commit] CRON_SECRET missing — dashboard not updated (add to Implement automation secrets)"
+      "[log-qa-automation-commit] no --token (payload callback_token) or CRON_SECRET — dashboard not updated"
     )
-    return { ok: false as const, reason: "missing_cron_secret" as const }
+    return { ok: false as const, reason: "missing_token" as const }
   }
 
   const conversationUrl = buildHomServiceConversationUrl(row.session_id)
@@ -89,7 +93,7 @@ async function syncDashboard(row: LogRow) {
       root_cause: row.cause,
       commit_sha: row.sha,
       changed_files: row.files,
-      idempotency_key: `${row.session_id}:implemented:${row.sha}`,
+      idempotency_key: eventKey || `${row.session_id}:implemented:${row.sha}`,
       stage_timestamps: {
         implement_completed_at: row.logged_at,
       },
@@ -160,7 +164,7 @@ async function main() {
   }
 
   writeFileSync(BRIEF_PATH, brief, "utf8")
-  const dashboard = await syncDashboard(row)
+  const dashboard = await syncDashboard(row, arg("--key"), arg("--token"))
   console.log(JSON.stringify({ ok: true, sha, brief: BRIEF_PATH, dashboard }, null, 2))
 }
 

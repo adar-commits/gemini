@@ -49,7 +49,7 @@ for (const [name, ok] of required) {
 }
 console.log(`\nTriggers: ${[...cursorAutomationQaTriggers()].join(", ")}`)
 console.log(
-  "\nAutomation secrets (Cursor → automation → Secrets):\n  CRON_SECRET, AGENT_SUPABASE_URL, AGENT_SUPABASE_SERVICE_ROLE_KEY = same as Vercel production"
+  "\nAutomation needs no secrets — payload.callback_token is derived from CRON_SECRET per event."
 )
 
 const missing = required.filter(([, ok]) => !ok)

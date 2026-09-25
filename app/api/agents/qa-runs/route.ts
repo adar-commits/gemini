@@ -5,7 +5,7 @@ import {
   type QaAutomationOutcome,
 } from "@/lib/agents/qa-automation-log"
 import { getAgentSupabase } from "@/lib/agents/supabase"
-import { isCronAuthorized } from "@/lib/agents/cron-auth"
+import { isQaCallbackAuthorized } from "@/lib/agents/qa-callback-token"
 import { buildHomServiceConversationUrl } from "@/lib/landbot/cursor-automation-qa"
 import {
   mergeQaStageTimestamps,
@@ -23,15 +23,21 @@ function autoStageTimestamps(input: InsertQaAutomationRunInput) {
 }
 
 export async function POST(request: Request) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const requestKey =
+    typeof body.idempotency_key === "string"
+      ? body.idempotency_key
+      : typeof body.idempotencyKey === "string"
+        ? body.idempotencyKey
+        : null
+  if (!isQaCallbackAuthorized(request, requestKey)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const sessionId = String(body.session_id ?? body.sessionId ?? "").trim()
@@ -112,6 +118,7 @@ export async function POST(request: Request) {
   try {
     const row = await insertQaAutomationRun(input)
     if (input.phase === "implement" && input.outcome === "implemented") {
+      const rowSessionId = row.session_id.trim()
       const supabase = getAgentSupabase()
       const now = new Date().toISOString()
       const completedStages = mergeQaStageTimestamps(input.stageTimestamps ?? {}, {
@@ -126,7 +133,7 @@ export async function POST(request: Request) {
       const { data: sessionRows } = await supabase
         .from("hom_agent_qa_runs")
         .select("id, stage_timestamps")
-        .eq("session_id", input.sessionId.trim())
+        .eq("session_id", rowSessionId)
       for (const sessionRow of sessionRows ?? []) {
         await supabase
           .from("hom_agent_qa_runs")
@@ -151,7 +158,7 @@ export async function POST(request: Request) {
             ? `יושם בקומיט ${input.commitSha.trim().slice(0, 7)}`
             : "יושם",
         })
-        .eq("session_id", input.sessionId.trim())
+        .eq("session_id", rowSessionId)
         .in("outcome", staleOutcomes)
     }
     return NextResponse.json({ ok: true, id: row.id })
