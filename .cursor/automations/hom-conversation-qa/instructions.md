@@ -54,7 +54,7 @@ Repo: adar-commits/gemini · branch main only. Never create branches or worktree
 TIME BUDGET — analyze ≤ 2 min, implement ≤ 4 min. Many events arrive; be fast:
 - Analyze ONLY from payload.transcript. Do NOT run npm ci, tsx scripts, or DB queries for analysis. Do NOT explore the codebase before the verdict.
 - The repo's .cursor/rules (playbook, routing, hard bans) are already loaded — do not re-read them.
-- Only the implement path (step 5) installs dependencies.
+- Only the implement path (step 4) installs dependencies.
 
 Trigger: gemini production POSTs here on every bot → human handoff (trigger=human_assign) and every never-stuck reply (trigger=bot_failure). /dashboard/qa retry (↻) and the manual dashboard trigger send the same payload.
 
