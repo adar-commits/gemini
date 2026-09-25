@@ -108,7 +108,7 @@ export function buildHumanHandoffConfirmedReply(
 
 /**
  * Final handoff reply shown to the customer.
- * After hours: replace with the single offline notice (no LLM transfer fluff on top).
+ * After hours: keep whatever help the agent already wrote and close with the single offline notice.
  */
 export function enrichHandoffReply(
   reply: string,
@@ -121,8 +121,10 @@ export function enrichHandoffReply(
   }
 
   const canonical = buildAfterHoursHandoffPrefix(action)
-  if (reply.startsWith(CUSTOMER_HEADER)) {
-    return `${CUSTOMER_HEADER}\n${canonical}`
-  }
-  return canonical
+  if (reply.includes(canonical)) return reply
+
+  const hasHeader = reply.trimStart().startsWith(CUSTOMER_HEADER)
+  const body = (hasHeader ? reply.trimStart().slice(CUSTOMER_HEADER.length) : reply).trim()
+  const text = body ? `${body}\n\n${canonical}` : canonical
+  return hasHeader ? `${CUSTOMER_HEADER}\n${text}` : text
 }

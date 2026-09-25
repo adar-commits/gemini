@@ -1,3 +1,8 @@
+import {
+  humanAgentTeamHoursLabel,
+  isHumanAgentTeamOnline,
+  type HumanHandoffAction,
+} from "@/lib/agents/human-agent-hours"
 import { selectFaqKb, selectFaqKbAsync } from "@/lib/agents/kb"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
 import { buildHomBotPrompt } from "@/lib/hom-agent/hom-bot-prompt"
@@ -43,8 +48,17 @@ export function formatIsraelNow(now: Date) {
   return ISRAEL_NOW_FORMAT.format(now)
 }
 
+function teamAvailability(action: HumanHandoffAction, label: string, now: Date) {
+  const state = isHumanAgentTeamOnline(action, now) ? "online" : "OFFLINE"
+  return `${label} ${state} (${humanAgentTeamHoursLabel(action)})`
+}
+
 function channelContextLines(input: HomAgentPromptInput) {
-  const lines = [`Now in Israel: ${formatIsraelNow(input.now ?? new Date())}`]
+  const now = input.now ?? new Date()
+  const lines = [
+    `Now in Israel: ${formatIsraelNow(now)}`,
+    `Human reps right now: ${teamAvailability("human_service", "service", now)}, ${teamAvailability("human_sales", "sales", now)}`,
+  ]
   const name = input.customerName?.trim()
   if (name) {
     lines.push(

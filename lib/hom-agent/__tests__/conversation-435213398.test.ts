@@ -77,6 +77,6 @@ describe("conversation 435213398 regression", () => {
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
     assert.equal(result.action, "human_service")
-    assert.match(result.reply, /העברתי/)
+    assert.match(result.reply, /העברתי|קיבלנו את הפנייה/)
   })
 })

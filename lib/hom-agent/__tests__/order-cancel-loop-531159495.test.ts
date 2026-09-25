@@ -115,7 +115,7 @@ describe("order cancel loop prevention (531159495)", () => {
     assert.equal(preTurn.kind, "handled")
     if (preTurn.kind !== "handled") return
     assert.equal(preTurn.action, "human_service")
-    assert.match(preTurn.reply, /העברתי/)
+    assert.match(preTurn.reply, /העברתי|קיבלנו את הפנייה/)
     assert.doesNotMatch(preTurn.reply, /קודם אמצא/)
   })
 

@@ -72,16 +72,21 @@ describe("human agent hours", () => {
     assert.doesNotMatch(reply, /שעות הפעילות/)
   })
 
-  it("replaces LLM handoff fluff after hours with one canonical notice", () => {
+  it("keeps the agent's help after hours and closes with one offline notice", () => {
     const at1900 = new Date("2026-09-09T16:00:00.000Z")
-    const llm =
-      "מעולה, מעביר את הפרטים ליועץ מכירות שיחזור אליכם עם התאמות מתאימות"
+    const llm = `${CUSTOMER_HEADER}\nאפשר להחליף למידה גדולה יותר בכל סניף, בתוך 14 יום ובאריזה המקורית.`
     const once = enrichHandoffReply(llm, "human_sales", at1900)
     const twice = enrichHandoffReply(once, "human_sales", at1900)
-    assert.match(once, /09:30-18:00/)
-    assert.doesNotMatch(once, /מעביר את הפרטים/)
-    assert.doesNotMatch(once, /התאמות מתאימות/)
+    assert.ok(once.startsWith(`${CUSTOMER_HEADER}\nאפשר להחליף למידה גדולה יותר`))
+    assert.match(once, /אין יועצי מכירות זמינים \(שעות הפעילות 09:30-18:00\)/)
+    assert.equal(once.split(CUSTOMER_HEADER).length, 2)
     assert.equal(once, twice)
+  })
+
+  it("does not append a second notice to a runtime-built offline reply", () => {
+    const at1900 = new Date("2026-09-09T16:00:00.000Z")
+    const built = `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_service", at1900)}`
+    assert.equal(enrichHandoffReply(built, "human_service", at1900), built)
   })
 
   it("fills empty LLM handoff reply after hours", () => {

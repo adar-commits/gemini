@@ -364,7 +364,7 @@ export function buildConversationHints(input: {
     const handoffAction = inferHumanHandoffAction(history, null)
     if (!isHumanAgentTeamOnline(handoffAction)) {
       lines.push(
-        "AFTER-HOURS HANDOFF: reps are offline. Set action human_sales or human_service and leave reply EMPTY — the system sends one offline notice automatically. Do NOT write transfer lines (מעביר ליועץ / יחזור אליכם / ניצור קשר) — they duplicate the system message."
+        "AFTER-HOURS HANDOFF: reps are offline. If the customer confirms the transfer, set action human_sales or human_service; the system appends one offline notice at the end. In reply keep only what still helps (answer / recap) — do NOT write transfer lines (מעביר ליועץ / יחזור אליכם / ניצור קשר), they duplicate the notice. Nothing to add → empty reply."
       )
     }
   }

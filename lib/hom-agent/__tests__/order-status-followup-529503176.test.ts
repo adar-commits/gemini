@@ -102,7 +102,7 @@ describe("order status follow-up (529503176)", () => {
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
     assert.equal(result.action, "human_service")
-    assert.match(result.reply, /העברתי/)
+    assert.match(result.reply, /העברתי|קיבלנו את הפנייה/)
   })
 
   it("lookup tool defers to LLM instead of action menu for unrelated post-order text", async () => {
