@@ -82,6 +82,28 @@ describe("buildQaStageTimeline", () => {
     assert.ok((timeline[1].durationMs ?? 0) > 30 * 60 * 1000)
     assert.equal(timeline[3].status, "done")
   })
+
+  it("freezes elapsed time when implement chain fails (no fake 3h coding)", () => {
+    const run = row({
+      phase: "analyze",
+      outcome: "webhook_failed",
+      created_at: "2026-09-25T02:38:15.445Z",
+      updated_at: "2026-09-25T02:40:00.000Z",
+      stage_timestamps: {
+        analyze_completed_at: "2026-09-25T02:40:00.000Z",
+      },
+    })
+    const timeline = buildQaStageTimeline(run, [], Date.parse("2026-09-25T06:17:00.000Z"))
+    const analyze = timeline.find((segment) => segment.id === "analyze")
+    const coding = timeline.find((segment) => segment.id === "coding")
+    const total = timeline.find((segment) => segment.id === "completed")
+
+    assert.ok((analyze?.durationMs ?? 0) < 3 * 60 * 1000)
+    assert.equal(coding?.status, "failed")
+    assert.equal(coding?.durationMs, null)
+    assert.ok((total?.durationMs ?? 0) < 3 * 60 * 1000)
+    assert.equal(total?.status, "failed")
+  })
 })
 
 describe("formatStageDuration", () => {

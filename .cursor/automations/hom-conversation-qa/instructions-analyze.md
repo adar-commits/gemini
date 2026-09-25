@@ -100,11 +100,21 @@ Use `--outcome chained` only when chaining to implement. Include `--fix-layer` a
 
 6. Reply in chat: verdict + one-sentence cause + risk score. Mention `event_window_message_count` vs `total_message_count` if the thread is large.
 
-7. If approved for implement — chain via **gemini production** (implement tokens live on Vercel only):
+7. If approved for implement — chain with the **script** (uses automation env — do not rely on inbound webhook Authorization):
+
+```bash
+npx tsx scripts/chain-qa-implement-webhook.ts .cursor/qa-queue/<session_id>.analysis.json --source-payload .cursor/qa-queue/<session_id>.source.json
+```
+
+Requires automation secrets: `CRON_SECRET` (same as Vercel) **or** `CURSOR_AUTOMATION_QA_IMPLEMENT_URL` + `CURSOR_AUTOMATION_QA_IMPLEMENT_TOKEN`.
+
+If the script exits non-zero, log `--outcome webhook_failed --notes "<reason>"` — **do not** pretend implement started.
+
+Fallback (production proxy — only if script env missing):
 
 ```bash
 curl -s -X POST "https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-implement" \
-  -H "Authorization: <paste exact inbound webhook Authorization header from this run>" \
+  -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
 {
@@ -114,13 +124,7 @@ curl -s -X POST "https://gemini-xi-one-77.vercel.app/api/agents/qa-chain-impleme
 EOF
 ```
 
-Use the **same Bearer token** Vercel sent on the inbound POST (this automation's webhook auth header in Cursor → Automations). No separate Secrets field needed — the proxy accepts that token or Vercel `CRON_SECRET`.
-
-Fallback (local with `.env.production.local`):
-
-```bash
-npx tsx scripts/chain-qa-implement-webhook.ts .cursor/qa-queue/<session_id>.analysis.json --source-payload .cursor/qa-queue/<session_id>.source.json
-```
+Use `$CRON_SECRET` from automation secrets — **not** the inbound webhook header (automations do not receive one).
 
 Otherwise stop — **no code edits on analyze.**
 

@@ -1,5 +1,5 @@
 import type { QaAutomationOutcome, QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
-import { formatQaElapsedHebrew, qaRunElapsedMs } from "@/lib/agents/qa-run-display"
+import { formatQaElapsedHebrew, isQaRunActive, qaRunElapsedMs } from "@/lib/agents/qa-run-display"
 
 export type QaStageTimestamps = {
   event_at?: string
@@ -117,8 +117,16 @@ export function resolveQaStageTimestamps(
     rows.find((row) => row.outcome === "chained")?.updated_at ??
     undefined
 
+  const chainSucceeded =
+    Boolean(chain_at) ||
+    rows.some(
+      (row) => row.outcome === "chained" || row.outcome === "implemented"
+    )
+
   const implement_started_at =
-    merged.implement_started_at ?? chain_at ?? merged.analyze_completed_at
+    merged.implement_started_at ??
+    chain_at ??
+    (chainSucceeded ? merged.analyze_completed_at : undefined)
 
   let implement_completed_at = merged.implement_completed_at
   if (!implement_completed_at) {
@@ -145,19 +153,37 @@ export function buildQaStageTimeline(
   nowMs = Date.now()
 ): QaStageTimingSegment[] {
   const ts = resolveQaStageTimestamps(run, siblings)
+  const active = isQaRunActive(run.outcome)
+  const clockMs = active ? nowMs : parseIsoMs(run.updated_at) ?? nowMs
   const failed = run.outcome === "webhook_failed" || run.outcome === "failed_guard"
   const implemented = run.outcome === "implemented" || run.outcome === "vanished"
   const chained = run.outcome === "chained" || run.phase === "implement"
   const analyzing = run.outcome === "triggered"
+  const analyzed =
+    implemented ||
+    chained ||
+    run.outcome === "real_failure" ||
+    run.outcome === "ask_operator" ||
+    run.outcome === "too_risky" ||
+    run.outcome === "already_covered" ||
+    run.outcome === "false_alarm" ||
+    run.outcome === "ignored" ||
+    run.outcome === "no_action" ||
+    failed
+  const chainFailed = failed && analyzed && !chained && !implemented
 
   const analyzeEnd = ts.analyze_completed_at ?? ts.chain_at
-  const codingEnd = implemented ? ts.implement_completed_at : null
-  const totalEnd = implemented ? ts.implement_completed_at : null
+  const codingEnd = implemented ? ts.implement_completed_at : chainFailed ? ts.analyze_completed_at ?? run.updated_at : null
+  const totalEnd = implemented
+    ? ts.implement_completed_at
+    : chainFailed || failed
+      ? ts.analyze_completed_at ?? run.updated_at
+      : null
 
-  const eventDuration = durationBetween(ts.event_at, ts.analyze_started_at, nowMs)
-  const analyzeDuration = durationBetween(ts.analyze_started_at, analyzeEnd, nowMs)
-  const codingDuration = durationBetween(ts.implement_started_at ?? ts.chain_at, codingEnd, nowMs)
-  const totalDuration = durationBetween(ts.event_at, totalEnd, nowMs)
+  const eventDuration = durationBetween(ts.event_at, ts.analyze_started_at, clockMs)
+  const analyzeDuration = durationBetween(ts.analyze_started_at, analyzeEnd, clockMs)
+  const codingDuration = durationBetween(ts.implement_started_at ?? ts.chain_at, codingEnd, clockMs)
+  const totalDuration = durationBetween(ts.event_at, totalEnd, clockMs)
 
   return [
     {
@@ -180,21 +206,21 @@ export function buildQaStageTimeline(
       id: "coding",
       label: "Coding",
       status:
-        failed && chained && !implemented
+        chainFailed || (failed && chained && !implemented)
           ? "failed"
           : chained && !implemented
             ? "active"
             : codingEnd
               ? "done"
               : "pending",
-      durationMs: codingDuration,
+      durationMs: chainFailed ? null : codingDuration,
       startedAt: ts.implement_started_at ?? ts.chain_at ?? null,
       endedAt: codingEnd ?? null,
     },
     {
       id: "completed",
       label: "הושלם",
-      status: implemented ? "done" : chained ? "active" : "pending",
+      status: implemented ? "done" : chainFailed || failed ? "failed" : chained ? "active" : "pending",
       durationMs: totalDuration,
       startedAt: ts.event_at ?? null,
       endedAt: totalEnd ?? null,
@@ -232,12 +258,17 @@ export function qaStageAverageMs(segments: QaStageTimingSegment[][]) {
   }
 }
 
-export function qaRunTotalElapsedMs(run: QaAutomationRunRow, siblings: QaAutomationRunRow[] = []) {
+export function qaRunTotalElapsedMs(run: QaAutomationRunRow, siblings: QaAutomationRunRow[] = [], nowMs = Date.now()) {
   const ts = resolveQaStageTimestamps(run, siblings)
   const start = ts.event_at ?? run.created_at
+  if (isQaRunActive(run.outcome)) {
+    return qaRunElapsedMs(start, nowMs)
+  }
+
   const end =
     run.outcome === "implemented" || run.outcome === "vanished"
       ? ts.implement_completed_at ?? run.updated_at
-      : undefined
-  return qaRunElapsedMs(start, end ? parseIsoMs(end)! : Date.now())
+      : ts.analyze_completed_at ?? run.updated_at ?? run.created_at
+  const endMs = parseIsoMs(end) ?? nowMs
+  return qaRunElapsedMs(start, endMs)
 }
