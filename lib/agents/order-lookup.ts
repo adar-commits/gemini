@@ -2838,6 +2838,26 @@ export function isAlternatePhoneRequestPending(history: HistoryMessage[]) {
   return false
 }
 
+function alternatePhoneAskedInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" && isAlternatePhoneAssistantMessage(message.content)
+  )
+}
+
+/** Order number given but not on the looked-up phone — ask for the order's phone before offering a rep. */
+export function buildOrderNotOnPhoneAskOrderPhonePrompt(
+  orderReference: string,
+  lookupPhone: string,
+  history: HistoryMessage[] = [],
+  body?: string
+) {
+  const display = formatCustomerOrderNumberForThread(orderReference, history, body)
+  return `${CUSTOMER_HEADER}
+לא מצאתי את ההזמנה ${display} על הטלפון ${formatDisplayPhone(lookupPhone)}.
+מה מספר הטלפון שבוצעה עליו ההזמנה?`
+}
+
 export function buildAlternatePhoneRequestPrompt() {
   return `${CUSTOMER_HEADER}
 מה מספר הטלפון שבוצעה עליו ההזמנה?`
@@ -2978,6 +2998,14 @@ async function lookupOrderByReference(input: {
 
   if (matched) {
     return replyAfterOrderIdentified(matched, input.lookupPhone, input.history, input.body)
+  }
+  if (!alternatePhoneAskedInThread(input.history)) {
+    return buildOrderNotOnPhoneAskOrderPhonePrompt(
+      input.orderReference,
+      input.lookupPhone,
+      input.history,
+      input.body
+    )
   }
   if (orders.length === 0) return buildNoOrdersFoundReply(input.lookupPhone)
   return buildOrderNumberNotFoundReply(
