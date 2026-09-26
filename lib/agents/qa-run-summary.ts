@@ -136,6 +136,10 @@ export function qaRunSolution(run: QaAutomationRunRow) {
     return "ממתין לאישור מפעיל לפני שינוי."
   }
   if (run.outcome === "webhook_failed") {
+    const notes = run.operator_notes?.trim() ?? ""
+    if (notes.includes("לא השיבה") || notes.includes("לא סיימה")) {
+      return notes
+    }
     return "שליחה לאוטומציה נכשלה — לחץ ↻ לניסיון חוזר."
   }
   if (run.outcome === "triggered") {

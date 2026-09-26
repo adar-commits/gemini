@@ -10,6 +10,7 @@ import {
   listQaRunsBySessionIds,
   type QaDashboardBucket,
 } from "@/lib/agents/qa-automation-log"
+import { expireStaleQaRuns } from "@/lib/agents/qa-run-expiry"
 import { buildQaStageTimeline } from "@/lib/agents/qa-stage-timing"
 
 export const dynamic = "force-dynamic"
@@ -41,6 +42,9 @@ export default async function QaDashboardPage({
   let stats: Awaited<ReturnType<typeof getQaAutomationStats>> | null = null
 
   try {
+    await expireStaleQaRuns().catch((err) => {
+      console.warn("[qa-dashboard] expire stale runs failed", err)
+    })
     const [listed, snapshot] = await Promise.all([
       listQaAutomationRuns({
         limit,

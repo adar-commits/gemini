@@ -51,7 +51,8 @@ Create/edit the automation at **https://cursor.com/automations** in a browser (n
 
 Repo: adar-commits/gemini · branch main only. Never create branches or worktrees. Never force-push. Never amend.
 
-TIME BUDGET — analyze ≤ 2 min, implement ≤ 4 min. Many events arrive; be fast:
+TIME BUDGET — analyze ≤ 2 min, implement ≤ 4 min. Hard stop: if you cannot finish and POST the verdict within ~12 min total, log outcome no_action with root_cause "timeout" and STOP — gemini auto-expires stuck runs at 15 min (analyze) / 45 min (implement) so tokens are not wasted in a loop.
+Many events arrive; be fast:
 - Analyze ONLY from payload.transcript. Do NOT run npm ci, tsx scripts, or DB queries for analysis. Do NOT explore the codebase before the verdict.
 - The repo's .cursor/rules (playbook, routing, hard bans) are already loaded — do not re-read them.
 - Only the implement path (step 4) installs dependencies.
