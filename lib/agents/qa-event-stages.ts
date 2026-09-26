@@ -1,4 +1,5 @@
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
+import { operatorQuestionsAnswered } from "@/lib/agents/qa-operator-gate"
 
 export type QaEventStageId =
   | "sent"
@@ -78,8 +79,20 @@ const WAITING_OUTCOMES = new Set<QaAutomationRunRow["outcome"]>([
 ])
 
 /** Automation stopped and needs the operator (amber "decision" stage). */
-export function isQaRunWaitingForOperator(run: Pick<QaAutomationRunRow, "outcome">) {
-  return WAITING_OUTCOMES.has(run.outcome)
+export function isQaRunWaitingForOperator(
+  run: Pick<QaAutomationRunRow, "outcome" | "operator_questions" | "operator_replies">
+) {
+  if (!WAITING_OUTCOMES.has(run.outcome)) return false
+  if (operatorQuestionsAnswered(run)) return false
+  return true
+}
+
+/** MCQs were answered but automation has not chained to implement yet. */
+export function isQaRunAwaitingAutomationContinue(
+  run: Pick<QaAutomationRunRow, "outcome" | "operator_questions" | "operator_replies">
+) {
+  if (!operatorQuestionsAnswered(run)) return false
+  return run.outcome === "too_risky" || run.outcome === "ask_operator" || run.outcome === "real_failure"
 }
 
 function parseMs(iso?: string | null) {

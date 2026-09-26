@@ -34,6 +34,17 @@ describe("truncated bot output (301810743 Sigalit)", () => {
     assert.doesNotMatch(result.reply, /תילקח בח/)
     assert.match(result.reply, /3076|מספר הזמנה/)
   })
+
+  it("does not append cut-off tail after a customer image turn", () => {
+    const truncated = `${SIGALIT_TRUNCATED}`
+    const result = validateHomAgentReply(
+      { reply: truncated, action: "reply" },
+      "[תמונה][media:image:https://example.com/p.jpg]",
+      null,
+      [{ role: "user", content: "[תמונה][media:image:https://example.com/p.jpg]" }]
+    )
+    assert.doesNotMatch(result.reply, /נראה שההודעה נקטעה/)
+  })
 })
 
 describe("complete replies are not flagged", () => {

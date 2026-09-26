@@ -25,7 +25,11 @@ import type { QaConversationContext } from "@/lib/landbot/qa-conversation-contex
 import { QaElapsedTimer } from "@/components/qa/qa-elapsed-timer"
 import { QaScorecard } from "@/components/qa/qa-scorecard"
 import { QaEventGauge } from "@/components/qa/qa-event-gauge"
-import { isQaRunWaitingForOperator, qaEventProgress } from "@/lib/agents/qa-event-stages"
+import {
+  isQaRunAwaitingAutomationContinue,
+  isQaRunWaitingForOperator,
+  qaEventProgress,
+} from "@/lib/agents/qa-event-stages"
 import { QaOperatorReply } from "@/components/qa/qa-operator-reply"
 import { QaRiskGauge } from "@/components/qa/qa-risk-gauge"
 import { QaRunToolbar } from "@/components/qa/qa-run-toolbar"
@@ -178,6 +182,16 @@ export function QaRunCard({
               questions={run.operator_questions}
               previousReplies={run.operator_replies}
             />
+          ) : isQaRunAwaitingAutomationContinue(run) ? (
+            <section className="rounded-2xl bg-gradient-to-l from-sky-50 to-transparent p-4 ring-1 ring-sky-200">
+              <p className="text-sm font-semibold text-sky-900">
+                התשובות התקבלו — האירוע אמור להמשיך ליישום
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-sky-800/80">
+                אם הסטטוס נשאר &quot;מסוכן מדי&quot; יותר מדקה, לחץ ↻ למעלה כדי לשלוח שוב
+                לאוטומציה עם אישור המפעיל.
+              </p>
+            </section>
           ) : run.operator_replies.length ? (
             <section className="rounded-2xl bg-zinc-50/80 p-4 ring-1 ring-black/[0.04]">
               <h3 className="mb-1.5 text-sm font-bold text-foreground">התשובות שלך לאוטומציה</h3>

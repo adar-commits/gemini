@@ -3,6 +3,10 @@ import {
   updateQaAutomationRun,
   type QaAutomationRunRow,
 } from "@/lib/agents/qa-automation-log"
+import {
+  buildOperatorContinuationNotes,
+  operatorQuestionsAnswered,
+} from "@/lib/agents/qa-operator-gate"
 import { isQaRunWaitingForOperator } from "@/lib/agents/qa-event-stages"
 import {
   buildCursorAutomationQaPayload,
@@ -80,15 +84,23 @@ async function resendQaEvent(
     since: eventWindow?.since ?? null,
   }).catch(() => null)
 
+  const gatePassed = operatorQuestionsAnswered({
+    operator_questions: run.operator_questions,
+    operator_replies: input.operatorReplies,
+  })
   const payload = buildCursorAutomationQaPayload({
     sessionId: run.session_id,
     transcript,
     landbotCustomerId: run.landbot_customer_id,
     trigger: run.trigger as CursorAutomationQaTrigger,
     idempotencyKey: eventIdempotencyKey(run),
-    operatorNotes: run.operator_input,
+    operatorNotes: buildOperatorContinuationNotes(
+      { ...run, operator_replies: input.operatorReplies },
+      input.note
+    ),
     operatorReplies: input.operatorReplies,
     previousAnalysis: previousAnalysis(run),
+    operatorGatePassed: gatePassed,
     ...qaEventWindowPayloadFields(eventWindow),
   })
 
@@ -109,6 +121,7 @@ async function resendQaEvent(
     operatorNotes: input.note,
     stageTimestamps: { event_at: new Date().toISOString() },
     operatorReplies: input.operatorReplies,
+    ...(gatePassed ? { operatorQuestions: [] } : {}),
   })
   return { ok: true as const }
 }

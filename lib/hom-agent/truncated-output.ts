@@ -67,7 +67,10 @@ function truncationCompletionTail(repaired: string) {
 }
 
 /** Strip dead-end tails and append a complete closing when output was cut mid-sentence. */
-export function repairTruncatedBotReply(reply: string) {
+export function repairTruncatedBotReply(
+  reply: string,
+  options?: { skipCompletionTail?: boolean }
+) {
   let text = reply.trim()
   if (!text) return reply
 
@@ -90,5 +93,20 @@ export function repairTruncatedBotReply(reply: string) {
   repaired = dropIncompleteTrailingSentence(repaired)
   if (repaired.length < 40) return text
 
+  if (options?.skipCompletionTail) return repaired
   return `${repaired}\n\n${truncationCompletionTail(repaired)}`
+}
+
+export function customerTurnIncludedImage(content: string) {
+  return /\[media:image:/i.test(content) || /\[תמונה\]/i.test(content)
+}
+
+export function lastCustomerTurnIncludedImage(history: { role: string; content: string }[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message?.role === "user") {
+      return customerTurnIncludedImage(message.content)
+    }
+  }
+  return false
 }

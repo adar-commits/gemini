@@ -1,3 +1,4 @@
+import { operatorQuestionsAnswered } from "@/lib/agents/qa-operator-gate"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import {
   mergeQaStageTimestamps,
@@ -212,7 +213,12 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
         if (input.fixLayer?.trim()) patch.fix_layer = input.fixLayer.trim()
         if (input.fixPlan?.length) patch.fix_plan = input.fixPlan
         if (input.operatorQuestions?.length) {
-          patch.operator_questions = input.operatorQuestions
+          const existingRow = mapRow(existing as Record<string, unknown>)
+          if (!operatorQuestionsAnswered(existingRow)) {
+            patch.operator_questions = input.operatorQuestions
+          } else {
+            patch.operator_questions = []
+          }
         }
         if (input.commitSha?.trim()) patch.commit_sha = input.commitSha.trim()
         if (input.changedFiles?.length) patch.changed_files = input.changedFiles
@@ -387,6 +393,7 @@ export async function updateQaAutomationRun(input: {
   /** Replaces (not merges) stage timestamps — used when a retry restarts the event. */
   stageTimestamps?: QaStageTimestamps
   operatorReplies?: QaOperatorReply[]
+  operatorQuestions?: string[]
 }) {
   const supabase = getAgentSupabase()
   const patch: Record<string, unknown> = {
@@ -398,6 +405,7 @@ export async function updateQaAutomationRun(input: {
   if (input.riskScore !== undefined) patch.risk_score = input.riskScore
   if (input.stageTimestamps) patch.stage_timestamps = input.stageTimestamps
   if (input.operatorReplies) patch.operator_replies = input.operatorReplies
+  if (input.operatorQuestions) patch.operator_questions = input.operatorQuestions
 
   const { data, error } = await supabase
     .from("hom_agent_qa_runs")

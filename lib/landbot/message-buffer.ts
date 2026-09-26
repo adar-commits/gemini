@@ -5,6 +5,11 @@ import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { mergeTurns, summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
+/** Image-only burst — customer often sends caption text in the next line. */
+export function turnAwaitingTextAfterMedia(turn: UserTurn) {
+  return turn.media.some((part) => part.kind === "image") && !turn.text.trim()
+}
+
 const DEFAULT_DEBOUNCE_MS = 5000
 const DEFAULT_FIRST_TURN_DEBOUNCE_MS = 10000
 
@@ -192,6 +197,13 @@ export async function absorbBufferedTurn(conversationId: string): Promise<UserTu
     if (looksLikePartialBurst(turn)) {
       const window = await debounceWindowMs(conversationId)
       await sleep(partialBurstSoakMs(window))
+    }
+
+    if (turnAwaitingTextAfterMedia(turn)) {
+      const window = await debounceWindowMs(conversationId)
+      await sleep(Math.min(4000, Math.max(1500, Math.floor(window / 2))))
+      const caption = await claimBufferedTurn(conversationId)
+      if (caption) turn = mergeTurns([turn, caption])
     }
 
     const after = await readBufferSnapshot(conversationId)

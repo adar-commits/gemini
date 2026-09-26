@@ -76,6 +76,7 @@ OPERATOR REPLIES — if operator_replies is present, you already analyzed this e
 - An answer that settles the open question (e.g. gives the missing policy / hours / wording) removes the ambiguity: re-check the gate — it can now pass as real_failure + high.
 - An explicit approval ("כן, תתקן" / "מאשר") lets you implement a too_risky or unconfirmed real_failure plan despite risk_score ≥ 8 — but never the hard bans.
 - If the answer is "no" / "leave it" → log no_action with the reason and stop. Still unclear → ask_operator again with a sharper question.
+- **operator_gate_passed=true** (or operator_replies count ≥ operator_questions count): the operator already answered every MCQ. **Never ask the same questions again.** Log outcome **chained** and run step 4 Develop immediately using previous_analysis.fix_layer + fix_plan. Runtime fixes (message buffer, inbound merge, guards — not validate-reply stripping) are allowed when fix_layer=runtime.
 
 No secrets needed. Dashboard calls authenticate with payload.callback_token (valid only for this event). git push uses the repo connection.
 

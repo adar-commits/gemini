@@ -121,9 +121,30 @@ describe("qaEventProgress", () => {
   })
 
   it("offers the operator reply box only while the automation waits", () => {
-    assert.equal(isQaRunWaitingForOperator({ outcome: "ask_operator" }), true)
-    assert.equal(isQaRunWaitingForOperator({ outcome: "too_risky" }), true)
-    assert.equal(isQaRunWaitingForOperator({ outcome: "real_failure" }), true)
+    assert.equal(
+      isQaRunWaitingForOperator({
+        outcome: "ask_operator",
+        operator_questions: ["q"],
+        operator_replies: [],
+      }),
+      true
+    )
+    assert.equal(
+      isQaRunWaitingForOperator({
+        outcome: "too_risky",
+        operator_questions: ["q"],
+        operator_replies: [],
+      }),
+      true
+    )
+    assert.equal(
+      isQaRunWaitingForOperator({
+        outcome: "real_failure",
+        operator_questions: [],
+        operator_replies: [],
+      }),
+      true
+    )
     assert.equal(isQaRunWaitingForOperator({ outcome: "triggered" }), false)
     assert.equal(isQaRunWaitingForOperator({ outcome: "chained" }), false)
     assert.equal(isQaRunWaitingForOperator({ outcome: "false_alarm" }), false)

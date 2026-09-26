@@ -24,7 +24,10 @@ import {
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { HomAgentOutput } from "@/lib/hom-agent/output-schema"
-import { repairTruncatedBotReply } from "@/lib/hom-agent/truncated-output"
+import {
+  lastCustomerTurnIncludedImage,
+  repairTruncatedBotReply,
+} from "@/lib/hom-agent/truncated-output"
 
 export { isLikelyTruncatedBotReply } from "@/lib/hom-agent/truncated-output"
 
@@ -36,7 +39,9 @@ export function validateHomAgentReply(
 ): HomAgentOutput {
   let reply = output.reply?.trim() ?? ""
   reply = sanitizeLeakedStructuredJson(reply)
-  reply = repairTruncatedBotReply(stripTrailingJsonArtifacts(reply))
+  reply = repairTruncatedBotReply(stripTrailingJsonArtifacts(reply), {
+    skipCompletionTail: lastCustomerTurnIncludedImage(history),
+  })
   if (!reply && output.action === "reply") {
     reply = buildNeverStuckReply()
   }

@@ -44,6 +44,8 @@ export type CursorAutomationQaPayload = {
   operator_replies?: { at: string; text: string }[]
   /** The automation's previous verdict for this event — continue from it when replying. */
   previous_analysis?: QaPreviousAnalysis
+  /** All operator_questions were answered — skip re-ask and proceed to implement. */
+  operator_gate_passed?: boolean
   sent_at: string
 }
 
@@ -230,6 +232,7 @@ export function buildCursorAutomationQaPayload(input: {
   transcript?: string | null
   operatorReplies?: { at: string; text: string }[]
   previousAnalysis?: QaPreviousAnalysis | null
+  operatorGatePassed?: boolean
   eventWindowSince: string
   eventWindowReason: QaEventWindowReason
   eventWindowMessageCount: number
@@ -263,6 +266,7 @@ export function buildCursorAutomationQaPayload(input: {
     ...(callbackToken ? { callback_token: callbackToken } : {}),
     ...(input.operatorReplies?.length ? { operator_replies: input.operatorReplies } : {}),
     ...(input.previousAnalysis ? { previous_analysis: input.previousAnalysis } : {}),
+    ...(input.operatorGatePassed ? { operator_gate_passed: true } : {}),
     sent_at: new Date().toISOString(),
   }
 }
