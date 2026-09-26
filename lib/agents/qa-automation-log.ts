@@ -244,6 +244,7 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
 export type QaDashboardBucket =
   | "all"
   | "in_review"
+  | "waiting_for_operator"
   | "dismissed"
   | "implemented"
   | "too_risky"
@@ -256,13 +257,8 @@ const QA_BUCKET_OUTCOMES: Record<
   Exclude<QaDashboardBucket, "all">,
   QaAutomationOutcome[]
 > = {
-  in_review: [
-    "triggered",
-    "webhook_failed",
-    "chained",
-    "real_failure",
-    "ask_operator",
-  ],
+  in_review: ["triggered", "webhook_failed", "chained"],
+  waiting_for_operator: ["ask_operator", "too_risky", "real_failure"],
   dismissed: ["false_alarm", "ignored"],
   implemented: ["implemented"],
   too_risky: ["too_risky"],
@@ -339,6 +335,9 @@ export async function getQaAutomationStats(days = 7) {
   const inReview = rows.filter((row) =>
     QA_BUCKET_OUTCOMES.in_review.includes(row.outcome as QaAutomationOutcome)
   ).length
+  const waitingForOperator = rows.filter((row) =>
+    QA_BUCKET_OUTCOMES.waiting_for_operator.includes(row.outcome as QaAutomationOutcome)
+  ).length
   const dismissed = rows.filter((row) =>
     QA_BUCKET_OUTCOMES.dismissed.includes(row.outcome as QaAutomationOutcome)
   ).length
@@ -349,6 +348,7 @@ export async function getQaAutomationStats(days = 7) {
     days,
     total: rows.length,
     inReview,
+    waitingForOperator,
     dismissed,
     implemented,
     tooRisky,

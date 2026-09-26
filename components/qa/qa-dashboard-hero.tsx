@@ -14,6 +14,7 @@ export function QaDashboardHero({
     days: number
     total: number
     inReview: number
+    waitingForOperator: number
     dismissed: number
     implemented: number
     tooRisky: number

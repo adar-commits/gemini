@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic"
 const BUCKETS: { id: QaDashboardBucket; label: string }[] = [
   { id: "all", label: "הכל" },
   { id: "in_review", label: "בתהליך Review" },
+  { id: "waiting_for_operator", label: "ממתין לתשובה" },
   { id: "dismissed", label: "אזעקות שווא / התעלמות" },
   { id: "implemented", label: "תיקונים שבוצעו" },
   { id: "too_risky", label: "מסוכן מדי" },

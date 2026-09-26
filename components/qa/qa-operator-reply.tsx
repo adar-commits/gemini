@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { replyToQaRunAction } from "@/app/dashboard/qa/actions"
 
@@ -22,8 +23,10 @@ export function QaOperatorReply({
   questions: string[]
   previousReplies: { at: string; text: string }[]
 }) {
+  const router = useRouter()
   const [reply, setReply] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [sent, setSent] = useState(false)
   const [pending, startTransition] = useTransition()
 
   function submit() {
@@ -34,6 +37,8 @@ export function QaOperatorReply({
       const result = await replyToQaRunAction(runId, text)
       if (result.ok) {
         setReply("")
+        setSent(true)
+        router.refresh()
         return
       }
       setError(
@@ -42,6 +47,19 @@ export function QaOperatorReply({
           : result.error
       )
     })
+  }
+
+  if (sent) {
+    return (
+      <section className="rounded-2xl bg-gradient-to-l from-sky-50 to-transparent p-4 ring-1 ring-sky-200">
+        <p className="text-sm font-semibold text-sky-900">
+          התשובה נשלחה — האוטומציה ממשיכה ב-review
+        </p>
+        <p className="mt-1 text-xs text-sky-800/75">
+          האירוע יופיע תחת &quot;בתהליך Review&quot; עד שהאוטומציה תחזיר החלטה.
+        </p>
+      </section>
+    )
   }
 
   return (

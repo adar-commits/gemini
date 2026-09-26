@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useTransition } from "react"
 import { deleteQaRunAction, retryQaRunAction } from "@/app/dashboard/qa/actions"
 const QA_RUN_RETRY_LABEL = "שלח שוב לאוטומציה"
@@ -56,12 +57,14 @@ export function QaRunToolbar({
   runId: string
   canRetry: boolean
 }) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
 
   function handleDelete() {
     if (!window.confirm("למחוק את האירוע מהדשבורד?")) return
     startTransition(async () => {
       await deleteQaRunAction(runId)
+      router.refresh()
     })
   }
 
@@ -71,7 +74,9 @@ export function QaRunToolbar({
       const result = await retryQaRunAction(runId)
       if (!result.ok && result.error) {
         window.alert(result.error)
+        return
       }
+      router.refresh()
     })
   }
 

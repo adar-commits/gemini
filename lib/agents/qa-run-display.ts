@@ -93,6 +93,7 @@ export function qaHealthScore(stats: {
 export function qaHealthSegments(stats: {
   total: number
   inReview: number
+  waitingForOperator: number
   dismissed: number
   implemented: number
   tooRisky: number
@@ -100,6 +101,12 @@ export function qaHealthSegments(stats: {
   return [
     { key: "implemented", label: "יושם", value: stats.implemented, color: "#10b981" },
     { key: "in_review", label: "ב-review", value: stats.inReview, color: "#0ea5e9" },
+    {
+      key: "waiting_for_operator",
+      label: "ממתין לתשובה",
+      value: stats.waitingForOperator,
+      color: "#f59e0b",
+    },
     { key: "dismissed", label: "התעלמות", value: stats.dismissed, color: "#a1a1aa" },
     { key: "too_risky", label: "מסוכן", value: stats.tooRisky, color: "#f43f5e" },
   ].filter((segment) => segment.value > 0)

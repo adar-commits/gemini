@@ -104,6 +104,7 @@ async function resendQaEvent(
 
   await updateQaAutomationRun({
     id: run.id,
+    phase: "analyze",
     outcome: "triggered",
     operatorNotes: input.note,
     stageTimestamps: { event_at: new Date().toISOString() },
