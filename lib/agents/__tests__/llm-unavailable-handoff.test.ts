@@ -56,7 +56,13 @@ describe("resolveLlmUnavailableHandoff", () => {
 
   it("does not hand off on unrelated text without pending offer", () => {
     assert.equal(resolveLlmUnavailableHandoff("כן", []), null)
-    assert.equal(resolveLlmUnavailableHandoff("מה שעות הסניף?", llmFailureHistory), null)
+  })
+
+  it("hands off on a second consecutive failure even for unrelated text (532459052)", () => {
+    assert.equal(
+      resolveLlmUnavailableHandoff("מה שעות הסניף?", llmFailureHistory),
+      "human_service"
+    )
   })
 })
 

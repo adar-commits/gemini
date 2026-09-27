@@ -1,3 +1,4 @@
+import { isBotFailureReply } from "@/lib/agent-core/fallbacks"
 import { messageAwaits } from "@/lib/agents/bot-awaiting"
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import {
@@ -255,6 +256,15 @@ export function resolveLlmUnavailableHandoff(
 
   if (isExplicitHumanHandoffRequest(text)) {
     return inferHumanHandoffAction(history, lastAgent)
+  }
+
+  // Operator policy (532459052): model down while the rep summary awaits approval, or a second
+  // failure in a row — hand off instead of repeating the failure offer.
+  if (!isHumanHandoffDecline(text)) {
+    if (isServiceHandoffSummaryPending(history)) return "human_service"
+    if (isBotFailureReply(lastAssistantText(history))) {
+      return inferHumanHandoffAction(history, lastAgent)
+    }
   }
 
   return null
