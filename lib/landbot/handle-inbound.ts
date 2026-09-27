@@ -7,7 +7,7 @@ import {
 } from "@/lib/agents/conversation-close"
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
-import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, isVoiceClosureTemplateLastOutbound, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { assignCrmConversationToHomBot } from "@/lib/crm/conversation-assign"
 import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
 import { closeCrmConversation } from "@/lib/crm/conversation-close"
@@ -96,6 +96,18 @@ function salvagedReply(body: string, input?: { customerName?: string; history?: 
   return salvageReturnPickupAwaitingReply(body)
 }
 
+/** Customer answered the voice-closure template: a rep owns the reply, the bot stays silent. */
+export function buildVoiceClosureSilentHandoffResult(mode: InboundMode): LandbotInboundResult {
+  return {
+    ok: true,
+    agent: "master",
+    action: "human_service",
+    reply: "",
+    mode,
+    skipped: "voice_closure_template",
+  }
+}
+
 /** Final fallback when the pipeline produced no sendable reply — never a bare hold message. */
 function emptyReplyFallback(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
   return salvagedReply(body, input) ?? buildNeverStuckReply()
@@ -142,6 +154,16 @@ export async function handleLandbotInbound(
     if (shouldClearHumanThreadOnBypass(turnSummary, history)) {
       await releaseHumanThread(conversationId)
     }
+  }
+
+  if (
+    replyEnabled &&
+    !trainerResetBypass &&
+    (await isVoiceClosureTemplateLastOutbound(conversationId).catch(() => false))
+  ) {
+    await clearInactivityWatchState(conversationId).catch(() => {})
+    await executeHumanHandoff({ conversationId, customerId, action: "human_service" })
+    return buildVoiceClosureSilentHandoffResult(mode)
   }
 
   let customerName = options?.customerName?.trim() || ""
