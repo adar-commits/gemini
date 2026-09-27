@@ -64,12 +64,14 @@ Payload (JSON body):
 conversation_url, session_id, landbot_customer_id, trigger, handoff_action?, last_user_message?, last_bot_reply?,
 transcript (event-window TIMELINE + AGENT TURNS + SHADOW — the whole incident, already filtered),
 event_window_since, event_window_reason, event_window_message_count, total_message_count (ignore),
-idempotency_key, callback_token, phone_last4, operator_notes?, operator_replies?, previous_analysis?, sent_at, test?
+idempotency_key, callback_token, phone_last4, operator_notes?, operator_replies?, previous_analysis?, autonomy_policy?, operator_gate_passed?, sent_at, test?
+
+AUTONOMY DEFAULT — read payload.autonomy_policy first. **Bias toward self-improve:** if you can name a concrete bug + fix_layer + 1–3 fix_plan steps, log **outcome chained** and implement in the same run. The operator is busy — do not ask for confirmation on obvious prompt/hints/runtime fixes you already identified.
 
 OPERATOR NOTES — if operator_notes is present, a human reviewing the chat wrote what went wrong. Treat it as the behavior spec:
 - Verify it against the transcript, then answer it directly in root_cause (agree, or explain in Hebrew why the bot was right).
 - It outranks your own guess, but never the hard bans or the implement gate.
-- Ambiguous / policy-level request → ask_operator with multiple-choice questions.
+- ask_operator **only** when Hebrew **business policy** is genuinely unresolved (two valid policies, no KB, no safe default).
 
 OPERATOR REPLIES — if operator_replies is present, you already analyzed this event (previous_analysis) and stopped to wait for the operator; the last item is their newest answer.
 - Do not re-analyze from scratch. Start from previous_analysis, apply the answer, and log a new verdict.
@@ -100,21 +102,23 @@ Only if transcript is missing: npm ci --no-audit --no-fund && npx tsx scripts/re
 STAGE ping: analyzing.
 - false_alarm — customer wanted a human; the bot behaved correctly.
 - already_covered — same bug class fixed in the last 7 days: check `head -40 .cursor/automations/hom-conversation-qa/BRIEF.md` only if you suspect it.
-- too_risky — touches routing policy, gender forms, customer-facing semantics, or needs a product decision. Also any risk_score ≥ 8.
-- ask_operator — Hebrew policy or fix necessity is ambiguous. 1–3 multiple-choice operator_questions. Do not guess.
-- real_failure — clear bot mistake with an obvious fix layer.
+- too_risky — **rare.** Only: gender forms (לך/לכם), changing customer-facing meaning/tone, routing policy fork with no KB, or risk_score ≥ 10. **Not** for clear prompt/hints/runtime bugs.
+- ask_operator — **rare.** Only when Hebrew **business policy** is truly ambiguous (two equally valid policies, no KB). Max 2 MCQs. Never ask "should we fix this?" when the bug is already obvious.
+- real_failure — internal verdict label for a clear bot mistake; if the implement gate passes, log **outcome chained** (not real_failure) and go to step 4 immediately.
 root_cause and fix_plan in easy Hebrew (short sentences, no jargon) — shown as הבעיה / הפתרון.
 fix_layer: prompt | hints | tool_guard | pre_turn | runtime. risk_score 1–10.
 
-IMPLEMENT GATE — continue to step 4 only if ALL are true:
-- verdict real_failure, confidence high
-- fix_layer set, fix_plan 1–3 steps, none uses customer-text regex or reply sanitizers
-- risk_score ≤ 7 (or the operator explicitly approved in operator_replies) and the fix is required (not a nice-to-have, style tweak or speculative hardening)
-If unsure → ask_operator.
+IMPLEMENT GATE — continue to step 4 when ALL are true (default **yes** for typical bot mistakes):
+- clear bug in transcript + fix_layer + fix_plan 1–3 steps
+- none uses new Hebrew intent regex on customer text or reply sanitizers (sanitize* / validate-reply stripping)
+- confidence high **or** medium (prompt/hints/runtime only)
+- risk_score ≤ 9 (or operator approved in operator_replies)
+- fix is required — not a nice-to-have or style tweak
+**If the only blocker is "I'm not 100% sure" but fix_layer is prompt|hints|runtime → chained anyway.** ask_operator only for policy forks above.
 
 ## 3. Brief — log the verdict (always)
-VERDICT log. outcome = the verdict, or "chained" when the gate passed ("implementing now").
-Reply in chat: verdict · one-sentence cause · risk. If the gate did not pass → STOP. The run is done.
+VERDICT log. outcome = **chained** when the gate passed (then continue to step 4 in the same run). Use false_alarm / already_covered / no_action / too_risky / ask_operator only when you are **stopping without code**.
+Reply in chat: verdict · one-sentence cause · risk. If stopping without implement → STOP. If chained → do not stop.
 
 ## 4. Develop (gate passed only, ≤ 4 min)
 STAGE ping: coding.

@@ -140,7 +140,7 @@ describe("qaEventProgress", () => {
     assert.equal(
       isQaRunWaitingForOperator({
         outcome: "real_failure",
-        operator_questions: [],
+        operator_questions: ["לאשר תיקון?"],
         operator_replies: [],
       }),
       true
@@ -148,6 +148,14 @@ describe("qaEventProgress", () => {
     assert.equal(isQaRunWaitingForOperator({ outcome: "triggered" }), false)
     assert.equal(isQaRunWaitingForOperator({ outcome: "chained" }), false)
     assert.equal(isQaRunWaitingForOperator({ outcome: "false_alarm" }), false)
+    assert.equal(
+      isQaRunWaitingForOperator({
+        outcome: "real_failure",
+        operator_questions: [],
+        operator_replies: [],
+      }),
+      false
+    )
   })
 
   it("flags stale in-progress events", () => {

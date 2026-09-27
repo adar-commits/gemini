@@ -19,7 +19,7 @@ export type QaAnalysis = {
   conversation_url: string
   trigger: CursorAutomationQaTrigger
   verdict: QaAnalysisVerdict
-  /** Implement only when high — medium/low → ask_operator instead. */
+  /** high|medium can auto-implement for prompt/hints/runtime; low → ask_operator only if policy is unclear. */
   confidence: "high" | "medium" | "low"
   root_cause: string
   fix_layer?: QaFixLayer

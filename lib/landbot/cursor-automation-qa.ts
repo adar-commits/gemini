@@ -10,6 +10,7 @@ import {
 } from "@/lib/landbot/qa-event-window"
 import { buildQaTranscript } from "@/lib/landbot/qa-transcript"
 import { qaCallbackToken } from "@/lib/agents/qa-callback-token"
+import { qaAutonomyPolicyBlock } from "@/lib/landbot/qa-autonomy-policy"
 
 export type CursorAutomationQaTrigger =
   | "human_assign"
@@ -46,6 +47,8 @@ export type CursorAutomationQaPayload = {
   previous_analysis?: QaPreviousAnalysis
   /** All operator_questions were answered — skip re-ask and proceed to implement. */
   operator_gate_passed?: boolean
+  /** Default: implement alone unless truly ambiguous — see qa-autonomy-policy.ts */
+  autonomy_policy?: string
   sent_at: string
 }
 
@@ -267,6 +270,7 @@ export function buildCursorAutomationQaPayload(input: {
     ...(input.operatorReplies?.length ? { operator_replies: input.operatorReplies } : {}),
     ...(input.previousAnalysis ? { previous_analysis: input.previousAnalysis } : {}),
     ...(input.operatorGatePassed ? { operator_gate_passed: true } : {}),
+    autonomy_policy: qaAutonomyPolicyBlock(),
     sent_at: new Date().toISOString(),
   }
 }

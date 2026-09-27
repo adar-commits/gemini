@@ -72,6 +72,7 @@ describe("cursor automation qa webhook", () => {
     assert.equal(payload.event_window_message_count, 24)
     assert.equal(payload.total_message_count, 2197)
     assert.match(payload.conversation_url, /508272038/)
+    assert.match(payload.autonomy_policy ?? "", /AUTONOMY DEFAULT/)
   })
 
   it("adds a per-event callback token when CRON_SECRET is set", () => {

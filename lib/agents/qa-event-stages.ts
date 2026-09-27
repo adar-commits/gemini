@@ -84,6 +84,8 @@ export function isQaRunWaitingForOperator(
 ) {
   if (!WAITING_OUTCOMES.has(run.outcome)) return false
   if (operatorQuestionsAnswered(run)) return false
+  // real_failure without MCQs should chain to implement — not block on the operator.
+  if (run.outcome === "real_failure" && run.operator_questions.length === 0) return false
   return true
 }
 

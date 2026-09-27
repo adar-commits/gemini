@@ -264,7 +264,7 @@ const QA_BUCKET_OUTCOMES: Record<
   QaAutomationOutcome[]
 > = {
   in_review: ["triggered", "webhook_failed", "chained"],
-  waiting_for_operator: ["ask_operator", "too_risky", "real_failure"],
+  waiting_for_operator: ["ask_operator", "too_risky"],
   dismissed: ["false_alarm", "ignored"],
   implemented: ["implemented"],
   too_risky: ["too_risky"],
