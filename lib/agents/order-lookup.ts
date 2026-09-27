@@ -751,6 +751,38 @@ const SERVICE_ASSISTANT_CONTEXT_RE =
 const SHIPPING_ASSISTANT_CONTEXT_RE =
   /(?:בדקתי,|סטטוס\s+(?:ה)?משלוח|איפה\s+(?:ה)?(?:משלוח|הזמנה)|מצאתי\s+א(?:ת\s+)?(?:ה)?הזמנה.*(?:נכון|\?))/i
 
+function substantiveUserLinesForServiceGate(history: HistoryMessage[], body: string) {
+  return history
+    .filter((message) => message.role === "user")
+    .slice(-6)
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .concat(body.trim() ? [body.trim()] : [])
+    .filter(
+      (line) =>
+        !isOrderConfirmationYes(line) &&
+        !isPureOrderConfirmation(line) &&
+        line.length > 2
+    )
+}
+
+/** Shipping/status lookup only — after order confirm, deliver status not service rep summary. */
+function isShippingOnlyOrderIdentificationThread(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (isServiceLookupContext(history)) return false
+  const lines = substantiveUserLinesForServiceGate(history, body)
+  if (lines.length === 0) return false
+  return lines.every(
+    (line) =>
+      isShippingStatusQuestion(line) ||
+      isOrderDeliveryStatusQuestion(line) ||
+      isDeliveryEstimateQuestion(line) ||
+      isPreorderDelayComplaint(line)
+  )
+}
+
 /**
  * Service intake used order lookup only to identify מס׳ הזמנה — after confirm,
  * continue rep report → human_service (not shipping status).
@@ -766,6 +798,7 @@ export function isServiceOrderIdentificationFlow(
   ) {
     return false
   }
+  if (isShippingOnlyOrderIdentificationThread(history, body)) return false
   const userText = history
     .filter((message) => message.role === "user")
     .slice(-8)

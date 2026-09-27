@@ -16,6 +16,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  documentReferenceGivenInThread,
   mentionsCancellationDesire,
   orderIdGivenInThread,
   isShippingAddressUpdateThread,
@@ -441,6 +442,30 @@ export function buildConversationHints(input: {
   }
 
   if (
+    isCallbackUrgencyRequest(body) &&
+    (isPostOrderShippingFollowUp(body, history) ||
+      isShippingStatusQuestion(body) ||
+      isOrderDeliveryStatusQuestion(body) ||
+      isOrderLookupCompletedInThread(history))
+  ) {
+    lines.push(
+      "CALLBACK URGENCY + SHIPPING (262348751): urgent phone callback while delivery is still open — brief empathize, answer shipping/status if you can, then action human_service + crm_department service. Never replay a stale sales intake summary or human_sales — this is שירות."
+    )
+  }
+
+  if (
+    isSalesFinalSummaryPending(history) &&
+    (isCallbackUrgencyRequest(body) ||
+      isShippingStatusQuestion(body) ||
+      isOrderDeliveryStatusQuestion(body) ||
+      isPostOrderShippingFollowUp(body, history))
+  ) {
+    lines.push(
+      "STALE SALES SUMMARY: shipping/urgent service issue overrides an old sales אני צודק? recap — ignore the sales summary; route to service (lookup/status if needed → human_service). Never human_sales on this turn."
+    )
+  }
+
+  if (
     isShippingStatusQuestion(body) &&
     !isServiceOrderIdentificationFlow(history, body)
   ) {
@@ -520,6 +545,23 @@ export function buildConversationHints(input: {
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
           "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → rep summary bullets → summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
+        )
+      } else if (
+        isOrderConfirmationYes(body) &&
+        !isServiceOrderIdentificationFlow(history, body) &&
+        (isShippingStatusQuestion(body) ||
+          isOrderDeliveryStatusQuestion(body) ||
+          history
+            .filter((message) => message.role === "user")
+            .slice(-4)
+            .some(
+              (message) =>
+                isShippingStatusQuestion(message.content) ||
+                isOrderDeliveryStatusQuestion(message.content)
+            ))
+      ) {
+        lines.push(
+          "SHIPPING ORDER CONFIRM YES (532732459): כן confirms the order card for delivery/status tracking only — call lookup_order_status and answer shipping status. Never invent dissatisfaction/service rep summary unless they stated a product/service complaint."
         )
       } else {
         lines.push(
@@ -889,8 +931,19 @@ export function buildConversationHints(input: {
   if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
     lines.push(
       salesIntakeMode() === "llm"
-        ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product already stated. On לא יודע/לא בטוח: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). Never replay canned script blocks verbatim."
-        : "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Always a complete Hebrew question or summary — never stub words like placeholder/TODO."
+        ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product already stated. On לא יודע/לא בטוח/לא alone: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). Never empty reply or silence — always the next question or final summary+human_sales."
+        : "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Short לא/אין/ללא counts as an answer to that step. Always a complete Hebrew question or summary — never stub words like placeholder/TODO or empty reply."
+    )
+  }
+
+  if (
+    documentReferenceGivenInThread(history) &&
+    (isShippingStatusQuestion(body) ||
+      isOrderDeliveryStatusQuestion(body) ||
+      isDigitalDocumentRequest(body))
+  ) {
+    lines.push(
+      "RECEIPT REF ORDER ID (533474136): RC/IN/OV in thread identifies the order for lookup_order_status — not document copy menu. fetch_digital_document only when they explicitly ask for a copy of receipt/invoice."
     )
   }
 

@@ -118,6 +118,24 @@ function extractWaitDuration(text: string) {
   return match?.[0]?.trim().slice(0, 60)
 }
 
+const ORDER_CANCELLATION_SUMMARY_LABEL = "ביטול הזמנה"
+
+/** Pre-delivery cancel wording — separate from post-receipt return in rep summaries (533458767). */
+function isOrderCancellationSummaryLabel(corpus: string) {
+  const text = corpus.trim()
+  if (!text) return false
+  if (/(?:קיבל|הגיע|קיבלתי|התקבל)/i.test(text)) return false
+  return /ביטול\s+הזמנה|לבטל\s+(?:את\s+)?(?:ה)?הזמנה|רוצ(?:ה|ים)\s+(?:ל)?בטל/i.test(text)
+}
+
+export function serviceIssueSummaryLabel(intake: ServiceIntake, corpus: string) {
+  if (!intake.issueKind) return "פנייה לשירות לקוחות"
+  if (intake.issueKind === "return_request" && isOrderCancellationSummaryLabel(corpus)) {
+    return ORDER_CANCELLATION_SUMMARY_LABEL
+  }
+  return ISSUE_LABELS[intake.issueKind]
+}
+
 function extractCustomerGoal(text: string, kind: PostPurchaseCaseKind | null) {
   if (kind === "return_pickup_pending") {
     if (/(?:ל)?(?:זרז|לזרז)/i.test(text)) return "לזרז את האיסוף / לקבל עדכון"
@@ -249,7 +267,7 @@ export function buildServiceHandoffReportBlock(
   }
 
   if (intake.issueKind) {
-    lines.push(ISSUE_LABELS[intake.issueKind])
+    lines.push(serviceIssueSummaryLabel(intake, recentUserText(history, body)))
   } else {
     lines.push("פנייה לשירות לקוחות")
   }
@@ -311,7 +329,7 @@ export function buildServiceHandoffSummary(
   }
 
   if (intake.issueKind) {
-    parts.push(ISSUE_LABELS[intake.issueKind])
+    parts.push(serviceIssueSummaryLabel(intake, recentUserText(history, body)))
   } else {
     parts.push("פנייה לשירות")
   }
