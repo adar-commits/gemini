@@ -14,10 +14,10 @@ export function QaDashboardHero({
     days: number
     total: number
     inReview: number
+    inDevelopment: number
     waitingForOperator: number
     dismissed: number
     implemented: number
-    tooRisky: number
   }
   stageTimelines?: QaStageTimingSegment[][]
 }) {

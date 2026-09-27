@@ -12,8 +12,8 @@ const toneClasses = {
     "bg-zinc-100 text-zinc-900 ring-zinc-300 shadow-md hover:shadow-lg hover:bg-zinc-50",
   implemented:
     "bg-emerald-100 text-emerald-950 ring-emerald-300 shadow-md hover:shadow-lg hover:bg-emerald-50",
-  risky:
-    "bg-rose-100 text-rose-950 ring-rose-300 shadow-md hover:shadow-lg hover:bg-rose-50",
+  development:
+    "bg-violet-100 text-violet-950 ring-violet-300 shadow-md hover:shadow-lg hover:bg-violet-50",
 } as const
 
 export function QaStatsBar({
@@ -24,10 +24,10 @@ export function QaStatsBar({
     days: number
     total: number
     inReview: number
+    inDevelopment: number
     waitingForOperator: number
     dismissed: number
     implemented: number
-    tooRisky: number
   }
   activeBucket?: QaDashboardBucket
 }) {
@@ -53,6 +53,13 @@ export function QaStatsBar({
       href: "/dashboard/qa?bucket=in_review",
     },
     {
+      key: "in_development",
+      label: "אירועים בפיתוח",
+      value: stats.inDevelopment,
+      tone: "development",
+      href: "/dashboard/qa?bucket=in_development",
+    },
+    {
       key: "waiting_for_operator",
       label: "ממתין לתשובה",
       value: stats.waitingForOperator,
@@ -72,13 +79,6 @@ export function QaStatsBar({
       value: stats.implemented,
       tone: "implemented",
       href: "/dashboard/qa?bucket=implemented",
-    },
-    {
-      key: "too_risky",
-      label: "מסוכן מדי",
-      value: stats.tooRisky,
-      tone: "risky",
-      href: "/dashboard/qa?bucket=too_risky",
     },
   ]
 

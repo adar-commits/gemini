@@ -18,11 +18,15 @@ export const dynamic = "force-dynamic"
 const BUCKETS: { id: QaDashboardBucket; label: string }[] = [
   { id: "all", label: "הכל" },
   { id: "in_review", label: "בתהליך Review" },
+  { id: "in_development", label: "אירועים בפיתוח" },
   { id: "waiting_for_operator", label: "ממתין לתשובה" },
   { id: "dismissed", label: "אזעקות שווא / התעלמות" },
   { id: "implemented", label: "תיקונים שבוצעו" },
-  { id: "too_risky", label: "מסוכן מדי" },
 ]
+
+const LEGACY_BUCKET_ALIASES: Record<string, QaDashboardBucket> = {
+  too_risky: "waiting_for_operator",
+}
 
 export default async function QaDashboardPage({
   searchParams,
@@ -30,8 +34,12 @@ export default async function QaDashboardPage({
   searchParams: Promise<{ bucket?: string; page?: string }>
 }) {
   const { bucket: bucketParam, page: pageParam } = await searchParams
-  const bucket = (BUCKETS.some((item) => item.id === bucketParam)
-    ? bucketParam
+  const normalizedBucket =
+    bucketParam && LEGACY_BUCKET_ALIASES[bucketParam]
+      ? LEGACY_BUCKET_ALIASES[bucketParam]
+      : bucketParam
+  const bucket = (BUCKETS.some((item) => item.id === normalizedBucket)
+    ? normalizedBucket
     : "all") as QaDashboardBucket
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1)
   const limit = 30

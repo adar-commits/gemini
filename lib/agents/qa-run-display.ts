@@ -82,10 +82,12 @@ export function qaVerdictLabel(verdict: string | null) {
 export function qaHealthScore(stats: {
   total: number
   inReview: number
+  inDevelopment: number
   implemented: number
-  tooRisky: number
+  waitingForOperator: number
 }) {
-  const actionable = stats.implemented + stats.inReview + stats.tooRisky
+  const actionable =
+    stats.implemented + stats.inReview + stats.inDevelopment + stats.waitingForOperator
   if (actionable <= 0) return stats.total > 0 ? 100 : 0
   return Math.round((stats.implemented / actionable) * 100)
 }
@@ -93,14 +95,20 @@ export function qaHealthScore(stats: {
 export function qaHealthSegments(stats: {
   total: number
   inReview: number
+  inDevelopment: number
   waitingForOperator: number
   dismissed: number
   implemented: number
-  tooRisky: number
 }) {
   return [
     { key: "implemented", label: "יושם", value: stats.implemented, color: "#10b981" },
     { key: "in_review", label: "ב-review", value: stats.inReview, color: "#0ea5e9" },
+    {
+      key: "in_development",
+      label: "בפיתוח",
+      value: stats.inDevelopment,
+      color: "#8b5cf6",
+    },
     {
       key: "waiting_for_operator",
       label: "ממתין לתשובה",
@@ -108,6 +116,5 @@ export function qaHealthSegments(stats: {
       color: "#f59e0b",
     },
     { key: "dismissed", label: "התעלמות", value: stats.dismissed, color: "#a1a1aa" },
-    { key: "too_risky", label: "מסוכן", value: stats.tooRisky, color: "#f43f5e" },
   ].filter((segment) => segment.value > 0)
 }
