@@ -1,0 +1,31 @@
+---
+description: Cancel every Priority document created by a test of the POS → Priority n8n automation
+alwaysApply: true
+---
+
+# POS → Priority automation — cancel test documents
+
+Applies to any test run of the n8n workflow **"Point Of Sale v6 - Main Scenarios"** (`qqvFgOV6PhNV3AyK`, webhook `Main Creator`) or anything else that creates documents in Priority (`https://carpetshop.wee.co.il/odata/Priority/tabula.ini/a051118`).
+
+## Rule
+
+Every document a test creates must be **PATCHed to status `מבוטלת`** in the same session, right after verifying the run. Do not leave test drafts for the operator to delete.
+
+1. Read the created document numbers from the execution (`סיכום` node: `ordName`, `einvoiceIvnum`, `receiptIvnum`, `rentalDocNo`) — including partial runs that failed mid-way (take the number from the error response).
+2. PATCH each one to `מבוטלת`:
+
+| Document | Entity key | Status field |
+|---|---|---|
+| Order | `ORDERS('<ORDNAME>')` | `ORDSTATUSDES` |
+| חשבונית מס קבלה | `EINVOICES(IVNUM='<IVNUM>',IVTYPE='E',DEBIT='D')` | `STATDES` |
+| Receipt | `TINVOICES(IVNUM='<IVNUM>',IVTYPE='T',DEBIT='D')` | `STATDES` |
+| Rental | `DOCUMENTS_D(DOCNO='<DOCNO>',TYPE='D')` | `STATDES` |
+
+   Confirm the entity key format with a GET before the first PATCH; if it differs, fix this table.
+3. Read each document back and confirm the status is `מבוטלת`. If Priority refuses (e.g. document already closed), report the number to the operator — never silently skip.
+
+## Test constraints (still apply)
+
+- Customer phone stays `0547495083` (keeps documents as טיוטא); use fresh `POS-<n>` order ids.
+- Use the existing Priority credential (`Carpetshop's Priority API`) — no new credentials.
+- No bank-transfer live tests without asking (they email accounting).
