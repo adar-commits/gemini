@@ -354,7 +354,12 @@ function formatUnmatchedCampaignReply(campaigns: CampaignRecord[]) {
 כרגע פעיל ${describeCampaignName(campaign.name)}${until}. לזה הכוונה?`
   }
 
-  const names = active.slice(0, 3).map((campaign) => describeCampaignName(campaign.name))
+  const names = active
+    .slice(0, 3)
+    .map(
+      (campaign) =>
+        `${describeCampaignName(campaign.name)}${campaign.end ? ` (עד ${formatHebrewDate(campaign.end)})` : ""}`
+    )
   return `${CUSTOMER_HEADER}
 בדקתי בשבילכם 😊
 כרגע פעילים: ${names.join(", ")}. לאיזה מהם הכוונה?`
