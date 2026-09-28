@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   isKnownOrderConfirmPending,
-  knownOrderInThread,
+  orderIdGivenInThread,
   shouldBindKnownOrderTurn,
 } from "@/lib/agents/order-lookup"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
@@ -21,23 +21,11 @@ describe("known order confirm with complaint 530777437", () => {
     { role: "assistant", content: CONFIRM_QUESTION },
   ]
 
-  it("binds the order the bot named even without a tracking link in the thread", () => {
-    assert.equal(knownOrderInThread(history), "SO26021144")
+  it("binds כן + delay complaint to the order the bot named", () => {
+    assert.equal(orderIdGivenInThread(history), "SO26021144")
     assert.equal(isKnownOrderConfirmPending(history), true)
     assert.equal(shouldBindKnownOrderTurn("כן\nעבר חודש", history), true)
     assert.equal(shouldBindKnownOrderTurn("כן עבר חודש", history), true)
-  })
-
-  it("does not bind a handoff offer that mentions the order", () => {
-    const handoff: HistoryMessage[] = [
-      { role: "user", content: "מה קורה עם ההזמנה?" },
-      {
-        role: "assistant",
-        content: "*הום בוט :)*\nהאם להעביר לנציג שירות שיבדוק את הזמנה SO26021144?",
-      },
-    ]
-    assert.equal(knownOrderInThread(handoff), null)
-    assert.equal(shouldBindKnownOrderTurn("כן", handoff), false)
   })
 
   it("hints the named order, not a phone re-ask, on confirm", () => {

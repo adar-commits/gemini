@@ -5,7 +5,6 @@ import {
   startsWithHandoffAffirmation,
 } from "@/lib/agents/compound-reply"
 import { extractLeadingGreeting } from "@/lib/agents/greeting"
-import { isHumanHandoffPending } from "@/lib/agents/off-topic"
 import {
   endsWithOptionalFollowUpOffer,
   isSkippableClosingAssistantMessage,
@@ -2084,21 +2083,8 @@ export function knownOrderWasOffered(history: HistoryMessage[]) {
   )
 }
 
-/** The bot's own last question named the order (receipt without a tracking link) — 530777437. */
-function orderOfferedInLastAssistantQuestion(history: HistoryMessage[]) {
-  if (isOrderConfirmationPending(history) || isHumanHandoffPending(history)) return null
-  const last = lastRealAssistantContent(history)
-  const offered = extractOrderNumber(stripMediaAndUrls(last))
-  if (!offered || !assistantOfferedKnownOrder(last, offered)) return null
-  return offered
-}
-
-export function knownOrderInThread(history: HistoryMessage[]) {
-  return orderIdGivenInThread(history) ?? orderOfferedInLastAssistantQuestion(history)
-}
-
 export function isKnownOrderConfirmPending(history: HistoryMessage[]) {
-  const known = knownOrderInThread(history)
+  const known = orderIdGivenInThread(history)
   if (!known || isOrderLookupCompletedInThread(history)) return false
   const last = lastRealAssistantContent(history)
   return assistantOfferedKnownOrder(last, known)
@@ -2141,7 +2127,7 @@ export function shouldLookupKnownOrderForCancel(body: string, history: HistoryMe
  * Do not start phone lookup or ask for an order number.
  */
 export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]) {
-  const known = knownOrderInThread(history)
+  const known = orderIdGivenInThread(history)
   if (!known || isOrderLookupCompletedInThread(history)) return false
   if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
   if (mentionsCancellationDesire(body)) return false
@@ -3371,7 +3357,7 @@ export async function resolveOrderShippingReply(input: {
     shouldLookupKnownOrderForCancel(body, history) ||
     shouldLookupReceiptOrderAfterWrongPick(body, history)
   ) {
-    const known = knownOrderInThread(history)
+    const known = orderIdGivenInThread(history)
     const lookupPhone =
       resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
       channelPhone(whatsappPhone)
