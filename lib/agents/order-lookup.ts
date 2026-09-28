@@ -3573,7 +3573,9 @@ export async function resolveOrderShippingReply(input: {
     return buildPhoneLookupDeclinedReply()
   }
 
-  const orderReference = extractOrderReference(body, history)
+  const orderReference =
+    extractOrderReference(body, history) ??
+    (input.lookupHint ? extractOrderReference(input.lookupHint, history) : null)
   if (orderReference) {
     const lookupPhone =
       resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??

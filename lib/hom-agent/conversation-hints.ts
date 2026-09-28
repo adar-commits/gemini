@@ -504,6 +504,13 @@ export function buildConversationHints(input: {
     )
   }
 
+  const offeredOrders = ordersOfferedInLastAssistantQuestion(history)
+  if (offeredOrders.length >= 2) {
+    lines.push(
+      `ORDER CHOICE BINDING (532138355): your last message asked which order to check (${offeredOrders.join(" / ")}). The customer's reply picks one of them (e.g. האחרונה / החדשה = the newest — higher SO number; הראשונה / השנייה = listed order). Call lookup_order_status now with lookupHint = the chosen order id. Do NOT ask the phone question and do NOT search the phone for a different order. Only if the pick is truly unclear, ask once which of these orders.`
+    )
+  }
+
   const namedOrderPhone = orderPhoneNamedByAssistant(history, input.whatsappPhone)
   if (namedOrderPhone && !isOrderLookupCompletedInThread(history)) {
     lines.push(
@@ -984,6 +991,18 @@ function isDeliverySchedulingPreferenceQuestion(body: string) {
       text
     )
   )
+}
+
+function ordersOfferedInLastAssistantQuestion(history: HistoryMessage[]) {
+  const last = lastNonInactivityAssistant(history)
+  if (!last.includes("?")) return []
+  const ids = [
+    ...Array.from(last.matchAll(/\b(?:SO|IN|OV)\s*\d{5,}\b/gi), (match) =>
+      match[0].replace(/\s+/g, "").toUpperCase()
+    ),
+    ...Array.from(last.matchAll(/#\s*(\d{5})\b/g), (match) => `#${match[1]}`),
+  ]
+  return Array.from(new Set(ids))
 }
 
 function lastNonInactivityAssistant(history: HistoryMessage[]) {
