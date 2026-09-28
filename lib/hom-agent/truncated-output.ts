@@ -9,11 +9,25 @@ function bodyWithoutHeader(reply: string) {
     .trim()
 }
 
+/** A question followed by 2+ numbered options (e.g. document-type menu) is complete without punctuation. */
+function endsWithNumberedMenu(body: string) {
+  const lines = body.split("\n").map((line) => line.trim()).filter(Boolean)
+  const tail: string[] = []
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index] ?? ""
+    if (!/^\d+[.)]\s+\S/.test(line)) break
+    tail.unshift(line)
+  }
+  if (tail.length < 2 || tail.length === lines.length) return false
+  return tail.every((line, index) => line.startsWith(`${index + 1}`))
+}
+
 /** Customer-visible reply cut off before a complete sentence (output-token cap mid-JSON). */
 export function isLikelyTruncatedBotReply(reply: string) {
   const body = bodyWithoutHeader(reply)
   if (body.length < 50) return false
   if (COMPLETE_REPLY_ENDING.test(body)) return false
+  if (endsWithNumberedMenu(body)) return false
   if (/[\u0590-\u05FF]$/.test(body)) return true
   if (/[,—–-]\s*$/.test(body)) return true
   if (/\\+"?\s*$/.test(body)) return true
