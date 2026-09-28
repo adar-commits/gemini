@@ -6,6 +6,8 @@ import {
   customerOrderNumberStyleFromHistory,
   isDeliveryEstimateQuestion,
   isKnownOrderConfirmPending,
+  knownOrderInThread,
+  classifyDocumentNumber,
   isOrderConfirmationNo,
   isOrderConfirmationPending,
   isOrderConfirmationYes,
@@ -820,6 +822,19 @@ export function buildConversationHints(input: {
   }
 
   if (
+    forwardedWeezmoOrder &&
+    classifyDocumentNumber(body)?.kind === "receipt" &&
+    !isOrderLookupCompletedInThread(history) &&
+    history.some(
+      (message) => message.role === "assistant" && message.content.includes(forwardedWeezmoOrder)
+    )
+  ) {
+    lines.push(
+      `RECEIPT REF FOR NAMED ORDER (530777437): you already named order ${forwardedWeezmoOrder} to the customer. The RC receipt number they sent is a reference to that same order — call lookup_order_status with ${forwardedWeezmoOrder}, never with the RC number. Never "לא מצאתי הזמנה RC…" and never re-ask the phone.`
+    )
+  }
+
+  if (
     (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) &&
     !shouldReleaseStructuredDocumentFlow(history, body)
   ) {
@@ -864,7 +879,7 @@ export function buildConversationHints(input: {
   }
 
   if (isKnownOrderConfirmPending(history)) {
-    const known = orderIdGivenInThread(history)
+    const known = knownOrderInThread(history)
     lines.push(
       `KNOWN ORDER CONFIRM (404732305 / 508272038): you already asked if they mean order ${known ?? "from the receipt"}. כן means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
     )
