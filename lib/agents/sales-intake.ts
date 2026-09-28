@@ -210,6 +210,9 @@ export function mentionsPetInText(text: string) {
 const SALES_PHOTO_REQUEST_RE =
   /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|תמונה\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה|יעזור\s+ליועץ\s+העיצוב/i
 
+/** Photo asked for the service rep (wrong item, defect) — not a sales room photo. */
+const SERVICE_REP_PHOTO_REQUEST_RE = /נציג(?:י)?\s+(?:ה)?שירות/
+
 /** Customer already has the product — needs help picking the right size (exchange / resize). */
 export function isSizeExchangeIntakeContext(history: HistoryMessage[], body = "") {
   const text = allUserText(history, body)
@@ -248,7 +251,10 @@ export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return SALES_PHOTO_REQUEST_RE.test(message.content)
+    return (
+      SALES_PHOTO_REQUEST_RE.test(message.content) &&
+      !SERVICE_REP_PHOTO_REQUEST_RE.test(message.content)
+    )
   }
   return false
 }
