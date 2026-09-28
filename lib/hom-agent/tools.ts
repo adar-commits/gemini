@@ -104,11 +104,18 @@ export function createHomAgentTools(context: HomAgentToolContext) {
           .string()
           .optional()
           .describe('Specific campaign name to check, or omit / "all" for full list'),
+        dataOnly: z
+          .boolean()
+          .optional()
+          .describe(
+            "true when the customer's question is NOT just 'is the campaign active / what campaigns exist' — e.g. sale price on an exchange or later purchase, a site countdown vs end date, a follow-up on a campaign already answered. Returns data only; you compose the answer."
+          ),
       }),
-      execute: async ({ campaignHint }) =>
+      execute: async ({ campaignHint, dataOnly }) =>
         executeGetCampaigns({
           body: context.body,
           campaignHint,
+          dataOnly,
         }),
     }),
     create_switch_request: tool({
