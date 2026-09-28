@@ -2437,17 +2437,18 @@ export function formatDisplayPhone(phone: string) {
   return digits || phone.trim()
 }
 
+/** Last valid phone wins — merged bursts often end with a corrected number. */
 export function extractPhoneFromText(rawText: string) {
   const text = stripMediaAndUrls(rawText)
   const patterns = text.match(/(?:\+?972|0)[\d\s-]{8,14}/g) ?? []
-  for (const raw of patterns) {
+  for (const raw of [...patterns].reverse()) {
     const digits = phoneForOrderApi(raw)
     if (/^0\d{9}$/.test(digits)) return digits
   }
 
-  const mobile = text.match(/\b0?5\d{8}\b/)
-  if (mobile) {
-    const digits = phoneForOrderApi(mobile[0])
+  const mobiles = text.match(/\b0?5\d{8}\b/g) ?? []
+  for (const raw of [...mobiles].reverse()) {
+    const digits = phoneForOrderApi(raw)
     if (/^0\d{9}$/.test(digits)) return digits
   }
 
