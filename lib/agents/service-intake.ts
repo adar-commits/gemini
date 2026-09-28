@@ -375,6 +375,23 @@ export function isServiceHandoffSummaryConfirmed(body: string) {
   return /^(?:כן|נכון|בדיוק|מדויק|yes)/i.test(body.trim())
 }
 
+/** Customer already approved a service rep summary earlier in this thread. */
+export function isServiceHandoffSummaryConfirmedInThread(history: HistoryMessage[]) {
+  for (let index = 0; index < history.length - 1; index += 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (
+      !messageAwaits(message, "service_summary_confirm") &&
+      !isServiceHandoffSummaryText(message.content)
+    ) {
+      continue
+    }
+    const reply = history.slice(index + 1).find((next) => next.role === "user")
+    if (reply && isServiceHandoffSummaryConfirmed(reply.content)) return true
+  }
+  return false
+}
+
 /** Internal note for the service rep — same facts, compact one-liner. */
 export function buildServiceRepHandoffNote(intake: ServiceIntake) {
   return `[שירות] ${buildServiceHandoffSummary(intake)}`

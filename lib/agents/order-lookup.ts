@@ -38,6 +38,7 @@ import {
   buildServiceHandoffConfirmReply,
   extractServiceIntake,
   isReturnPickupAwaitingThread,
+  isServiceHandoffSummaryConfirmedInThread,
   type ServiceIntake,
 } from "@/lib/agents/service-intake"
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
@@ -2941,6 +2942,11 @@ async function resolveMissingItemServiceReply(
   return buildServiceHandoffConfirmReply(intake, body, history)
 }
 
+/** Order lookup reply is the service handoff sent once the rep summary was already approved. */
+export function isServiceHandoffOrderLookupReply(reply: string) {
+  return reply.trim() === buildHumanHandoffConfirmedReply("human_service").trim()
+}
+
 async function replyAfterOrderIdentified(
   order: OrderShipmentStatus,
   lookupPhone: string,
@@ -2951,6 +2957,9 @@ async function replyAfterOrderIdentified(
     return deliverOrderVerificationDocumentReply(lookupPhone)
   }
   if (isServiceOrderIdentificationFlow(history, body)) {
+    if (isServiceHandoffSummaryConfirmedInThread(history)) {
+      return buildHumanHandoffConfirmedReply("human_service")
+    }
     const intake = extractServiceIntake(history, body)
     intake.orderNumber = order.orderNumber
     intake.matchedOrder = order

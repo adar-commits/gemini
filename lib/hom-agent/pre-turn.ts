@@ -112,6 +112,7 @@ import {
   isServiceLookupContext,
   isShippingLookupContext,
   requiresOrderIdentification,
+  isServiceHandoffOrderLookupReply,
   resolveOrderShippingReply,
   shouldBindKnownOrderTurn,
   userProvidedPhone,
@@ -746,7 +747,7 @@ export async function runStructuredOrderLookupPreTurn(input: {
   return {
     kind: "handled",
     reply,
-    action,
+    action: isServiceHandoffOrderLookupReply(reply) ? "human_service" : action,
     suppressInactivityWatch: endsWithOptionalFollowUpOffer(reply),
   }
 }

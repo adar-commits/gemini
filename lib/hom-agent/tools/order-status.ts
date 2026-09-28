@@ -29,6 +29,7 @@ import {
   isOrderLookupPhoneReplyPending,
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
+  isServiceHandoffOrderLookupReply,
   resolveOrderShippingReply,
   shouldAllowOrderLookupRestart,
 } from "@/lib/agents/order-lookup"
@@ -220,7 +221,11 @@ async function deliverOrderLookupReply(input: {
         ? ("end" as const)
         : ("reply" as const)
 
-    return { ok: true as const, reply: trimmed, action }
+    return {
+      ok: true as const,
+      reply: trimmed,
+      action: isServiceHandoffOrderLookupReply(trimmed) ? ("human_service" as const) : action,
+    }
   } catch (error) {
     return {
       ok: false as const,
