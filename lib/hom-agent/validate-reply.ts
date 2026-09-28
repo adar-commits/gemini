@@ -40,7 +40,10 @@ export function validateHomAgentReply(
   let reply = output.reply?.trim() ?? ""
   reply = sanitizeLeakedStructuredJson(reply)
   reply = repairTruncatedBotReply(stripTrailingJsonArtifacts(reply), {
-    skipCompletionTail: lastCustomerTurnIncludedImage(history),
+    skipCompletionTail:
+      lastCustomerTurnIncludedImage(history) ||
+      output.action === "human_sales" ||
+      output.action === "human_service",
   })
   if (!reply && output.action === "reply") {
     reply = buildNeverStuckReply()
