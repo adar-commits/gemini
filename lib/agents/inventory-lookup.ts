@@ -139,6 +139,29 @@ function parseInventoryLocations(value: unknown): InventoryLocation[] {
   return locations
 }
 
+function preorderDateToIso(reqDate: string): string | null {
+  const iso = reqDate.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`
+  const dmy = reqDate.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})/)
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`
+  return null
+}
+
+function israelTodayIso(now: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now)
+}
+
+export function isPreorderDatePast(reqDate: string, now: Date = new Date()) {
+  const iso = preorderDateToIso(reqDate.trim())
+  if (!iso) return false
+  return iso < israelTodayIso(now)
+}
+
 export function isPreorderSku(row: InventoryBranchRow) {
   return row.preorder != null
 }
@@ -615,13 +638,20 @@ export function buildProductUrlSkuPrompt(productHint?: string | null) {
 export function buildInventoryAvailabilityReply(
   row: InventoryBranchRow,
   branchFilter?: string | null,
-  options?: { allowBranchRetry?: boolean }
+  options?: { allowBranchRetry?: boolean; now?: Date }
 ) {
   const allowBranchRetry = options?.allowBranchRetry ?? true
   const branchLabel = branchFilter ? normalizeBranchCityHint(branchFilter) : null
   const label = skuLabel(row)
 
   if (isPreorderSku(row)) {
+    const staleDate = row.preorder?.req_date?.trim()
+    if (staleDate && isPreorderDatePast(staleDate, options?.now)) {
+      return `${CUSTOMER_HEADER}
+בדקתי זמינות לדגם ${label}:
+צפי ההגעה שהיה רשום במערכת (${staleDate}) כבר עבר, ואין לי כרגע תאריך מעודכן שאפשר לסמוך עליו.
+האם להעביר ליועץ מכירות שיבדוק מתי הדגם חוזר למלאי?`
+    }
     const lines = [
       branchLabel
         ? `בדקתי זמינות לדגם ${label} בסניף ${branchLabel}:`
