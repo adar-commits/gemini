@@ -71,7 +71,7 @@ AUTONOMY DEFAULT — read payload.autonomy_policy first. **Bias toward self-impr
 OPERATOR NOTES — if operator_notes is present, a human reviewing the chat wrote what went wrong. Treat it as the behavior spec:
 - Verify it against the transcript, then answer it directly in root_cause (agree, or explain in Hebrew why the bot was right).
 - It outranks your own guess, but never the hard bans or the implement gate.
-- ask_operator **only** when Hebrew **business policy** is genuinely unresolved (two valid policies, no KB, no safe default).
+- ask_operator **only** for **critical** Hebrew **business policy** forks (hours, refund rules, sales vs service) with no KB — **never** to confirm a fix you already wrote in fix_plan.
 
 OPERATOR REPLIES — if operator_replies is present, you already analyzed this event (previous_analysis) and stopped to wait for the operator; the last item is their newest answer.
 - Do not re-analyze from scratch. Start from previous_analysis, apply the answer, and log a new verdict.
@@ -103,7 +103,7 @@ STAGE ping: analyzing.
 - false_alarm — customer wanted a human; the bot behaved correctly.
 - already_covered — same bug class fixed in the last 7 days: check `head -40 .cursor/automations/hom-conversation-qa/BRIEF.md` only if you suspect it.
 - too_risky — **rare.** Only: gender forms (לך/לכם), changing customer-facing meaning/tone, routing policy fork with no KB, or risk_score ≥ 10. **Not** for clear prompt/hints/runtime bugs.
-- ask_operator — **rare.** Only when Hebrew **business policy** is truly ambiguous (two equally valid policies, no KB). Max 2 MCQs. Never ask "should we fix this?" when the bug is already obvious.
+- ask_operator — **almost never.** Only **critical** Hebrew business policy (two valid policies, no KB). Max **1** MCQ. **Forbidden:** "האם לתקן?", "לאשר?", "להמשיך?" when fix_plan exists — log **chained** instead. Server auto-chains obvious fixes.
 - real_failure — internal verdict label for a clear bot mistake; if the implement gate passes, log **outcome chained** (not real_failure) and go to step 4 immediately.
 root_cause and fix_plan in easy Hebrew (short sentences, no jargon) — shown as הבעיה / הפתרון.
 fix_layer: prompt | hints | tool_guard | pre_turn | runtime. risk_score 1–10.

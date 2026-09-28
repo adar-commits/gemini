@@ -10,6 +10,7 @@ describe("qa autonomy policy", () => {
     delete process.env.QA_AUTOMATION_AUTO_IMPLEMENT_RISK_MAX
     assert.equal(qaAutoImplementRiskMax(), 9)
     assert.match(qaAutonomyPolicyBlock(), /risk_score ≤ 9/)
-    assert.match(qaAutonomyPolicyBlock(), /ask_operator when Hebrew business policy/)
+    assert.match(qaAutonomyPolicyBlock(), /FORBIDDEN.*ask_operator/)
+    assert.match(qaAutonomyPolicyBlock(), /critical Hebrew BUSINESS POLICY/)
   })
 })

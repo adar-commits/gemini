@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
+import { coerceQaAnalyzeOutcome } from "@/lib/agents/qa-autonomy-gate"
 import {
   insertQaAutomationRun,
   type InsertQaAutomationRunInput,
   type QaAutomationOutcome,
 } from "@/lib/agents/qa-automation-log"
+import { autoContinueObviousQaRun } from "@/lib/landbot/qa-run-retry"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { isQaCallbackAuthorized } from "@/lib/agents/qa-callback-token"
 import { buildHomServiceConversationUrl } from "@/lib/landbot/cursor-automation-qa"
@@ -115,8 +117,44 @@ export async function POST(request: Request) {
   const autoStages = autoStageTimestamps(input)
   if (autoStages) input.stageTimestamps = { ...autoStages, ...input.stageTimestamps }
 
+  let autoContinueAfterInsert = false
+  if (input.phase === "analyze") {
+    const coerced = coerceQaAnalyzeOutcome({
+      outcome: input.outcome,
+      operatorQuestions: input.operatorQuestions ?? [],
+      fixLayer: input.fixLayer ?? null,
+      fixPlan: input.fixPlan ?? [],
+      confidence: input.confidence ?? null,
+      riskScore: input.riskScore ?? null,
+    })
+    if (coerced.outcome !== input.outcome) {
+      input.outcome = coerced.outcome as InsertQaAutomationRunInput["outcome"]
+    }
+    if (coerced.operatorQuestions.length !== (input.operatorQuestions ?? []).length) {
+      input.operatorQuestions = coerced.operatorQuestions
+    }
+    autoContinueAfterInsert = coerced.autoContinue
+    if (coerced.autoContinue) {
+      input.operatorNotes = [
+        input.operatorNotes?.trim(),
+        "Auto-chained: obvious fix — no critical operator policy question.",
+      ]
+        .filter(Boolean)
+        .join(" ")
+    }
+  }
+
   try {
     const row = await insertQaAutomationRun(input)
+    if (autoContinueAfterInsert) {
+      void autoContinueObviousQaRun(row).catch((error) => {
+        console.warn("[qa-runs] auto-continue after coerce failed", {
+          runId: row.id,
+          sessionId: row.session_id,
+          error: error instanceof Error ? error.message : error,
+        })
+      })
+    }
     if (input.phase === "implement" && input.outcome === "implemented") {
       const rowSessionId = row.session_id.trim()
       const supabase = getAgentSupabase()

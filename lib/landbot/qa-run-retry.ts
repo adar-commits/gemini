@@ -7,6 +7,7 @@ import {
   buildOperatorContinuationNotes,
   operatorQuestionsAnswered,
 } from "@/lib/agents/qa-operator-gate"
+import { shouldWaitForOperator } from "@/lib/agents/qa-autonomy-gate"
 import { isQaRunWaitingForOperator } from "@/lib/agents/qa-event-stages"
 import {
   buildCursorAutomationQaPayload,
@@ -137,6 +138,38 @@ export async function retryQaAutomationRun(id: string) {
 }
 
 /** Operator answers a waiting event; the automation continues from its previous analysis. */
+const AUTO_APPROVE_REPLY =
+  "auto-approved: implement gate passed — proceed without operator MCQs."
+
+/** Re-send webhook with operator_gate_passed when the fix is obvious (no critical policy fork). */
+export async function autoContinueObviousQaRun(run: QaAutomationRunRow) {
+  if (
+    shouldWaitForOperator({
+      outcome: run.outcome,
+      operatorQuestions: run.operator_questions,
+      fixLayer: run.fix_layer,
+      fixPlan: run.fix_plan,
+      confidence: run.confidence,
+      riskScore: run.risk_score,
+    })
+  ) {
+    return { ok: false as const, skipped: true as const, reason: "critical_wait" as const }
+  }
+
+  const alreadyAuto = run.operator_replies.some((item) => item.text.includes("auto-approved"))
+  const operatorReplies = alreadyAuto
+    ? run.operator_replies
+    : [
+        ...run.operator_replies,
+        { at: new Date().toISOString(), text: AUTO_APPROVE_REPLY },
+      ]
+
+  return resendQaEvent(run, {
+    operatorReplies,
+    note: "Auto-continued — obvious fix, no critical policy ambiguity.",
+  })
+}
+
 export async function replyToQaAutomationRun(id: string, text: string) {
   const reply = text.trim().slice(0, QA_OPERATOR_REPLY_MAX)
   if (!reply) return { ok: false as const, error: "empty_reply" }

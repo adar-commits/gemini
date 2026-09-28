@@ -124,16 +124,24 @@ describe("qaEventProgress", () => {
     assert.equal(
       isQaRunWaitingForOperator({
         outcome: "ask_operator",
-        operator_questions: ["q"],
+        operator_questions: ["בשישי שירות הלקוחות סגור או פתוח?"],
         operator_replies: [],
+        fix_layer: null,
+        fix_plan: [],
+        confidence: "low",
+        risk_score: 5,
       }),
       true
     )
     assert.equal(
       isQaRunWaitingForOperator({
         outcome: "too_risky",
-        operator_questions: ["q"],
+        operator_questions: ["לאשר שינוי ניסוח ללך/לכם?"],
         operator_replies: [],
+        fix_layer: "prompt",
+        fix_plan: ["שנה לך/לכם ב-hom-bot"],
+        confidence: "high",
+        risk_score: 10,
       }),
       true
     )
@@ -142,8 +150,12 @@ describe("qaEventProgress", () => {
         outcome: "real_failure",
         operator_questions: ["לאשר תיקון?"],
         operator_replies: [],
+        fix_layer: "hints",
+        fix_plan: ["הוסף hint"],
+        confidence: "high",
+        risk_score: 3,
       }),
-      true
+      false
     )
     assert.equal(isQaRunWaitingForOperator({ outcome: "triggered" }), false)
     assert.equal(isQaRunWaitingForOperator({ outcome: "chained" }), false)

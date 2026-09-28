@@ -1,4 +1,5 @@
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
+import { shouldWaitForOperator } from "@/lib/agents/qa-autonomy-gate"
 import { operatorQuestionsAnswered } from "@/lib/agents/qa-operator-gate"
 
 export type QaEventStageId =
@@ -78,15 +79,44 @@ const WAITING_OUTCOMES = new Set<QaAutomationRunRow["outcome"]>([
   "real_failure",
 ])
 
+function operatorWaitContext(
+  run: Pick<
+    QaAutomationRunRow,
+    | "outcome"
+    | "operator_questions"
+    | "operator_replies"
+    | "fix_layer"
+    | "fix_plan"
+    | "confidence"
+    | "risk_score"
+  >
+) {
+  return {
+    outcome: run.outcome,
+    operatorQuestions: run.operator_questions,
+    fixLayer: run.fix_layer,
+    fixPlan: run.fix_plan,
+    confidence: run.confidence,
+    riskScore: run.risk_score,
+  }
+}
+
 /** Automation stopped and needs the operator (amber "decision" stage). */
 export function isQaRunWaitingForOperator(
-  run: Pick<QaAutomationRunRow, "outcome" | "operator_questions" | "operator_replies">
+  run: Pick<
+    QaAutomationRunRow,
+    | "outcome"
+    | "operator_questions"
+    | "operator_replies"
+    | "fix_layer"
+    | "fix_plan"
+    | "confidence"
+    | "risk_score"
+  >
 ) {
   if (!WAITING_OUTCOMES.has(run.outcome)) return false
   if (operatorQuestionsAnswered(run)) return false
-  // real_failure without MCQs should chain to implement — not block on the operator.
-  if (run.outcome === "real_failure" && run.operator_questions.length === 0) return false
-  return true
+  return shouldWaitForOperator(operatorWaitContext(run))
 }
 
 /** MCQs were answered but automation has not chained to implement yet. */

@@ -13,6 +13,7 @@ import {
   type QaDashboardBucket,
 } from "@/lib/agents/qa-automation-log"
 import { expireStaleQaRuns } from "@/lib/agents/qa-run-expiry"
+import { drainObviousQaOperatorWaits } from "@/lib/landbot/qa-auto-continue"
 import { buildQaStageTimeline } from "@/lib/agents/qa-stage-timing"
 
 export const dynamic = "force-dynamic"
@@ -58,6 +59,11 @@ export default async function QaDashboardPage({
     await expireStaleQaRuns().catch((err) => {
       console.warn("[qa-dashboard] expire stale runs failed", err)
     })
+    if (bucket === "waiting_for_operator") {
+      await drainObviousQaOperatorWaits(25).catch((err) => {
+        console.warn("[qa-dashboard] auto-continue obvious waits failed", err)
+      })
+    }
     const [listed, snapshot, insights] = await Promise.all([
       listQaAutomationRuns({
         limit,
