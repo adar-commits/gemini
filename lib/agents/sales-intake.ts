@@ -109,6 +109,7 @@ const STYLE_PHOTO_Q =
   "אפשר לשלוח תמונה אחת ברורה של החלל? זה יעזור ליועץ העיצוב."
 const STYLE_Q =
   "איזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?"
+const STYLE_FROM_COLOR_ONLY = "לפי צבע מועדף"
 const SOFA_SIZE_Q = "מה מידת הספה?"
 const SOFA_SIZE_Q_SALON = "מה מידת הספה או הגודל הכללי של הסלון?"
 const FURNITURE_SIZE_Q = "מה מידת המיטה או הרהיט העיקרי בחדר?"
@@ -1088,6 +1089,13 @@ function stylePreferenceComplete(intake: SalesIntake, history: HistoryMessage[] 
 }
 
 function applySofaSizeAnswer(intake: SalesIntake, answers: string[]) {
+  // A later numeric reply is a correction of the earlier size ("3 מטר" → "3.20").
+  const numericAnswers = answers.filter((answer) => /\d/.test(answer))
+  if (numericAnswers.length > 1) {
+    applySofaSizeAnswer(intake, [numericAnswers[numericAnswers.length - 1]])
+    if (intake.sofaSize || intake.rugSize) return
+  }
+
   const combined = answers.join(" ")
   if (!combined || isColloquialQuizAffirmation(combined)) return
 
@@ -1457,6 +1465,8 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
 
   reconcilePetsFromThread(intake, history, body)
 
+  // Loose "N מטר" in free text is often the sofa size, not the rug size.
+  let rugSizeFromLooseMeters = false
   if (!intake.rugSize) {
     const slashSizeMatch = body.trim().match(/\b(\d{2,4})\s*[\/x×]\s*(\d{2,4})\b/)
     if (slashSizeMatch) {
@@ -1464,6 +1474,7 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
     }
     const rugSizeMatch = text.match(/(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
     if (!intake.rugSize && rugSizeMatch) {
+      rugSizeFromLooseMeters = true
       intake.rugSize = `${rugSizeMatch[1].replace(/\s/g, "")} מטר`
     }
   }
@@ -1471,6 +1482,9 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   if (!intake.sofaSize) {
     const sofaMatch = text.match(/ספה\s+(?:של\s+)?(\d\s*[-–]\s*\d|\d(?:\.\d)?)\s*מ(?:טר)?/)
     if (sofaMatch) intake.sofaSize = sofaMatch[1].replace(/\s/g, "")
+  }
+  if (rugSizeFromLooseMeters && intake.sofaSize) {
+    intake.rugSize = undefined
   }
 
   if (!intake.practicalNeeds && /כבס|ניקוי|עמיד|קל\s+לניקוי/.test(text)) {
@@ -1483,7 +1497,7 @@ export function extractSalesIntake(history: HistoryMessage[], body: string): Sal
   }
 
   if (!intake.style && intake.favoredColor) {
-    intake.style = "לפי צבע מועדף"
+    intake.style = STYLE_FROM_COLOR_ONLY
   }
 
   applyContextualIntakeAnswers(intake, history, body)
@@ -1654,8 +1668,11 @@ export function buildConfirmationSummary(intake: SalesIntake) {
       ? `עם עניין בדגם "${intake.requestedModel}" (לבדיקה ע"י יועץ)`
       : ""
 
+  const sofaSizePhrase = formatSofaSizeForSummary(intake)
+
   let summary = `אני מחפש עבורכם ${product}${space}`
-  if (sizeLabel) summary += ` בגודל ${sizeLabel}`
+  if (sofaSizePhrase) summary += `, ${sofaSizePhrase}`
+  else if (sizeLabel) summary += ` בגודל ${sizeLabel}`
 
   const tail: string[] = []
   if (stylePhrase) tail.push(stylePhrase)
@@ -1710,8 +1727,20 @@ function formatSizeForSummary(intake: SalesIntake) {
   return null
 }
 
+/** Sofa measurement from the quiz — never presented as the rug size. */
+function formatSofaSizeForSummary(intake: SalesIntake) {
+  if (intake.rugSize && !isPlaceholderIntakeValue(intake.rugSize)) return null
+  const sofaSize = intake.sofaSize?.trim()
+  if (!sofaSize || isPlaceholderIntakeValue(sofaSize)) return null
+  const [amount, unit, ...rest] = sofaSize.split(/\s+/)
+  if (rest.length || (unit && unit !== "מטר")) return null
+  if (!/^\d+(?:[.,]\d+)?(?:[-–]\d+(?:[.,]\d+)?)?$/.test(amount)) return null
+  return `ספה של כ-${amount} מ׳`
+}
+
 function formatStyleForSummary(intake: SalesIntake) {
   const style = intake.style?.trim()
+  if (!style || style === STYLE_FROM_COLOR_ONLY) return null
   if (
     style === "ייחודי" &&
     intake.favoredColor &&
