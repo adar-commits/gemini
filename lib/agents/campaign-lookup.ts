@@ -336,6 +336,30 @@ function formatActiveCampaignsOverview(active: CampaignRecord[]) {
   return `כן 😊 כרגע יש ${names.length} מבצעים פעילים: ${names.join(", ")}. רוצים פרטים על אחד מהם?`
 }
 
+/** No campaign matched the extracted name — list what is active and ask which one (307194147). */
+function formatUnmatchedCampaignReply(campaigns: CampaignRecord[]) {
+  const active = campaigns.filter((campaign) => campaign.status === "active")
+  if (active.length === 0) {
+    return `${CUSTOMER_HEADER}
+בדקתי בשבילכם 😊
+כרגע לא מצאתי מבצעים פעילים במערכת.
+אם תרצו — אפשר להעביר ליועץ מכירות לפרטים נוספים 🙏`
+  }
+
+  if (active.length === 1) {
+    const campaign = active[0]!
+    const until = campaign.end ? ` (עד ${formatHebrewDate(campaign.end)})` : ""
+    return `${CUSTOMER_HEADER}
+בדקתי בשבילכם 😊
+כרגע פעיל ${describeCampaignName(campaign.name)}${until}. לזה הכוונה?`
+  }
+
+  const names = active.slice(0, 3).map((campaign) => describeCampaignName(campaign.name))
+  return `${CUSTOMER_HEADER}
+בדקתי בשבילכם 😊
+כרגע פעילים: ${names.join(", ")}. לאיזה מהם הכוונה?`
+}
+
 export function formatCampaignLookupReply(
   campaigns: CampaignRecord[],
   query: string,
@@ -344,20 +368,16 @@ export function formatCampaignLookupReply(
   const wantsCoupon = isCouponCodeRequest(body)
 
   if (campaigns.length === 0) {
+    if (query !== "all") return formatUnmatchedCampaignReply(campaigns)
     return `${CUSTOMER_HEADER}
 בדקתי בשבילכם 😊
-לא מצאתי מבצע${query !== "all" ? ` שמתאים ל"${query}"` : "ים"} במערכת.
+לא מצאתי מבצעים במערכת.
 אם תרצו — אפשר להעביר ליועץ מכירות לפרטים נוספים 🙏`
   }
 
   if (query !== "all") {
     const match = pickBestCampaignMatch(campaigns, query, body)
-    if (!match) {
-      return `${CUSTOMER_HEADER}
-בדקתי בשבילכם 😊
-לא מצאתי במערכת מבצע שמתאים ל"${query}".
-אם תרצו — אפשר להעביר ליועץ מכירות 🙏`
-    }
+    if (!match) return formatUnmatchedCampaignReply(campaigns)
 
     return `${CUSTOMER_HEADER}
 בדקתי בשבילכם 😊
@@ -382,7 +402,10 @@ export async function resolveCampaignLookupReply(input: {
   campaignHint?: string | null
 }) {
   const value = resolveCampaignLookupValue(input.body, input.campaignHint)
-  const campaigns = await fetchCampaigns(value)
+  let campaigns = await fetchCampaigns(value)
+  if (value !== "all" && campaigns?.length === 0) {
+    campaigns = await fetchCampaigns("all")
+  }
   if (campaigns === undefined) {
     return `${CUSTOMER_HEADER}
 לא הצלחתי לבדוק את המבצעים כרגע 😊
