@@ -116,6 +116,7 @@ export function createHomAgentTools(context: HomAgentToolContext) {
           body: context.body,
           campaignHint,
           dataOnly,
+          history: context.history,
         }),
     }),
     create_switch_request: tool({
