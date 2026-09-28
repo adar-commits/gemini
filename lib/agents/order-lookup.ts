@@ -2024,7 +2024,27 @@ export function isNumberedReturnPolicyChoicePending(
 const TRACKING_ORDER_RE =
   /tracking\.carpetshop\.co\.il\/track\?[^?\s#]*orderID=([A-Za-z0-9]+)/i
 
-/** Receipt / tracking link already named the order — customer should not be asked again. */
+/** Bot itself asked "מדובר בהזמנה SO…?" (from customer context) — not a phone-lookup card (533328646). */
+function orderIdOfferedByAssistant(history: HistoryMessage[]) {
+  for (const message of history) {
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isOrderCardText(message.content)) continue
+    const text = stripMediaAndUrls(message.content)
+    if (!/\?/.test(text) || isOrderLookupIdentificationAssistantMessage(text)) continue
+    const ids = new Set(
+      (text.match(/\b(?:SO|IN|OV)\s*\d+\b/gi) ?? []).map((raw) =>
+        raw.replace(/\s+/g, "").toUpperCase()
+      )
+    )
+    if (ids.size !== 1) continue
+    const id = extractOrderNumber(text)
+    if (id) return id
+  }
+  return null
+}
+
+/** Receipt / tracking link (or the bot's own order question) already named the order — customer should not be asked again. */
 export function orderIdGivenInThread(history: HistoryMessage[]) {
   for (const message of history) {
     const tracking = message.content.match(TRACKING_ORDER_RE)
@@ -2032,7 +2052,7 @@ export function orderIdGivenInThread(history: HistoryMessage[]) {
     const id = extractOrderNumber(tracking[1])
     if (id) return id
   }
-  return null
+  return orderIdOfferedByAssistant(history)
 }
 
 function lastRealAssistantContent(history: HistoryMessage[]) {
