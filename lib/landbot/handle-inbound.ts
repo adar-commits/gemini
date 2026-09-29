@@ -23,6 +23,10 @@ import {
 } from "@/lib/landbot/cursor-automation-qa"
 import { scheduleCursorAutomationQa } from "@/lib/landbot/schedule-cursor-automation-qa"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
+import {
+  VOICE_CLOSURE_TEMPLATE_BODY,
+  isVoiceClosureTemplateMessage,
+} from "@/lib/landbot/voice-closure-template"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
   buildTrainerResetReply,
@@ -96,16 +100,13 @@ function salvagedReply(body: string, input?: { customerName?: string; history?: 
   return salvageReturnPickupAwaitingReply(body)
 }
 
-/** Customer answered the voice-closure template: a rep owns the reply, the bot stays silent. */
-export function buildVoiceClosureSilentHandoffResult(mode: InboundMode): LandbotInboundResult {
-  return {
-    ok: true,
-    agent: "master",
-    action: "human_service",
-    reply: "",
-    mode,
-    skipped: "voice_closure_template",
-  }
+/**
+ * The voice-closure template is sent by the dashboard, not by the bot, so it is missing from
+ * the bot's stored history. Record it once so the LLM answers with that context.
+ */
+export function shouldRecordVoiceClosureTemplate(history: HistoryMessage[]) {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  return !isVoiceClosureTemplateMessage(lastAssistant ? { body: lastAssistant.content } : null)
 }
 
 /** Final fallback when the pipeline produced no sendable reply — never a bare hold message. */
@@ -161,9 +162,14 @@ export async function handleLandbotInbound(
     !trainerResetBypass &&
     (await isVoiceClosureTemplateLastOutbound(conversationId).catch(() => false))
   ) {
-    await clearInactivityWatchState(conversationId).catch(() => {})
-    await executeHumanHandoff({ conversationId, customerId, action: "human_service" })
-    return buildVoiceClosureSilentHandoffResult(mode)
+    const history = await getHistory(conversationId)
+    if (shouldRecordVoiceClosureTemplate(history)) {
+      await recordProactiveAssistantMessage({
+        conversationId,
+        assistantText: VOICE_CLOSURE_TEMPLATE_BODY,
+        action: "voice_closure_template",
+      }).catch(() => {})
+    }
   }
 
   let customerName = options?.customerName?.trim() || ""

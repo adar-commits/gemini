@@ -155,6 +155,12 @@ import {
   customerUsesFeminineSelfReference,
 } from "@/lib/agents/bot-voice"
 import type { HistoryMessage } from "@/lib/agents/types"
+import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-template"
+
+function isVoiceClosureTemplateLastAssistant(history: HistoryMessage[]) {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  return isVoiceClosureTemplateMessage(lastAssistant ? { body: lastAssistant.content } : null)
+}
 
 function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   return history.some(
@@ -218,6 +224,12 @@ export function buildConversationHints(input: {
 
   if (customerUsesFeminineSelfReference(body)) {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
+  }
+
+  if (isVoiceClosureTemplateLastAssistant(history)) {
+    lines.push(
+      'VOICE CALLBACK TEMPLATE (532661685): the last outbound ("כאן נציג/ה ... בהמשך לבקשתך לדבר עם נציג") is an automatic template sent after the customer chose, on a phone call, to keep waiting for a rep on WhatsApp — no rep has written yet. Answer their request normally this turn with tools (e.g. shipping status → lookup_order_status). Never stay silent and never ask a "זה מדויק?" summary confirmation. If they still need a rep, or you cannot resolve it, set action human_service in the same JSON.'
+    )
   }
 
   if (isShippingAddressUpdateThread(history)) {

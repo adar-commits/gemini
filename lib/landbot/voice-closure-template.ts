@@ -1,8 +1,8 @@
 /**
  * Voice-closure WhatsApp template sent by the dashboard (landbot repo,
  * lib/conversations/voice-closure-whatsapp-template.ts) after a phone callback request.
- * It promises a human rep ("כאן נציג/ה ... בהמשך לבקשתך לדבר עם נציג"), so the customer's
- * reply belongs to human service — the bot must not answer it.
+ * It is sent after the customer chose, on the call, to keep waiting for a rep on WhatsApp.
+ * The bot still answers the customer's reply and hands off to human service when needed.
  * Keep the id/body in sync with the landbot constants.
  */
 export const VOICE_CLOSURE_TEMPLATE_ID = "986164396"
