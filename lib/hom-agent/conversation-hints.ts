@@ -940,6 +940,10 @@ export function buildConversationHints(input: {
     lines.push(
       "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. Do NOT describe/analyze the image."
     )
+  } else if (/\[media:image:/i.test(body)) {
+    lines.push(
+      "PHOTO RECEIVED (533695023): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo: ack \"קיבלתי את התמונה\" and hand off to יועץ מכירות with a short summary of what they asked (e.g. size) — `action: human_sales`, unless an order/service flow is active."
+    )
   }
 
   const imageTurn = /\[media:image:/i.test(body) ? userTurnFromBody(body) : null
