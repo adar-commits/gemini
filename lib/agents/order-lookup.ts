@@ -2552,6 +2552,17 @@ export function isNoOrdersFoundReplyPending(history: HistoryMessage[]) {
   return false
 }
 
+/** Last bot turn is buildOrderNumberNotFoundReply — the order-status ask is still open. */
+export function isOrderNumberNotFoundReplyPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message.content.includes("על המספר שבדקתי")
+  }
+  return false
+}
+
 export function isOrderLookupPhoneReplyPending(history: HistoryMessage[]) {
   return (
     isPhoneLookupConfirmPending(history) ||

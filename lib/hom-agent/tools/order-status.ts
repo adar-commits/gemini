@@ -27,6 +27,7 @@ import {
   shouldLookupKnownOrderForCancel,
   shouldRefuseKnownOrderLookup,
   isOrderLookupPhoneReplyPending,
+  isOrderNumberNotFoundReplyPending,
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
   isServiceHandoffOrderLookupReply,
@@ -83,7 +84,8 @@ export async function executeLookupOrderStatus(input: {
     needsOrderLookup ||
     isOrderModificationRequest(body) ||
     isOrderConfirmationPending(history) ||
-    isOrderLookupPhoneReplyPending(history)
+    isOrderLookupPhoneReplyPending(history) ||
+    isOrderNumberNotFoundReplyPending(history)
 
   if (!lookupAllowed) {
     return {
