@@ -117,16 +117,25 @@ export function isPendingHandoffCustomerReply(body: string, history: HistoryMess
  * Thanks only bypasses after the *bot* confirmed handoff — not when a live rep already spoke.
  */
 export function shouldBypassHumanThreadSilence(body: string, history: HistoryMessage[]) {
-  if (isPendingHandoffCustomerReply(body, history)) return true
+  if (isOpenHandoffOfferCustomerReply(body, history)) return true
   if (isThanksAcknowledgment(body)) {
     return isPostHumanHandoff(null, history)
   }
   return false
 }
 
+/**
+ * Only an open offer question releases a human-owned thread. After a declarative
+ * "אני מעביר" the handoff already ran — the customer is answering the rep (533738392).
+ */
+function isOpenHandoffOfferCustomerReply(body: string, history: HistoryMessage[]) {
+  if (!isHumanHandoffOfferPending(history)) return false
+  return isHumanHandoffAffirmation(body) || isHumanHandoffDecline(body)
+}
+
 /** Stale takeover flags — clear before handoff confirm, not before post-handoff thanks. */
 export function shouldClearHumanThreadOnBypass(body: string, history: HistoryMessage[]) {
-  return isPendingHandoffCustomerReply(body, history)
+  return isOpenHandoffOfferCustomerReply(body, history)
 }
 
 export function isHumanHandoffAffirmation(body: string) {
