@@ -4,9 +4,11 @@ import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
 export function operatorQuestionsAnswered(
   run: Pick<QaAutomationRunRow, "operator_questions" | "operator_replies">
 ) {
-  if (run.operator_replies.length === 0) return false
-  if (run.operator_questions.length === 0) return false
-  return run.operator_replies.length >= run.operator_questions.length
+  const replies = run.operator_replies ?? []
+  const questions = run.operator_questions ?? []
+  if (replies.length === 0) return false
+  if (questions.length === 0) return false
+  return replies.length >= questions.length
 }
 
 export function buildOperatorContinuationNotes(

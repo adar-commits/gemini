@@ -93,9 +93,9 @@ function operatorWaitContext(
 ) {
   return {
     outcome: run.outcome,
-    operatorQuestions: run.operator_questions,
+    operatorQuestions: run.operator_questions ?? [],
     fixLayer: run.fix_layer,
-    fixPlan: run.fix_plan,
+    fixPlan: run.fix_plan ?? [],
     confidence: run.confidence,
     riskScore: run.risk_score,
   }

@@ -15,13 +15,22 @@ export type QaImplementGateInput = {
   riskScore: number | null
 }
 
+function normalizeFixPlan(fixPlan: string[] | null | undefined) {
+  return Array.isArray(fixPlan) ? fixPlan : []
+}
+
+function normalizeOperatorQuestions(questions: string[] | null | undefined) {
+  return Array.isArray(questions) ? questions : []
+}
+
 export function qaImplementGatePasses(input: QaImplementGateInput): boolean {
+  const fixPlan = normalizeFixPlan(input.fixPlan)
   if (!input.fixLayer || !AUTO_FIX_LAYERS.has(input.fixLayer)) return false
-  if (!input.fixPlan.length || input.fixPlan.length > 3) return false
+  if (!fixPlan.length || fixPlan.length > 3) return false
   if (input.confidence !== "high" && input.confidence !== "medium") return false
   const max = qaAutoImplementRiskMax()
   if (input.riskScore != null && input.riskScore > max) return false
-  if (fixPlanTouchesCriticalWording(input.fixPlan)) return false
+  if (fixPlanTouchesCriticalWording(fixPlan)) return false
   return true
 }
 
@@ -40,6 +49,7 @@ const LAME_QUESTION_RES = [
   /^(?:כן\/לא|להמשיך\?)/i,
   /(?:נכון ש).*?(?:לתקן|fix)/i,
   /(?:לתקן|fix)\s*\?/i,
+  /(?:האם|האם כדאי).*?(?:לאשר|מאשר)/i,
 ]
 
 /** "Should we fix this?" — not a policy fork. */
@@ -68,8 +78,10 @@ export type QaOperatorWaitInput = QaImplementGateInput & {
  * or high-risk wording change. Obvious prompt/hints/runtime fixes with lame MCQs → false.
  */
 export function shouldWaitForOperator(input: QaOperatorWaitInput) {
-  const gate = qaImplementGatePasses(input)
-  const { outcome, operatorQuestions } = input
+  const fixPlan = normalizeFixPlan(input.fixPlan)
+  const operatorQuestions = normalizeOperatorQuestions(input.operatorQuestions)
+  const gate = qaImplementGatePasses({ ...input, fixPlan })
+  const { outcome } = input
 
   if (
     outcome === "chained" ||
@@ -87,16 +99,21 @@ export function shouldWaitForOperator(input: QaOperatorWaitInput) {
     operatorQuestions.every(isLameOperatorQuestion)
 
   if (outcome === "ask_operator") {
-    if (!input.fixLayer && !input.fixPlan.length) return true
+    if (!input.fixLayer && !fixPlan.length) {
+      if (hasCriticalQuestion) return true
+      if (allLameOrEmpty || operatorQuestions.every(isLameOperatorQuestion)) return false
+      return operatorQuestions.length > 0
+    }
     if (hasCriticalQuestion) return true
     if (gate && allLameOrEmpty) return false
     if (gate) return false
+    if (operatorQuestions.every(isLameOperatorQuestion)) return false
     return operatorQuestions.length > 0
   }
 
   if (outcome === "too_risky") {
     const max = qaAutoImplementRiskMax()
-    if (fixPlanTouchesCriticalWording(input.fixPlan)) return true
+    if (fixPlanTouchesCriticalWording(fixPlan)) return true
     if (input.riskScore != null && input.riskScore > max) {
       if (hasCriticalQuestion) return true
       if (gate && allLameOrEmpty) return false

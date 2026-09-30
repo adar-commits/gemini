@@ -1,9 +1,11 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { createManualQaEventAction } from "@/app/dashboard/qa/actions"
 
 export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
+  const router = useRouter()
   const [sessionId, setSessionId] = useState("")
   const [notes, setNotes] = useState("")
   const [feedback, setFeedback] = useState<{
@@ -27,6 +29,7 @@ export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
         })
         setSessionId("")
         setNotes("")
+        router.refresh()
         return
       }
 
@@ -35,6 +38,7 @@ export function QaManualTrigger({ disabled }: { disabled?: boolean }) {
         not_found: "לא נמצאה שיחה עם המזהה הזה ב-CRM",
         disabled: "מערכת QA לא מוגדרת (חסר webhook)",
         webhook_failed: result.detail ?? "שליחת webhook לניתוח נכשלה",
+        server_error: result.detail ?? "שגיאת שרת — נסו שוב",
       }
       setFeedback({
         tone: "error",

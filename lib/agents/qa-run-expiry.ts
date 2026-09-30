@@ -3,6 +3,7 @@ import {
   type QaAutomationRunRow,
 } from "@/lib/agents/qa-automation-log"
 import { getAgentSupabase } from "@/lib/agents/supabase"
+import { drainObviousQaOperatorWaits } from "@/lib/landbot/qa-auto-continue"
 
 /** Analyze path budget in automation instructions is ~2 min — 15 min is a hard ceiling. */
 export const QA_RUN_ANALYZE_TIMEOUT_MS = parseQaTimeoutMinutes(
@@ -103,5 +104,13 @@ export async function expireStaleQaRuns(nowMs = Date.now()) {
     })
   }
 
-  return { expired: expired.length, sessionIds: expired }
+  let autoContinued = 0
+  try {
+    const drained = await drainObviousQaOperatorWaits(5)
+    autoContinued = drained.continued
+  } catch (drainError) {
+    console.warn("[qa-run-expiry] auto-continue obvious waits failed", drainError)
+  }
+
+  return { expired: expired.length, sessionIds: expired, autoContinued }
 }

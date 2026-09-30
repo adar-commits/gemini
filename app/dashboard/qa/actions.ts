@@ -28,22 +28,44 @@ export async function deleteQaRunAction(id: string) {
 }
 
 export async function retryQaRunAction(id: string) {
-  const result = await retryQaAutomationRun(id)
-  revalidatePath("/dashboard/qa")
-  return result
+  try {
+    const result = await retryQaAutomationRun(id)
+    revalidatePath("/dashboard/qa")
+    return result
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "retry_failed",
+    }
+  }
 }
 
 export async function replyToQaRunAction(id: string, reply: string) {
-  const result = await replyToQaAutomationRun(id, reply)
-  revalidatePath("/dashboard/qa")
-  return result
+  try {
+    const result = await replyToQaAutomationRun(id, reply)
+    revalidatePath("/dashboard/qa")
+    return result
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "reply_failed",
+    }
+  }
 }
 
 export async function createManualQaEventAction(
   conversationId: string,
   operatorNotes?: string
 ) {
-  const result = await triggerManualQaReview(conversationId, operatorNotes)
-  revalidatePath("/dashboard/qa")
-  return result
+  try {
+    const result = await triggerManualQaReview(conversationId, operatorNotes)
+    revalidatePath("/dashboard/qa")
+    return result
+  } catch (error) {
+    return {
+      ok: false as const,
+      reason: "server_error" as const,
+      detail: error instanceof Error ? error.message : "create_failed",
+    }
+  }
 }

@@ -56,6 +56,19 @@ describe("qa-autonomy-gate", () => {
     assert.deepEqual(coerced.operatorQuestions, [])
   })
 
+  it("does not throw when fix_plan is missing from legacy rows", () => {
+    assert.doesNotThrow(() =>
+      shouldWaitForOperator({
+        outcome: "ask_operator",
+        operatorQuestions: ["האם לאשר את התיקון?"],
+        fixLayer: "hints",
+        fixPlan: undefined as unknown as string[],
+        confidence: "high",
+        riskScore: 3,
+      })
+    )
+  })
+
   it("keeps critical policy ask_operator unchanged", () => {
     const coerced = coerceQaAnalyzeOutcome({
       outcome: "ask_operator",
