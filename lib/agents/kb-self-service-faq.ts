@@ -12,6 +12,7 @@ import {
   isReturnExchangePolicyFaqQuestion,
   isRugCleaningServiceQuestion,
 } from "@/lib/agents/policy-subjects"
+import { isOrderCancellationSummaryLabel } from "@/lib/agents/service-intake"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 /** Customer explicitly asks to speak with a human this turn — not trailing כן on a FAQ pivot. */
@@ -30,6 +31,15 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   )
 }
 
+/** Pre-delivery order cancel = portal + human_service (464488405), also on the follow-up turn (532732671). */
+function isOrderCancellationTurn(body: string, history: HistoryMessage[]) {
+  const recentCustomerTurns = history
+    .filter((message) => message.role === "user")
+    .slice(-2)
+    .map((message) => message.content)
+  return [body, ...recentCustomerTurns].some(isOrderCancellationSummaryLabel)
+}
+
 /**
  * KB answers the bot must give with action: reply — never human_service/sales
  * because reps are offline or a stale handoff offer exists in thread history.
@@ -44,6 +54,7 @@ export function isKbSelfServiceFaqThisTurn(
   if (isExplicitExchangeExecutionTurn(text, history)) return false
   if (classifyPostPurchaseCase(text) === "exchange_request") return false
   if (isOrderModificationRequest(text)) return false
+  if (isOrderCancellationTurn(text, history)) return false
 
   if (isReturnShippingFeeQuestion(text)) return true
   if (isReturnEligibilityQuestion(text, history)) return true

@@ -121,7 +121,7 @@ function extractWaitDuration(text: string) {
 const ORDER_CANCELLATION_SUMMARY_LABEL = "ביטול הזמנה"
 
 /** Pre-delivery cancel wording — separate from post-receipt return in rep summaries (533458767). */
-function isOrderCancellationSummaryLabel(corpus: string) {
+export function isOrderCancellationSummaryLabel(corpus: string) {
   const text = corpus.trim()
   if (!text) return false
   if (/(?:קיבל|הגיע|קיבלתי|התקבל)/i.test(text)) return false
