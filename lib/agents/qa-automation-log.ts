@@ -1,4 +1,5 @@
 import { operatorQuestionsAnswered } from "@/lib/agents/qa-operator-gate"
+import { scheduleWebhookAutoRetry } from "@/lib/landbot/qa-webhook-auto-retry"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import {
   mergeQaStageTimestamps,
@@ -238,13 +239,21 @@ export async function insertQaAutomationRun(input: InsertQaAutomationRunInput) {
           .select("*")
           .single()
         if (updateError) throw updateError
-        return mapRow(updated as Record<string, unknown>)
+        const updatedRow = mapRow(updated as Record<string, unknown>)
+        if (updatedRow.outcome === "webhook_failed") {
+          scheduleWebhookAutoRetry(updatedRow.id)
+        }
+        return updatedRow
       }
     }
     throw error
   }
 
-  return mapRow(data as Record<string, unknown>)
+  const row = mapRow(data as Record<string, unknown>)
+  if (row.outcome === "webhook_failed") {
+    scheduleWebhookAutoRetry(row.id)
+  }
+  return row
 }
 
 export type QaDashboardBucket =
@@ -252,6 +261,7 @@ export type QaDashboardBucket =
   | "in_review"
   | "in_development"
   | "waiting_for_operator"
+  | "failed"
   | "dismissed"
   | "implemented"
 
@@ -263,9 +273,10 @@ const QA_BUCKET_OUTCOMES: Record<
   Exclude<QaDashboardBucket, "all">,
   QaAutomationOutcome[]
 > = {
-  in_review: ["triggered", "webhook_failed"],
+  in_review: ["triggered"],
   in_development: ["chained", "failed_guard"],
   waiting_for_operator: ["ask_operator", "too_risky"],
+  failed: ["webhook_failed"],
   dismissed: ["false_alarm", "ignored"],
   implemented: ["implemented"],
 }
@@ -351,6 +362,7 @@ export async function getQaAutomationStats(days = 7) {
     QA_BUCKET_OUTCOMES.dismissed.includes(row.outcome as QaAutomationOutcome)
   ).length
   const implemented = rows.filter((row) => row.outcome === "implemented").length
+  const failed = rows.filter((row) => row.outcome === "webhook_failed").length
 
   return {
     days,
@@ -358,6 +370,7 @@ export async function getQaAutomationStats(days = 7) {
     inReview,
     inDevelopment,
     waitingForOperator,
+    failed,
     dismissed,
     implemented,
   }
@@ -417,7 +430,11 @@ export async function updateQaAutomationRun(input: {
     .single()
 
   if (error) throw error
-  return mapRow(data as Record<string, unknown>)
+  const row = mapRow(data as Record<string, unknown>)
+  if (input.outcome === "webhook_failed") {
+    scheduleWebhookAutoRetry(row.id)
+  }
+  return row
 }
 
 export type QaReportedStage = "reading" | "analyzing" | "coding" | "testing"

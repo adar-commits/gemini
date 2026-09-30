@@ -97,6 +97,7 @@ export function qaHealthSegments(stats: {
   inReview: number
   inDevelopment: number
   waitingForOperator: number
+  failed: number
   dismissed: number
   implemented: number
 }) {
@@ -115,6 +116,7 @@ export function qaHealthSegments(stats: {
       value: stats.waitingForOperator,
       color: "#f59e0b",
     },
+    { key: "failed", label: "נכשל", value: stats.failed, color: "#f43f5e" },
     { key: "dismissed", label: "התעלמות", value: stats.dismissed, color: "#a1a1aa" },
   ].filter((segment) => segment.value > 0)
 }

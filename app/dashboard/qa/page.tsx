@@ -14,6 +14,7 @@ import {
 } from "@/lib/agents/qa-automation-log"
 import { expireStaleQaRuns } from "@/lib/agents/qa-run-expiry"
 import { buildQaStageTimeline } from "@/lib/agents/qa-stage-timing"
+import { autoRetryDueWebhookFailures } from "@/lib/landbot/qa-webhook-auto-retry"
 
 export const dynamic = "force-dynamic"
 
@@ -22,6 +23,7 @@ const BUCKETS: { id: QaDashboardBucket; label: string }[] = [
   { id: "in_review", label: "בתהליך Review" },
   { id: "in_development", label: "אירועים בפיתוח" },
   { id: "waiting_for_operator", label: "ממתין לתשובה" },
+  { id: "failed", label: "נכשל" },
   { id: "dismissed", label: "אזעקות שווא / התעלמות" },
   { id: "implemented", label: "תיקונים שבוצעו" },
 ]
@@ -57,6 +59,9 @@ export default async function QaDashboardPage({
   try {
     await expireStaleQaRuns().catch((err) => {
       console.warn("[qa-dashboard] expire stale runs failed", err)
+    })
+    void autoRetryDueWebhookFailures(5).catch((err) => {
+      console.warn("[qa-dashboard] webhook auto-retry failed", err)
     })
     const [listed, snapshot, insights] = await Promise.all([
       listQaAutomationRuns({

@@ -4,6 +4,7 @@ import {
 } from "@/lib/agents/qa-automation-log"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { drainObviousQaOperatorWaits } from "@/lib/landbot/qa-auto-continue"
+import { autoRetryDueWebhookFailures } from "@/lib/landbot/qa-webhook-auto-retry"
 
 /** Analyze path budget in automation instructions is ~2 min — 15 min is a hard ceiling. */
 export const QA_RUN_ANALYZE_TIMEOUT_MS = parseQaTimeoutMinutes(
@@ -105,6 +106,7 @@ export async function expireStaleQaRuns(nowMs = Date.now()) {
   }
 
   let autoContinued = 0
+  let webhookRetried = 0
   try {
     const drained = await drainObviousQaOperatorWaits(5)
     autoContinued = drained.continued
@@ -112,5 +114,12 @@ export async function expireStaleQaRuns(nowMs = Date.now()) {
     console.warn("[qa-run-expiry] auto-continue obvious waits failed", drainError)
   }
 
-  return { expired: expired.length, sessionIds: expired, autoContinued }
+  try {
+    const retried = await autoRetryDueWebhookFailures(10)
+    webhookRetried = retried.retried
+  } catch (retryError) {
+    console.warn("[qa-run-expiry] webhook auto-retry failed", retryError)
+  }
+
+  return { expired: expired.length, sessionIds: expired, autoContinued, webhookRetried }
 }

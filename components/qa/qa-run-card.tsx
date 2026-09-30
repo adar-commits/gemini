@@ -35,6 +35,11 @@ import { QaRiskGauge } from "@/components/qa/qa-risk-gauge"
 import { QaRunToolbar } from "@/components/qa/qa-run-toolbar"
 import { QaStageTimeline } from "@/components/qa/qa-stage-timeline"
 import { buildQaStageTimeline, qaRunTotalElapsedMs } from "@/lib/agents/qa-stage-timing"
+import {
+  diagnoseWebhookFailure,
+  webhookAutoRetryCount,
+  WEBHOOK_AUTO_RETRY_MAX,
+} from "@/lib/landbot/qa-webhook-auto-retry"
 
 const outcomeStyles = {
   emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-800 ring-emerald-500/25",
@@ -162,6 +167,24 @@ export function QaRunCard({
 
       <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="space-y-4">
+          {run.outcome === "webhook_failed" ? (
+            <section className="rounded-2xl bg-gradient-to-l from-rose-50 to-transparent p-4 ring-1 ring-rose-200">
+              <h3 className="mb-1.5 flex items-center gap-2 text-sm font-bold text-rose-900">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-100 text-xs">
+                  ✕
+                </span>
+                למה נכשל
+              </h3>
+              <p className="text-sm leading-relaxed text-rose-950/85">
+                {diagnoseWebhookFailure(run.operator_notes, run.root_cause)}
+              </p>
+              <p className="mt-2 text-xs text-rose-800/70">
+                auto-retry {webhookAutoRetryCount(run.operator_notes)}/{WEBHOOK_AUTO_RETRY_MAX}{" "}
+                — ניסיון אוטומטי ~10 שניות אחרי הכשל
+              </p>
+            </section>
+          ) : null}
+
           {run.operator_input ? (
             <section className="rounded-2xl bg-gradient-to-l from-indigo-50/90 to-transparent p-4 ring-1 ring-indigo-100">
               <h3 className="mb-1.5 flex items-center gap-2 text-sm font-bold text-indigo-900">

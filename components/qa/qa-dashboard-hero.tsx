@@ -16,6 +16,7 @@ export function QaDashboardHero({
     inReview: number
     inDevelopment: number
     waitingForOperator: number
+    failed: number
     dismissed: number
     implemented: number
   }

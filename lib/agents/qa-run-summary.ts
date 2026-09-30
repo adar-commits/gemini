@@ -1,5 +1,6 @@
 import type { QaAutomationRunRow } from "@/lib/agents/qa-automation-log"
 import { buildHomServiceConversationUrl } from "@/lib/landbot/cursor-automation-qa"
+import { diagnoseWebhookFailure } from "@/lib/landbot/qa-webhook-auto-retry"
 
 function hasHebrew(text: string) {
   return /[\u0590-\u05FF]/.test(text)
@@ -115,8 +116,8 @@ export function qaRunSolution(run: QaAutomationRunRow) {
     return hasHebrew(plan) ? plan : `תיקון מתוכנן: ${plan}`
   }
 
-  if (run.outcome === "webhook_failed" && run.operator_notes?.trim()) {
-    return localizeWebhookFailureNotes(run.operator_notes.trim())
+  if (run.outcome === "webhook_failed") {
+    return diagnoseWebhookFailure(run.operator_notes, run.root_cause)
   }
 
   if (run.operator_notes?.trim()) {
@@ -134,13 +135,6 @@ export function qaRunSolution(run: QaAutomationRunRow) {
   }
   if (run.outcome === "too_risky") {
     return "ממתין לאישור מפעיל לפני שינוי."
-  }
-  if (run.outcome === "webhook_failed") {
-    const notes = run.operator_notes?.trim() ?? ""
-    if (notes.includes("לא השיבה") || notes.includes("לא סיימה")) {
-      return notes
-    }
-    return "שליחה לאוטומציה נכשלה — לחץ ↻ לניסיון חוזר."
   }
   if (run.outcome === "triggered") {
     return "בתהליך review — טרם הוחלט."

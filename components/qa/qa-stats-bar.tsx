@@ -14,6 +14,8 @@ const toneClasses = {
     "bg-emerald-100 text-emerald-950 ring-emerald-300 shadow-md hover:shadow-lg hover:bg-emerald-50",
   development:
     "bg-violet-100 text-violet-950 ring-violet-300 shadow-md hover:shadow-lg hover:bg-violet-50",
+  failed:
+    "bg-rose-100 text-rose-950 ring-rose-300 shadow-md hover:shadow-lg hover:bg-rose-50",
 } as const
 
 export function QaStatsBar({
@@ -26,6 +28,7 @@ export function QaStatsBar({
     inReview: number
     inDevelopment: number
     waitingForOperator: number
+    failed: number
     dismissed: number
     implemented: number
   }
@@ -67,6 +70,13 @@ export function QaStatsBar({
       href: "/dashboard/qa?bucket=waiting_for_operator",
     },
     {
+      key: "failed",
+      label: "נכשל",
+      value: stats.failed,
+      tone: "failed",
+      href: "/dashboard/qa?bucket=failed",
+    },
+    {
       key: "dismissed",
       label: "אזעקות שווא",
       value: stats.dismissed,
@@ -85,7 +95,7 @@ export function QaStatsBar({
   return (
     <section className="rounded-3xl bg-white p-4 shadow-lg ring-1 ring-black/[0.06]">
       <p className="mb-3 text-xs font-semibold text-slate-500">מדדים — 7 ימים אחרונים</p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {cards.map((card, index) => {
           const active = activeBucket === card.key
           return (
