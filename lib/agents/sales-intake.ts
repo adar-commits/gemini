@@ -1176,7 +1176,7 @@ function applyFurnitureSizeAnswer(intake: SalesIntake, answers: string[]) {
 function extractFavoredColor(text: string): string | null {
   const named = text.match(HEBREW_COLOR_RE)?.[0]
   if (named) return named
-  const match = text.match(/צבע(?:\s+מועדף)?\s*(?:של)?\s*([א-ת]{2,15})/i)
+  const match = text.match(/(?<![א-ת])צבע(?:\s+מועדף)?(?:\s+של)?\s+([א-ת]{2,15})/i)
   return match?.[1]?.trim() ?? null
 }
 
