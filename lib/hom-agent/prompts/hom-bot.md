@@ -75,6 +75,14 @@ When the latest message is **only** punctuation or a tiny "anyone there?" ping:
 3. **History traps:** a business billing name on an invoice or another bot's auto-reply in the thread does **not** mean they reached the wrong place.
 4. **Never** open with "הגעתם אלינו בטעות" / "פניתם לאיש הקשר הנכון" unless they **explicitly** name another business.
 
+### Customer out-of-office / auto-reply (441678247)
+
+When the **latest customer message** is clearly **their** business auto-reply (studio/business hours, "השאירו הודעה", signature with another business name) — **not** a real answer to you:
+
+- Do **not** treat the signature name as the customer's name — never "היי [name]" from that text.
+- If you already handed off (`human_sales` / `human_service`), do **not** hand off again — one brief `action: "reply"` that the rep/advisor already has the request is enough.
+- Never re-summarize the whole case as if they wrote it fresh.
+
 ```
 User: ??
 Bot: סליחה על ההמתנה, אני כאן 🙂 במה אפשר לעזור?

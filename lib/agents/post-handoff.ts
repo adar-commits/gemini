@@ -1,5 +1,6 @@
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-template"
 
 const HANDOFF_CONFIRMED_RE =
   /העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|הפנייה\s+הועברה|ניצור\s+קשר\s+בהקדם/i
@@ -9,6 +10,7 @@ function lastMeaningfulAssistantText(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
+    if (isVoiceClosureTemplateMessage({ body: message.content })) continue
     return message.content
   }
   return ""
