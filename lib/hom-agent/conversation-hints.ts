@@ -959,7 +959,7 @@ export function buildConversationHints(input: {
     )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
-      "PHOTO RECEIVED (533695023): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo: ack \"קיבלתי את התמונה\" and hand off to יועץ מכירות with a short summary of what they asked (e.g. size) — `action: human_sales`, unless an order/service flow is active."
+      'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
     )
   }
 
