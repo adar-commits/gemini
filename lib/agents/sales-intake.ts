@@ -337,6 +337,23 @@ export function pendingSalesIntakeQuestionKind(history: HistoryMessage[]) {
   return lastIntakeQuestionKind(history)
 }
 
+/** LLM mode keeps nuanced steps (children/style/practical) on the model; bind deterministic quiz steps via pre-turn. */
+const LLM_STRUCTURED_INTAKE_KINDS = new Set([
+  "product",
+  "space",
+  "bedroom",
+  "pets",
+  "sofa",
+  "furniture",
+  "photo",
+  "style_photo",
+])
+
+function allowsLlmModeStructuredIntake(history: HistoryMessage[]) {
+  const kind = pendingSalesIntakeQuestionKind(history)
+  return kind != null && LLM_STRUCTURED_INTAKE_KINDS.has(kind)
+}
+
 export function isAwaitingSalesIntakeAnswer(history: HistoryMessage[]) {
   return pendingSalesIntakeQuestionKind(history) != null
 }
@@ -447,9 +464,13 @@ export function shouldUseSalesIntakeFastPath(
   if (hasUnverifiedProductRequest(body)) return false
   if (isSpecificProductQuery(body)) return false
 
-  // Default mode: LLM runs the full sales quiz — structured pre-turn must not hijack mid-thread.
+  // LLM mode: nuanced intake steps stay on the model; deterministic quiz steps bind via pre-turn.
   if (mode === "llm") {
     if (isConfirmationPending(history)) return true
+    if (allowsLlmModeStructuredIntake(history) && isAwaitingSalesIntakeAnswer(history)) {
+      if (isIntakeTopicPivot(body, history)) return false
+      return true
+    }
     return false
   }
 
