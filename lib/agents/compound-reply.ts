@@ -24,6 +24,20 @@ const INACTIVITY_ACK_PREFIX =
 const PURE_AFFIRMATION_TAIL =
   /^(?:תודה|בבקשה|pls|please|אשמח|מעולה)?(?:[\s,.!?]*)$/iu
 
+const PURE_AFFIRMATION_PART =
+  /^(?:תודה(?:\s+רבה)?|בבקשה|pls|please|אשמח|מעולה|בסדר|סבבה|יופי)(?:[\s,.!?]*(?:,\s*)?)/iu
+
+function isOnlyPureAffirmationTail(remainder: string) {
+  let rest = remainder.trim()
+  if (!rest) return true
+  while (rest) {
+    const match = rest.match(PURE_AFFIRMATION_PART)
+    if (!match) return PURE_AFFIRMATION_TAIL.test(rest)
+    rest = rest.slice(match[0].length).trim()
+  }
+  return true
+}
+
 /** Strip a leading yes / ack word and punctuation. */
 export function remainderAfterLeadingAffirmation(text: string) {
   return text
@@ -61,7 +75,7 @@ export function isPureHandoffAffirmation(text: string) {
   if (!startsWithHandoffAffirmation(body)) return false
   const remainder = remainderAfterLeadingAffirmation(body)
   if (!remainder) return true
-  return PURE_AFFIRMATION_TAIL.test(remainder)
+  return isOnlyPureAffirmationTail(remainder)
 }
 
 export function isHandoffAffirmationWithExtra(text: string) {
@@ -69,7 +83,7 @@ export function isHandoffAffirmationWithExtra(text: string) {
   if (isPureInactivityAck(body) || isInactivityAckWithExtra(body)) return false
   if (!startsWithHandoffAffirmation(body)) return false
   const remainder = remainderAfterLeadingAffirmation(body)
-  if (!remainder || PURE_AFFIRMATION_TAIL.test(remainder)) return false
+  if (!remainder || isOnlyPureAffirmationTail(remainder)) return false
   return hasEmbeddedBusinessAsk(remainder) || remainder.split(/\s+/).length >= 3
 }
 
