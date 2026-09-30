@@ -1,10 +1,8 @@
 import Link from "next/link"
 import { QaDashboardHero } from "@/components/qa/qa-dashboard-hero"
-import { QaDevelopmentInsights } from "@/components/qa/qa-development-insights"
 import { QaManualTrigger } from "@/components/qa/qa-manual-trigger"
 import { QaRunTable } from "@/components/qa/qa-run-table"
 import { QaStatsBar } from "@/components/qa/qa-stats-bar"
-import { getQaDevelopmentInsights } from "@/lib/agents/qa-development-insights"
 import { listQaConversationContexts } from "@/lib/landbot/qa-conversation-context"
 import {
   getQaAutomationStats,
@@ -53,8 +51,6 @@ export default async function QaDashboardPage({
   let runs: Awaited<ReturnType<typeof listQaAutomationRuns>>["runs"] = []
   let total = 0
   let stats: Awaited<ReturnType<typeof getQaAutomationStats>> | null = null
-  let developmentInsights: Awaited<ReturnType<typeof getQaDevelopmentInsights>> | null =
-    null
 
   try {
     await expireStaleQaRuns().catch((err) => {
@@ -63,7 +59,7 @@ export default async function QaDashboardPage({
     void autoRetryDueWebhookFailures(5).catch((err) => {
       console.warn("[qa-dashboard] webhook auto-retry failed", err)
     })
-    const [listed, snapshot, insights] = await Promise.all([
+    const [listed, snapshot] = await Promise.all([
       listQaAutomationRuns({
         limit,
         offset,
@@ -71,12 +67,10 @@ export default async function QaDashboardPage({
         days: 30,
       }),
       getQaAutomationStats(7),
-      getQaDevelopmentInsights({ messageScanDays: 7, qaThemeDays: 30 }),
     ])
     runs = listed.runs
     total = listed.total
     stats = snapshot
-    developmentInsights = insights
   } catch (err) {
     error = err instanceof Error ? err.message : "טעינת QA נכשלה"
   }
@@ -111,14 +105,6 @@ export default async function QaDashboardPage({
 
         {stats ? (
           <QaStatsBar stats={stats} activeBucket={bucket} />
-        ) : null}
-
-        {developmentInsights ? (
-          <QaDevelopmentInsights
-            insights={developmentInsights.insights}
-            signals={developmentInsights.signals}
-            qaThemeDays={developmentInsights.qaThemeDays}
-          />
         ) : null}
 
         <QaManualTrigger />
