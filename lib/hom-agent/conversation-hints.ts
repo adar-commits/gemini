@@ -118,6 +118,7 @@ import {
 import {
   buildServiceRepGoalNote,
   extractServiceIntake,
+  isOrderCancellationSummaryLabel,
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
@@ -749,6 +750,14 @@ export function buildConversationHints(input: {
   if (isReturnEligibilityQuestion(body, history)) {
     lines.push(
       "Return ELIGIBILITY FAQ (hypothetical — not executing a return now): answer immediately from return policy — 14 days from receipt, unused + original packaging, branch or paid courier, returns portal to open the request. Confirm their planned day (e.g. Sunday) is within the window. Do NOT call lookup_order_status."
+    )
+  } else if (
+    isOrderCancellationSummaryLabel(body) &&
+    !isOrderLookupCompletedInThread(history) &&
+    !isReturnPortalSelfServiceThread(history)
+  ) {
+    lines.push(
+      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405): customer wants to cancel (may also ask for a rep to call back) — pre-delivery cancel playbook in the same turn: returns portal link with phone prefill + action human_service so delivery can be stopped. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). A new order afterward is for the rep — service owns cancel + callback first."
     )
   } else if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
     lines.push(
