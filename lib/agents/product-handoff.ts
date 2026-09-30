@@ -115,7 +115,15 @@ const URL_REQUEST_MARKER_RE =
   /קישור לדף המוצר|קישור למוצר|לצרף\s+קישור|שלח(?:\/|)?(?:ו|י)?\s*קישור|פרטים\s+טכניים/i
 
 const PRODUCT_SPECIFIC_QUESTION_RE =
-  /מתאים\s+ל(?:ילד|תינוק|בע(?:ל)?י\s+חיים)|(?:ל)?ילד(?:ים|ה)|צבע(?:ים)?|מיד(?:ה|ות)|גוד(?:ל|ים)|עובי|חומ(?:ר|ר)|פרטים\s+טכנ|ניתן\s+ל(?:נקות|כבס)|אל(?:רג|ג)י|רעש|בטיחות|מתאים\s+ל/i
+  /מתאים\s+ל(?:ילד|תינוק|בע(?:ל)?י\s+חיים)|(?:ל)?ילד(?:ים|ה)|צבע(?:ים)?|מיד(?:ה|ות)|גוד(?:ל|ים)|עובי|משקל|חומ(?:ר|ר)|פרטים\s+טכנ|ניתן\s+ל(?:נקות|כבס)|אל(?:רג|ג)י|רעש|בטיחות|מתאים\s+ל/i
+
+const PRODUCT_SPEC_DEFERRED_RE =
+  /(?:משקל|עובי|משקל\s+נוצה).*(?:אין\s+לי|יועץ(?:\s+המכירות)?\s+יבדוק)|(?:אין\s+לי\s+אות(?:ו|ה)\s+כאן|יועץ(?:\s+המכירות)?\s+יבדוק).*(?:משקל|עובי|מפרט)/i
+
+const CATALOG_SIZE_IN_THREAD_RE = /\d{2,4}\s*[/*x×]\s*\d{2,4}/
+
+const CATALOG_ROOM_IN_THREAD_RE =
+  /(?:^|\s)(?:ל)?(?:סלון|חדר\s+שינה|חדר\s+ילדים|מסדרון|מרפסת|מטבח|כניסה)(?:\s|$|[,.!?])/i
 
 function hasNamedModel(text: string) {
   if (KNOWN_MODEL_RE.test(text)) return true
@@ -192,6 +200,31 @@ export function isProductSpecificQuestion(body: string) {
   if (isInventoryQuestion(text) || looksLikeInventorySku(text)) return false
   if (hasProductUrl(text)) return false
   return PRODUCT_SPECIFIC_QUESTION_RE.test(text)
+}
+
+/** Bot already said a product spec (e.g. weight) must be checked by the sales advisor. */
+export function isProductSpecDeferredToAdvisorInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" && PRODUCT_SPEC_DEFERRED_RE.test(message.content)
+  )
+}
+
+/** Catalog intake has rug size + target room in user messages (thread state). */
+export function hasCatalogIntakeSizeAndRoom(
+  history: HistoryMessage[],
+  body: string
+) {
+  const userCorpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  ].join("\n")
+  return (
+    CATALOG_SIZE_IN_THREAD_RE.test(userCorpus) &&
+    CATALOG_ROOM_IN_THREAD_RE.test(userCorpus)
+  )
 }
 
 export function extractProductUrl(text: string): string | null {

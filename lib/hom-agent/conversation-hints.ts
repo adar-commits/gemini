@@ -46,10 +46,12 @@ import {
   isTradeInQuestion,
 } from "@/lib/agents/inquiry-intent"
 import {
+  hasCatalogIntakeSizeAndRoom,
   isCatalogProductInquiry,
   isHomStorefrontUrl,
   isProductDetailsRequest,
   isProductInventoryQuestion,
+  isProductSpecDeferredToAdvisorInThread,
   isSpecificProductMention,
 } from "@/lib/agents/product-handoff"
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
@@ -201,6 +203,16 @@ export function buildConversationHints(input: {
   if (isCatalogProductInquiry(body, history) || isHomStorefrontUrl(body) || isProductDetailsRequest(body)) {
     lines.push(
       'CATALOG PRODUCT (מכירות): carpetshop.co.il / pozitiveshop.co.il link or Landbot "פרטים נוספים לגבי …" is a product they saw on the site — not an order. Never lookup_order_status / phone-confirm. Set `"crm_department": "sales"`, answer from KB or continue sales intake (room / photo / advisor). A photo asking about the model shape belongs here too.'
+    )
+  }
+
+  if (
+    isCatalogProductInquiry(body, history) &&
+    isProductSpecDeferredToAdvisorInThread(history) &&
+    hasCatalogIntakeSizeAndRoom(history, body)
+  ) {
+    lines.push(
+      'PRODUCT SPEC DEFERRED (533758736): you already said יועץ המכירות will verify a spec (e.g. משקל) you lack — customer gave size + room. Send advisor recap + `action: human_sales` in the **same** JSON now (מעביר ליועץ מכירות). Do **not** ask sofa size, pets, or photo — the advisor owns the spec check.'
     )
   }
 
