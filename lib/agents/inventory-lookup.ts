@@ -234,6 +234,29 @@ const BRANCH_HAS_RE =
 
 const DISPLAY_AT_BRANCH_RE = /ל(?:תצוגה|ראות|מגע|הרגיש)|בתצוגה/i
 
+const BOT_DISPLAY_OPEN_RE =
+  /(?:לא\s+(?:רואה|יכול(?:\s+לראות)?)|אין\s+לי\s+מידע).*תצוגה|מה\s+מוצג\s+בתצוגה/i
+
+/** Thread still has an unanswered showroom-display question (533798193). */
+export function hasPendingBranchDisplayQuestion(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        !isInactivityAssistantMessage(message.content) &&
+        BOT_DISPLAY_OPEN_RE.test(message.content)
+    )
+  ) {
+    return true
+  }
+  return recentUserTexts(body, history, 8).some((text) =>
+    DISPLAY_AT_BRANCH_RE.test(text)
+  )
+}
+
 /** Last N user messages including the current turn — for routing, not debounce merge. */
 export function recentUserTexts(
   body: string,

@@ -106,6 +106,7 @@ import {
 } from "@/lib/agents/conversation-close"
 import {
   extractSku,
+  hasPendingBranchDisplayQuestion,
   isActiveInventoryThread,
   isInventoryRecheckRequest,
   shouldHandleBranchInventory,
@@ -952,8 +953,11 @@ export function buildConversationHints(input: {
   }
 
   if (isActiveInventoryThread(history) || isInventoryRecheckRequest(body)) {
+    const displayOpen = hasPendingBranchDisplayQuestion(body, history)
     lines.push(
-      "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy. **Color variants at a branch** → human_sales only, never list colors. When requested branch shows no stock but another branch/warehouse has qty, name where they can order from."
+      displayOpen
+        ? "Inventory + DISPLAY OPEN (533798193): customer also asked if the SKU is on **showroom display** at a branch — `lookup_inventory` answers stock/preorder only, not floor display. After stock results: **never** warm-close (שמחתי לעזור); remind display is not visible in the system and offer `human_sales` to check with the branch. Re-check another item → ask for a **new** מק״ט."
+        : "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy. **Color variants at a branch** → human_sales only, never list colors. When requested branch shows no stock but another branch/warehouse has qty, name where they can order from."
     )
   }
 
