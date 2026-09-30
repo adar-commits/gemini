@@ -1,4 +1,8 @@
 import { DEFECT_ISSUE_REPORT_LABEL } from "@/lib/agents/service-defect-wording"
+import {
+  remainderAfterLeadingAffirmation,
+  startsWithHandoffAffirmation,
+} from "@/lib/agents/compound-reply"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { messageAwaits } from "@/lib/agents/bot-awaiting"
@@ -169,11 +173,19 @@ export function extractServiceIntake(
     extractOrderNumber(corpus) ??
     undefined
 
+  let customerGoal = extractCustomerGoal(corpus, issueKind)
+  if (startsWithHandoffAffirmation(body.trim())) {
+    const addition = remainderAfterLeadingAffirmation(body).trim()
+    if (addition.length >= 3) {
+      customerGoal = addition.slice(0, 120)
+    }
+  }
+
   return {
     issueKind,
     orderNumber,
     waitDuration: extractWaitDuration(corpus),
-    customerGoal: extractCustomerGoal(corpus, issueKind),
+    customerGoal,
   }
 }
 
@@ -372,7 +384,9 @@ export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {
 }
 
 export function isServiceHandoffSummaryConfirmed(body: string) {
-  return /^(?:כן|נכון|בדיוק|מדויק|yes)/i.test(body.trim())
+  const text = body.trim()
+  if (startsWithHandoffAffirmation(text)) return true
+  return /^(?:נכון|בדיוק|מדויק)/i.test(text)
 }
 
 /** Customer already approved a service rep summary earlier in this thread. */

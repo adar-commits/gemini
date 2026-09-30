@@ -410,7 +410,7 @@ export function buildConversationHints(input: {
     if (isServiceHandoffSummaryConfirmed(body)) {
       const intake = extractServiceIntake(history, body)
       lines.push(
-        `Service summary was already approved. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence, set action \`human_service\`, and include only this compact rep note: ${buildServiceRepGoalNote(intake)}`
+        `Service summary confirm (533773292): customer approved — including confirm+addition (כן ו… / כן, להוסיף…). Set action \`human_service\` NOW — never warm-close or action end. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence and include this compact rep note: ${buildServiceRepGoalNote(intake)}`
       )
     } else {
       lines.push(

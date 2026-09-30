@@ -84,6 +84,8 @@ import {
   isExplicitExchangeExecutionTurn,
 } from "@/lib/agents/exchange-intake"
 import {
+  buildServiceRepGoalNote,
+  extractServiceIntake,
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
 } from "@/lib/agents/service-intake"
@@ -164,9 +166,16 @@ export function runPreTurnGuards(input: {
     isServiceHandoffSummaryPending(input.history) &&
     isServiceHandoffSummaryConfirmed(body)
   ) {
+    const intake = extractServiceIntake(input.history, body)
+    const repNote = buildServiceRepGoalNote(intake)
+    const handoffLine = buildHumanHandoffConfirmedReply("human_service")
+    const reply =
+      repNote && intake.customerGoal?.trim()
+        ? `${CUSTOMER_HEADER}\n${handoffLine}\n\n${repNote}`
+        : `${CUSTOMER_HEADER}\n${handoffLine}`
     return {
       kind: "handled",
-      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_service")}`,
+      reply,
       action: "human_service",
     }
   }
