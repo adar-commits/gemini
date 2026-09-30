@@ -93,6 +93,18 @@ describe("qaRunSolution", () => {
     )
   })
 
+  it("localizes webhook_failed resource_exhausted to Hebrew in solution", () => {
+    const run = baseRun({
+      outcome: "webhook_failed",
+      root_cause: "Webhook POST to Cursor automation failed",
+      operator_notes:
+        'HTTP 400: {"success":false,"error":"Failed to start background composer: [resource_exhausted] Error"}',
+    })
+    assert.equal(qaRunProblem(run), "שליחת webhook ל-Cursor automation נכשלה")
+    assert.match(qaRunSolution(run), /resource_exhausted|עומס/)
+    assert.doesNotMatch(qaRunSolution(run), /"success":false/)
+  })
+
   it("localizes webhook_failed 401 implement chain notes to Hebrew", () => {
     const run = baseRun({
       outcome: "webhook_failed",

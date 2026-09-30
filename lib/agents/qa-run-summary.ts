@@ -93,6 +93,13 @@ export function qaRunConversationUrl(run: QaAutomationRunRow) {
 }
 
 export function qaRunProblem(run: QaAutomationRunRow) {
+  if (run.outcome === "webhook_failed") {
+    const cause = run.root_cause?.trim()
+    if (cause === "Webhook POST to Cursor automation failed") {
+      return "שליחת webhook ל-Cursor automation נכשלה"
+    }
+    return cause && hasHebrew(cause) ? cause : cause ?? "שליחת webhook נכשלה"
+  }
   if (run.root_cause?.trim()) {
     const cause = run.root_cause.trim()
     return hasHebrew(cause) ? cause : hebrewFallbackProblem(cause)
