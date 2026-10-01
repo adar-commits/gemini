@@ -78,6 +78,18 @@ export function isReturnToBranchQuestion(text: string) {
   )
 }
 
+/** Yes/no: is the store inside a design-center / mall complex? (533900683) */
+export function isDesignCenterLocationQuestion(text: string) {
+  const normalized = text.trim()
+  if (!normalized) return false
+  if (isBranchReviewLinkRequest(normalized)) return false
+  return (
+    /design\s*cent(?:er|re)/i.test(normalized) ||
+    /(?:inside|in|at)\s+(?:the\s+)?(?:design\s*cent(?:er|re)|redesign)/i.test(normalized) ||
+    /(?:ב|בתוך|נמצא(?:ים|ות|ה)?\s+ב?)(?:מרכז\s+)?(?:ה)?עיצוב/i.test(normalized)
+  )
+}
+
 export function isBranchListQuestion(text: string) {
   const normalized = text.trim()
   if (isRefundTimelineQuestion(normalized)) return false

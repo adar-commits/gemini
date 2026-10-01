@@ -31,6 +31,7 @@ import {
   isServiceOrderIdentificationFlow,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
+import { isDesignCenterLocationQuestion } from "@/lib/agents/branches"
 import { customerExplicitlyRequestsHuman } from "@/lib/agents/kb-self-service-faq"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
@@ -217,6 +218,12 @@ export function buildConversationHints(input: {
   if (isFirstSubstantiveCustomerTurn(history)) {
     lines.push(
       "FIRST CUSTOMER MESSAGE: interpret their full intent with LLM + tools this turn — no structured FAQ/order shortcuts. Answer what they actually asked; call lookup_order_status only when they ask about an existing order/shipment — never for a product page or פרטים נוספים."
+    )
+  }
+
+  if (isDesignCenterLocationQuestion(body)) {
+    lines.push(
+      'DESIGN-CENTER LOCATION FAQ (533900683): "inside design center" / מרכז עיצוב = yes/no — are our stores inside design-center complexes? Answer yes with examples from get_branch_info (e.g. Kiryat Ata in Redesign). If no city named, ask which branch/city they plan to visit — never "Which design center did you mean?" and never assume one branch from CRM name alone. Match customer language (Hebrew/English). action: reply.'
     )
   }
 
