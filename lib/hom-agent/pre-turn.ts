@@ -105,10 +105,15 @@ import {
   extractShippingOrderDocumentReference,
   isChannelPhoneSelfReference,
   isExplicitHumanRequest,
+  isIdentifiedOrderRejection,
   isNumberedReturnPolicyChoicePending,
+  isOrderConfirmationNo,
   isOrderConfirmationPending,
+  isDeliveryEstimateQuestion,
+  isKnownOrderConfirmPending,
   isOrderDeliveryStatusQuestion,
   isOrderLookupCompletedInThread,
+  isShippingThreadFromHistory,
   isShippingAddressUpdateThread,
   isOrderLookupPhoneReplyPending,
   isPurePhoneLookupConfirmYes,
@@ -729,7 +734,14 @@ export async function runStructuredOrderLookupPreTurn(input: {
   const pendingLookupFlow = orderConfirmPending || phoneLookupPending
   const deliveryLookupBinding =
     pendingLookupFlow &&
-    (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body))
+    (isOrderDeliveryStatusQuestion(body) ||
+      isDeliveryEstimateQuestion(body) ||
+      isShippingStatusQuestion(body) ||
+      (isKnownOrderConfirmPending(input.history) &&
+        !isOrderConfirmationNo(body) &&
+        !isIdentifiedOrderRejection(body) &&
+        isShippingThreadFromHistory(input.history) &&
+        body.trim().length > 0))
   if (
     !openingShippingStatus &&
     !typedPhone &&

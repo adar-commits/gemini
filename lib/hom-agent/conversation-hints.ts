@@ -978,7 +978,7 @@ export function buildConversationHints(input: {
   if (isKnownOrderConfirmPending(history)) {
     const known = orderIdGivenInThread(history)
     lines.push(
-      `KNOWN ORDER CONFIRM (404732305 / 508272038): you already asked if they mean order ${known ?? "from the receipt"}. כן means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
+      `KNOWN ORDER CONFIRM (404732305 / 508272038 / 532767659): you already asked if they mean order ${known ?? "from the receipt"}. כן OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
     )
   }
 

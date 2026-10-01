@@ -1268,6 +1268,19 @@ export function isDeliveryEstimateQuestion(body: string) {
   )
 }
 
+/** Prior user turns were order/shipping asks — thread state, not latest-line intent. */
+export function isShippingThreadFromHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      (isShippingStatusQuestion(message.content) ||
+        isOrderDeliveryStatusQuestion(message.content) ||
+        isDeliveryEstimateQuestion(message.content) ||
+        isPreorderDelayComplaint(message.content) ||
+        isMissingOrPartialDeliveryComplaint(message.content))
+  )
+}
+
 /** Customer asks when self-pickup will be possible — no exact date in our data. */
 export function isSelfPickupTimingQuestion(body: string) {
   const text = body.trim()
@@ -2152,6 +2165,17 @@ export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]
   if (mentionsCancellationDesire(body)) return false
   const other = extractOrderNumber(body)
   if (other && other.toUpperCase() !== known.toUpperCase()) return false
+  if (isKnownOrderConfirmPending(history)) {
+    if (affirmsKnownOrder(body)) return true
+    if (
+      !isOrderConfirmationNo(body) &&
+      !isIdentifiedOrderRejection(body) &&
+      isShippingThreadFromHistory(history) &&
+      body.trim().length > 0
+    ) {
+      return true
+    }
+  }
   if (!affirmsKnownOrder(body)) return false
   if (isKnownOrderConfirmPending(history)) return true
   if (isOrderNumberRequestPending(history)) return true
