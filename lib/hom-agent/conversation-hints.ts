@@ -95,6 +95,7 @@ import {
 } from "@/lib/agents/greeting"
 import { isOwnedRugCareQuestion } from "@/lib/crm/conversation-department"
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
+import { isPoufAssemblyFaqThread } from "@/lib/agents/kb"
 import {
   isCarpetPackagingOpenQuestion,
   isCarpetRentalQuestion,
@@ -201,6 +202,14 @@ export function buildConversationHints(input: {
   const lines: string[] = []
 
   const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
+  const poufAssemblyFaqThread =
+    isPoufAssemblyFaqThread(history) && !hasOngoingSalesIntake(history)
+
+  if (poufAssemblyFaqThread) {
+    lines.push(
+      'POUF ASSEMBLY FAQ (533487147): active post-purchase assembly / filling help — stay FAQ (`action: reply`). Answer from pozitive KB + tutorial link. Photo + assembly question (ניילון, מילוי, שלב) is **not** sales — never "לאיזה חלל", never יועץ עיצוב, never sales intake or `crm_department: sales`. Offer `human_service` only when KB cannot answer and the customer agrees.'
+    )
+  }
 
   if (isFirstSubstantiveCustomerTurn(history)) {
     lines.push(
@@ -1026,6 +1035,10 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. Do NOT describe/analyze the image."
+    )
+  } else if (/\[media:image:/i.test(body) && poufAssemblyFaqThread) {
+    lines.push(
+      'POUF ASSEMBLY PHOTO (533487147): image during assembly FAQ — ack "קיבלתי את התמונה", answer the assembly question from KB/tutorial when you can; stay `action: reply`. Never sales room photo / יועץ עיצוב / "לאיזה חלל". Offer `human_service` if unsure after answering what you can.'
     )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(

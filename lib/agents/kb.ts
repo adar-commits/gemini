@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
 import { formatRetrievedChunks, retrieveKbChunks } from "@/lib/agents/kb-rag"
+import type { HistoryMessage } from "@/lib/agents/types"
 
 const kbPath = join(process.cwd(), "lib/agents/kb/faq.md")
 const pozitiveKbPath = join(process.cwd(), "lib/agents/kb/pozitive-products.md")
@@ -81,6 +82,18 @@ export const POZITIVE_TOPIC_RE =
 
 export function shouldIncludePozitiveKb(userText = "") {
   return POZITIVE_TOPIC_RE.test(userText.trim())
+}
+
+/** Bot already engaged in post-purchase pouf assembly / filling FAQ (533487147). */
+const POZITIVE_ASSEMBLY_ASSISTANT_MARKER_RE =
+  /(?:באיזה שלב נתקע|פתיחת המארז|הכנסת המילוי|סגירת הרוכסן|מילוי(?:\s+ש(?:רינק|רינק))?|ניעור(?:\s+את)?\s*(?:ה)?פוף|pozitive-tutorial-videos|סרטוני הדרכה)/i
+
+export function isPoufAssemblyFaqThread(history: HistoryMessage[] = []) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      POZITIVE_ASSEMBLY_ASSISTANT_MARKER_RE.test(message.content)
+  )
 }
 
 /** Carpet / rug product FAQ from carpetshop.co.il/pages/faq */
