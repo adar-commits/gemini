@@ -120,6 +120,12 @@ const PRODUCT_SPECIFIC_QUESTION_RE =
 const PRODUCT_SPEC_DEFERRED_RE =
   /(?:משקל|עובי|משקל\s+נוצה).*(?:אין\s+לי|יועץ(?:\s+המכירות)?\s+יבדוק)|(?:אין\s+לי\s+אות(?:ו|ה)\s+כאן|יועץ(?:\s+המכירות)?\s+יבדוק).*(?:משקל|עובי|מפרט)/i
 
+const COLOR_VARIANT_REAL_PHOTO_REQUEST_RE =
+  /(?:מתלבט|התלבט|בין\s+(?:שני\s+)?(?:גוונ|צבע)|גוון.*(?:ל|ו)גוון|תמונ(?:ה|ות).*(?:מציאות|אמיתי)|(?:מציאות|אמיתי).*תמונ|להראות.*(?:איך|תמונ)|איך.*(?:נראה|יראה).*(?:מציאות|בתמונה))/i
+
+const SALES_TRANSFER_PROMISED_RE =
+  /מעביר(?:ים|ה|\s+אות(?:ך|כם))?\s+(?:עכשיו\s+)?(?:ל)?(?:יועץ\s+)?מכירות|מעביר\s+אות(?:ך|כם)\s+עכשיו/i
+
 const CATALOG_SIZE_IN_THREAD_RE = /\d{2,4}\s*[/*x×]\s*\d{2,4}/
 
 const CATALOG_ROOM_IN_THREAD_RE =
@@ -208,6 +214,31 @@ export function isProductSpecDeferredToAdvisorInThread(history: HistoryMessage[]
     (message) =>
       message.role === "assistant" && PRODUCT_SPEC_DEFERRED_RE.test(message.content)
   )
+}
+
+/** Catalog inquiry — customer hesitates between color variants or asks for real-life product photos. */
+export function isColorVariantRealPhotoRequest(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (!isCatalogProductInquiry(body, history)) return false
+  const userCorpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  ].join("\n")
+  return COLOR_VARIANT_REAL_PHOTO_REQUEST_RE.test(userCorpus)
+}
+
+/** Bot's last real reply promised sales transfer — bind follow-up turns to human_sales. */
+export function isSalesTransferPromisedInLastAssistant(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    return SALES_TRANSFER_PROMISED_RE.test(message.content)
+  }
+  return false
 }
 
 /** Catalog intake has rug size + target room in user messages (thread state). */

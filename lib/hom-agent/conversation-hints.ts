@@ -49,12 +49,14 @@ import {
 import {
   hasCatalogIntakeSizeAndRoom,
   isCatalogProductInquiry,
+  isColorVariantRealPhotoRequest,
   isHomStorefrontUrl,
   extractRequestedModel,
   isActiveProductSalesPrepThread,
   isProductDetailsRequest,
   isProductInventoryQuestion,
   isProductSpecDeferredToAdvisorInThread,
+  isSalesTransferPromisedInLastAssistant,
   isSpecificProductMention,
 } from "@/lib/agents/product-handoff"
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
@@ -221,6 +223,18 @@ export function buildConversationHints(input: {
   if (isCatalogProductInquiry(body, history) || isHomStorefrontUrl(body) || isProductDetailsRequest(body)) {
     lines.push(
       'CATALOG PRODUCT (מכירות): carpetshop.co.il / pozitiveshop.co.il link or Landbot "פרטים נוספים לגבי …" is a product they saw on the site — not an order. Never lookup_order_status / phone-confirm. Set `"crm_department": "sales"`, answer from KB or continue sales intake (room / photo / advisor). A photo asking about the model shape belongs here too.'
+    )
+  }
+
+  if (isColorVariantRealPhotoRequest(body, history) && !hasOngoingSalesIntake(history)) {
+    lines.push(
+      'COLOR VARIANT PHOTOS (533891498): customer hesitates between color variants or asks for real-life photos you cannot send — יועץ המכירות owns the comparison. Send bullet recap + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone (Action ↔ transfer wording). Optional room photo may be requested in the same message but must not block handoff.'
+    )
+  }
+
+  if (isSalesTransferPromisedInLastAssistant(history)) {
+    lines.push(
+      'SALES TRANSFER PROMISED (533891498): you already wrote מעביר ליועץ מכירות — customer may add rooms, quantities, or photos. Update the advisor recap + set `action: human_sales` in the **same** JSON now. Never stay on reply/faq while they wait for the rep.'
     )
   }
 
