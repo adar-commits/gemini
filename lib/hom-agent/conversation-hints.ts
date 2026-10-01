@@ -119,6 +119,7 @@ import {
 import {
   buildServiceRepGoalNote,
   extractServiceIntake,
+  isActiveCourierWrongAddressReport,
   isOrderCancellationSummaryLabel,
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
@@ -248,6 +249,12 @@ export function buildConversationHints(input: {
         : "If they still need a rep, or you cannot resolve it, set action human_service in the same JSON."
     lines.push(
       `VOICE CALLBACK TEMPLATE (532661685): the last outbound ("כאן נציג/ה ... בהמשך לבקשתך לדבר עם נציג") is an automatic template sent after the customer chose, on a phone call, to keep waiting for a rep on WhatsApp — no rep has written yet. Answer their request normally this turn with tools (e.g. shipping status → lookup_order_status). Never stay silent and never ask a "זה מדויק?" summary confirmation. ${departmentLine}`
+    )
+  }
+
+  if (isActiveCourierWrongAddressReport(body)) {
+    lines.push(
+      "ACTIVE COURIER WRONG ADDRESS (533569676): courier is en route but the address on the courier side is wrong — urgent service issue, NOT the 532692073 address-change KB. crm_department service. Call lookup_order_status when the order is not identified yet. If they say the address was fixed at purchase → acknowledge HoM error + human_service for urgent callback. Never reply with ONLY 077-9725055 / *3076 self-service without a service path."
     )
   }
 

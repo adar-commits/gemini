@@ -124,6 +124,18 @@ function extractWaitDuration(text: string) {
 
 const ORDER_CANCELLATION_SUMMARY_LABEL = "ביטול הזמנה"
 
+/** Courier en route but address on courier side is wrong — urgent service, not FAQ address-change KB (533569676). */
+export function isActiveCourierWrongAddressReport(corpus: string) {
+  const text = corpus.trim()
+  if (!text) return false
+  if (/(?:לשנות|לעדכן|להחליף)\s+(?:את\s+)?(?:ה)?כתובת/i.test(text)) return false
+  return (
+    /שליח/.test(text) &&
+    /כתובת/.test(text) &&
+    /(?:לא\s+נכונ|שגוי|טעות|שמופיע\s+לשליח)/i.test(text)
+  )
+}
+
 /** Pre-delivery cancel wording — separate from post-receipt return in rep summaries (533458767). */
 export function isOrderCancellationSummaryLabel(corpus: string) {
   const text = corpus.trim()
