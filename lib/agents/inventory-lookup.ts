@@ -331,13 +331,17 @@ export function isInventoryQuestionWithContext(
 }
 
 export function isSkuRequestPending(history: HistoryMessage[]) {
+  return getPendingSkuRequestContent(history) != null
+}
+
+function getPendingSkuRequestContent(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    return SKU_REQUEST_RE.test(message.content)
+    return SKU_REQUEST_RE.test(message.content) ? message.content : null
   }
-  return false
+  return null
 }
 
 /** Recent branch stock lookup — follow-up SKUs should reuse inventory flow, not FAQ/sales LLM. */
@@ -714,6 +718,9 @@ export function buildInventoryAvailabilityReply(
         alternates
       )
     }
+    if (allowBranchRetry && branchLabel) {
+      return buildInventoryUnconfirmedReply(label, branchLabel)
+    }
     if (allowBranchRetry) {
       return buildInventoryAvailabilityReply(row, null, { allowBranchRetry: false })
     }
@@ -794,6 +801,12 @@ function inventoryContextFromRecentMessages(
     branch =
       extractBranchCityFromInventoryQuery(body) ??
       extractBranchCityFromInventoryQuery(combined)
+    if (!branch) {
+      const skuPrompt = getPendingSkuRequestContent(history)
+      if (skuPrompt) {
+        branch = extractBranchCityFromInventoryQuery(skuPrompt)
+      }
+    }
     if (branch && isNoiseBranchCityHint(branch)) branch = null
   }
   const product =

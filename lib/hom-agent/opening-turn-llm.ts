@@ -6,6 +6,10 @@ import {
   isExchangeIntakeStartedInThread,
 } from "@/lib/agents/exchange-intake"
 import {
+  isSkuRequestPending,
+  extractSku,
+} from "@/lib/agents/inventory-lookup"
+import {
   isNumberedReturnPolicyChoicePending,
   isOrderConfirmationPending,
   isOrderLookupPhoneReplyPending,
@@ -49,6 +53,9 @@ export function hasStructuredPendingStateBinding(
   if (isActiveDigitalDocumentFlow(history, body)) return true
   if (isNumberedReturnPolicyChoicePending(history, body)) return true
   if (isSalesPhotoRequestPending(history) && turnHasCustomerImage(turn)) {
+    return true
+  }
+  if (isSkuRequestPending(history) && extractSku(body)) {
     return true
   }
   return false

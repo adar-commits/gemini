@@ -17,11 +17,11 @@ const BRANCH_HOURS_RE =
 /** Common Hebrew city abbreviations → canonical branch names from KB. */
 const CITY_ALIASES: Array<{ pattern: RegExp; canonical: string }> = [
   { pattern: /ראשל(?:["״']?צ|ון(?:\s*לציון)?)/i, canonical: "ראשון לציון" },
-  { pattern: /ת(?:["״']?א|ל\s*א[-\s]?אביב)/i, canonical: "תל אביב" },
+  { pattern: /ק(?:["״']?ר|רי?ת\s*אתא)/i, canonical: "קריית אתא" },
+  { pattern: /ת(?:["״']?א|ל\s*א[-\s]?אביב)(?![\u0590-\u05FF])/i, canonical: "תל אביב" },
   { pattern: /ב(?:["״']?ש|אר\s*שבע)/i, canonical: "באר שבע" },
   { pattern: /פ(?:["״']?ת|תח\s*תקו?וה)/i, canonical: "פתח תקווה" },
   { pattern: /ב(?:["״']?ב|ני\s*ברק)/i, canonical: "בני ברק" },
-  { pattern: /ק(?:["״']?ר|ריית\s*אתא)/i, canonical: "קריית אתא" },
   { pattern: /נ(?:["״']?ת|תניה)/i, canonical: "נתניה" },
   { pattern: /סגולה/i, canonical: "פתח תקווה" },
 ]
