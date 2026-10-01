@@ -219,6 +219,8 @@ async function deliverOrderLookupReply(input: {
     }
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
       ? ("human_service" as const)
+      : /מעביר.*יועץ מכירות/i.test(trimmed)
+        ? ("human_sales" as const)
       : isResolvedStatusCloseReply(trimmed)
         ? ("end" as const)
         : ("reply" as const)

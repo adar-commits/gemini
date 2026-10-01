@@ -286,7 +286,7 @@ export function buildConversationHints(input: {
 
   if (isOrderModificationRequest(body)) {
     lines.push(
-      'ORDER MODIFICATION (532165595): customer wants to change color/size on an existing order. Empathize → call lookup_order_status (phone confirm is OK) → after order card confirm start exchange intake kind A for color change. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+      'ORDER MODIFICATION (532165595 / 422622122): customer wants to change color/size on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל while still in packaging → human_sales to update before ship. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
     )
   }
 
