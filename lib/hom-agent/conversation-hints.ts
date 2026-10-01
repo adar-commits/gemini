@@ -255,7 +255,7 @@ export function buildConversationHints(input: {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
   }
 
-  if (isVoiceClosureTemplateLastAssistant(history)) {
+  if (isVoiceClosureTemplateLastAssistant(history) && !isOrderConfirmationPending(history)) {
     const handoffKind = postHandoffKind(null, history) ?? "human_service"
     const departmentLine =
       handoffKind === "human_sales"
