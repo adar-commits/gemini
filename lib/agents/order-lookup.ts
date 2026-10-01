@@ -1127,6 +1127,14 @@ export function findOrderByNumber(
   const key = orderNumber.trim().toUpperCase()
   const digits = key.replace(/\D/g, "")
 
+  if (/^(?:RC|IN|OV)\d+$/i.test(key)) {
+    const byDocument =
+      orders.find((order) =>
+        JSON.stringify(order.raw).toUpperCase().includes(key)
+      ) ?? null
+    if (byDocument) return byDocument
+  }
+
   const exact =
     orders.find(
       (order) =>
