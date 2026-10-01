@@ -27,6 +27,8 @@ import {
 import { isKbSelfServiceFaqThisTurn } from "@/lib/agents/kb-self-service-faq"
 import {
   extractSku,
+  isActiveInventoryThread,
+  isSkuRequestPending,
   resolveBranchInventoryReply,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
@@ -120,7 +122,7 @@ import {
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
-import { isCatalogProductInquiry } from "@/lib/agents/product-handoff"
+import { hasProductUrl, isCatalogProductInquiry } from "@/lib/agents/product-handoff"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -512,7 +514,7 @@ export function runStructuredKbSelfServiceFaqPreTurn(input: {
   return { kind: "handled", reply, action: "reply" }
 }
 
-/** Customer provided a valid מק״ט — run inventory lookup; do not hand off or re-ask. */
+/** Structured inventory — SKU lookup, or SKU prompt when URL / stock ask needs a מק״ט. */
 export async function runStructuredInventoryPreTurn(input: {
   turn: UserTurn
   history: HistoryMessage[]
@@ -524,10 +526,16 @@ export async function runStructuredInventoryPreTurn(input: {
   if (isKbSelfServiceFaqThisTurn(body, input.history)) {
     return { kind: "skip", response: null }
   }
-  if (!extractSku(body)) {
+  if (!shouldHandleBranchInventory(body, input.history)) {
     return { kind: "skip", response: null }
   }
-  if (!shouldHandleBranchInventory(body, input.history)) {
+  const sku = extractSku(body)
+  if (
+    !sku &&
+    !hasProductUrl(body) &&
+    !isSkuRequestPending(input.history) &&
+    !isActiveInventoryThread(input.history)
+  ) {
     return { kind: "skip", response: null }
   }
 
