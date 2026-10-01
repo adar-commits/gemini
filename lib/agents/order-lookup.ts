@@ -2013,6 +2013,11 @@ export function identifiedOrderNumberFromThread(history: HistoryMessage[]) {
     if (/בדקתי,/i.test(message.content)) {
       for (let prior = index - 1; prior >= 0; prior -= 1) {
         const earlier = history[prior]
+        if (earlier.role === "user") {
+          const fromUser = extractOrderNumber(earlier.content)
+          if (fromUser) return fromUser
+          continue
+        }
         if (earlier.role !== "assistant") continue
         const order = extractOrderNumberFromConfirmationPrompt(earlier.content)
         if (order) return order

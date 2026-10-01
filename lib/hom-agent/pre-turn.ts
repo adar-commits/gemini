@@ -292,7 +292,11 @@ export function runPreTurnGuards(input: {
     !isHumanHandoffPending(input.history) &&
     !isAwaitingSalesIntakeAnswer(input.history) &&
     !isServiceHandoffSummaryPending(input.history) &&
-    !isOrderLookupPhoneReplyPending(input.history)
+    !isOrderLookupPhoneReplyPending(input.history) &&
+    !(
+      isOrderLookupCompletedInThread(input.history) &&
+      isShippingThreadFromHistory(input.history)
+    )
   ) {
     return {
       kind: "handled",

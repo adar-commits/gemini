@@ -23,6 +23,7 @@ import {
   isShippingAddressUpdateThread,
   isPreorderEtaSharedInThread,
   isPostOrderShippingFollowUp,
+  isShippingThreadFromHistory,
   isOrderStatusDeliveredInThread,
   historyHasOrderPickExhaustedRecheck,
   isPhoneLookupConfirmPending,
@@ -417,7 +418,11 @@ export function buildConversationHints(input: {
   if (
     isThanksAcknowledgment(body) &&
     !isHumanHandoffPending(history) &&
-    !isOrderConfirmationPending(history)
+    !isOrderConfirmationPending(history) &&
+    !(
+      isOrderLookupCompletedInThread(history) &&
+      isShippingThreadFromHistory(history)
+    )
   ) {
     lines.push(
       "THANKS AFTER RESOLVED THREAD: customer is closing — reply with warm close only (`{name}, שמחתי לעזור היום! 😊`), action end, expects_reply false. Never ask במה עוד אוכל לעזור."
@@ -712,13 +717,23 @@ export function buildConversationHints(input: {
 
   if (isOrderLookupCompletedInThread(history)) {
     lines.push(
-      "ORDER LOOKUP COMPLETED: order card already confirmed — NEVER call lookup_order_status or re-ask phone unless refreshing status for a new shipping question. Never say 'כבר מצאנו את ההזמנה' — customer does not care. Never offer unsolicited ביטול/החזרה/העברה menus — let them state intent. Shipping follow-ups (מתי יגיע/יסופק, עבר שבוע, מי חברת השליחויות) → answer from last status + policy; courier name unavailable in ERP → say so + optional rep. Rep request (העברה לנציג / נציג שירות) → human_service immediately. Return menu 1/2 after policy → portal/courier instructions from KB, not lookup."
+      "ORDER LOOKUP COMPLETED: order card already confirmed — NEVER call lookup_order_status or re-ask phone unless refreshing status for a new shipping question. Never say 'כבר מצאנו את ההזמנה' — customer does not care. Never offer unsolicited ביטול/החזרה/העברה menus — let them state intent. Shipping follow-ups (מתי יגיע/יסופק/יבוצע ההספקה, עבר שבוע, מי חברת השליחויות) → answer from last status + policy; courier name unavailable in ERP → say so + optional rep. Rep request (העברה לנציג / נציג שירות) → human_service immediately. Return menu 1/2 after policy → portal/courier instructions from KB, not lookup."
     )
   }
 
   if (isOrderStatusDeliveredInThread(history) && isPostOrderShippingFollowUp(body, history)) {
     lines.push(
-      "POST-ORDER SHIPPING THREAD (529503176 / 531893004): customer still on delivery timing/status — continue that thread. Do NOT pivot to cancel/return/exchange menus. A complete status answer (בדרך, נארז, השליח יתאם, מוכן לאיסוף) is the whole reply — action reply, never append האם להעביר לנציג. human_service only when they ask for a rep, status is unknown, or the system says נמסר and they say it did not arrive."
+      "POST-ORDER SHIPPING THREAD (529503176 / 531893004 / 533482593): customer still on delivery timing/status — continue that thread. Do NOT pivot to cancel/return/exchange menus. A complete status answer (בדרך, נארז, השליח יתאם, מוכן לאיסוף) is the whole reply — action reply, never append האם להעביר לנציג. human_service only when they ask for a rep, status is unknown, or the system says נמסר and they say it did not arrive."
+    )
+  }
+
+  if (
+    isOrderLookupCompletedInThread(history) &&
+    isOrderStatusDeliveredInThread(history) &&
+    /(?:מתי\s+.*(?:יבוצע|תבוצע)|(?:י)?(?:בוצע|תבוצע)\s+(?:ה)?(?:ה)?(?:אספק|הספק))/i.test(body)
+  ) {
+    lines.push(
+      "POST-ORDER DELIVERY EXECUTION (533482593): מתי יבוצע ההספקה / יבוצע ההספקה is the same shipping follow-up as מתי יגיע — answer from the last status card + policy (courier coordinates on delivery day; no exact hour in ERP). action reply — never open with handoff offer. If they explicitly ask for a rep, human_service."
     )
   }
 
