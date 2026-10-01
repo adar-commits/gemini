@@ -1751,8 +1751,26 @@ export function buildOrderStatusReply(order: OrderShipmentStatus) {
 בדקתי, ${body}${datePhrase}${helpOffer}`
 }
 
-function formatPreorderRestockExplanation(items: OrderLineItem[]) {
-  const named = items
+function formatPreorderRestockExplanation(
+  preorderItems: OrderLineItem[],
+  allItems: OrderLineItem[] = preorderItems
+) {
+  const meaning =
+    "הזמנה מוקדמת משמעותה שהפריט לא היה במלאי כפי שצוין בעמוד ההזמנה"
+
+  const displayItems = allItems.length > 0 ? allItems : preorderItems
+  const hasNonPreorder = displayItems.some((item) => !isPreorderLineItem(item))
+
+  if (hasNonPreorder) {
+    const bullets = displayItems
+      .map(formatOrderLineItemLine)
+      .filter((line): line is string => Boolean(line))
+      .map((line) => `• ${line}`)
+      .join("\n")
+    return `${meaning}.\n\nלהלן כל הפריטים בהזמנה:\n${bullets}`
+  }
+
+  const named = preorderItems
     .map((item) => {
       const name = item.name.trim()
       if (!name) return null
@@ -1762,9 +1780,6 @@ function formatPreorderRestockExplanation(items: OrderLineItem[]) {
       return { name, date }
     })
     .filter((item): item is { name: string; date: string | null } => item != null)
-
-  const meaning =
-    "הזמנה מוקדמת משמעותה שהפריט לא היה במלאי כפי שצוין בעמוד ההזמנה"
 
   if (named.length === 1) {
     const only = named[0]!
@@ -1790,7 +1805,7 @@ export function buildPreorderAwareStatusReply(
   const preorderItems = items.filter(isPreorderLineItem)
   if (preorderItems.length === 0) return buildOrderStatusReply(order)
 
-  const explanation = formatPreorderRestockExplanation(preorderItems)
+  const explanation = formatPreorderRestockExplanation(preorderItems, items)
   const statusBody = order.statusDescription?.trim() ?? ""
   const mappedStatus =
     Boolean(statusBody) && !isUnknownDeliveryStatusMessage(statusBody)
