@@ -696,12 +696,17 @@ export async function runStructuredOrderLookupPreTurn(input: {
 
   const knownOrderBind = shouldBindKnownOrderTurn(body, input.history)
 
+  const documentReferenceBinding = Boolean(
+    extractShippingOrderDocumentReference(body, input.history)
+  )
+
   if (
     !orderConfirmPending &&
     !phoneLookupPending &&
     !typedPhone &&
     !openingShippingStatus &&
-    !knownOrderBind
+    !knownOrderBind &&
+    !documentReferenceBinding
   ) {
     return { kind: "skip", response: null }
   }
@@ -717,10 +722,6 @@ export async function runStructuredOrderLookupPreTurn(input: {
   const deliveryLookupBinding =
     pendingLookupFlow &&
     (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body))
-  const documentReferenceBinding = Boolean(
-    extractShippingOrderDocumentReference(body, input.history)
-  )
-
   if (
     !openingShippingStatus &&
     !typedPhone &&

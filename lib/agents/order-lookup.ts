@@ -2744,6 +2744,10 @@ export function resolveLookupPhoneFromHistory(
     return channelPhone(whatsappPhone)
   }
 
+  if (body?.trim() && extractShippingOrderDocumentReference(body, history)) {
+    return channelPhone(whatsappPhone)
+  }
+
   return null
 }
 
@@ -3542,6 +3546,23 @@ export async function resolveOrderShippingReply(input: {
   }
 
   if (isPhoneLookupConfirmPending(history)) {
+    const shippingDocumentRef = extractShippingOrderDocumentReference(body, history)
+    if (shippingDocumentRef) {
+      const lookupPhone = channelPhone(whatsappPhone)
+      if (lookupPhone) {
+        const orders = await lookupOrdersForPhone(lookupPhone)
+        if (orders == null) return buildOrderLookupApiFailureReply()
+        const matched = findOrderByDocumentReference(orders, shippingDocumentRef)
+        if (matched) {
+          return replyAfterOrderIdentified(matched, lookupPhone, history, body)
+        }
+        if (orders.length > 0) {
+          return buildOrderNumberNotFoundReply(shippingDocumentRef, history, body)
+        }
+        return buildNoOrdersFoundReply(lookupPhone)
+      }
+    }
+
     const alternatePhone = userProvidedPhone(body)
     if (alternatePhone) {
       return lookupAndStartOrderConfirm(alternatePhone, empathize, { history, body })
