@@ -125,6 +125,7 @@ import {
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
+  isServiceHandoffSummaryText,
 } from "@/lib/agents/service-intake"
 import {
   isPostPurchaseAlternateSizeThread,
@@ -328,6 +329,21 @@ export function buildConversationHints(input: {
   if (isServiceHandoffSummaryPending(history)) {
     lines.push(
       "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (this is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
+    )
+  }
+
+  const serviceSummarySent = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      (isServiceHandoffSummaryText(message.content) ||
+        /זה מדויק(?:,|\s|$)/.test(message.content))
+  )
+  const serviceLabelPhotoReceived = history.some(
+    (message) => message.role === "user" && /\[media:image:/i.test(message.content)
+  )
+  if (serviceSummarySent && serviceLabelPhotoReceived) {
+    lines.push(
+      "WRONG-ITEM PHOTO + SERVICE SUMMARY (533620279): wrong color/item thread — summary already sent and label photo received. If they ask open-or-not, advise briefly; if they ask timing (היום / הנהג עזב), say you cannot promise same-day — rep coordinates. Then set action human_service NOW with recap + photo note. Never defer with 'אחרי שתפתחי… ואז מעביר' while action stays reply; declarative מעביר = human_service same JSON."
     )
   }
 
