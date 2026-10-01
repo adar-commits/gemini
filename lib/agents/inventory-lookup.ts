@@ -214,7 +214,7 @@ export function isBareSkuMessage(body: string) {
   return rest.length === 0
 }
 
-function extractRecentSku(body: string, history: HistoryMessage[] = []) {
+export function extractRecentSku(body: string, history: HistoryMessage[] = []) {
   const fromBody = extractSku(body)
   if (fromBody) return fromBody
 

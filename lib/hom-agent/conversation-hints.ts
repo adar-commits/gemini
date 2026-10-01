@@ -112,10 +112,12 @@ import {
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
 import {
+  extractRecentSku,
   extractSku,
   hasPendingBranchDisplayQuestion,
   isActiveInventoryThread,
   isInventoryRecheckRequest,
+  isSkuRequestPending,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
 import {
@@ -895,8 +897,11 @@ export function buildConversationHints(input: {
     )
   }
 
+  const inventorySku =
+    extractSku(body) ??
+    (isSkuRequestPending(history) ? extractRecentSku(body, history) : null)
   if (
-    extractSku(body) &&
+    inventorySku &&
     shouldHandleBranchInventory(body, history) &&
     !isPostPurchaseAlternateSizeThread(history, body)
   ) {

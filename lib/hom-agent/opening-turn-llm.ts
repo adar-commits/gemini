@@ -8,6 +8,7 @@ import {
 import {
   isSkuRequestPending,
   extractSku,
+  extractRecentSku,
 } from "@/lib/agents/inventory-lookup"
 import {
   isNumberedReturnPolicyChoicePending,
@@ -55,7 +56,10 @@ export function hasStructuredPendingStateBinding(
   if (isSalesPhotoRequestPending(history) && turnHasCustomerImage(turn)) {
     return true
   }
-  if (isSkuRequestPending(history) && extractSku(body)) {
+  if (
+    isSkuRequestPending(history) &&
+    (extractSku(body) || extractRecentSku(body, history) != null)
+  ) {
     return true
   }
   return false
