@@ -138,6 +138,7 @@ import {
   hasOngoingSalesIntake,
   hasRoomPhotoInHistory,
   isAwaitingSalesIntakeAnswer,
+  isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoRequestPending,
   isServicePhotoAnalysisContext,
 } from "@/lib/agents/sales-intake"
@@ -293,6 +294,12 @@ export function buildConversationHints(input: {
   if (salesIntakeActive) {
     lines.push(
       'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר ליועץ מכירות) — never אני צודק? and never wait for approval.'
+    )
+  }
+
+  if (isSalesIntakeCompleteWithOptionalPhotoPending(history)) {
+    lines.push(
+      'SALES RECAP + OPTIONAL PHOTO (533759845): intake quiz is done — you already sent recap + optional room photo. Customer photo, "שלחתי תמונה", thanks, or waiting → `action: human_sales` NOW (מעביר ליועץ מכירות) with brief ack. Optional photo never blocks handoff; never stay on reply/faq. Quote sofa/room sizes exactly as the customer wrote — never invent (e.g. 2 מ׳ רוחב ≠ 2.5 מ׳).'
     )
   }
 
@@ -1005,6 +1012,13 @@ export function buildConversationHints(input: {
   }
 
   if (
+    /\[media:image:/i.test(body) &&
+    isSalesIntakeCompleteWithOptionalPhotoPending(history)
+  ) {
+    lines.push(
+      "SALES ROOM PHOTO + HANDOFF (533759845): intake recap already sent — ack the photo once (קיבלתי את התמונה) and set `action: human_sales` in the **same** JSON (מעביר ליועץ מכירות). Never continue intake or stay on reply. Do NOT describe/analyze the image."
+    )
+  } else if (
     /\[media:image:/i.test(body) &&
     (isSalesPhotoRequestPending(history) ||
       hasOngoingSalesIntake(history) ||

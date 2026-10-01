@@ -209,7 +209,7 @@ export function mentionsPetInText(text: string) {
 }
 
 const SALES_PHOTO_REQUEST_RE =
-  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|תמונה\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה|יעזור\s+ליועץ\s+העיצוב/i
+  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|(?:,\s*)?של(?:ח|וח)(?:\/י)?(?:ו)?\s+תמונה|תמונה(?:\s+\S+){0,6}\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה|(?:יעזור|תעזור)\s+ליועץ\s+העיצוב/i
 
 /** Photo asked for the service rep (wrong item, defect) — not a sales room photo. */
 const SERVICE_REP_PHOTO_REQUEST_RE = /נציג(?:י)?\s+(?:ה)?שירות/
@@ -259,6 +259,19 @@ export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
   }
   return false
 }
+
+const SALES_RECAP_SENT_RE = /(?:רשמתי|אז לסיכום|לסיכום)/i
+
+/** Intake quiz done — bot asked optional room photo; handoff must not wait on it. */
+export function isSalesIntakeCompleteWithOptionalPhotoPending(history: HistoryMessage[]) {
+  if (!isSalesPhotoRequestPending(history)) return false
+  const last = lastNonInactivityAssistantText(history)
+  if (SALES_RECAP_SENT_RE.test(last)) return true
+  return !isAwaitingSalesIntakeAnswer(history)
+}
+
+const SALES_PHOTO_SENT_CLAIM_RE =
+  /שלחתי\s+תמונה|מחכ(?:ה|ים)\s+ל(?:תשובה|יועץ|נציג)/i
 
 export function turnHasCustomerImage(turn: UserTurn) {
   if (turn.media.some((part) => part.kind === "image")) return true
@@ -1998,9 +2011,13 @@ export function shouldAckSalesRoomPhotoWithoutVision(
   turn: UserTurn,
   lastAgent: AgentId | null
 ) {
-  if (!turnHasCustomerImage(turn)) return false
   const body = summarizeTurn(turn)
   if (isServicePhotoAnalysisContext(history, body)) return false
+  if (isSalesIntakeCompleteWithOptionalPhotoPending(history)) {
+    if (turnHasCustomerImage(turn)) return true
+    if (SALES_PHOTO_SENT_CLAIM_RE.test(body.trim())) return true
+  }
+  if (!turnHasCustomerImage(turn)) return false
   if (isSalesPhotoRequestPending(history)) return true
   if (hasOngoingSalesIntake(history)) return true
   if (isActiveSalesConsultation(history, lastAgent)) return true
