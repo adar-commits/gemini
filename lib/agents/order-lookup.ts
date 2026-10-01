@@ -42,6 +42,7 @@ import {
   type ServiceIntake,
 } from "@/lib/agents/service-intake"
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
+import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-template"
 import type { AgentId } from "@/lib/agents/types"
 import {
   activeOrderLineItemVerificationRequest,
@@ -1338,10 +1339,10 @@ export function isOrderConfirmationPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    if (shouldContinueReplyScanPastAssistant(message.content)) continue
     return (
       messageAwaits(message, "order_confirm") ||
-      /האם מדובר (?:על )?הזמנה/i.test(message.content) ||
+      /(?:האם\s+)?מדובר(?:\s+ב)?(?:ה)?זמנה/i.test(message.content) ||
       isOrderCardText(message.content) ||
       /\(מס(?:'|׳)?\s*הזמנה\s+(?:SO|IN|OV)\d+\)/i.test(message.content) ||
       /\(מס(?:'|׳)?\s*הזמנה\s+\d{4,8}\)/i.test(message.content)
@@ -1361,13 +1362,16 @@ function isPriorityApiWaitAssistantMessage(content: string) {
 
 /** Non-terminal assistant bubbles between a prompt and the customer's reply. */
 function shouldContinueReplyScanPastAssistant(content: string) {
-  return isPriorityApiWaitAssistantMessage(content)
+  return (
+    isPriorityApiWaitAssistantMessage(content) ||
+    isVoiceClosureTemplateMessage({ body: content })
+  )
 }
 
 function isOrderConfirmationAssistantMessage(content: string) {
   return (
     isOrderCardText(content) ||
-    /האם מדובר (?:על )?הזמנה/i.test(content) ||
+    /(?:האם\s+)?מדובר(?:\s+ב)?(?:ה)?זמנה/i.test(content) ||
     /\(מס(?:'|׳)?\s*הזמנה\s+/i.test(content)
   )
 }
@@ -1377,7 +1381,7 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    if (shouldContinueReplyScanPastAssistant(message.content)) continue
     if (!isOrderConfirmationAssistantMessage(message.content)) continue
     const order = extractOrderNumberFromConfirmationPrompt(message.content)
     if (order) return order
@@ -2060,7 +2064,7 @@ function lastRealAssistantContent(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    if (shouldContinueReplyScanPastAssistant(message.content)) continue
     return message.content
   }
   return ""
