@@ -31,8 +31,10 @@ import {
   isActiveReturnExchangePickupCase,
   isRefundStatusInquiry,
   classifyPostPurchaseCase,
+  isOrderModificationRequest,
   type PostPurchaseCaseKind,
 } from "@/lib/agents/inquiry-intent"
+import { buildExchangeKindQuestion } from "@/lib/agents/exchange-intake"
 import {
   buildReturnPickupAwaitingServiceReply,
   buildServiceHandoffConfirmReply,
@@ -1760,16 +1762,56 @@ export function buildOrderConfirmationClarifyPrompt() {
 לא הבנתי — זו ההזמנה? כתבו כן או לא.`
 }
 
-export function buildOrderStatusReply(order: OrderShipmentStatus) {
+export function buildOrderStatusReply(
+  order: OrderShipmentStatus,
+  opts?: { omitWarmClose?: boolean }
+) {
   const body = order.statusDescription?.trim()
   if (!body) return buildApiFailureReply()
   const dateAlreadyInBody = /(?:נכון לתאריך|נמסר בתאריך|בתאריך \d)/i.test(body)
   const datePhrase = dateAlreadyInBody ? "" : orderStatusDatePhrase(order)
-  const helpOffer = isUnknownDeliveryStatusMessage(body)
-    ? ""
-    : `\n\n${ORDER_STATUS_HELP_OFFER}`
+  const helpOffer =
+    opts?.omitWarmClose || isUnknownDeliveryStatusMessage(body)
+      ? ""
+      : `\n\n${ORDER_STATUS_HELP_OFFER}`
   return `${CUSTOMER_HEADER}
 בדקתי, ${body}${datePhrase}${helpOffer}`
+}
+
+export function isOrderModificationInThread(
+  history: HistoryMessage[],
+  body: string
+): boolean {
+  if (isOrderModificationRequest(body)) return true
+  return history.some(
+    (message) =>
+      message.role === "user" && isOrderModificationRequest(message.content)
+  )
+}
+
+function isPostDeliveryOrder(order: OrderShipmentStatus): boolean {
+  const statusId = String(order.statusCode ?? "").trim()
+  return statusId === "6" || statusId === "23"
+}
+
+/** After lookup on a modification thread — status alone must not warm-close. */
+export function buildOrderModificationAwareStatusReply(
+  order: OrderShipmentStatus,
+  _history: HistoryMessage[],
+  _body: string
+): string {
+  const statusCard = buildOrderStatusReply(order, { omitWarmClose: true })
+  if (!isPostDeliveryOrder(order)) {
+    return `${statusCard}
+
+אני מבין שרוצים לשנות את ההזמנה — מעביר אותך ליועץ מכירות שיבדוק אם אפשר לעדכן לפני שההזמנה יוצאת מהמחסן.`
+  }
+  const kindQuestion = buildExchangeKindQuestion()
+    .slice(CUSTOMER_HEADER.length)
+    .trimStart()
+  return `${statusCard}
+
+נמשיך עם השינוי — ${kindQuestion}`
 }
 
 function formatPreorderRestockExplanation(
@@ -3087,6 +3129,10 @@ async function replyAfterOrderIdentified(
   ) {
     const contextReply = await buildOrderLineItemsContextReply(order, items)
     if (contextReply) return contextReply
+  }
+
+  if (isOrderModificationInThread(history, body)) {
+    return buildOrderModificationAwareStatusReply(order, history, body)
   }
 
   return buildOrderStatusReply(order)
