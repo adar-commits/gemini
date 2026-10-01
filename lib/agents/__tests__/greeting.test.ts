@@ -4,6 +4,7 @@ import {
   buildGreetingReply,
   buildOpeningGreetingEcho,
   dedupeGreetingBotName,
+  ensureCustomerHeader,
   ensureSingleCustomerHeader,
   formatOutboundMessages,
   prependOpeningGreetingReply,
@@ -122,7 +123,7 @@ ${CUSTOMER_HEADER}
     assert.match(cleaned, /מחכים לשטיח/)
   })
 
-  it("strips header from follow-up bubbles in one burst", () => {
+  it("keeps header on every bubble in one burst", () => {
     const { messages, headerSent } = formatOutboundMessages(
       [
         `${CUSTOMER_HEADER}\nהיי! 👋`,
@@ -132,17 +133,23 @@ ${CUSTOMER_HEADER}
     )
     assert.equal(messages.length, 2)
     assert.match(messages[0], /^\*הום בוט :\)\*/)
-    assert.doesNotMatch(messages[1], /^\*הום בוט :\)\*/)
+    assert.match(messages[1], /^\*הום בוט :\)\*/)
     assert.match(messages[1], /מחכים לשטיח/)
     assert.equal(headerSent, true)
   })
 
-  it("strips header when prior bubble already sent one", () => {
-    const { messages } = formatOutboundMessages([`${CUSTOMER_HEADER}\nשאלה נוספת?`], {
+  it("adds header when a bubble is missing it", () => {
+    const { messages } = formatOutboundMessages(["שאלה נוספת?"], {
       headerAlreadySent: true,
     })
-    assert.doesNotMatch(messages[0], /^\*הום בוט :\)\*/)
+    assert.match(messages[0], /^\*הום בוט :\)\*/)
     assert.match(messages[0], /שאלה נוספת/)
+  })
+
+  it("ensureCustomerHeader adds header to plain hello replies", () => {
+    const reply = ensureCustomerHeader("היי שלום! 😊 במה אוכל לעזור?")
+    assert.match(reply, /^\*הום בוט :\)\*/)
+    assert.match(reply, /היי שלום/)
   })
 })
 

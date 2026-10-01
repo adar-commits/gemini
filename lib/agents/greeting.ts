@@ -267,25 +267,31 @@ export function ensureSingleCustomerHeader(text: string) {
   return `${CUSTOMER_HEADER}\n${body}`
 }
 
-/** First outbound keeps header; follow-ups in the same burst do not repeat it. */
+/** Every customer-visible bubble starts with *הום בוט :)*. */
+export function ensureCustomerHeader(text: string) {
+  const normalized = text.trim()
+  if (!normalized) return CUSTOMER_HEADER
+
+  let withHeader = normalized
+  if (HEADER_PLAIN_RE.test(withHeader) && !HEADER_MARKDOWN_RE.test(withHeader)) {
+    withHeader = withHeader.replace(HEADER_PLAIN_RE, `${CUSTOMER_HEADER}\n`)
+  }
+  if (!/(?:\*הום בוט :\)\*|^הום בוט :\))/m.test(withHeader)) {
+    withHeader = `${CUSTOMER_HEADER}\n${withHeader}`
+  }
+  return ensureSingleCustomerHeader(withHeader)
+}
+
+/** Each outbound bubble keeps the customer header (including multi-part drains). */
 export function formatOutboundMessages(
   messages: string[],
-  options?: { headerAlreadySent?: boolean }
+  _options?: { headerAlreadySent?: boolean }
 ): { messages: string[]; headerSent: boolean } {
-  let headerSent = options?.headerAlreadySent ?? false
   const formatted = messages
     .map((raw) => raw.trim())
     .filter(Boolean)
-    .map((raw) => {
-      const single = sanitizeCustomerAddress(ensureSingleCustomerHeader(raw))
-      if (headerSent) return stripCustomerHeader(single)
-      if (HEADER_MARKDOWN_RE.test(single) || HEADER_PLAIN_RE.test(single)) {
-        headerSent = true
-        return single
-      }
-      return single
-    })
-  return { messages: formatted, headerSent }
+    .map((raw) => sanitizeCustomerAddress(ensureCustomerHeader(raw)))
+  return { messages: formatted, headerSent: formatted.length > 0 }
 }
 
 /** Opening welcome — single header, no repeated bot name, masculine voice. */

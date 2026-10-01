@@ -15,9 +15,7 @@ import {
 import { normalizeMessageText } from "@/lib/agents/memory"
 import {
   dedupeGreetingBotName,
-  ensureSingleCustomerHeader,
-  isCasualGreeting,
-  isSelfContainedGreetingReply,
+  ensureCustomerHeader,
   prependOpeningGreetingReply,
   sanitizeCustomerAddress,
 } from "@/lib/agents/greeting"
@@ -61,18 +59,10 @@ export function validateHomAgentReply(
   reply = dedupeGreetingBotName(reply)
   reply = prependOpeningGreetingReply(reply, userText, history)
 
-  if (reply && !shouldSkipHeader(userText, reply)) {
-    reply = reply.replace(/^(?:\*הום בוט :\)\*\n?)+/g, `${CUSTOMER_HEADER}\n`)
-    if (!reply.startsWith(CUSTOMER_HEADER) && !isSelfContainedGreetingReply(reply)) {
-      if (!reply.startsWith("הום בוט :)")) {
-        reply = `${CUSTOMER_HEADER}\n${reply}`
-      } else {
-        reply = reply.replace(/^הום בוט :\)\s*/, `${CUSTOMER_HEADER}\n`)
-      }
-    }
+  if (reply) {
+    reply = ensureCustomerHeader(reply)
   }
 
-  reply = ensureSingleCustomerHeader(reply)
   reply = normalizeReplyParagraphs(reply)
 
   const antiRepeat = replaceRepeatedReply(reply, output, history)
@@ -218,10 +208,3 @@ function sanitizeHallucinatedPortalUrls(reply: string, whatsappPhone?: string | 
   return reply.replace(HALLUCINATED_PORTAL_RE, portalUrl)
 }
 
-function shouldSkipHeader(userText: string, reply: string) {
-  if (isSelfContainedGreetingReply(reply)) return true
-  if (isCasualGreeting(userText) && /^(?:שלום|היי|הי|אהלן)/i.test(reply.trim())) {
-    return true
-  }
-  return reply.startsWith(CUSTOMER_HEADER)
-}
