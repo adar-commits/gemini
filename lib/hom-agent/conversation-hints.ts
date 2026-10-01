@@ -147,6 +147,7 @@ import type { UserTurn } from "@/lib/agents/user-turn"
 import {
   isInactivityAssistantMessage,
   isInactivityPingPending,
+  isInactivityStillHereReply,
 } from "@/lib/agents/inactivity"
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
 import { isPostHumanHandoff, postHandoffKind } from "@/lib/agents/post-handoff"
@@ -405,9 +406,26 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isInactivityPingPending(history) && (isHumanHandoffPending(history) || /^(?:כן|בטח|אשמח|yes)/i.test(body.trim()))) {
+  const inactivityStillHere = isInactivityStillHereReply(body)
+  const inactivityAffirmation =
+    inactivityStillHere || /^(?:בטח|אשמח|yes)/i.test(body.trim())
+  const bindInactivityToPrior =
+    isHumanHandoffPending(history) ||
+    isConfirmationPending(history) ||
+    isAwaitingSalesIntakeAnswer(history) ||
+    isOrderConfirmationPending(history) ||
+    isServiceHandoffSummaryPending(history) ||
+    isOrderLookupPhoneReplyPending(history)
+
+  if (isInactivityPingPending(history) && inactivityAffirmation && bindInactivityToPrior) {
     lines.push(
-      'INACTIVITY PING BINDING: the last bot message was "עדיין כאן?" — treat short affirmations (כן/בטח/אשמח) as answering the **prior** substantive question (handoff confirm, intake summary, order confirm), NOT as a fresh "still here" ack. On handoff confirm → set action human_sales or human_service immediately.'
+      'INACTIVITY PING BINDING: the last bot message was "עדיין כאן?" — treat short affirmations (כן/יכן/בטח/אשמח) as answering the **prior** substantive question (handoff confirm, intake summary, order confirm), NOT as a fresh "still here" ack. On handoff confirm → set action human_sales or human_service immediately.'
+    )
+  }
+
+  if (isInactivityPingPending(history) && inactivityStillHere && !bindInactivityToPrior) {
+    lines.push(
+      'INACTIVITY STILL-HERE ACK: "עדיין כאן?" with no open handoff/summary/order question — short "כן"/"יכן" means the customer is still here. Reply "אני כאן. איך אוכל להמשיך לעזור?", action reply. Never human_service/human_sales or rep-callback promises unless they ask again.'
     )
   }
 

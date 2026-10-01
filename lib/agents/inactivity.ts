@@ -35,7 +35,7 @@ export function isInactivityPingPending(history: HistoryMessage[]) {
 export function isInactivityStillHereReply(body: string) {
   const text = body.trim()
   if (!text || text.length > 40) return false
-  return /^(?:כן|כן\s+אני|פה|אני\s+פה|עדיין\s+פה|אני\s+כאן|כאן|yes|ok|👍)(?:[\s,.!?]*)$/iu.test(
+  return /^(?:כן|יכן|כן\s+אני|פה|אני\s+פה|עדיין\s+פה|אני\s+כאן|כאן|yes|ok|👍)(?:[\s,.!?]*)$/iu.test(
     text
   )
 }
