@@ -49,6 +49,8 @@ import {
   hasCatalogIntakeSizeAndRoom,
   isCatalogProductInquiry,
   isHomStorefrontUrl,
+  extractRequestedModel,
+  isActiveProductSalesPrepThread,
   isProductDetailsRequest,
   isProductInventoryQuestion,
   isProductSpecDeferredToAdvisorInThread,
@@ -1056,6 +1058,16 @@ export function buildConversationHints(input: {
   }
 
   const salesIntake = extractSalesIntake(history, body)
+  const threadRequestedModel = requestedModelFromUserThread(history, body)
+  if (
+    threadRequestedModel &&
+    (hasOngoingSalesIntake(history) || isActiveProductSalesPrepThread(history))
+  ) {
+    lines.push(
+      `THREAD PRODUCT BINDING (533700177): sales thread already named "${threadRequestedModel}" — questions like "הדגם הזה" / "איך קוראים לדגם?" / product page refer to THAT product. Use inventory/KB or the correct carpetshop/pozitive URL for it. Never send a different model link (e.g. Vega when thread is Sydney). Pivot rule applies only when customer introduces a NEW product/link/name.`
+    )
+  }
+
   if (
     /חדר\s+ילדים/i.test(salesIntake.targetSpace ?? body) &&
     !salesIntake.childrenAge
@@ -1066,6 +1078,15 @@ export function buildConversationHints(input: {
   }
 
   return lines.length > 0 ? lines.map((line) => `- ${line}`).join("\n") : null
+}
+
+function requestedModelFromUserThread(history: HistoryMessage[], body: string) {
+  for (const message of history) {
+    if (message.role !== "user") continue
+    const model = extractRequestedModel(message.content)
+    if (model) return model
+  }
+  return extractRequestedModel(body)
 }
 
 function splitQuestionParts(body: string) {
