@@ -2758,6 +2758,9 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     return (
       messageAwaits(message, "order_phone_confirm") ||
       /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(message.content) ||
+      /(?:^|[\n.!?]\s*)?(?:ה)?רשומ(?:ה|ים|ות)?\s+על\s+(?:ה)?מספר\s+(?:ה)?טלפון/i.test(
+        message.content
+      ) ||
       /האם בטוח שההזמנה רשומה על המספר/i.test(message.content) ||
       /האם ההזמנה (?:היא )?על טלפון/i.test(message.content) ||
       /האם (?:ה)?טלפון.{0,60}שבוצעה עליו/i.test(message.content) ||
@@ -3063,6 +3066,22 @@ async function lookupOrderByReference(input: {
   const orders = await lookupOrdersForPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
 
+  const documentId =
+    classifyDocumentNumber(input.orderReference)?.id ??
+    classifyDocumentNumber(input.body)?.id ??
+    documentReferenceGivenInThread(input.history)
+  if (documentId) {
+    const byDocument = findOrderByDocumentReference(orders, documentId)
+    if (byDocument) {
+      return replyAfterOrderIdentified(
+        byDocument,
+        input.lookupPhone,
+        input.history,
+        input.body
+      )
+    }
+  }
+
   const prefixed = extractOrderNumber(input.orderReference)
   const matched = prefixed
     ? findOrderByNumber(orders, prefixed)
@@ -3103,6 +3122,18 @@ async function lookupAndStartOrderConfirm(
   const phoneChanged = Boolean(priorPhone && phoneKey && priorPhone !== phoneKey)
   const history = phoneChanged ? [] : (context?.history ?? [])
   const sorted = sortOrdersNewestFirst(orders)
+  const threadDocumentRef = documentReferenceGivenInThread(history)
+  if (threadDocumentRef) {
+    const byDocument = findOrderByDocumentReference(sorted, threadDocumentRef)
+    if (byDocument) {
+      return replyAfterOrderIdentified(
+        byDocument,
+        phone,
+        history,
+        context?.body ?? ""
+      )
+    }
+  }
   if (knownOrderWasOffered(history)) {
     const knownMatch = matchedKnownOrderOnPhone(sorted, history)
     if (knownMatch) {
