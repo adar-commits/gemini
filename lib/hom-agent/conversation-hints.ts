@@ -129,6 +129,7 @@ import {
   buildServiceRepGoalNote,
   extractServiceIntake,
   isActiveCourierWrongAddressReport,
+  isCancelShipmentConfirmPending,
   isOrderCancellationSummaryLabel,
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
@@ -868,6 +869,10 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405): customer wants to cancel (may also ask for a rep to call back) — pre-delivery cancel playbook in the same turn: returns portal link with phone prefill + action human_service so delivery can be stopped. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). A new order afterward is for the rep — service owns cancel + callback first."
+    )
+  } else if (isCancelShipmentConfirmPending(history)) {
+    lines.push(
+      "PRE-DELIVERY CANCEL SHIPMENT CONFIRM (533868148 / 464488405): bot asked whether the order shipped — if customer confirms it has NOT shipped yet, execute pre-delivery cancel in THIS turn: returns portal link with phone prefill + say you are transferring to a service rep to stop delivery → action human_service. Do NOT reply with only after-hours / no-reps template without portal + transfer wording."
     )
   } else if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
     lines.push(

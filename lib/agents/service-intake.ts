@@ -149,6 +149,41 @@ export function isOrderCancellationSummaryLabel(corpus: string) {
   return /ביטול\s+הזמנה|לבטל\s+(?:את\s+)?(?:ה)?הזמנה|רוצ(?:ה|ים)\s+(?:ל)?בטל/i.test(text)
 }
 
+function lastNonInactivityAssistant(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message
+  }
+  return null
+}
+
+function isCancelShipmentStatusQuestion(text: string) {
+  const last = text.trim()
+  if (!last) return false
+  return (
+    /(?:כבר\s+(?:הגיע|נשלח)|עוד\s+לא\s+נשלח)/i.test(last) &&
+    /(?:\?|או\s+ש)/i.test(last)
+  )
+}
+
+function hasCancelIntentInThread(history: HistoryMessage[]) {
+  return history.some((message) => {
+    if (message.role !== "user") return false
+    if (isOrderCancellationSummaryLabel(message.content)) return true
+    return /(?:אפשר|מותר)\s+(?:ל)?בטל|(?:ל)?בטל\s*\?/i.test(message.content.trim())
+  })
+}
+
+/** Bot asked shipped vs not-shipped after a cancel request — bind the next customer reply (533868148). */
+export function isCancelShipmentConfirmPending(history: HistoryMessage[]) {
+  if (!hasCancelIntentInThread(history)) return false
+  const last = lastNonInactivityAssistant(history)
+  if (!last) return false
+  return isCancelShipmentStatusQuestion(last.content)
+}
+
 export function serviceIssueSummaryLabel(intake: ServiceIntake, corpus: string) {
   if (!intake.issueKind) return "פנייה לשירות לקוחות"
   if (intake.issueKind === "return_request" && isOrderCancellationSummaryLabel(corpus)) {
