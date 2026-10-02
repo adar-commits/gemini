@@ -371,7 +371,19 @@ export function buildConversationHints(input: {
 
   if (isServiceHandoffSummaryPending(history)) {
     lines.push(
-      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (this is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
+      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/מדויק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (this is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
+    )
+  }
+
+  const multiOrderShippingCorpus = [...history.map((m) => m.content), body].join("\n")
+  if (
+    /(?:שתי|2|שני).*?(?:הזמנ|שטיח)|(?:הזמנה אחת|אחת נוספת|ההזמנה השנ)/i.test(
+      multiOrderShippingCorpus
+    ) &&
+    /(?:צפי|מתי.*(?:מגיע|יגיע|אספקה)|סטטוס משלוח)/i.test(multiOrderShippingCorpus)
+  ) {
+    lines.push(
+      "MULTI-ORDER DELIVERY ETA (532828502): two+ orders + delivery timing ask — if you cannot show ETA for all, send service rep summary with bullets + 'זה מדויק?' using **אעביר** (future) only — action reply + awaiting service_summary_confirm. Never אני מעביר/העברתי until they confirm; then human_service."
     )
   }
 

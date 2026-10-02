@@ -78,11 +78,16 @@ function formatServiceReportOrderLabel(
 const SERVICE_SUMMARY_INTRO = "כדי שהנציג לא יצטרך לשאול שוב, זה מה שאעביר לו:"
 const SERVICE_SUMMARY_CHECK = "זה מדויק, או שחסר משהו?"
 /** Current template intro + legacy "אז מסכם את הפנייה…" rows written before the rewording. */
-const SERVICE_SUMMARY_PENDING_RE = /מסכם\s+את\s+הפנייה|שהנציג לא יצטרך לשאול שוב, זה מה שאעביר לו/i
+const SERVICE_SUMMARY_PENDING_RE =
+  /מסכם\s+את\s+הפנייה|שהנציג לא יצטרך לשאול שוב, זה מה שאעביר לו|זה מה ש(?:הוא יקבל|אעביר)/i
 
 /** Bot text is the service rep-summary template (current or legacy wording). */
 export function isServiceHandoffSummaryText(text: string) {
-  return SERVICE_SUMMARY_PENDING_RE.test(text)
+  if (SERVICE_SUMMARY_PENDING_RE.test(text)) return true
+  return (
+    /זה מדויק, או שחסר משהו\?/i.test(text) &&
+    /(?:•|זה מה ש(?:הוא יקבל|אעביר))/i.test(text)
+  )
 }
 
 const WAIT_DURATION_RE =
