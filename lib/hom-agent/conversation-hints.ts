@@ -881,6 +881,16 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    /זיכוי/i.test(body) &&
+    /(?:לא|ללא)\s+(?:ה)?(?:חזר(?:ה|ים|ת)?\s+)?כספ/i.test(body) &&
+    /(?:שטיח|קני)/i.test(body)
+  ) {
+    lines.push(
+      "STORE CREDIT FOR EXCHANGE (533474035): customer wants credit toward another rug (not cash refund). Explain eligibility briefly (unused + original packaging → credit code), then action human_service in the same JSON when you write מעביר לנציג — rep issues credit on the order. Never action reply with declarative מעביר."
+    )
+  }
+
   if (isCreditCodeOnlineRedemptionRequest(body, history)) {
     lines.push("Online credit-code redemption → explain policy briefly, action human_service.")
   }
