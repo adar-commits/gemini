@@ -386,14 +386,23 @@ function questionKindForText(question: string): string | null {
   if (/באיזה מוצר/.test(question)) return "product"
   if (/החדר משמש|איך חדר השינה/.test(question)) return "bedroom"
   if (/ילדים קטנים/.test(question)) return "children"
-  if (/בעלי חיים|להתאים לבעלי/.test(question)) return "pets"
-  if (/סגנון/.test(question)) return "style"
   if (/מידת הספה|גודל כללי של הסלון/.test(question)) return "sofa"
   if (/מידת המיטה|רהיט העיקרי/.test(question)) return "furniture"
   if (/יעזור\s+ליועץ\s+העיצוב/.test(question)) return "style_photo"
   if (/תמונה\s+של\s+החלל|תמונה\s+תעזור\s+ליועץ\s+לדייק/.test(question)) return "photo"
   if (/תקציב/.test(question)) return "budget"
   if (/דרישות מיוחדות|משהו חשוב שכדאי/.test(question)) return "practical"
+  if (/סגנון/.test(question)) return "style"
+  if (
+    /(?:האם\s+)?(?:ה)?שטיח\s+.*בעלי\s+חיים\s*\?|האם\s+.*בעלי\s+חיים|(?:צריך|אמור)\s+.*להתאים\s+(?:גם\s+)?לבעלי\s+חיים\s*\?|יש\s+בבית\s+בעלי\s+חיים/i.test(
+      question
+    ) &&
+    !/^(?:.*\n)?(?:\*הום בוט :\*\s*)?(?:רשמתי|מעולה|אין בעיה|אוקיי)[^\n]*(?:בלי|ללא)\s+בעלי\s+חיים/i.test(
+      question
+    )
+  ) {
+    return "pets"
+  }
   if (/האם זה נכון|אז לסיכום/i.test(question)) return "confirm"
   return null
 }

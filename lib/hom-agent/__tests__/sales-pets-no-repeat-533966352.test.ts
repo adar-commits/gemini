@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import { afterEach, describe, it } from "node:test"
-import { extractSalesIntake } from "@/lib/agents/sales-intake"
+import {
+  buildSalesPhotoReceivedTurnResult,
+  extractSalesIntake,
+  pendingSalesIntakeQuestionKind,
+} from "@/lib/agents/sales-intake"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
+import { runStructuredSalesPhotoPreTurn } from "@/lib/hom-agent/pre-turn"
 import type { HistoryMessage } from "@/lib/agents/types"
 
 afterEach(() => {
@@ -53,5 +58,35 @@ describe("sales pets no repeat (533966352)", () => {
     assert.match(hints ?? "", /PETS ALREADY ANSWERED/i)
     assert.match(hints ?? "", /never re-ask room\/product\/pets/i)
     assert.doesNotMatch(hints ?? "", /בעלי חיים — האם השטיח אמור להתאים/i)
+  })
+
+  it("does not treat בלי בעלי חיים ack as pending pets question", () => {
+    assert.notEqual(pendingSalesIntakeQuestionKind(historyBeforeRoomPhoto), "pets")
+  })
+
+  it("photo pre-turn does not re-ask pets (533966352 structured path)", () => {
+    const photoTurn = {
+      text: roomPhotoBody,
+      media: [
+        {
+          kind: "image" as const,
+          url: "https://storage.googleapis.com/media.landbot.io/256062/customers/533715674/7HEPJU09PBVXFZ3X9RXKOCQFZTWMI38F.jpg",
+        },
+      ],
+    }
+    const result = runStructuredSalesPhotoPreTurn({
+      turn: photoTurn,
+      history: historyBeforeRoomPhoto,
+      lastAgent: "faq",
+    })
+    assert.equal(result.kind, "handled")
+    if (result.kind !== "handled") return
+    assert.doesNotMatch(result.reply, /לגבי בעלי חיים|האם השטיח אמור להתאים/)
+    const built = buildSalesPhotoReceivedTurnResult(
+      historyBeforeRoomPhoto,
+      photoTurn.text,
+      photoTurn
+    )
+    assert.doesNotMatch(built.reply, /לגבי בעלי חיים|האם השטיח אמור להתאים/)
   })
 })
