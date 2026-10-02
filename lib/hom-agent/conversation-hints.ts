@@ -1120,7 +1120,7 @@ export function buildConversationHints(input: {
       hasRoomPhotoInHistory(history))
   ) {
     lines.push(
-      "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. Do NOT describe/analyze the image."
+      "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. **Never re-ask pets or any other intake step already answered in the thread.** Do NOT describe/analyze the image."
     )
   } else if (/\[media:image:/i.test(body) && poufAssemblyFaqThread) {
     lines.push(
@@ -1154,7 +1154,7 @@ export function buildConversationHints(input: {
   if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
     lines.push(
       salesIntakeMode() === "llm"
-        ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product already stated. On לא יודע/לא בטוח/לא alone: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). Never empty reply or silence — always the next question or final summary+human_sales."
+        ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product/pets/practical already answered in the thread. On לא יודע/לא בטוח/לא alone: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). Never empty reply or silence — always the next question or final summary+human_sales."
         : "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Short לא/אין/ללא counts as an answer to that step. Always a complete Hebrew question or summary — never stub words like placeholder/TODO or empty reply."
     )
   }
@@ -1171,6 +1171,11 @@ export function buildConversationHints(input: {
   }
 
   const salesIntake = extractSalesIntake(history, body)
+  if (salesIntake.pets != null && hasOngoingSalesIntake(history)) {
+    lines.push(
+      "PETS ALREADY ANSWERED (533966352): customer already answered the pets question in this thread — never ask about בעלי חיים again. Continue to דרישות מיוחדות or handoff summary+human_sales."
+    )
+  }
   const threadRequestedModel = requestedModelFromUserThread(history, body)
   if (
     threadRequestedModel &&
