@@ -27,7 +27,11 @@ const SKU_REQUEST_RE =
   /מק(?:״|"|')?ט|מספר הדגם|כולל מקף/i
 
 const RESTOCK_RE =
-  /(?:חוזר(?:ים)?|יחז(?:ור|רו)|חזר(?:ה|ו))\s+(?:ל)?(?:מלאי|זמינות)|מתי\s+(?:יחזור|חוזר).*?(?:מלאי|זמינות)|תחז(?:ית|יות).*?(?:מלאי|זמינות)/i
+  /(?:חוזר(?:ים|ת)?|יחז(?:ור|רו)|חזר(?:ה|ו))\s+(?:ל)?(?:מלאי|זמינות)|מתי\s+(?:יחזור|חוזר).*?(?:מלאי|זמינות)|תחז(?:ית|יות).*?(?:מלאי|זמינות)/i
+
+/** Customer asks to be notified when an out-of-stock size returns — advisor handoff, not lookup_inventory. */
+const BACK_IN_STOCK_ALERT_RE =
+  /(?:עדכון|התראה).*?(?:כש|כ.*?)(?:חוזר(?:ים|ת)?|יחז(?:ור|רו)).*?(?:מלאי|זמינות)|(?:אשמח|רוצה|מבקש).*?(?:כש|כ.*?)(?:חוזר(?:ים|ת)?|יחז(?:ור|רו)).*?(?:מלאי|זמינות)/i
 
 const HOM_SKU_RE = /\b(\d{8}-\d{6})\b/
 
@@ -301,6 +305,19 @@ export function isBranchInventoryQuestion(body: string) {
     return true
   }
   return false
+}
+
+export function isBackInStockAlertRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return BACK_IN_STOCK_ALERT_RE.test(text) || RESTOCK_RE.test(text)
+}
+
+export function countBackInStockAlertRequests(body: string) {
+  return body
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter((line) => isBackInStockAlertRequest(line)).length
 }
 
 /** Any stock / availability / restock ask — ask for SKU first (not a product URL). */

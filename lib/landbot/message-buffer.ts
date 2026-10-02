@@ -112,6 +112,26 @@ export async function hasBufferedCustomerMessages(conversationId: string) {
   return (await readBufferSnapshot(conversationId)) != null
 }
 
+/**
+ * Trailing burst may land in the buffer just after the LLM returns (534009436).
+ * Poll briefly so coalesce can merge before handoff.
+ */
+export async function pollForBufferedCustomerMessages(
+  conversationId: string,
+  options?: { maxMs?: number; pollMs?: number }
+) {
+  if (await hasBufferedCustomerMessages(conversationId)) return
+
+  const maxMs = options?.maxMs ?? 3000
+  const pollMs = options?.pollMs ?? 200
+  const deadline = Date.now() + maxMs
+
+  while (Date.now() < deadline) {
+    await sleep(pollMs)
+    if (await hasBufferedCustomerMessages(conversationId)) return
+  }
+}
+
 export async function enqueueCustomerTurn(conversationId: string, turn: UserTurn) {
   const supabase = getAgentSupabase()
   const { data: existing } = await supabase

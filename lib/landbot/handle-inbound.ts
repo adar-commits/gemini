@@ -64,7 +64,10 @@ import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
 import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
 import { buildNeverStuckReply, isBotFailureReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
-import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
+import {
+  coalesceTrailingBufferedTurn,
+  pollForBufferedCustomerMessages,
+} from "@/lib/landbot/message-buffer"
 import { isHumanThreadActive, releaseHumanThread } from "@/lib/landbot/human-takeover"
 import {
   handleTrainerProfileCommand,
@@ -392,6 +395,9 @@ export async function handleLandbotInbound(
     // Messages beyond the cap stay buffered and are handled as the next turn.
     let coalesceRuns = 0
     while (replyEnabled && coalesceRuns < 2) {
+      if (coalesceRuns === 0) {
+        await pollForBufferedCustomerMessages(conversationId)
+      }
       const mergedTurn = await coalesceTrailingBufferedTurn(conversationId, activeTurn)
       if (summarizeTurn(mergedTurn) === summarizeTurn(activeTurn)) break
       coalesceRuns += 1
