@@ -1126,6 +1126,15 @@ export function buildConversationHints(input: {
     lines.push(
       'POUF ASSEMBLY PHOTO (533487147): image during assembly FAQ — ack "קיבלתי את התמונה", answer the assembly question from KB/tutorial when you can; stay `action: reply`. Never sales room photo / יועץ עיצוב / "לאיזה חלל". Offer `human_service` if unsure after answering what you can.'
     )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isSkuRequestPending(history) &&
+    shouldHandleBranchInventory(body, history) &&
+    !isPostPurchaseAlternateSizeThread(history, body)
+  ) {
+    lines.push(
+      'INVENTORY SKU PHOTO (503612164): you asked for מק״ט for branch stock and the customer sent a product-page screenshot — ack the photo once, explain you cannot read מק״ט from images for stock checks, and ask them to **type** the מק״ט from the page (format 31503138-200290). Stay `action: reply` — **never** `human_sales` or after-hours OOO while stock lookup is still possible. When they type the מק״ט, call `lookup_inventory`.'
+    )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
       'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
