@@ -158,6 +158,26 @@ export function isHumanHandoffDecline(body: string) {
   return /^(?:לא|לא\s+תודה|עזוב|no)(?:[\s,.!?]|$)/i.test(body.trim())
 }
 
+/** Customer replied after a handoff offer without yes or no — no silent CRM assign (533962351). */
+export function customerRespondedToHandoffWithoutConfirm(history: HistoryMessage[]) {
+  const lastUserIdx = history.findLastIndex((message) => message.role === "user")
+  if (lastUserIdx === -1) return false
+
+  const lastUser = history[lastUserIdx]?.content ?? ""
+  if (isHumanHandoffAffirmation(lastUser) || isHumanHandoffDecline(lastUser)) return false
+
+  for (let index = lastUserIdx - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return (
+      isHumanHandoffOfferText(message.content) ||
+      messageAwaits(message, "handoff_confirm")
+    )
+  }
+  return false
+}
+
 /** Meta / unrelated messages that are not HoM business. */
 export function isOffTopicQuestion(body: string) {
   const text = body.trim()

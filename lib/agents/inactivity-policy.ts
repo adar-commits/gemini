@@ -3,7 +3,10 @@ import {
   INACTIVITY_PING_MS,
 } from "@/lib/agents/inactivity"
 import { isActiveInventoryThread } from "@/lib/agents/inventory-lookup"
-import { isHumanHandoffPending } from "@/lib/agents/off-topic"
+import {
+  customerRespondedToHandoffWithoutConfirm,
+  isHumanHandoffPending,
+} from "@/lib/agents/off-topic"
 import {
   isActiveSalesConsultation,
   isSalesFinalSummaryPending,
@@ -47,7 +50,10 @@ export function shouldSilentAutoAssignOnQuietWindow(
   lastAgent: AgentId | null = null
 ) {
   if (shouldSkipInactivityPingForSalesHandoff(history, lastAgent)) return true
-  if (isHumanHandoffPending(history)) return true
+  if (isHumanHandoffPending(history)) {
+    if (customerRespondedToHandoffWithoutConfirm(history)) return false
+    return true
+  }
   if (isServiceHandoffSummaryPending(history)) return true
   return false
 }

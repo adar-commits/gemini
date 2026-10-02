@@ -163,8 +163,11 @@ import {
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
 import { isPostHumanHandoff, postHandoffKind } from "@/lib/agents/post-handoff"
 import {
+  customerRespondedToHandoffWithoutConfirm,
   hasDeclarativeHandoffTransfer,
   inferHumanHandoffAction,
+  isHumanHandoffAffirmation,
+  isHumanHandoffDecline,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
 import { isConfirmationPending, isSalesFinalSummaryPending } from "@/lib/agents/sales-intake"
@@ -403,7 +406,22 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isHumanHandoffPending(history) && !kbSelfServiceFaqThisTurn) {
+  if (
+    isHumanHandoffPending(history) &&
+    customerRespondedToHandoffWithoutConfirm(history) &&
+    !isHumanHandoffAffirmation(body) &&
+    !isHumanHandoffDecline(body)
+  ) {
+    lines.push(
+      "HANDOFF OFFER — NON-CONFIRM REPLY (533962351): customer answered the rep offer with a different message (not כן/לא) — fulfill their ask or warm-close. Visit intent + thanks (אגיע לשם / נגיע / אבוא) → `action: end` with בכיף/תתחדשi — **never** `human_sales`, never re-offer יועץ מכירות on the closing turn."
+    )
+  }
+
+  if (
+    isHumanHandoffPending(history) &&
+    !kbSelfServiceFaqThisTurn &&
+    !customerRespondedToHandoffWithoutConfirm(history)
+  ) {
     const handoffAction = inferHumanHandoffAction(history, null)
     const documentHandoff = documentLookupFailureOfferedInThread(history)
     lines.push(
