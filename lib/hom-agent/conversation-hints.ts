@@ -112,10 +112,12 @@ import {
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
 import {
+  countBackInStockAlertRequests,
   extractRecentSku,
   extractSku,
   hasPendingBranchDisplayQuestion,
   isActiveInventoryThread,
+  isBackInStockAlertRequest,
   isInventoryRecheckRequest,
   isSkuRequestPending,
   shouldHandleBranchInventory,
@@ -276,6 +278,13 @@ export function buildConversationHints(input: {
   if (questionParts.length >= 2) {
     lines.push(
       `MULTI-MESSAGE TURN (${questionParts.length} parts merged): rapid WhatsApp messages were combined into this one turn. FIRST decide: do the parts describe ONE issue/flow (very common — e.g. "קיבלתי את השטיח" + "ולא אהבתי אותו" = one dissatisfaction case)? If so, treat them as a single request and give ONE coherent reply for that flow — never answer each line separately, never add a second greeting or a generic "how can I help" block after a substantive answer. Only when the parts are genuinely DISTINCT topics: cover each answerable topic briefly in short blocks; if one needs live data (order status / inventory / document), answer the non-tool topics first, then ask one focused follow-up for that item. Prefer at most one tool call this turn.`
+    )
+  }
+
+  const restockAlertCount = countBackInStockAlertRequests(body)
+  if (restockAlertCount >= 2 || (restockAlertCount >= 1 && questionParts.filter(isBackInStockAlertRequest).length >= 2)) {
+    lines.push(
+      "MULTI BACK-IN-STOCK ALERT (534009436): customer asked for restock notifications on **more than one product** in this merged turn — you cannot register automated alerts. Recap **every** product (name, color, size) as separate bullets in the advisor handoff summary + `action: human_sales` in the same JSON. Never mention only the first line and drop the rest."
     )
   }
 
