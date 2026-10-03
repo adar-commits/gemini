@@ -29,6 +29,16 @@ const SKU_REQUEST_RE =
 const RESTOCK_RE =
   /(?:חוזר(?:ים)?|יחז(?:ור|רו)|חזר(?:ה|ו))\s+(?:ל)?(?:מלאי|זמינות)|מתי\s+(?:יחזור|חוזר).*?(?:מלאי|זמינות)|תחז(?:ית|יות).*?(?:מלאי|זמינות)/i
 
+/** Subscription / alert ask — defer inventory SKU path (534030320 / 441678247). */
+const BACK_IN_STOCK_NOTIFICATION_RE =
+  /(?:אשמח\s+(?:ל)?(?:קבל\s+)?)?עדכון\s+(?:כש|כאשר)|(?:ל)?(?:קבל|לקבל)\s+עדכון\s+(?:כש|כאשר)|התרא(?:ה|ון)\s+(?:כש|ע(?:ל|ך))|(?:ת)?עדכ(?:נ|)(?:י|ו)\s+(?:אות(?:י|נ[יו])?\s+)?(?:כש|כאשר)/i
+
+export function isBackInStockNotificationRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return BACK_IN_STOCK_NOTIFICATION_RE.test(text) && RESTOCK_RE.test(text)
+}
+
 const HOM_SKU_RE = /\b(\d{8}-\d{6})\b/
 
 const DATE_SKU_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -307,6 +317,7 @@ export function isBranchInventoryQuestion(body: string) {
 export function isInventoryQuestion(body: string) {
   const text = body.trim()
   if (!text) return false
+  if (isBackInStockNotificationRequest(text)) return false
   if (isServiceTopicSwitch(text) || isProductDefectComplaint(text)) return false
   if (isBareSkuMessage(text)) return true
   if (isBranchInventoryQuestion(text)) return true
@@ -361,6 +372,7 @@ export function shouldHandleBranchInventory(
   body: string,
   history: HistoryMessage[] = []
 ) {
+  if (isBackInStockNotificationRequest(body)) return false
   if (isPostPurchaseAlternateSizeAvailabilityQuestion(body, history)) return false
   if (isSkuRequestPending(history) || isActiveInventoryThread(history)) return true
   if (hasProductUrlInText(body) && isInventoryQuestionWithContext(body, history)) {

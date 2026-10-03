@@ -116,6 +116,7 @@ import {
   extractSku,
   hasPendingBranchDisplayQuestion,
   isActiveInventoryThread,
+  isBackInStockNotificationRequest,
   isInventoryRecheckRequest,
   isSkuRequestPending,
   shouldHandleBranchInventory,
@@ -939,6 +940,12 @@ export function buildConversationHints(input: {
   if (isCarpetPackagingOpenQuestion(body)) {
     lines.push(
       "CARPET PACKAGING FAQ: answer from carpet-products-faq (כיצד לפתוח את האריזה) — cut plastic edge carefully with scissors, remove rug and corner guards, remove tape; never sharp objects on the rug. Warm tone (שאלה טובה). Not return-policy 'באריזה המקורית'. action: reply — no handoff."
+    )
+  }
+
+  if (isBackInStockNotificationRequest(body)) {
+    lines.push(
+      "BACK-IN-STOCK NOTIFICATION OPENING (534030320 / 441678247): customer wants an alert when a size comes back — you cannot register stock alerts from chat. Echo product + size, say a sales advisor will check ETA and update them, write מעביר + action human_sales in the same JSON. Never lookup_inventory, never ask for מק״ט, never conditional 'if no stock then sales'."
     )
   }
 

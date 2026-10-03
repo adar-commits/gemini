@@ -9,6 +9,7 @@ import {
   isActiveInventoryThread,
   isBranchColorAvailabilityQuestion,
   isBareSkuMessage,
+  isBackInStockNotificationRequest,
   isInventoryQuestion,
   isInventoryQuestionWithContext,
   isPreorderSku,
@@ -45,6 +46,14 @@ describe("isInventoryQuestion", () => {
 
   it("does not treat price-only asks as inventory", () => {
     assert.equal(isInventoryQuestion("כמה עולה קזבלנקה?"), false)
+  })
+
+  it("defers back-in-stock notification subscription to sales (534030320)", () => {
+    const body =
+      "היי, אשמח לקבל עדכון כשהמידה L - 160*230 של שטיח פרל קרם PEARL חוזרת למלאi"
+    assert.equal(isBackInStockNotificationRequest(body), true)
+    assert.equal(isInventoryQuestion(body), false)
+    assert.equal(shouldHandleBranchInventory(body, []), false)
   })
 })
 
