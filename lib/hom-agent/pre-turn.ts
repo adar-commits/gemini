@@ -116,6 +116,7 @@ import {
   isShippingThreadFromHistory,
   isShippingAddressUpdateThread,
   isOrderLookupPhoneReplyPending,
+  isOrderNumberRequestPending,
   isPurePhoneLookupConfirmYes,
   mentionsCancellationDesire,
   isServiceLookupContext,
@@ -679,7 +680,13 @@ export async function runStructuredOrderLookupPreTurn(input: {
   if (shouldHandleDigitalDocumentFlow(body, input.history)) {
     return { kind: "skip", response: null }
   }
-  if (isShippingAddressUpdateThread(input.history)) {
+  const orderNumberRequestPending = isOrderNumberRequestPending(input.history)
+  if (
+    isShippingAddressUpdateThread(input.history) &&
+    !orderNumberRequestPending &&
+    !isOrderLookupPhoneReplyPending(input.history) &&
+    !isOrderConfirmationPending(input.history)
+  ) {
     return { kind: "skip", response: null }
   }
   if (
@@ -720,6 +727,7 @@ export async function runStructuredOrderLookupPreTurn(input: {
   if (
     !orderConfirmPending &&
     !phoneLookupPending &&
+    !orderNumberRequestPending &&
     !typedPhone &&
     !openingShippingStatus &&
     !knownOrderBind &&
@@ -731,6 +739,8 @@ export async function runStructuredOrderLookupPreTurn(input: {
   const phoneConfirmBinding =
     phoneLookupPending &&
     (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body))
+  const orderNumberPhoneChoiceBinding =
+    orderNumberRequestPending && isChannelPhoneSelfReference(body)
   const orderConfirmBinding =
     orderConfirmPending &&
     isPurePhoneLookupConfirmYes(body) &&
@@ -751,6 +761,7 @@ export async function runStructuredOrderLookupPreTurn(input: {
     !typedPhone &&
     !orderLookupStructuredBinding(body, input.history) &&
     !phoneConfirmBinding &&
+    !orderNumberPhoneChoiceBinding &&
     !orderConfirmBinding &&
     !deliveryLookupBinding &&
     !documentReferenceBinding &&

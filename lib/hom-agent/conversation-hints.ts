@@ -643,7 +643,7 @@ export function buildConversationHints(input: {
     (isOrderNumberRequestPending(history) || isPhoneLookupConfirmPending(history))
   ) {
     lines.push(
-      `Customer confirmed the WhatsApp channel phone (${input.whatsappPhone}). Call lookup_order_status now — do not re-ask the same phone question.`
+      `Customer confirmed the WhatsApp channel phone (${input.whatsappPhone}). Call lookup_order_status now — do not re-ask the same phone question. Never claim you cannot see status without running the tool (533526188).`
     )
   }
 

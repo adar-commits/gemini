@@ -1342,6 +1342,15 @@ export function isChannelPhoneSelfReference(body: string) {
   if (userProvidedPhone(text)) return false
   if (extractOrderNumber(text)) return false
   if (CHANNEL_PHONE_LOOKUP_PHRASES.has(text)) return true
+  for (const phrase of CHANNEL_PHONE_LOOKUP_PHRASES) {
+    if (
+      text.startsWith(`${phrase} `) ||
+      text.startsWith(`${phrase},`) ||
+      text.startsWith(`${phrase}!`)
+    ) {
+      return true
+    }
+  }
   return (
     /^(?:ה)?(?:מספר|טלפון)\s+(?:שלי|שלנו)(?:[\s,.!?]|$)/iu.test(text) ||
     /^(?:על|ב)(?:ה)?(?:מספר|טלפון)\s+(?:ה)?(?:זה|נוכחי)(?:[\s,.!?]|$)/iu.test(text) ||
