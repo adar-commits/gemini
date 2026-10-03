@@ -50,7 +50,7 @@ describe("isInventoryQuestion", () => {
 
   it("defers back-in-stock notification subscription to sales (534030320)", () => {
     const body =
-      "היי, אשמח לקבל עדכון כשהמידה L - 160*230 של שטיח פרל קרם PEARL חוזרת למלאi"
+      "היי, אשמח לקבל עדכון כשהמידה L - 160*230 של שטיח פרל קרם PEARL חוזרת למלאי"
     assert.equal(isBackInStockNotificationRequest(body), true)
     assert.equal(isInventoryQuestion(body), false)
     assert.equal(shouldHandleBranchInventory(body, []), false)

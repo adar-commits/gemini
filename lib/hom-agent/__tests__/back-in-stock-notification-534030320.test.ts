@@ -13,10 +13,10 @@ import { runStructuredInventoryPreTurn } from "@/lib/hom-agent/pre-turn"
 const prompt = readFileSync(join(process.cwd(), "lib/hom-agent/prompts/hom-bot.md"), "utf8")
 
 const OPENING =
-  "היי, אשמח לקבל עדכון כשהמידה L - 160*230 של שטיח פרל קרם PEARL חוזרת למלאi"
+  "היי, אשמח לקבל עדכון כשהמידה L - 160*230 של שטיח פרל קרם PEARL חוזרת למלאי"
 
 const WRONG_REPLY =
-  "מכאן אני לא יכול לרשום אותך לעדכון על חזרה למלאi. כן אפשר לבדוק עכשיו אם יש פרל קרם במידה 160*230 באחד הסניפים או במחסן."
+  "מכאן אני לא יכול לרשום אותך לעדכון על חזרה למלאי. כן אפשר לבדוק עכשיו אם יש פרל קרם במידה 160*230 באחод הסניפים או במחסן. אם תשלח לי את המק״ט"
 
 /** 534030320 — restock alert ask must human_sales, not FAQ SKU inventory pivot. */
 describe("back-in-stock notification opening 534030320", () => {
@@ -48,12 +48,12 @@ describe("back-in-stock notification opening 534030320", () => {
     assert.notEqual(hints, null)
     assert.match(hints!, /BACK-IN-STOCK NOTIFICATION OPENING \(534030320/)
     assert.match(hints!, /action human_sales/)
-    assert.doesNotMatch(hints!, /ask for מק״ט/)
+    assert.match(hints!, /never ask for מק״ט/)
   })
 
   it("does not treat ETA restock question as notification subscription", () => {
     const etaAsk =
-      "הי אשמח לפרטים נוספים לגבי שטיח אמיליה בז' EMILIA https://www.carpetshop.co.il/products/emilia-beige-rec הוא צפוי לחזור למלאi?"
+      "הי אשמח לפרטים נוספים לגבי שטיח אמיליה בז' EMILIA https://www.carpetshop.co.il/products/emilia-beige-rec הוא צפוי לחזור למלאי?"
     assert.equal(isBackInStockNotificationRequest(etaAsk), false)
     assert.equal(isInventoryQuestion(etaAsk), true)
   })
