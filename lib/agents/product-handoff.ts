@@ -10,8 +10,11 @@ import {
 import { isServiceOrderIdentificationPending } from "@/lib/agents/order-lookup"
 import { isFaqTopicSwitch, isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 
+const BED_RUG_SIZING_RE =
+  /מתחת\s+ל(?:מיטה|מיטת)|(?:שטיח|גודל|מיד(?:ה|ות)).*(?:מיטה|מיטת)|מיטה\s+זוגית|(?:ל|ב)שים\s+(?:שטיח\s+)?(?:מתחת|ל(?:יד|ידי))/i
+
 const CONSULTATION_RE =
-  /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|אפשר\s+ל(?:קנות|רכוש|הזמין)|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים/i
+  /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|אפשר\s+ל(?:קנות|רכוש|הזמין)|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים|(?:איזה|מה)\s+(?:שטיח|גודל|מיד(?:ה|ות))/i
 
 const REQUESTED_MODEL_RE =
   /(?:מחפש(?:ים|ת|ים)?\s+)?(?:לקנות\s+)?(?:שטיח|פוף)\s+([א-ת][א-תa-z0-9 \-]{1,30}?)(?=\s+ב(?:גימור|גודל)|\s+ע(?:ם|ד)|\s+ל(?:סלון|חדר|מרפס|חצר|מסדרון|גינה|מחסן|ה\b)|[\n,.!?]|$)/i
@@ -58,7 +61,8 @@ const PRODUCT_SEARCH_FAILURE_RE =
   /לא\s+מוצא(?:ת|תי|ים)?(?:\s+(?:משהו|כלום|באתר|שם|דבר))?|לא\s+מצא(?:ת|תי|ים)?(?:\s+(?:משהו|באתר|שם|דבר))?|אין\s+(?:לי\s+)?(?:ב)?(?:אתר|קישור)|קשה\s+(?:ל)?(?:מצוא|חפש)|(?:תוכל|אפשר)\s+(?:לי\s+)?(?:ל)?(?:עזור\s+(?:לי\s+)?(?:ל)?מצוא|מצוא).*?(?:שטיח|מוצר|דגם)/i
 
 function isSalesConsultationTrigger(text: string) {
-  return CONSULTATION_RE.test(text.trim())
+  const trimmed = text.trim()
+  return CONSULTATION_RE.test(trimmed) || BED_RUG_SIZING_RE.test(trimmed)
 }
 
 function isReceivedProductContext(text: string) {

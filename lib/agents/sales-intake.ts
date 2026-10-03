@@ -55,8 +55,15 @@ export type SalesIntake = {
   sizeUnknown?: boolean
 }
 
+const BED_RUG_SIZING_RE =
+  /מתחת\s+ל(?:מיטה|מיטת)|(?:שטיח|גודל|מיד(?:ה|ות)).*(?:מיטה|מיטת)|מיטה\s+זוגית|(?:ל|ב)שים\s+(?:שטיח\s+)?(?:מתחת|ל(?:יד|ידי))/i
+
 const CONSULTATION_RE =
-  /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|אפשר\s+ל(?:קנות|רכוש|הזמין)|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים/i
+  /מחפש(?:ים|ת|ים)?|רוצ(?:ה|ים|ות)\s+לקנות|אפשר\s+ל(?:קנות|רכוש|הזמין)|תקציב|עד\s+[\d,]+|כמה\s+עולה|מה\s+יש|עוזר\s+לבחור|ייעוץ|מתלבט|בין\s+שני|התאמ(?:ה|ת)|גודל\s+מתאים|(?:איזה|מה)\s+(?:שטיח|גודל|מיד(?:ה|ות))/i
+
+export function isBedRugSizingConsultation(text: string) {
+  return BED_RUG_SIZING_RE.test(text.trim())
+}
 
 const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
@@ -159,7 +166,8 @@ export function isSpecificProductQuery(text: string) {
 }
 
 export function isSalesConsultationTrigger(text: string) {
-  return CONSULTATION_RE.test(text.trim())
+  const trimmed = text.trim()
+  return CONSULTATION_RE.test(trimmed) || isBedRugSizingConsultation(trimmed)
 }
 
 const PET_MENTION_RE =

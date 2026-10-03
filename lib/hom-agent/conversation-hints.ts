@@ -147,6 +147,7 @@ import {
   hasOngoingSalesIntake,
   hasRoomPhotoInHistory,
   isAwaitingSalesIntakeAnswer,
+  isBedRugSizingConsultation,
   isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoRequestPending,
   isServicePhotoAnalysisContext,
@@ -946,6 +947,12 @@ export function buildConversationHints(input: {
   if (isBackInStockNotificationRequest(body)) {
     lines.push(
       "BACK-IN-STOCK NOTIFICATION OPENING (534030320 / 441678247): customer wants an alert when a size comes back — you cannot register stock alerts from chat. Echo product + size, say a sales advisor will check ETA and update them, write מעביר + action human_sales in the same JSON. Never lookup_inventory, never ask for מק״ט, never conditional 'if no stock then sales'."
+    )
+  }
+
+  if (isBedRugSizingConsultation(body) && !hasOngoingSalesIntake(history)) {
+    lines.push(
+      'BED RUG SIZING OPENING (534057154): which rug/size under bed or for bedroom — `"crm_department": "sales"`, start sales intake (חדר שינה / מידות מיטה or room). Size guide or visualization link is optional one-liner only — never FAQ-only, never recommend a size, never human_service.'
     )
   }
 
