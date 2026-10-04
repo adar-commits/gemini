@@ -122,6 +122,7 @@ import {
   isActiveInventoryThread,
   isBackInStockNotificationRequest,
   isInventoryRecheckRequest,
+  isSkuCorrectionAfterStockAnswer,
   isSkuRequestPending,
   shouldHandleBranchInventory,
 } from "@/lib/agents/inventory-lookup"
@@ -981,13 +982,20 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isSkuCorrectionAfterStockAnswer(history, body)) {
+    lines.push(
+      "SKU CORRECTION AFTER STOCK (534109519): you already answered stock for the correct מק״ט in the previous turn; customer is clarifying an earlier typo — brief ack only (reuse the last stock/preorder answer), **never** lookup_inventory again, **never** contradict the prior answer, **never** warm-close (ערב טוב/שמחתי לעזור). Stay `action: reply`; offer human_sales only if they ask to buy."
+    )
+  }
+
   const inventorySku =
     extractSku(body) ??
     (isSkuRequestPending(history) ? extractRecentSku(body, history) : null)
   if (
     inventorySku &&
     shouldHandleBranchInventory(body, history) &&
-    !isPostPurchaseAlternateSizeThread(history, body)
+    !isPostPurchaseAlternateSizeThread(history, body) &&
+    !isSkuCorrectionAfterStockAnswer(history, body)
   ) {
     lines.push(
       "INVENTORY SKU PROVIDED: customer sent a valid מק״ט — call lookup_inventory (or use the structured result). Never re-ask for מק״ט, never say you cannot check stock, never jump to human_sales while a lookup is possible."

@@ -580,6 +580,50 @@ export function isInventoryRecheckRequest(body: string) {
   )
 }
 
+function recentInventoryAssistantReplies(history: HistoryMessage[] = [], limit = 4) {
+  const replies: HistoryMessage[] = []
+  for (let index = history.length - 1; index >= 0 && replies.length < limit; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) continue
+    if (!isInventoryAvailabilityReply(message.content)) continue
+    replies.push(message)
+  }
+  return replies
+}
+
+/** Customer clarifies a prior wrong מק״ט after stock was already answered for the correct one — thread state only. */
+export function isSkuCorrectionAfterStockAnswer(
+  history: HistoryMessage[] = [],
+  body: string
+) {
+  if (extractSku(body)) return false
+  if (isInventoryRecheckRequest(body)) return false
+
+  const inventoryReplies = recentInventoryAssistantReplies(history)
+  if (inventoryReplies.length === 0) return false
+
+  const lastSku = extractSku(inventoryReplies[0]?.content ?? "")
+  if (!lastSku) return false
+
+  let userSeen = 0
+  let customerSentLastSku = false
+  for (let index = history.length - 1; index >= 0 && userSeen < 10; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    userSeen += 1
+    const sku = extractSku(message.content)
+    if (sku === lastSku) customerSentLastSku = true
+  }
+  if (!customerSentLastSku) return false
+
+  if (inventoryReplies.length >= 2) {
+    const priorSku = extractSku(inventoryReplies[1]?.content ?? "")
+    if (priorSku && priorSku !== lastSku) return true
+  }
+
+  return false
+}
+
 export function buildInventoryRecheckSkuPrompt() {
   return `${CUSTOMER_HEADER}
 בשמחה — כדי לבדוק דגם נוסף, שלחו את המק״ט שלו ${INVENTORY_SKU_EXAMPLE_HINT}.
