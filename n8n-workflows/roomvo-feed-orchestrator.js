@@ -37,52 +37,40 @@ function numericVariantId(gid) {
   return match ? match[1] : String(gid || "");
 }
 
-async function fetchAllShopifyProducts(helpers, authType) {
-  /** @type {import('./roomvo-feed-build').ShopifyProduct[]} */
-  const products = [];
-  let cursor = null;
-  let hasNext = true;
-
-  while (hasNext) {
-    const response = await helpers.httpRequestWithAuthentication.call(
-      { helpers },
-      authType,
-      {
-        method: "POST",
-        url: SHOPIFY_GRAPHQL,
-        headers: { "Content-Type": "application/json" },
-        body: { query: PRODUCTS_QUERY, variables: { cursor } },
-        json: true,
-      },
+/**
+ * Shopify pagination runs in HTTP Request + Accumulate Code nodes (not in Code auth).
+ * See scripts/push-roomvo-feed-workflow.py for the deployed n8n graph.
+ */
+function parseShopifyPage(response) {
+  const payload = response?.data?.products;
+  if (!payload) {
+    throw new Error(
+      `Shopify GraphQL error: ${JSON.stringify(response?.errors || response)}`,
     );
-
-    const payload = response?.data?.products;
-    if (!payload) {
-      throw new Error(
-        `Shopify GraphQL error: ${JSON.stringify(response?.errors || response)}`,
-      );
-    }
-
-    for (const node of payload.nodes || []) {
-      products.push({
-        title: node.title,
-        handle: node.handle,
-        variants: (node.variants?.nodes || []).map((variant) => ({
-          id: numericVariantId(variant.id),
-          sku: variant.sku || "",
-          title: variant.title || "",
-          price: variant.price,
-          compareAtPrice: variant.compareAtPrice,
-          inventoryQuantity: variant.inventoryQuantity ?? 0,
-        })),
-      });
-    }
-
-    hasNext = Boolean(payload.pageInfo?.hasNextPage);
-    cursor = payload.pageInfo?.endCursor || null;
   }
 
-  return products;
+  /** @type {import('./roomvo-feed-build').ShopifyProduct[]} */
+  const products = [];
+  for (const node of payload.nodes || []) {
+    products.push({
+      title: node.title,
+      handle: node.handle,
+      variants: (node.variants?.nodes || []).map((variant) => ({
+        id: numericVariantId(variant.id),
+        sku: variant.sku || "",
+        title: variant.title || "",
+        price: variant.price,
+        compareAtPrice: variant.compareAtPrice,
+        inventoryQuantity: variant.inventoryQuantity ?? 0,
+      })),
+    });
+  }
+
+  return {
+    products,
+    hasNext: Boolean(payload.pageInfo?.hasNextPage),
+    cursor: payload.pageInfo?.endCursor || null,
+  };
 }
 
 function israelTimestamp() {
@@ -141,7 +129,7 @@ module.exports = {
   SHOPIFY_GRAPHQL,
   PRODUCTS_QUERY,
   numericVariantId,
-  fetchAllShopifyProducts,
+  parseShopifyPage,
   israelTimestamp,
   buildRunPayload,
 };

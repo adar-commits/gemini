@@ -23,6 +23,14 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDER_PATH = ROOT / "n8n-workflows" / "roomvo-feed-build.js"
 
 SHEET_ID = "1-1Hqtq0iyomItaf7dU4q4JHJgIZ1a0hCKIojVDUdWoE"
+SHOPIFY_GRAPHQL_URL = "https://redcarpetil.myshopify.com/admin/api/2025-10/graphql.json"
+SHOPIFY_PRODUCTS_QUERY = (
+    "query RoomvoProducts($cursor: String) { "
+    "products(first: 100, after: $cursor, query: \"status:active published_status:published\") { "
+    "pageInfo { hasNextPage endCursor } "
+    "nodes { title handle variants(first: 100) { "
+    "nodes { id sku title price compareAtPrice inventoryQuantity } } } } }"
+)
 
 DEFAULT_SHOPIFY_CRED = {
     "httpHeaderAuth": {"id": "PdPxrKLtcWZ8NCoQ", "name": "Shopify Red Carpet"}
@@ -63,77 +71,57 @@ def load_builder_source() -> str:
     return text[:idx].strip()
 
 
-def build_code_node_source() -> str:
+INIT_SHOPIFY_CODE = """
+const staticData = $getWorkflowStaticData('global');
+staticData.shopifyProducts = [];
+return [{ json: { cursor: null } }];
+""".strip()
+
+ACCUMULATE_SHOPIFY_CODE = """
+function numericVariantId(gid) {
+  const match = String(gid || "").match(/(\\d+)$/);
+  return match ? match[1] : String(gid || "");
+}
+
+const staticData = $getWorkflowStaticData('global');
+if (!Array.isArray(staticData.shopifyProducts)) {
+  staticData.shopifyProducts = [];
+}
+
+const response = $input.first().json;
+const payload = response?.data?.products;
+if (!payload) {
+  throw new Error(`Shopify GraphQL error: ${JSON.stringify(response?.errors || response)}`);
+}
+
+for (const node of payload.nodes || []) {
+  staticData.shopifyProducts.push({
+    title: node.title,
+    handle: node.handle,
+    variants: (node.variants?.nodes || []).map((variant) => ({
+      id: numericVariantId(variant.id),
+      sku: variant.sku || "",
+      title: variant.title || "",
+      price: variant.price,
+      compareAtPrice: variant.compareAtPrice,
+      inventoryQuantity: variant.inventoryQuantity ?? 0,
+    })),
+  });
+}
+
+return [{
+  json: {
+    hasNext: Boolean(payload.pageInfo?.hasNextPage),
+    cursor: payload.pageInfo?.endCursor || null,
+  },
+}];
+""".strip()
+
+
+def build_feed_code() -> str:
     builder = load_builder_source()
     orchestrator = f"""
 const SHEET_ID = "{SHEET_ID}";
-const SHOPIFY_GRAPHQL = "https://redcarpetil.myshopify.com/admin/api/2025-10/graphql.json";
-const PRODUCTS_QUERY = `
-  query RoomvoProducts($cursor: String) {{
-    products(first: 100, after: $cursor, query: "status:active published_status:published") {{
-      pageInfo {{ hasNextPage endCursor }}
-      nodes {{
-        title
-        handle
-        variants(first: 100) {{
-          nodes {{
-            id
-            sku
-            title
-            price
-            compareAtPrice
-            inventoryQuantity
-          }}
-        }}
-      }}
-    }}
-  }}
-`;
-
-function numericVariantId(gid) {{
-  const match = String(gid || "").match(/(\\d+)$/);
-  return match ? match[1] : String(gid || "");
-}}
-
-async function fetchAllShopifyProducts(helpers) {{
-  const products = [];
-  let cursor = null;
-  let hasNext = true;
-  while (hasNext) {{
-    const response = await helpers.httpRequestWithAuthentication.call(
-      {{ helpers }},
-      "httpHeaderAuth",
-      {{
-        method: "POST",
-        url: SHOPIFY_GRAPHQL,
-        headers: {{ "Content-Type": "application/json" }},
-        body: {{ query: PRODUCTS_QUERY, variables: {{ cursor }} }},
-        json: true,
-      }},
-    );
-    const payload = response?.data?.products;
-    if (!payload) {{
-      throw new Error(`Shopify GraphQL error: ${{JSON.stringify(response?.errors || response)}}`);
-    }}
-    for (const node of payload.nodes || []) {{
-      products.push({{
-        title: node.title,
-        handle: node.handle,
-        variants: (node.variants?.nodes || []).map((variant) => ({{
-          id: numericVariantId(variant.id),
-          sku: variant.sku || "",
-          title: variant.title || "",
-          price: variant.price,
-          compareAtPrice: variant.compareAtPrice,
-          inventoryQuantity: variant.inventoryQuantity ?? 0,
-        }})),
-      }});
-    }}
-    hasNext = Boolean(payload.pageInfo?.hasNextPage);
-    cursor = payload.pageInfo?.endCursor || null;
-  }}
-  return products;
-}}
 
 function israelTimestamp() {{
   return new Date().toLocaleString("en-GB", {{
@@ -169,12 +157,24 @@ function buildRunPayload(existingSheetRows, shopifyProducts, previousRowCount) {
   }};
 }}
 
-const sheetValues = $input.first().json.values || [];
-const shopifyProducts = await fetchAllShopifyProducts(this.helpers);
+const staticData = $getWorkflowStaticData('global');
+const shopifyProducts = staticData.shopifyProducts || [];
+staticData.shopifyProducts = [];
+
+const sheetValues = $('Read OsherSheet').first().json.values || [];
 const payload = buildRunPayload(sheetValues, shopifyProducts, sheetValues.length);
 return [{{ json: payload }}];
 """
     return builder + "\n\n" + orchestrator.strip()
+
+
+def shopify_graphql_json_body() -> str:
+    query = SHOPIFY_PRODUCTS_QUERY.replace("\\", "\\\\").replace('"', '\\"')
+    return (
+        "={{ JSON.stringify({ query: \""
+        + query
+        + '\", variables: { cursor: $json.cursor ?? null } }) }}'
+    )
 
 
 def expr(value: str) -> str:
@@ -206,8 +206,12 @@ def node(
     return payload
 
 
+def shopify_http_options() -> dict[str, Any]:
+    return {"response": {"response": {"responseFormat": "json"}}}
+
+
 def build_workflow_nodes(
-    code_source: str,
+    feed_code: str,
     sheets_cred: dict[str, Any],
     shopify_cred: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -253,20 +257,78 @@ def build_workflow_nodes(
             credentials=sheets_cred,
         ),
         node(
+            id="roomvo-init-shopify",
+            name="Init Shopify Fetch",
+            type="n8n-nodes-base.code",
+            type_version=2,
+            position=[420, 400],
+            parameters={"mode": "runOnceForAllItems", "jsCode": INIT_SHOPIFY_CODE},
+        ),
+        node(
+            id="roomvo-shopify-gql",
+            name="Shopify GraphQL",
+            type="n8n-nodes-base.httpRequest",
+            type_version=4.4,
+            position=[620, 400],
+            parameters={
+                "method": "POST",
+                "url": SHOPIFY_GRAPHQL_URL,
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendBody": True,
+                "specifyBody": "json",
+                "jsonBody": shopify_graphql_json_body(),
+                "options": shopify_http_options(),
+            },
+            credentials=shopify_cred,
+        ),
+        node(
+            id="roomvo-accumulate-shopify",
+            name="Accumulate Shopify Page",
+            type="n8n-nodes-base.code",
+            type_version=2,
+            position=[820, 400],
+            parameters={"mode": "runOnceForAllItems", "jsCode": ACCUMULATE_SHOPIFY_CODE},
+        ),
+        node(
+            id="roomvo-shopify-more",
+            name="More Shopify Pages?",
+            type="n8n-nodes-base.if",
+            type_version=2.2,
+            position=[1020, 400],
+            parameters={
+                "conditions": {
+                    "options": {
+                        "caseSensitive": True,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                    },
+                    "conditions": [
+                        {
+                            "id": "shopify-has-next",
+                            "leftValue": expr("{{ $json.hasNext }}"),
+                            "rightValue": True,
+                            "operator": {"type": "boolean", "operation": "true"},
+                        }
+                    ],
+                    "combinator": "and",
+                }
+            },
+        ),
+        node(
             id="roomvo-build",
             name="Build Roomvo Feed",
             type="n8n-nodes-base.code",
             type_version=2,
-            position=[480, 400],
-            parameters={"mode": "runOnceForAllItems", "jsCode": code_source},
-            credentials=shopify_cred,
+            position=[1220, 520],
+            parameters={"mode": "runOnceForAllItems", "jsCode": feed_code},
         ),
         node(
             id="roomvo-write",
             name="Write OsherSheet Body",
             type="n8n-nodes-base.httpRequest",
             type_version=4.4,
-            position=[720, 400],
+            position=[1420, 520],
             parameters={
                 "method": "PUT",
                 "url": expr(
@@ -286,7 +348,7 @@ def build_workflow_nodes(
             name="Has Leftover Rows?",
             type="n8n-nodes-base.if",
             type_version=2.2,
-            position=[960, 400],
+            position=[1660, 520],
             parameters={
                 "conditions": {
                     "options": {
@@ -311,7 +373,7 @@ def build_workflow_nodes(
             name="Clear Leftover Rows",
             type="n8n-nodes-base.httpRequest",
             type_version=4.4,
-            position=[1200, 300],
+            position=[1900, 420],
             parameters={
                 "method": "POST",
                 "url": expr(
@@ -328,7 +390,7 @@ def build_workflow_nodes(
             name="Append Log Row",
             type="n8n-nodes-base.googleSheets",
             type_version=4.7,
-            position=[1200, 520],
+            position=[1900, 620],
             parameters={
                 "operation": "append",
                 "documentId": {
@@ -369,7 +431,22 @@ def build_connections() -> dict[str, Any]:
             "main": [[{"node": "Read OsherSheet", "type": "main", "index": 0}]]
         },
         "Read OsherSheet": {
-            "main": [[{"node": "Build Roomvo Feed", "type": "main", "index": 0}]]
+            "main": [[{"node": "Init Shopify Fetch", "type": "main", "index": 0}]]
+        },
+        "Init Shopify Fetch": {
+            "main": [[{"node": "Shopify GraphQL", "type": "main", "index": 0}]]
+        },
+        "Shopify GraphQL": {
+            "main": [[{"node": "Accumulate Shopify Page", "type": "main", "index": 0}]]
+        },
+        "Accumulate Shopify Page": {
+            "main": [[{"node": "More Shopify Pages?", "type": "main", "index": 0}]]
+        },
+        "More Shopify Pages?": {
+            "main": [
+                [{"node": "Shopify GraphQL", "type": "main", "index": 0}],
+                [{"node": "Build Roomvo Feed", "type": "main", "index": 0}],
+            ]
         },
         "Build Roomvo Feed": {
             "main": [[{"node": "Write OsherSheet Body", "type": "main", "index": 0}]]
@@ -413,9 +490,9 @@ def load_existing_workflow() -> dict[str, Any]:
 
 
 def build_workflow_payload(existing: dict[str, Any]) -> dict[str, Any]:
-    code_source = build_code_node_source()
+    feed_code = build_feed_code()
     sheets_cred, shopify_cred = pick_credentials(existing)
-    nodes = build_workflow_nodes(code_source, sheets_cred, shopify_cred)
+    nodes = build_workflow_nodes(feed_code, sheets_cred, shopify_cred)
     connections = build_connections()
     return {
         "name": existing.get("name") or "Roomvo Daily Feed Rebuild",
