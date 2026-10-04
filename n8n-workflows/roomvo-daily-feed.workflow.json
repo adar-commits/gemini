@@ -1,0 +1,288 @@
+{
+  "name": "Roomvo Daily Feed Rebuild",
+  "nodes": [
+    {
+      "id": "roomvo-cron",
+      "name": "Daily 23:59 Israel",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "59 23 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "roomvo-manual",
+      "name": "Manual Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        500
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "roomvo-read-sheet",
+      "name": "Read OsherSheet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        400
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1-1Hqtq0iyomItaf7dU4q4JHJgIZ1a0hCKIojVDUdWoE/values/OsherSheet!A:S",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-placeholder",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "id": "roomvo-build",
+      "name": "Build Roomvo Feed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * Pure Roomvo catalog builder — shared by unit tests and the n8n Code node.\n * Column order matches OsherSheet (19 columns, A–S).\n */\n\n/** @typedef {{ title: string, handle: string, variants: ShopifyVariant[] }} ShopifyProduct */\n/** @typedef {{ id: string, sku: string, title: string, price: string, compareAtPrice: string|null, inventoryQuantity: number }} ShopifyVariant */\n\nconst FORCED_RUNNER_SKUS = new Set([\n  \"11800001-96200\",\n  \"11800192-101193\",\n  \"13000001-98190\",\n]);\n\nconst SENTINEL_DO_NOT_DELETE = \"DO NOT DELETE ME\";\nconst SENTINEL_MARKER = \"XXXXXXXXXXXXX\";\n\nconst IMAGE_BASE =\n  \"https://carpetbucket.s3.eu-west-1.amazonaws.com/tempimages\";\nconst STORE_BASE = \"https://www.carpetshop.co.il/products\";\n\n/** Leading digit block of the variant SKU (patchwork tails ignored). */\nfunction extractStyleNumber(sku) {\n  const match = String(sku || \"\").match(/^(\\d+)/);\n  return match ? match[1] : \"\";\n}\n\n/** F belongs in the image URL only when the SKU carries F on the size segment. */\nfunction skuHasFringeFlag(sku) {\n  return /\\d+F(?:-SQR)?$/.test(String(sku || \"\"));\n}\n\n/**\n * @param {string} title\n * @param {string} sku\n */\nfunction detectShape(title, sku) {\n  if (FORCED_RUNNER_SKUS.has(sku)) {\n    return { parentSuffix: \"RNR\", imageSuffix: \"RN\", hebrew: \"ראנר\" };\n  }\n  if (title.includes(\"ריבוע\") || sku.endsWith(\"-SQR\")) {\n    return { parentSuffix: \"SQR\", imageSuffix: \"SQ\", hebrew: \"ריבוע\" };\n  }\n  if (title.includes(\"ראנר\")) {\n    return { parentSuffix: \"RNR\", imageSuffix: \"RN\", hebrew: \"ראנר\" };\n  }\n  if (title.includes(\"עגול\")) {\n    return { parentSuffix: \"RND\", imageSuffix: \"RD\", hebrew: \"עגול\" };\n  }\n  return { parentSuffix: \"REC\", imageSuffix: \"RE\", hebrew: \"מלבן\" };\n}\n\n/** @param {string|number|null|undefined} amount */\nfunction formatShekelPrice(amount) {\n  if (amount === null || amount === undefined || amount === \"\") return \"\";\n  const n = Number(amount);\n  if (!Number.isFinite(n)) return \"\";\n  if (Number.isInteger(n)) return String(n);\n  return String(parseFloat(n.toFixed(2)));\n}\n\n/**\n * @param {string} price\n * @param {string|null|undefined} compareAt\n */\nfunction formatCompareAt(price, compareAt) {\n  const sold = Number(price);\n  const before = Number(compareAt);\n  if (!Number.isFinite(before) || !Number.isFinite(sold) || before <= sold) {\n    return \"\";\n  }\n  return formatShekelPrice(before);\n}\n\n/**\n * @param {string} style\n * @param {string} sku\n * @param {string} imageSuffix\n */\nfunction buildDirectImageLink(style, sku, imageSuffix) {\n  if (!style || !imageSuffix) return \"\";\n  const fringe = skuHasFringeFlag(sku) ? \"F\" : \"\";\n  return `${IMAGE_BASE}/${style}${fringe}-${imageSuffix}.png`;\n}\n\n/**\n * @param {ShopifyVariant & { productTitle: string, handle: string }} variant\n */\nfunction buildVariantRow(variant) {\n  const sku = variant.sku || \"\";\n  const title = variant.productTitle || \"\";\n  const style = extractStyleNumber(sku);\n  const shape = detectShape(title, sku);\n  const parentSku = style ? `${style}-${shape.parentSuffix}` : \"\";\n  const size = variant.title || \"\";\n  const price = formatShekelPrice(variant.price);\n  const compareAt = formatCompareAt(variant.price, variant.compareAtPrice);\n  const inventory = Math.trunc(Number(variant.inventoryQuantity));\n  const url = `${STORE_BASE}/${variant.handle}`;\n  const cartUrl = `${url}?variant=${variant.id}`;\n\n  return [\n    title,\n    sku,\n    parentSku,\n    size,\n    \"Yes\",\n    \"Yes\",\n    String(inventory),\n    \"0\",\n    price,\n    compareAt,\n    buildDirectImageLink(style, sku, shape.imageSuffix),\n    url,\n    cartUrl,\n    size,\n    shape.hebrew,\n    \"\",\n    \"\",\n    \"\",\n    \"\",\n  ];\n}\n\n/** @param {string[][]} rows */\nfunction rowToRecord(row) {\n  return {\n    title: row[0] || \"\",\n    variantSku: row[1] || \"\",\n    parentSku: row[2] || \"\",\n    size: row[3] || \"\",\n    skuVisible: row[4] || \"\",\n    parentVisible: row[5] || \"\",\n    inventoryQty: row[6] || \"\",\n    barcode: row[7] || \"\",\n    priceSoldAt: row[8] || \"\",\n    priceBeforeSale: row[9] || \"\",\n    directImageLink: row[10] || \"\",\n    url: row[11] || \"\",\n    cartLink: row[12] || \"\",\n    filterSizeFamily: row[13] || \"\",\n    filterShape: row[14] || \"\",\n    filterColorFamilies: row[15] || \"\",\n    filterFeatures: row[16] || \"\",\n    imageStatus: row[17] || \"\",\n    specialUrl: row[18] || \"\",\n  };\n}\n\n/** @param {ReturnType<typeof rowToRecord>} rec */\nfunction recordToRow(rec) {\n  return [\n    rec.title,\n    rec.variantSku,\n    rec.parentSku,\n    rec.size,\n    rec.skuVisible,\n    rec.parentVisible,\n    rec.inventoryQty,\n    rec.barcode,\n    rec.priceSoldAt,\n    rec.priceBeforeSale,\n    rec.directImageLink,\n    rec.url,\n    rec.cartLink,\n    rec.filterSizeFamily,\n    rec.filterShape,\n    rec.filterColorFamilies,\n    rec.filterFeatures,\n    rec.imageStatus,\n    rec.specialUrl,\n  ];\n}\n\n/**\n * @param {ShopifyProduct} product\n * @returns {(ShopifyVariant & { productTitle: string, handle: string })[]}\n */\nfunction flattenQualifyingVariants(product) {\n  const title = product.title || \"\";\n  if (!title.startsWith(\"שטיח\")) return [];\n\n  return (product.variants || [])\n    .filter((v) => {\n      const qty = Math.trunc(Number(v.inventoryQuantity));\n      return v.sku && qty > 0;\n    })\n    .map((v) => ({\n      ...v,\n      productTitle: title,\n      handle: product.handle,\n    }));\n}\n\n/**\n * @param {string[][]} existingSheetRows Full sheet including header (row 0).\n */\nfunction parseExistingSheet(existingSheetRows) {\n  /** @type {string[][]} */\n  const dataRows = [];\n  /** @type {string[]|null} */\n  let doNotDeleteRow = null;\n  /** @type {string[]|null} */\n  let markerRow = null;\n\n  for (let i = 1; i < existingSheetRows.length; i += 1) {\n    const row = existingSheetRows[i];\n    const title = row[0] || \"\";\n    if (title === SENTINEL_DO_NOT_DELETE) {\n      doNotDeleteRow = [...row];\n      while (doNotDeleteRow.length < 19) doNotDeleteRow.push(\"\");\n      continue;\n    }\n    if (title === SENTINEL_MARKER) {\n      markerRow = [...row];\n      while (markerRow.length < 19) markerRow.push(\"\");\n      continue;\n    }\n    const sku = row[1] || \"\";\n    if (!sku) continue;\n    dataRows.push([...row]);\n    while (dataRows[dataRows.length - 1].length < 19) {\n      dataRows[dataRows.length - 1].push(\"\");\n    }\n  }\n\n  /** @type {Map<string, ReturnType<typeof rowToRecord>>} */\n  const bySku = new Map();\n  /** @type {Map<string, { color: string, features: string }>} */\n  const filtersByHandle = new Map();\n\n  for (const row of dataRows) {\n    const rec = rowToRecord(row);\n    if (rec.variantSku) bySku.set(rec.variantSku, rec);\n    if (rec.url) {\n      const handleMatch = rec.url.match(/\\/products\\/([^/?#]+)/);\n      const handle = handleMatch ? handleMatch[1] : \"\";\n      if (\n        handle &&\n        (rec.filterColorFamilies || rec.filterFeatures) &&\n        !filtersByHandle.has(handle)\n      ) {\n        filtersByHandle.set(handle, {\n          color: rec.filterColorFamilies,\n          features: rec.filterFeatures,\n        });\n      }\n    }\n  }\n\n  return {\n    dataRows,\n    doNotDeleteRow,\n    markerRow,\n    bySku,\n    filtersByHandle,\n  };\n}\n\n/**\n * @param {{\n *   existingSheetRows: string[][],\n *   shopifyProducts: ShopifyProduct[],\n * }} input\n */\nfunction buildRoomvoFeed(input) {\n  const { existingSheetRows, shopifyProducts } = input;\n  const parsed = parseExistingSheet(existingSheetRows);\n\n  /** @type {Map<string, ReturnType<typeof buildVariantRow>>} */\n  const shopifyRowsBySku = new Map();\n  for (const product of shopifyProducts) {\n    for (const variant of flattenQualifyingVariants(product)) {\n      shopifyRowsBySku.set(variant.sku, buildVariantRow(variant));\n    }\n  }\n\n  /** @type {string[]} */\n  const newSkusMissingFilters = [];\n  /** @type {string[][]} */\n  const outputDataRows = [];\n\n  const seenSkus = new Set();\n\n  for (const existingRow of parsed.dataRows) {\n    const existing = rowToRecord(existingRow);\n    const sku = existing.variantSku;\n    const built = shopifyRowsBySku.get(sku);\n    if (!built) continue;\n\n    seenSkus.add(sku);\n    const merged = rowToRecord(built);\n\n    merged.filterColorFamilies = existing.filterColorFamilies;\n    merged.filterFeatures = existing.filterFeatures;\n\n    if (!merged.filterColorFamilies || !merged.filterFeatures) {\n      const handleMatch = merged.url.match(/\\/products\\/([^/?#]+)/);\n      const handle = handleMatch ? handleMatch[1] : \"\";\n      const sibling = handle ? parsed.filtersByHandle.get(handle) : undefined;\n      if (sibling) {\n        if (!merged.filterColorFamilies) merged.filterColorFamilies = sibling.color;\n        if (!merged.filterFeatures) merged.filterFeatures = sibling.features;\n      }\n    }\n\n    outputDataRows.push(recordToRow(merged));\n  }\n\n  /** New SKUs in stable title/sku order before the marker row. */\n  const newVariants = [];\n  for (const product of shopifyProducts) {\n    for (const variant of flattenQualifyingVariants(product)) {\n      if (seenSkus.has(variant.sku)) continue;\n      newVariants.push(variant);\n    }\n  }\n  newVariants.sort((a, b) => {\n    const titleCmp = a.productTitle.localeCompare(b.productTitle, \"he\");\n    if (titleCmp !== 0) return titleCmp;\n    return a.sku.localeCompare(b.sku);\n  });\n\n  for (const variant of newVariants) {\n    const built = buildVariantRow(variant);\n    const merged = rowToRecord(built);\n    const handle = variant.handle;\n    const sibling = parsed.filtersByHandle.get(handle);\n    if (sibling) {\n      merged.filterColorFamilies = sibling.color;\n      merged.filterFeatures = sibling.features;\n    } else {\n      newSkusMissingFilters.push(variant.sku);\n    }\n    outputDataRows.push(recordToRow(merged));\n    seenSkus.add(variant.sku);\n  }\n\n  const doNotDeleteRow =\n    parsed.doNotDeleteRow ||\n    Array.from({ length: 19 }, (_, i) =>\n      i === 0 ? SENTINEL_DO_NOT_DELETE : \"\",\n    );\n  const markerRow =\n    parsed.markerRow ||\n    Array.from({ length: 19 }, (_, i) =>\n      i < 6 ? SENTINEL_MARKER : \"\",\n    );\n\n  const bodyRows = [doNotDeleteRow, ...outputDataRows, markerRow];\n\n  return {\n    /** Rows to write starting at sheet row 2 (excludes header). */\n    bodyRows,\n    newSkusMissingFilters,\n    stats: {\n      qualifyingVariants: shopifyRowsBySku.size,\n      outputDataRows: outputDataRows.length,\n      removedSkus: parsed.dataRows.length - outputDataRows.length + newVariants.length,\n      newSkus: newVariants.length,\n    },\n  };\n}\n\nconst SHEET_ID = \"1-1Hqtq0iyomItaf7dU4q4JHJgIZ1a0hCKIojVDUdWoE\";\nconst SHOPIFY_GRAPHQL = \"https://redcarpetil.myshopify.com/admin/api/2025-10/graphql.json\";\nconst PRODUCTS_QUERY = `\n  query RoomvoProducts($cursor: String) {\n    products(first: 100, after: $cursor, query: \"status:active published_status:published\") {\n      pageInfo { hasNextPage endCursor }\n      nodes {\n        title\n        handle\n        variants(first: 100) {\n          nodes {\n            id\n            sku\n            title\n            price\n            compareAtPrice\n            inventoryQuantity\n          }\n        }\n      }\n    }\n  }\n`;\n\nfunction numericVariantId(gid) {\n  const match = String(gid || \"\").match(/(\\d+)$/);\n  return match ? match[1] : String(gid || \"\");\n}\n\nasync function fetchAllShopifyProducts(helpers) {\n  const products = [];\n  let cursor = null;\n  let hasNext = true;\n  while (hasNext) {\n    const response = await helpers.httpRequestWithAuthentication.call(\n      { helpers },\n      \"httpHeaderAuth\",\n      {\n        method: \"POST\",\n        url: SHOPIFY_GRAPHQL,\n        headers: { \"Content-Type\": \"application/json\" },\n        body: { query: PRODUCTS_QUERY, variables: { cursor } },\n        json: true,\n      },\n    );\n    const payload = response?.data?.products;\n    if (!payload) {\n      throw new Error(`Shopify GraphQL error: ${JSON.stringify(response?.errors || response)}`);\n    }\n    for (const node of payload.nodes || []) {\n      products.push({\n        title: node.title,\n        handle: node.handle,\n        variants: (node.variants?.nodes || []).map((variant) => ({\n          id: numericVariantId(variant.id),\n          sku: variant.sku || \"\",\n          title: variant.title || \"\",\n          price: variant.price,\n          compareAtPrice: variant.compareAtPrice,\n          inventoryQuantity: variant.inventoryQuantity ?? 0,\n        })),\n      });\n    }\n    hasNext = Boolean(payload.pageInfo?.hasNextPage);\n    cursor = payload.pageInfo?.endCursor || null;\n  }\n  return products;\n}\n\nfunction israelTimestamp() {\n  return new Date().toLocaleString(\"en-GB\", {\n    timeZone: \"Asia/Jerusalem\",\n    day: \"2-digit\",\n    month: \"2-digit\",\n    year: \"numeric\",\n    hour: \"2-digit\",\n    minute: \"2-digit\",\n    hour12: false,\n  });\n}\n\nfunction buildRunPayload(existingSheetRows, shopifyProducts, previousRowCount) {\n  const result = buildRoomvoFeed({ existingSheetRows, shopifyProducts });\n  const writeEndRow = result.bodyRows.length + 1;\n  const clearRange =\n    previousRowCount > writeEndRow\n      ? `OsherSheet!A${writeEndRow + 1}:S${previousRowCount}`\n      : \"\";\n  return {\n    sheetId: SHEET_ID,\n    bodyRows: result.bodyRows,\n    writeRange: `OsherSheet!A2:S${writeEndRow}`,\n    clearRange,\n    logRow: [\n      israelTimestamp(),\n      String(result.stats.outputDataRows),\n      result.newSkusMissingFilters.join(\", \"),\n    ],\n    newSkusMissingFilters: result.newSkusMissingFilters,\n    stats: result.stats,\n  };\n}\n\nconst sheetValues = $input.first().json.values || [];\nconst shopifyProducts = await fetchAllShopifyProducts(this.helpers);\nconst payload = buildRunPayload(sheetValues, shopifyProducts, sheetValues.length);\nreturn [{ json: payload }];"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PdPxrKLtcWZ8NCoQ",
+          "name": "Shopify Red Carpet"
+        }
+      }
+    },
+    {
+      "id": "roomvo-write",
+      "name": "Write OsherSheet Body",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://sheets.googleapis.com/v4/spreadsheets/' + $json.sheetId + '/values/' + encodeURIComponent($json.writeRange) + '?valueInputOption=USER_ENTERED' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { values: $json.bodyRows } }}",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-placeholder",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "id": "roomvo-if-clear",
+      "name": "Has Leftover Rows?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "clear-range",
+              "leftValue": "={{ $('Build Roomvo Feed').item.json.clearRange }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "roomvo-clear",
+      "name": "Clear Leftover Rows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://sheets.googleapis.com/v4/spreadsheets/' + $('Build Roomvo Feed').item.json.sheetId + '/values/' + encodeURIComponent($('Build Roomvo Feed').item.json.clearRange) + ':clear' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-placeholder",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "id": "roomvo-log",
+      "name": "Append Log Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1200,
+        520
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1-1Hqtq0iyomItaf7dU4q4JHJgIZ1a0hCKIojVDUdWoE"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $('Build Roomvo Feed').item.json.logRow[0] }}",
+            "RowsCreated": "={{ $('Build Roomvo Feed').item.json.logRow[1] }}",
+            "NewSkusMissingFilters": "={{ $('Build Roomvo Feed').item.json.logRow[2] }}"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-placeholder",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 23:59 Israel": {
+      "main": [
+        [
+          {
+            "node": "Read OsherSheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Run": {
+      "main": [
+        [
+          {
+            "node": "Read OsherSheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read OsherSheet": {
+      "main": [
+        [
+          {
+            "node": "Build Roomvo Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Roomvo Feed": {
+      "main": [
+        [
+          {
+            "node": "Write OsherSheet Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write OsherSheet Body": {
+      "main": [
+        [
+          {
+            "node": "Has Leftover Rows?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leftover Rows?": {
+      "main": [
+        [
+          {
+            "node": "Clear Leftover Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Leftover Rows": {
+      "main": [
+        [
+          {
+            "node": "Append Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Jerusalem",
+    "executionOrder": "v1"
+  },
+  "staticData": null
+}

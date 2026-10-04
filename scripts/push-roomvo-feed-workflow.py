@@ -406,22 +406,18 @@ def pick_credentials(existing: dict[str, Any]) -> tuple[dict[str, Any], dict[str
     return sheets_cred, shopify_cred
 
 
-def main() -> None:
+def load_existing_workflow() -> dict[str, Any]:
     if not API_KEY:
-        print(
-            "Set N8N_API_KEY (n8n Cloud → Settings → API → Create API Key), then re-run.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        return {}
+    return api("GET", f"/api/v1/workflows/{WORKFLOW_ID}")
 
+
+def build_workflow_payload(existing: dict[str, Any]) -> dict[str, Any]:
     code_source = build_code_node_source()
-    existing = api("GET", f"/api/v1/workflows/{WORKFLOW_ID}")
     sheets_cred, shopify_cred = pick_credentials(existing)
-
     nodes = build_workflow_nodes(code_source, sheets_cred, shopify_cred)
     connections = build_connections()
-
-    payload = {
+    return {
         "name": existing.get("name") or "Roomvo Daily Feed Rebuild",
         "nodes": nodes,
         "connections": connections,
@@ -433,13 +429,42 @@ def main() -> None:
         "staticData": existing.get("staticData"),
     }
 
+
+def export_workflow_json(output_path: Path) -> None:
+    existing = load_existing_workflow()
+    payload = build_workflow_payload(existing)
+    output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"Wrote workflow export to {output_path} ({len(payload['nodes'])} nodes)")
+
+
+def deploy_workflow() -> None:
+    if not API_KEY:
+        print(
+            "Set N8N_API_KEY (n8n Cloud → Settings → API → Create API Key), then re-run.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    existing = load_existing_workflow()
+    payload = build_workflow_payload(existing)
     updated = api("PUT", f"/api/v1/workflows/{WORKFLOW_ID}", payload)
     api("POST", f"/api/v1/workflows/{WORKFLOW_ID}/activate")
 
     print(
         f"Deployed Roomvo feed workflow {updated.get('name')} ({WORKFLOW_ID}) "
-        f"with {len(nodes)} nodes; active=true"
+        f"with {len(payload['nodes'])} nodes; active=true"
     )
+
+
+def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "--export-json":
+        out = ROOT / "n8n-workflows" / "roomvo-daily-feed.workflow.json"
+        if len(sys.argv) > 2:
+            out = Path(sys.argv[2])
+        export_workflow_json(out)
+        return
+
+    deploy_workflow()
 
 
 if __name__ == "__main__":
