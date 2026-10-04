@@ -1139,6 +1139,23 @@ export function buildConversationHints(input: {
     }
   }
 
+  if (isKnownOrderConfirmPending(history) && isShippingAddressChangeAsk(body, history)) {
+    const known = orderIdGivenInThread(history)
+    const botOfferedEtaCheck = [...history]
+      .reverse()
+      .find((message) => message.role === "assistant")
+    const deliveryCheckOpen =
+      Boolean(botOfferedEtaCheck) &&
+      /(?:כדי לבדוק|לבדוק)\s+מתי|מתי\s+(?:זה\s+)?(?:מגיע|יגיע)/i.test(
+        botOfferedEtaCheck!.content
+      )
+    if (deliveryCheckOpen || isShippingThreadFromHistory(history)) {
+      lines.push(
+        `ADDRESS + ETA COMPOUND (534127311): they asked to change delivery address AND when it arrives — order ${known ?? "from receipt"} is already pending confirm. Call lookup_order_status with that id NOW and answer ETA from live status. Address change cannot be done here → human_service in the same turn after ETA (fresh order = better chance before ship). Never human_service without lookup when a delivery-time question is still open. Never re-ask for מספר הזמנה.`
+      )
+    }
+  }
+
   if (isShippingAddressChangeAsk(body, history) && !isShippingAddressUpdateThread(history)) {
     lines.push(
       "ADDRESS CHANGE NOT STOCK (529942717): לשנות/להחליף כתובת is a delivery-address change. Never alternate size, never מק״ט, never 'אותו דגם במידה אחרת', never lookup_inventory. Address policy from KB. If they also ask when it arrives, that part is shipment timing — do not turn להחליף into a size exchange. כן to a phone-confirm question confirms the phone."
