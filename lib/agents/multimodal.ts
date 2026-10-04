@@ -64,6 +64,10 @@ export function buildUserContent(
       parts.push({ type: "image", image: new URL(item.url) })
       continue
     }
+    // Video files crash the LLM gateway — caption lives in turn.text / history markers.
+    if (item.kind === "video") {
+      continue
+    }
     parts.push({
       type: "file",
       data: new URL(item.url),

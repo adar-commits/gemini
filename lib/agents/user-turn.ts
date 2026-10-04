@@ -42,7 +42,16 @@ export function turnHasVoiceMessage(turn: UserTurn) {
   return turn.media.some((part) => part.kind === "audio")
 }
 
+export function turnHasVideoMessage(turn: UserTurn) {
+  return turn.media.some((part) => part.kind === "video")
+}
+
 export function buildVoiceMessageUnsupportedReply() {
   return `${CUSTOMER_HEADER}
 מצטער, אני מודל AI ולא יכול להאזין להודעות קול. אפשר לכתוב/להקליד את הבקשה במקום?`
+}
+
+export function buildVideoMessageUnsupportedReply() {
+  return `${CUSTOMER_HEADER}
+מצטער, אני לא יכול לצפות בסרטונים. אפשר לכתוב בקצרה מה רצית, או לשלוח תמונה?`
 }

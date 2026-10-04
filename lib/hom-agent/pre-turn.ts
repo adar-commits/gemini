@@ -137,8 +137,10 @@ import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import {
+  buildVideoMessageUnsupportedReply,
   buildVoiceMessageUnsupportedReply,
   summarizeTurn,
+  turnHasVideoMessage,
   turnHasVoiceMessage,
 } from "@/lib/agents/user-turn"
 import type { HomAgentAction } from "@/lib/hom-agent/output-schema"
@@ -165,6 +167,14 @@ export function runPreTurnGuards(input: {
     return {
       kind: "handled",
       reply: buildVoiceMessageUnsupportedReply(),
+      action: "reply",
+    }
+  }
+
+  if (turnHasVideoMessage(input.turn) && !input.turn.text.trim()) {
+    return {
+      kind: "handled",
+      reply: buildVideoMessageUnsupportedReply(),
       action: "reply",
     }
   }

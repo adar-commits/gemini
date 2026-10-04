@@ -1230,6 +1230,10 @@ export function buildConversationHints(input: {
     lines.push(
       'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
     )
+  } else if (/\[media:video:/i.test(body)) {
+    lines.push(
+      'VIDEO RECEIVED (534094675): customer sent a video — **cannot watch video**. Respond to their **written caption/text** only; never never-stuck / "משהו נתקע". Ack the message warmly. If a service question is still open (e.g. purchase-location confirm), continue that thread after ack. Post-sale design feedback to a rep by name → brief ack + offer `human_sales` if they want a יועץ. Never ask them to resend the video.'
+    )
   }
 
   const imageTurn = /\[media:image:/i.test(body) ? userTurnFromBody(body) : null
