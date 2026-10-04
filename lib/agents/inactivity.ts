@@ -55,6 +55,11 @@ export function buildInactivityStillHereAck(customerName?: string) {
   return `${CUSTOMER_HEADER}\n${prefix}אני כאן. איך אוכל להמשיך לעזור?`
 }
 
+/** Standard ack after customer confirms they are still here — not a pending handoff question. */
+export function isInactivityStillHereAckMessage(content: string) {
+  return /אני\s+כאן/i.test(content) && /איך\s+אוכל\s+להמשיך\s+לעזור/i.test(content)
+}
+
 /** Customer is away — not a "yes I'm here" to the ping. */
 export function isInactivityUnavailableReply(body: string) {
   const text = body.trim()

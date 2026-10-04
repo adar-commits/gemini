@@ -10,6 +10,7 @@ import {
   buildInactivityDeferAck,
   buildInactivityStillHereAck,
   isInactivityPingPending,
+  isInactivityStillHereAckMessage,
   isInactivityStillHereReply,
   isInactivityUnavailableReply,
   isWaitingForHumanRepReply,
@@ -222,7 +223,8 @@ export function runPreTurnGuards(input: {
   }
 
   if (
-    (isWaitingForHumanRepReply(body) || isInactivityStillHereReply(body)) &&
+    (isWaitingForHumanRepReply(body) ||
+      (isInactivityStillHereReply(body) && !isInactivityPingPending(input.history))) &&
     isTransferPromisedInThread(input.history)
   ) {
     return {
@@ -333,6 +335,7 @@ function shouldBindInactivityReplyToPriorQuestion(history: HistoryMessage[]) {
 
   const prior = lastNonInactivityAssistantText(history)
   if (!prior) return false
+  if (isInactivityStillHereAckMessage(prior)) return false
   return isFinalizationQuestion(prior) || replyAwaitingCustomerInput(prior)
 }
 
