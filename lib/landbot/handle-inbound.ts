@@ -27,6 +27,7 @@ import {
   VOICE_CLOSURE_TEMPLATE_BODY,
   isVoiceClosureTemplateMessage,
 } from "@/lib/landbot/voice-closure-template"
+import { isVoiceClosureReplyPending } from "@/lib/landbot/voice-closure-reply"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
   buildTrainerResetReply,
@@ -135,13 +136,34 @@ export async function handleLandbotInbound(
     turnSummary
   )
 
+  const earlyHistory = await getHistory(conversationId)
+  const voiceClosureReplyPending = await isVoiceClosureReplyPending(
+    conversationId,
+    earlyHistory
+  )
+
   if (
+    replyEnabled &&
+    !trainerResetBypass &&
+    (await isVoiceClosureTemplateLastOutbound(conversationId).catch(() => false))
+  ) {
+    if (shouldRecordVoiceClosureTemplate(earlyHistory)) {
+      await recordProactiveAssistantMessage({
+        conversationId,
+        assistantText: VOICE_CLOSURE_TEMPLATE_BODY,
+        action: "voice_closure_template",
+      }).catch(() => {})
+    }
+  }
+
+  if (voiceClosureReplyPending) {
+    await releaseHumanThread(conversationId)
+  } else if (
     replyEnabled &&
     !trainerResetBypass &&
     (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
   ) {
-    const history = await getHistory(conversationId)
-    if (!shouldBypassHumanThreadSilence(turnSummary, history)) {
+    if (!shouldBypassHumanThreadSilence(turnSummary, earlyHistory)) {
       return {
         ok: true,
         agent: "master",
@@ -152,23 +174,8 @@ export async function handleLandbotInbound(
         skipped: "human_thread_active",
       }
     }
-    if (shouldClearHumanThreadOnBypass(turnSummary, history)) {
+    if (shouldClearHumanThreadOnBypass(turnSummary, earlyHistory)) {
       await releaseHumanThread(conversationId)
-    }
-  }
-
-  if (
-    replyEnabled &&
-    !trainerResetBypass &&
-    (await isVoiceClosureTemplateLastOutbound(conversationId).catch(() => false))
-  ) {
-    const history = await getHistory(conversationId)
-    if (shouldRecordVoiceClosureTemplate(history)) {
-      await recordProactiveAssistantMessage({
-        conversationId,
-        assistantText: VOICE_CLOSURE_TEMPLATE_BODY,
-        action: "voice_closure_template",
-      }).catch(() => {})
     }
   }
 
@@ -457,12 +464,18 @@ export async function handleLandbotInbound(
   // (previously the computed reply was silently dropped after a hold, leaving
   // the customer with "אני על זה…" and nothing else).
   if (replyEnabled) {
-    if (
+    const outboundHistory = await getHistory(conversationId)
+    const voiceClosureReply = await isVoiceClosureReplyPending(
+      conversationId,
+      outboundHistory
+    )
+    if (voiceClosureReply) {
+      await releaseHumanThread(conversationId)
+    } else if (
       !trainerResetBypass &&
       (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
     ) {
-      const history = await getHistory(conversationId)
-      if (!shouldBypassHumanThreadSilence(body, history)) {
+      if (!shouldBypassHumanThreadSilence(body, outboundHistory)) {
         return {
           ok: true,
           agent: "master",
@@ -473,7 +486,7 @@ export async function handleLandbotInbound(
           skipped: "human_thread_active",
         }
       }
-      if (shouldClearHumanThreadOnBypass(body, history)) {
+      if (shouldClearHumanThreadOnBypass(body, outboundHistory)) {
         await releaseHumanThread(conversationId)
       }
     }

@@ -35,6 +35,7 @@ import { getHistory } from "@/lib/agents/memory"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
+import { isVoiceClosureReplyPending } from "@/lib/landbot/voice-closure-reply"
 
 export const maxDuration = 300
 export const runtime = "nodejs"
@@ -143,15 +144,21 @@ export async function POST(request: Request) {
     summarizeTurn(inbound.turn)
   )
   const inboundBody = summarizeTurn(inbound.turn)
-  if (
+  const inboundHistory = await getHistory(inbound.conversationId)
+  const voiceClosureReplyPending = await isVoiceClosureReplyPending(
+    inbound.conversationId,
+    inboundHistory
+  )
+  if (voiceClosureReplyPending) {
+    await releaseHumanThread(inbound.conversationId)
+  } else if (
     !trainerResetBypass &&
     (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId))
   ) {
-    const history = await getHistory(inbound.conversationId)
-    if (!shouldBypassHumanThreadSilence(inboundBody, history)) {
+    if (!shouldBypassHumanThreadSilence(inboundBody, inboundHistory)) {
       return NextResponse.json({ ok: true, skipped: "human_thread_active" })
     }
-    if (shouldClearHumanThreadOnBypass(inboundBody, history)) {
+    if (shouldClearHumanThreadOnBypass(inboundBody, inboundHistory)) {
       await releaseHumanThread(inbound.conversationId)
     }
   }
@@ -193,15 +200,21 @@ export async function POST(request: Request) {
         conversationId: inbound.conversationId,
         handler: async (turn) => {
           const turnBody = summarizeTurn(turn)
-          if (
+          const turnHistory = await getHistory(inbound.conversationId)
+          const voiceClosureReply = await isVoiceClosureReplyPending(
+            inbound.conversationId,
+            turnHistory
+          )
+          if (voiceClosureReply) {
+            await releaseHumanThread(inbound.conversationId)
+          } else if (
             !trainerResetBypass &&
             (await isHumanThreadActive(
               inbound.conversationId,
               inbound.assignedAgentId
             ))
           ) {
-            const history = await getHistory(inbound.conversationId)
-            if (!shouldBypassHumanThreadSilence(turnBody, history)) {
+            if (!shouldBypassHumanThreadSilence(turnBody, turnHistory)) {
               lastResult = {
                 ok: true,
                 agent: "master",
@@ -213,7 +226,7 @@ export async function POST(request: Request) {
               }
               return
             }
-            if (shouldClearHumanThreadOnBypass(turnBody, history)) {
+            if (shouldClearHumanThreadOnBypass(turnBody, turnHistory)) {
               await releaseHumanThread(inbound.conversationId)
             }
           }

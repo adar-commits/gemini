@@ -12,6 +12,7 @@ import { hasImmediateBusinessAsk, isCasualGreeting } from "@/lib/agents/greeting
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isPureHandoffAffirmation, isPureHandoffDecline } from "@/lib/agents/compound-reply"
 import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
+import { isVoiceClosureTemplateInHistory } from "@/lib/landbot/voice-closure-reply"
 
 export const OFF_TOPIC_HANDOFF_OFFER =
   "אני לא בטוח איך להגיב לזה, שאעביר את השיחה לנציג אנושי?"
@@ -117,6 +118,7 @@ export function isPendingHandoffCustomerReply(body: string, history: HistoryMess
  * Thanks only bypasses after the *bot* confirmed handoff — not when a live rep already spoke.
  */
 export function shouldBypassHumanThreadSilence(body: string, history: HistoryMessage[]) {
+  if (isVoiceClosureTemplateInHistory(history)) return true
   if (isOpenHandoffOfferCustomerReply(body, history)) return true
   if (isThanksAcknowledgment(body)) {
     return isPostHumanHandoff(null, history)
@@ -135,6 +137,7 @@ function isOpenHandoffOfferCustomerReply(body: string, history: HistoryMessage[]
 
 /** Stale takeover flags — clear before handoff confirm, not before post-handoff thanks. */
 export function shouldClearHumanThreadOnBypass(body: string, history: HistoryMessage[]) {
+  if (isVoiceClosureTemplateInHistory(history)) return true
   return isOpenHandoffOfferCustomerReply(body, history)
 }
 
