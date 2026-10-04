@@ -1099,10 +1099,20 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    isKnownOrderConfirmPending(history) &&
+    /^כן(?:\s|[,.!?]|$)/i.test(body.trim()) &&
+    /(?:בדוק|תבדק|לבדוק)/i.test(body)
+  ) {
+    lines.push(
+      "KNOWN ORDER STATUS CHECK YES (533760226): כן תבדוק/תבדקו confirms your status-check offer on the named SO — call lookup_order_status immediately and answer shipping status. Never service rep summary, never אי-שביעות רצון, never human_service on this turn."
+    )
+  }
+
   if (isKnownOrderConfirmPending(history)) {
     const known = orderIdGivenInThread(history)
     lines.push(
-      `KNOWN ORDER CONFIRM (404732305 / 508272038 / 532767659): you already asked if they mean order ${known ?? "from the receipt"}. כן OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
+      `KNOWN ORDER CONFIRM (404732305 / 508272038 / 532767659 / 533760226): you already asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון on an expedite/status-check thread. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
     )
   }
 
