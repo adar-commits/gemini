@@ -18,6 +18,15 @@ const SENTINEL_MARKER = "XXXXXXXXXXXXX";
 const IMAGE_BASE =
   "https://carpetbucket.s3.eu-west-1.amazonaws.com/tempimages";
 const STORE_BASE = "https://www.carpetshop.co.il/products";
+const CART_ADD_BASE = "https://www.carpetshop.co.il/cart/add?id=";
+
+/** Column A: Hebrew display title without Latin letters (Shopify often appends brand codes). */
+function sanitizeDisplayTitle(title) {
+  return String(title || "")
+    .replace(/[A-Za-z]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /** Leading digit block of the variant SKU (patchwork tails ignored). */
 function extractStyleNumber(sku) {
@@ -97,10 +106,10 @@ function buildVariantRow(variant) {
   const compareAt = formatCompareAt(variant.price, variant.compareAtPrice);
   const inventory = Math.trunc(Number(variant.inventoryQuantity));
   const url = `${STORE_BASE}/${variant.handle}`;
-  const cartUrl = `${url}?variant=${variant.id}`;
+  const cartUrl = `${CART_ADD_BASE}${variant.id}`;
 
   return [
-    title,
+    sanitizeDisplayTitle(title),
     sku,
     parentSku,
     size,
@@ -366,6 +375,8 @@ module.exports = {
   FORCED_RUNNER_SKUS,
   SENTINEL_DO_NOT_DELETE,
   SENTINEL_MARKER,
+  CART_ADD_BASE,
+  sanitizeDisplayTitle,
   extractStyleNumber,
   skuHasFringeFlag,
   detectShape,

@@ -7,6 +7,7 @@ const {
   formatShekelPrice,
   formatCompareAt,
   buildDirectImageLink,
+  sanitizeDisplayTitle,
   buildVariantRow,
   flattenQualifyingVariants,
   buildRoomvoFeed,
@@ -70,6 +71,14 @@ describe("roomvo-feed-build helpers", () => {
     assert.equal(formatCompareAt("8750", "8750"), "");
     assert.equal(formatCompareAt("8750", ""), "");
   });
+
+  it("strips Latin letters from column A display title", () => {
+    assert.equal(
+      sanitizeDisplayTitle("שטיח מרקש 01 קרם-שחור MARAKESH"),
+      "שטיח מרקש 01 קרם-שחור",
+    );
+    assert.equal(sanitizeDisplayTitle("שטיח מרסיי 03 אפור"), "שטיח מרסיי 03 אפור");
+  });
 });
 
 describe("buildVariantRow", () => {
@@ -85,14 +94,12 @@ describe("buildVariantRow", () => {
       handle: "marseille-03-grey",
     });
 
+    assert.equal(row[0], "שטיח מרסיי 03 אפור");
     assert.equal(row[1], "00103007-80150");
     assert.equal(row[2], "00103007-REC");
     assert.equal(row[8], "195");
     assert.equal(row[9], "390");
-    assert.equal(
-      row[12],
-      "https://www.carpetshop.co.il/products/marseille-03-grey?variant=40957728293055",
-    );
+    assert.equal(row[12], "https://www.carpetshop.co.il/cart/add?id=40957728293055");
     assert.equal(row[12].includes("}#addr"), false);
     assert.equal(row[12].includes("#addr"), false);
     assert.equal(row[14], "מלבן");
@@ -123,6 +130,23 @@ describe("buildVariantRow", () => {
     });
     assert.match(titleOnlyFringe[10], /03248062-RN\.png$/);
     assert.doesNotMatch(titleOnlyFringe[10], /F-/);
+  });
+
+  it("strips English from column A while keeping shape detection on raw title", () => {
+    const row = buildVariantRow({
+      id: "40957839933631",
+      sku: "00103007-80150",
+      title: "80*150 - XS",
+      price: "195",
+      compareAtPrice: null,
+      inventoryQuantity: 5,
+      productTitle: "שטיח מרקש 01 קרם-שחור MARAKESH",
+      handle: "marakesh-01-cream-black",
+    });
+
+    assert.equal(row[0], "שטיח מרקש 01 קרם-שחור");
+    assert.equal(row[12], "https://www.carpetshop.co.il/cart/add?id=40957839933631");
+    assert.equal(row[14], "מלבן");
   });
 });
 
@@ -365,7 +389,7 @@ describe("buildRoomvoFeed merge", () => {
     assert.equal(first[16], "וינטג', קלאסי");
     assert.equal(
       first[12],
-      "https://www.carpetshop.co.il/products/marseille-03-grey?variant=40957728293055",
+      "https://www.carpetshop.co.il/cart/add?id=40957728293055",
     );
 
     assert.deepEqual(result.newSkusMissingFilters, ["88888888-80150"]);
