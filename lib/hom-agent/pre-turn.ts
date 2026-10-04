@@ -102,6 +102,7 @@ import {
   isPostOrderShippingFollowUp,
   classifyDocumentNumber,
   extractOrderNumber,
+  extractOrderReference,
   extractShippingOrderDocumentReference,
   isChannelPhoneSelfReference,
   isExplicitHumanRequest,
@@ -346,6 +347,7 @@ function orderLookupStructuredBinding(body: string, history: HistoryMessage[] = 
     userProvidedPhone(body) != null ||
     isChannelPhoneSelfReference(body) ||
     extractOrderNumber(body) != null ||
+    extractOrderReference(body, history) != null ||
     classifyDocumentNumber(body) != null ||
     extractShippingOrderDocumentReference(body, history) != null
   )

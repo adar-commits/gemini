@@ -3043,6 +3043,17 @@ export function buildAlternatePhoneRequestPrompt() {
 מה מספר הטלפון שבוצעה עליו ההזמנה?`
 }
 
+/** Customer repeated the order # while we still need the order's phone — do not treat as invalid phone. */
+export function buildAlternatePhoneOrderResendPrompt(
+  orderReference: string,
+  history: HistoryMessage[] = [],
+  body?: string
+) {
+  const display = formatCustomerOrderNumberForThread(orderReference, history, body)
+  return `${CUSTOMER_HEADER}
+יש לי את מספר ההזמנה ${display}. כדי לבדוק את הסטטוס צריך את מספר הטלפון שעליו בוצעה ההזמנה — שלחו אותו (למשל 050-1234567).`
+}
+
 async function deliverOrderVerificationDocumentReply(phone: string) {
   const tried: string[] = []
   for (const documentType of ["קבלה", "חשבונית מס", "חשבונית מס קבלה"]) {
@@ -3647,6 +3658,10 @@ export async function resolveOrderShippingReply(input: {
       if (lookupPhone) {
         return resolveOrderConfirmationFlow({ body, lookupPhone, history })
       }
+    }
+    const resentOrder = extractOrderReference(body, history)
+    if (resentOrder) {
+      return buildAlternatePhoneOrderResendPrompt(resentOrder, history, body)
     }
     return `${CUSTOMER_HEADER}
 לא זיהיתי מספר טלפון — שלחו את המספר (למשל 050-1234567).`

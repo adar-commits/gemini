@@ -2,6 +2,7 @@ import { salesIntakeMode } from "@/lib/agent-core/config"
 import {
   channelPhone,
   extractOrderNumber,
+  extractOrderReference,
   isChannelPhoneSelfReference,
   customerOrderNumberStyleFromHistory,
   isDeliveryEstimateQuestion,
@@ -12,6 +13,7 @@ import {
   isOrderConfirmationYes,
   pendingOrderNumberFromHistory,
   isOrderDeliveryStatusQuestion,
+  isAlternatePhoneRequestPending,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
   isOrderReferencePresentation,
@@ -742,6 +744,16 @@ export function buildConversationHints(input: {
   if (isOrderLookupPhoneReplyPending(history) && userProvidedPhone(body)) {
     lines.push(
       "Customer sent the correct/alternate phone for order lookup — call lookup_order_status immediately with that number; do not re-ask channel phone."
+    )
+  }
+
+  if (
+    isAlternatePhoneRequestPending(history) &&
+    extractOrderReference(body, history) &&
+    !userProvidedPhone(body)
+  ) {
+    lines.push(
+      "ORDER RESEND DURING PHONE ASK (534088322): customer repeated the order number instead of the phone — acknowledge the order # and ask again for phone digits only. Never reply «לא זיהיתי מספר טלפון»."
     )
   }
 
