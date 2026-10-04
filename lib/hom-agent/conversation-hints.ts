@@ -591,7 +591,7 @@ export function buildConversationHints(input: {
   const postPurchaseKind = classifyPostPurchaseCase(body)
   if (postPurchaseKind === "defect") {
     lines.push(
-      "Defect / damage report: empathize and describe what you see or what they reported — never confirm 'מדובר בפגם' or 'פגם מלכתחילה'. Rep bullet: דיווח על בעיה / חשש (לפי הלקוח). Human verifies liability."
+      'DEFECT / WARRANTY (534098184): empathize and describe what they reported — never confirm "מדובר בפגם" or "פגם מלכתחילה". Set `"crm_department": "service"` every turn. Collect photos + order # → rep summary → `human_service`. **Never** `human_sales` / יועץ מכירות. Rep bullet: דיווח על בעיה / חשש (לפי הלקוח). Human verifies liability.'
     )
   }
 
@@ -1203,6 +1203,13 @@ export function buildConversationHints(input: {
     lines.push(
       'WRONG-ITEM DELIVERY PHOTO (533657825): photo + proof of what was ordered at the store / wrong item received — **service**, not sales. Set `"crm_department": "service"`. Ack photo, empathize, start service intake (lookup order if needed → rep summary). **Never** sales room question ("לאיזה חלל"), never יועץ העיצוב, never `human_sales`.'
     )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isServicePhotoAnalysisContext(history, body)
+  ) {
+    lines.push(
+      'DEFECT / DAMAGE PHOTO (534098184): defect or warranty-concern thread — **service**, not sales. Set `"crm_department": "service"`. Ack photo, describe visible concern without confirming liability, continue service intake (more photos / order # if needed). **Never** `human_sales` or יועץ מכירות — hand off with `human_service` when intake is ready.'
+    )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
       'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
@@ -1214,16 +1221,17 @@ export function buildConversationHints(input: {
     imageTurn &&
     shouldAnalyzeCustomerImage({ history, turn: imageTurn, lastAgent: null })
   ) {
-    if (isOrderNumberRequestPending(history) || isOrderDocumentScreenshotTurn(body)) {
-      lines.push(
-        "ORDER RECEIPT SCREENSHOT (vision on): read SO… / #36805 / IN… / RC… or a phone number from the image, then call lookup_order_status with that value — order identification, not fetch_digital_document. Never restart document-type menu."
-      )
-    } else if (
+    if (
       !isExchangeIntakeActive(history) &&
-      (isServicePhotoAnalysisContext(history, body) || isServiceOrderIdentificationFlow(history, body))
+      (isServicePhotoAnalysisContext(history, body) ||
+        isServiceOrderIdentificationFlow(history, body))
     ) {
       lines.push(
         "SERVICE PHOTO VISION (vision on): briefly note visible damage/concern the customer reported — never pre-judge liability (no 'פגם מלכתחילה'). Continue service intake → rep summary → human_service when ready."
+      )
+    } else if (isOrderNumberRequestPending(history) || isOrderDocumentScreenshotTurn(body)) {
+      lines.push(
+        "ORDER RECEIPT SCREENSHOT (vision on): read SO… / #36805 / IN… / RC… or a phone number from the image, then call lookup_order_status with that value — order identification, not fetch_digital_document. Never restart document-type menu."
       )
     }
   }
