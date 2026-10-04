@@ -31,6 +31,7 @@ import {
   isPhoneLookupConfirmPending,
   orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
+  requiresOrderIdentification,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import { isDesignCenterLocationQuestion } from "@/lib/agents/branches"
@@ -1215,6 +1216,25 @@ export function buildConversationHints(input: {
         "SERVICE PHOTO VISION (vision on): briefly note visible damage/concern the customer reported — never pre-judge liability (no 'פגם מלכתחילה'). Continue service intake → rep summary → human_service when ready."
       )
     }
+  }
+
+  const threadVerifiesOrderedItems =
+    (requiresOrderIdentification(body, history) &&
+      isServicePhotoAnalysisContext(history, body)) ||
+    history.some(
+      (message) =>
+        message.role === "user" &&
+        requiresOrderIdentification(message.content, history.slice(0, history.indexOf(message))) &&
+        /\[media:image:/i.test(message.content)
+    )
+  if (
+    threadVerifiesOrderedItems &&
+    !orderIdGivenInThread(history) &&
+    !isOrderConfirmationPending(history)
+  ) {
+    lines.push(
+      'ORDER CARD SOURCE (533912766): customer verifies model/SKU on their order — call lookup_order_status. Phone lookup without customer-sent order # or tracking link this thread → say "לפי מספר הטלפון שלך מצאתי…", never "קישור המעקב" / "שמופיעה בקישור". Card: "נדמה לי שמצאתי… — זו ההזמנה?" + awaiting order_confirm. After confirm → line items/order document, not shipping status.'
+    )
   }
 
   if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
