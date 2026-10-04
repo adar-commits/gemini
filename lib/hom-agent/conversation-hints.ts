@@ -145,6 +145,7 @@ import {
 } from "@/lib/agents/post-purchase-alt-size"
 import {
   extractSalesIntake,
+  hasExplicitRugDimensionsInText,
   hasOngoingSalesIntake,
   hasRoomPhotoInHistory,
   isAwaitingSalesIntakeAnswer,
@@ -1130,12 +1131,21 @@ export function buildConversationHints(input: {
     )
   } else if (
     /\[media:image:/i.test(body) &&
+    hasExplicitRugDimensionsInText(body) &&
+    !isSalesIntakeCompleteWithOptionalPhotoPending(history) &&
+    (hasOngoingSalesIntake(history) || isActiveProductSalesPrepThread(history))
+  ) {
+    lines.push(
+      'SALES PHOTO + SIZE (534083625): room photo **and** stated rug dimensions in the same turn — ack once (קיבלתי את התמונה), bullet recap (product from thread, size, use case), **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON (מעביר ליועץ מכירות). **Never** write אעביר/מעביר and then ask another intake question (pets, room). Missing optional fields → note for advisor in recap.'
+    )
+  } else if (
+    /\[media:image:/i.test(body) &&
     (isSalesPhotoRequestPending(history) ||
       hasOngoingSalesIntake(history) ||
       hasRoomPhotoInHistory(history))
   ) {
     lines.push(
-      "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב), then next intake step (usually דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. **Never re-ask pets or any other intake step already answered in the thread.** Do NOT describe/analyze the image."
+      "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה) without אעביר/מעביר until `action: human_sales`, then next intake step (usually pets or דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. **Never re-ask pets or any other intake step already answered in the thread.** Do NOT describe/analyze the image."
     )
   } else if (/\[media:image:/i.test(body) && poufAssemblyFaqThread) {
     lines.push(
