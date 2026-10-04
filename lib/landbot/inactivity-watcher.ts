@@ -28,6 +28,7 @@ import {
   resolveInactivityPingDelayMs,
   shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
+  shouldSkipInactivityPingForCompleteReply,
 } from "@/lib/agents/inactivity-policy"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import { shouldReplyPhone } from "@/lib/landbot/allowlist"
@@ -207,6 +208,10 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
 
   if (endsWithOptionalFollowUpOffer(lastNonInactivityAssistantText(history))) {
     return "optional_follow_up" as const
+  }
+
+  if (shouldSkipInactivityPingForCompleteReply(context.history, context.lastAgent)) {
+    return "complete_informational_reply" as const
   }
 
   if (shouldSilentAutoAssignOnQuietWindow(context.history, context.lastAgent)) {

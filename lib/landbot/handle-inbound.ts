@@ -7,6 +7,7 @@ import {
 } from "@/lib/agents/conversation-close"
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
+import { shouldSkipInactivityPingForCompleteReply } from "@/lib/agents/inactivity-policy"
 import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, isVoiceClosureTemplateLastOutbound, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { assignCrmConversationToHomBot } from "@/lib/crm/conversation-assign"
 import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
@@ -565,7 +566,8 @@ export async function handleLandbotInbound(
         const optionalFollowUpClosing =
           result.suppressInactivityWatch ||
           isThanksAcknowledgment(body) ||
-          endsWithOptionalFollowUpOffer(lastOutbound)
+          endsWithOptionalFollowUpOffer(lastOutbound) ||
+          shouldSkipInactivityPingForCompleteReply(history, result.agent ?? null)
         if (shouldSuppressInactivityWatch(history) || optionalFollowUpClosing) {
           await clearInactivityWatchState(conversationId)
         } else {

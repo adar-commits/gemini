@@ -29,6 +29,7 @@ import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 import {
   shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
+  shouldSkipInactivityPingForCompleteReply,
 } from "@/lib/agents/inactivity-policy"
 import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
@@ -527,6 +528,11 @@ async function attemptInactivityPing(row: IdleSessionRow) {
   if (isOrderConfirmationPending(history)) return "skipped" as const
 
   if (endsWithOptionalFollowUpOffer(lastNonInactivityAssistantText(history))) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
+
+  if (shouldSkipInactivityPingForCompleteReply(context.history, context.lastAgent)) {
     await clearInactivityWatchState(row.conversation_id)
     return "skipped" as const
   }

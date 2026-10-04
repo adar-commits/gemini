@@ -1,8 +1,21 @@
+import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
 import {
   INACTIVITY_HANDOFF_AUTO_ASSIGN_MS,
   INACTIVITY_PING_MS,
+  lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
-import { isActiveInventoryThread } from "@/lib/agents/inventory-lookup"
+import { isActiveInventoryThread, isSkuRequestPending } from "@/lib/agents/inventory-lookup"
+import {
+  isOrderConfirmationPending,
+  isOrderDisambiguationPending,
+  isOrderLookupPhoneReplyPending,
+  isOrderNumberRequestPending,
+  isServiceOrderIdentificationPending,
+} from "@/lib/agents/order-lookup"
+import {
+  isProductDetailsPending,
+  isProductHandoffPending,
+} from "@/lib/agents/product-handoff"
 import {
   customerRespondedToHandoffWithoutConfirm,
   isHumanHandoffPending,
@@ -11,8 +24,11 @@ import {
   isActiveSalesConsultation,
   isSalesFinalSummaryPending,
 } from "@/lib/agents/sales-intake"
-import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
-import type { AgentId, HistoryMessage } from "@/lib/agents/types"
+import {
+  isDesignerCodeRequestPending,
+  isServiceHandoffSummaryPending,
+} from "@/lib/agents/service-intake"
+import { CUSTOMER_HEADER, type AgentId, type HistoryMessage } from "@/lib/agents/types"
 
 /**
  * Sales / inventory threads never auto-close. After a service-style ping (if any),
@@ -39,6 +55,43 @@ export function shouldSkipInactivityPingForSalesHandoff(
   if (isActiveSalesConsultation(history, lastAgent)) return true
   if (isSalesFinalSummaryPending(history)) return true
   return false
+}
+
+function hasPendingCustomerInputThreadState(
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
+  return (
+    isHumanHandoffPending(history) ||
+    isServiceHandoffSummaryPending(history) ||
+    isSalesFinalSummaryPending(history) ||
+    isActiveSalesConsultation(history, lastAgent) ||
+    isActiveInventoryThread(history) ||
+    isSkuRequestPending(history) ||
+    isOrderConfirmationPending(history) ||
+    isOrderDisambiguationPending(history) ||
+    isOrderLookupPhoneReplyPending(history) ||
+    isOrderNumberRequestPending(history) ||
+    isServiceOrderIdentificationPending(history) ||
+    isProductHandoffPending(history) ||
+    isProductDetailsPending(history) ||
+    isDesignerCodeRequestPending(history)
+  )
+}
+
+/** Complete FAQ/informational answer — no ping; customer silence is a natural end. */
+export function shouldSkipInactivityPingForCompleteReply(
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
+  if (hasPendingCustomerInputThreadState(history, lastAgent)) return false
+  const lastText = lastNonInactivityAssistantText(history)
+  if (!lastText) return false
+  if (endsWithOptionalFollowUpOffer(lastText)) return true
+  const assistantBody = lastText.replace(CUSTOMER_HEADER, "").trim()
+  if (!assistantBody || assistantBody.length < 60) return false
+  if (/[?؟]/.test(assistantBody)) return false
+  return true
 }
 
 /**
