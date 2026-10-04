@@ -153,6 +153,7 @@ import {
   isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoRequestPending,
   isServicePhotoAnalysisContext,
+  isWrongItemDeliveryPhotoTurn,
 } from "@/lib/agents/sales-intake"
 import {
   isOrderDocumentScreenshotTurn,
@@ -1166,6 +1167,10 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'CHECKOUT PRICE PHOTO (534083437): customer asks why price differs at checkout and sent screenshot(s) — images **already arrived**. Ack "קיבלתי את צילומי המסך"; you cannot read prices from images; set `action: human_sales` + `crm_department: sales` with a one-line summary (מחיר בעמוד לעומת קופה). **Never** ask to send a screenshot again or ask them to type both prices before handoff.'
+    )
+  } else if (/\[media:image:/i.test(body) && isWrongItemDeliveryPhotoTurn(body)) {
+    lines.push(
+      'WRONG-ITEM DELIVERY PHOTO (533657825): photo + proof of what was ordered at the store / wrong item received — **service**, not sales. Set `"crm_department": "service"`. Ack photo, empathize, start service intake (lookup order if needed → rep summary). **Never** sales room question ("לאיזה חלל"), never יועץ העיצוב, never `human_sales`.'
     )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(

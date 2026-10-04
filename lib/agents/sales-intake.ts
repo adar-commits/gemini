@@ -1999,9 +1999,34 @@ function questionOrder(kind: string) {
   return index === -1 ? 0 : index
 }
 
+/** Opening photo proving what was ordered in-store — wrong-item delivery, not sales room photo. */
+export function isWrongItemDeliveryPhotoTurn(body: string) {
+  if (!/\[media:image:/i.test(body)) return false
+  const text = body.replace(/\[media:image:[^\]]+\]/gi, "").trim()
+  if (!text) return false
+
+  if (
+    /(?:ה)?(?:זמנ(?:תי|ו|נו)|רכש(?:תי|נו)).{0,50}(?:ה)?(?:רא(?:יתי|ינו)|הרא(?:יתי|ינו)).{0,25}(?:ל)?(?:מוכר|בחנות|בסניף)/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+  if (
+    /(?:לא\s+(?:ה)?(?:ש(?:טיח|מוצר)|זה)\s+ש(?:ה)?(?:זמנ|הזמנ)|(?:הגיע|קיבל(?:תי|נו)?).{0,35}(?:ש(?:טיח|ונה)|מוצר)\s+(?:אחר|שונה|לא\s+(?:נכון|מה\s+ש(?:ה)?זמנ)))/i.test(
+      text
+    )
+  ) {
+    return true
+  }
+  const kind = classifyPostPurchaseCase(text)
+  return kind === "defect" || kind === "dissatisfaction"
+}
+
 export function isServicePhotoAnalysisContext(history: HistoryMessage[], body: string) {
   const transcript = allUserText(history, body)
   if (isServiceHandoffSummaryPending(history)) return true
+  if (isWrongItemDeliveryPhotoTurn(body)) return true
   if (classifyPostPurchaseCase(body) === "defect") return true
   if (classifyPostPurchaseCase(transcript) === "defect") return true
   return /(?:פגם|נקר(?:ם|ה)?|קרע|חוט\s+בקצה|נפג(?:ם|מה)|damage|defect)/i.test(
