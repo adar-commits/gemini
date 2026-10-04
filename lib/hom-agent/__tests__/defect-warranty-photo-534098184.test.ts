@@ -42,7 +42,7 @@ describe("defect warranty photo (534098184)", () => {
   it("does not emit generic PHOTO RECEIVED sales handoff on defect photo turn", () => {
     const hints =
       buildConversationHints({ history: historyAfterOpening, body: PHOTO_BODY }) ?? ""
-    assert.match(hints, /DEFECT \/ DAMAGE PHOTO \(534098184\)/)
+    assert.match(hints, /SERVICE DEFECT PHOTO \(504655399 \/ 534098184\)/)
     assert.match(hints, /crm_department.*service/i)
     assert.match(hints, /SERVICE PHOTO VISION/)
     assert.doesNotMatch(hints, /PHOTO RECEIVED \(533695023/)

@@ -222,6 +222,26 @@ const SALES_PHOTO_REQUEST_RE =
 /** Photo asked for the service rep (wrong item, defect) — not a sales room photo. */
 const SERVICE_REP_PHOTO_REQUEST_RE = /נציג(?:י)?\s+(?:ה)?שירות/
 
+const SERVICE_EVIDENCE_PHOTO_ASK_RE =
+  /(?:אפשר|של(?:ח|וח)|צר(?:ף|ור)|תמונה(?:\s+\S+){0,8}של)/i
+
+/** Bot asked for defect/damage evidence — thread state on assistant text, not customer intent. */
+function isServiceEvidencePhotoRequest(text: string) {
+  if (SERVICE_REP_PHOTO_REQUEST_RE.test(text)) return true
+  if (!SERVICE_EVIDENCE_PHOTO_ASK_RE.test(text)) return false
+  return /(?:חור|פגם|נזק|תפר|קרע|ליקוי|בעיה|נפתח|נקר)|(?:ה)?נציג\s+יוכל/i.test(text)
+}
+
+export function isServiceEvidencePhotoRequestPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return isServiceEvidencePhotoRequest(message.content)
+  }
+  return false
+}
+
 /** Customer already has the product — needs help picking the right size (exchange / resize). */
 export function isSizeExchangeIntakeContext(history: HistoryMessage[], body = "") {
   const text = allUserText(history, body)
@@ -272,7 +292,7 @@ export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
     if (isInactivityAssistantMessage(message.content)) continue
     return (
       SALES_PHOTO_REQUEST_RE.test(message.content) &&
-      !SERVICE_REP_PHOTO_REQUEST_RE.test(message.content)
+      !isServiceEvidencePhotoRequest(message.content)
     )
   }
   return false
@@ -2026,6 +2046,7 @@ export function isWrongItemDeliveryPhotoTurn(body: string) {
 export function isServicePhotoAnalysisContext(history: HistoryMessage[], body: string) {
   const transcript = allUserText(history, body)
   if (isServiceHandoffSummaryPending(history)) return true
+  if (isServiceEvidencePhotoRequestPending(history)) return true
   if (isWrongItemDeliveryPhotoTurn(body)) return true
   if (classifyPostPurchaseCase(body) === "defect") return true
   if (classifyPostPurchaseCase(transcript) === "defect") return true

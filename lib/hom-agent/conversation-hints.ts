@@ -156,6 +156,7 @@ import {
   isBedRugSizingConsultation,
   isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoRequestPending,
+  isServiceEvidencePhotoRequestPending,
   isServicePhotoAnalysisContext,
   isWrongItemDeliveryPhotoTurn,
 } from "@/lib/agents/sales-intake"
@@ -1169,6 +1170,13 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'SALES PHOTO + SIZE (534083625): room photo **and** stated rug dimensions in the same turn — ack once (קיבלתי את התמונה), bullet recap (product from thread, size, use case), **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON (מעביר ליועץ מכירות). **Never** write אעביר/מעביר and then ask another intake question (pets, room). Missing optional fields → note for advisor in recap.'
+    )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isServiceEvidencePhotoRequestPending(history)
+  ) {
+    lines.push(
+      'SERVICE DEFECT PHOTO (504655399 / 534098184): you asked for damage/defect evidence for the service rep — customer sent it. Ack photos, note what you see or what they reported, continue service intake → rep summary → human_service. Set `"crm_department": "service"`. **Never** sales room question ("לאיזה חלל"), never יועץ העיצוב, never `human_sales`.'
     )
   } else if (
     /\[media:image:/i.test(body) &&
