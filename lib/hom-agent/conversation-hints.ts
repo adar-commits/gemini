@@ -59,6 +59,7 @@ import {
   isProductSpecDeferredToAdvisorInThread,
   isSalesTransferPromisedInLastAssistant,
   isSpecificProductMention,
+  isCheckoutPriceDiscrepancyThread,
 } from "@/lib/agents/product-handoff"
 import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import {
@@ -1148,6 +1149,13 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'INVENTORY SKU PHOTO (503612164): you asked for מק״ט for branch stock and the customer sent a product-page screenshot — ack the photo once, explain you cannot read מק״ט from images for stock checks, and ask them to **type** the מק״ט from the page (format 31503138-200290). Stay `action: reply` — **never** `human_sales` or after-hours OOO while stock lookup is still possible. When they type the מק״ט, call `lookup_inventory`.'
+    )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isCheckoutPriceDiscrepancyThread(history, body)
+  ) {
+    lines.push(
+      'CHECKOUT PRICE PHOTO (534083437): customer asks why price differs at checkout and sent screenshot(s) — images **already arrived**. Ack "קיבלתי את צילומי המסך"; you cannot read prices from images; set `action: human_sales` + `crm_department: sales` with a one-line summary (מחיר בעמוד לעומת קופה). **Never** ask to send a screenshot again or ask them to type both prices before handoff.'
     )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(

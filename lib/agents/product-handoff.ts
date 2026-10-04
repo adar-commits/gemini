@@ -304,6 +304,18 @@ export function isCatalogProductInquiry(
   )
 }
 
+/** Checkout cart total differs from product page — sales advisor compares screenshots. */
+export function isCheckoutPriceDiscrepancyThread(
+  history: HistoryMessage[],
+  body: string
+): boolean {
+  const corpus = [...history, { role: "user" as const, content: body }]
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .join("\n")
+  return /מחיר.{0,32}קופה|קופה.{0,32}מחיר|מחיר\s+משתנה\s+בקופה/i.test(corpus)
+}
+
 /** Stock, price, size availability, or "do you have X" for a known product. */
 export function isProductInventoryQuestion(body: string) {
   const text = body.trim()
