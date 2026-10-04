@@ -697,6 +697,9 @@ export async function runStructuredOrderLookupPreTurn(input: {
   phone?: string
 }): Promise<PreTurnResult> {
   const body = summarizeTurn(input.turn)
+  if (isHumanHandoffOfferPending(input.history)) {
+    return { kind: "skip", response: null }
+  }
   if (shouldHandleDigitalDocumentFlow(body, input.history)) {
     return { kind: "skip", response: null }
   }

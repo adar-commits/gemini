@@ -10,6 +10,7 @@ import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import { hasImmediateBusinessAsk, isCasualGreeting } from "@/lib/agents/greeting"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { isPriorityApiWaitMessage } from "@/lib/agents/priority-webhook"
 import { isPureHandoffAffirmation, isPureHandoffDecline } from "@/lib/agents/compound-reply"
 import { isFaqTopicSwitch } from "@/lib/agents/topic-switch"
 
@@ -25,6 +26,7 @@ function lastAssistantMessage(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitMessage(message.content)) continue
     return message
   }
   return null

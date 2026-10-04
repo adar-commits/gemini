@@ -65,6 +65,7 @@ import {
   pendingSalesIntakeQuestionKind,
 } from "@/lib/agents/sales-intake"
 import { parseDocumentLinkFromPayload } from "@/lib/agents/get-document-parse"
+import { isHumanHandoffOfferPending } from "@/lib/agents/off-topic"
 import { callPriorityWebhook, getPriorityApiLogContext, isPriorityApiWaitMessage } from "@/lib/agents/priority-webhook"
 import {
   recallConversationLookupPhone,
@@ -2223,6 +2224,7 @@ export function shouldLookupKnownOrderForCancel(body: string, history: HistoryMe
  * Do not start phone lookup or ask for an order number.
  */
 export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]) {
+  if (isHumanHandoffOfferPending(history)) return false
   const known = orderIdGivenInThread(history)
   if (!known || isOrderLookupCompletedInThread(history)) return false
   if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
