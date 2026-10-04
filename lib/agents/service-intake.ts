@@ -184,6 +184,19 @@ export function isCancelShipmentConfirmPending(history: HistoryMessage[]) {
   return isCancelShipmentStatusQuestion(last.content)
 }
 
+function isDesignerCodeRequestQuestion(text: string) {
+  const body = text.replace(CUSTOMER_HEADER, "").trim()
+  if (!body) return false
+  return /(?:מה|איזה)\s+קוד\s*(?:ה)?מעצב/i.test(body) || /קוד\s*(?:ה)?מעצב(?:ת)?\s*\?/i.test(body)
+}
+
+/** Bot asked for designer code on an order — bind thanks-only; do not warm-close (534090339). */
+export function isDesignerCodeRequestPending(history: HistoryMessage[]) {
+  const last = lastNonInactivityAssistant(history)
+  if (!last) return false
+  return isDesignerCodeRequestQuestion(last.content)
+}
+
 export function serviceIssueSummaryLabel(intake: ServiceIntake, corpus: string) {
   if (!intake.issueKind) return "פנייה לשירות לקוחות"
   if (intake.issueKind === "return_request" && isOrderCancellationSummaryLabel(corpus)) {

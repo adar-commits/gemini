@@ -89,6 +89,7 @@ import {
 import {
   buildServiceRepGoalNote,
   extractServiceIntake,
+  isDesignerCodeRequestPending,
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
 } from "@/lib/agents/service-intake"
@@ -277,6 +278,18 @@ export function runPreTurnGuards(input: {
   }
 
   if (
+    isDesignerCodeRequestPending(input.history) &&
+    isThanksAcknowledgment(body) &&
+    explicitThanks
+  ) {
+    return {
+      kind: "handled",
+      reply: buildThanksAckReply(input.customerName, { designerCodePending: true }),
+      action: "reply",
+    }
+  }
+
+  if (
     isThanksAcknowledgment(body) &&
     explicitThanks &&
     isPostHumanHandoff(null, input.history)
@@ -294,6 +307,7 @@ export function runPreTurnGuards(input: {
     explicitThanks &&
     !isOrderConfirmationPending(input.history) &&
     !isHumanHandoffPending(input.history) &&
+    !isDesignerCodeRequestPending(input.history) &&
     !isAwaitingSalesIntakeAnswer(input.history) &&
     !isServiceHandoffSummaryPending(input.history) &&
     !isOrderLookupPhoneReplyPending(input.history) &&
@@ -326,6 +340,7 @@ function shouldBindInactivityReplyToPriorQuestion(history: HistoryMessage[]) {
     isAwaitingSalesIntakeAnswer(history) ||
     isOrderConfirmationPending(history) ||
     isServiceHandoffSummaryPending(history) ||
+    isDesignerCodeRequestPending(history) ||
     isPostPurchaseIntentConfirmPending(history) ||
     isOrderLookupPhoneReplyPending(history) ||
     isTransferPromisedInThread(history)

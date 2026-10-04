@@ -115,7 +115,11 @@ export function isThanksAcknowledgment(body: string) {
 
 export function buildThanksAckReply(
   customerName?: string,
-  options?: { handoffPending?: boolean; postHandoff?: boolean }
+  options?: {
+    handoffPending?: boolean
+    postHandoff?: boolean
+    designerCodePending?: boolean
+  }
 ) {
   if (options?.postHandoff) {
     const name = customerName?.trim()
@@ -127,6 +131,13 @@ ${greeting} הנציג כבר קיבל את הפנייה ויצור קשר בה�
   if (options?.handoffPending) {
     return `${CUSTOMER_HEADER}
 בשמחה! 🙏 אם תרצו שאעביר לנציג — כתבו כן. יש עוד שאלה? אני כאן.`
+  }
+
+  if (options?.designerCodePending) {
+    const name = customerName?.trim()
+    const greeting = name ? `${name}, בשמחה! 😊` : "בשמחה! 😊"
+    return `${CUSTOMER_HEADER}
+${greeting} כשיהיה לך — שלח/י את קוד המעצבת ואצרף אותו לפנייה.`
   }
 
   return buildWarmConversationCloseReply(customerName)

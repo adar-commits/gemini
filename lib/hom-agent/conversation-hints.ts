@@ -134,6 +134,7 @@ import {
   extractServiceIntake,
   isActiveCourierWrongAddressReport,
   isCancelShipmentConfirmPending,
+  isDesignerCodeRequestPending,
   isOrderCancellationSummaryLabel,
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
@@ -476,10 +477,17 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isDesignerCodeRequestPending(history)) {
+    lines.push(
+      "DESIGNER CODE PENDING (534090339): you asked for the designer code — thanks-only is NOT closure. Reply בשמחה and remind for the code (`action: reply`). When they send the code → `human_service` with ack + transfer line."
+    )
+  }
+
   if (
     isThanksAcknowledgment(body) &&
     !isHumanHandoffPending(history) &&
     !isOrderConfirmationPending(history) &&
+    !isDesignerCodeRequestPending(history) &&
     !(
       isOrderLookupCompletedInThread(history) &&
       isShippingThreadFromHistory(history)
