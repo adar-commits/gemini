@@ -29,6 +29,8 @@ import {
   isOrderStatusDeliveredInThread,
   historyHasOrderPickExhaustedRecheck,
   isPhoneLookupConfirmPending,
+  isOrderModificationInThread,
+  isPurePhoneLookupConfirmYes,
   orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
@@ -323,9 +325,9 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isOrderModificationRequest(body)) {
+  if (isOrderModificationRequest(body) || isOrderModificationInThread(history, body)) {
     lines.push(
-      'ORDER MODIFICATION (532165595 / 422622122): customer wants to change color/size on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל while still in packaging → human_sales to update before ship. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+      'ORDER MODIFICATION (532165595 / 422622122 / 530164166): customer wants to change color/size on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל while still in packaging → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
     )
   }
 
@@ -655,11 +657,11 @@ export function buildConversationHints(input: {
 
   if (
     input.whatsappPhone &&
-    isChannelPhoneSelfReference(body) &&
+    (isChannelPhoneSelfReference(body) || isPurePhoneLookupConfirmYes(body)) &&
     (isOrderNumberRequestPending(history) || isPhoneLookupConfirmPending(history))
   ) {
     lines.push(
-      `Customer confirmed the WhatsApp channel phone (${input.whatsappPhone}). Call lookup_order_status now — do not re-ask the same phone question. Never claim you cannot see status without running the tool (533526188).`
+      `Customer confirmed the WhatsApp channel phone (${input.whatsappPhone}). Call lookup_order_status now — do not re-ask the same phone question. Never claim you cannot see status without running the tool (533526188). If status shows packaging and you write מעביר ליועץ מכירות for an order change → action human_sales in the **same** JSON — never action reply alone (530164166).`
     )
   }
 
