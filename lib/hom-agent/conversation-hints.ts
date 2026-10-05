@@ -675,6 +675,22 @@ export function buildConversationHints(input: {
     )
   }
 
+  const receiptOrder = orderIdGivenInThread(history)
+  const alternateOrderId =
+    extractOrderReference(body, history) ?? extractOrderNumber(body)
+  if (
+    receiptOrder &&
+    alternateOrderId &&
+    alternateOrderId.toUpperCase() !== receiptOrder.toUpperCase() &&
+    (isKnownOrderConfirmPending(history) ||
+      (isShippingThreadFromHistory(history) && isOrderReferencePresentation(body))) &&
+    !isOrderLookupCompletedInThread(history)
+  ) {
+    lines.push(
+      `ALTERNATE ORDER ID (432754460): delivery/ETA thread — customer gave order ${alternateOrderId} instead of the receipt order ${receiptOrder}. Call lookup_order_status with ${alternateOrderId} now — never claim you cannot show delivery ETA without running the tool. Never skip lookup and jump to handoff offer.`
+    )
+  }
+
   const offeredOrders = ordersOfferedInLastAssistantQuestion(history)
   if (offeredOrders.length >= 2) {
     lines.push(
