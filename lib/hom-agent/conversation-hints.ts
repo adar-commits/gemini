@@ -719,13 +719,8 @@ export function buildConversationHints(input: {
         lines.push(
           "ORDER CONFIRM + KB FAQ: customer confirmed (or is confirming) the order card AND asks policy (fees/eligibility/care) — answer from KB first. Trailing כן/כן כן binds to the FAQ answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
         )
-      } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
-        lines.push(
-          "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → rep summary bullets → summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
-        )
       } else if (
         isOrderConfirmationYes(body) &&
-        !isServiceOrderIdentificationFlow(history, body) &&
         (isShippingStatusQuestion(body) ||
           isOrderDeliveryStatusQuestion(body) ||
           history
@@ -738,7 +733,11 @@ export function buildConversationHints(input: {
             ))
       ) {
         lines.push(
-          "SHIPPING ORDER CONFIRM YES (532732459): כן confirms the order card for delivery/status tracking only — call lookup_order_status and answer shipping status. Never invent dissatisfaction/service rep summary unless they stated a product/service complaint."
+          "SHIPPING ORDER CONFIRM YES (532732459 / 532742549): כן + delivery/ETA ask confirms the order card — call lookup_order_status and answer shipping status only. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
+        )
+      } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
+        lines.push(
+          "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → rep summary bullets → summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
         )
       } else {
         lines.push(

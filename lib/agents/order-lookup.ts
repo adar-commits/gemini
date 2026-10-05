@@ -1446,6 +1446,12 @@ export function isOrderConfirmationYes(body: string) {
   if (/^(?:כן\s+)?(?:זה\s+)?(?:נראה|כנראה)(?:\s+לי)?(?:[\s,.!?]|$)/i.test(firstLine)) return true
   if (/אמר(?:תי|נו)\s+שכן/i.test(firstLine)) return true
   if (/^(?:כן|yep)[\s,.!?]*$/i.test(firstLine)) return true
+  if (
+    /^כן(?:[\s,.!?]|$)/i.test(firstLine) &&
+    (isShippingStatusQuestion(text) || isOrderDeliveryStatusQuestion(text))
+  ) {
+    return true
+  }
   return false
 }
 
