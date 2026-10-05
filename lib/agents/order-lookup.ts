@@ -2873,7 +2873,7 @@ export function isPhoneLookupConfirmPending(history: HistoryMessage[]) {
     const message = history[index]
     if (message.role !== "assistant") continue
     if (isInactivityAssistantMessage(message.content)) continue
-    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    if (shouldContinueReplyScanPastAssistant(message.content)) continue
     return (
       messageAwaits(message, "order_phone_confirm") ||
       /האם (?:ה(?:יא|זמנה)\s+)?(?:רשומה\s+)?(?:על\s+)?(?:ה)?מספר/i.test(message.content) ||
