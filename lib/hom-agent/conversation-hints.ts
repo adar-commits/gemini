@@ -764,7 +764,7 @@ export function buildConversationHints(input: {
             ))
       ) {
         lines.push(
-          "SHIPPING ORDER CONFIRM YES (532732459 / 532742549): כן + delivery/ETA ask confirms the order card — call lookup_order_status and answer shipping status only. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
+          "SHIPPING ORDER CONFIRM YES (532732459 / 532742549 / 533011641): כן confirms the order card when the thread opened with delivery timing (מתי/מועד הגעה) — call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
         )
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
@@ -1177,9 +1177,15 @@ export function buildConversationHints(input: {
 
   if (isKnownOrderConfirmPending(history)) {
     const known = orderIdGivenInThread(history)
-    lines.push(
-      `KNOWN ORDER CONFIRM (404732305 / 508272038 / 532767659 / 533760226): you already asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון on an expedite/status-check thread. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
-    )
+    if (isShippingThreadFromHistory(history)) {
+      lines.push(
+        `KNOWN ORDER CONFIRM + ETA (533011641 / 532732459): thread opened with delivery timing and you asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) → call lookup_order_status with that id now. Answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Pre Order line → explain הזמנה מוקדמת and the expected date. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון. Never "לא הצלחתי להבין". Never human_service unless they ask for a rep.`
+      )
+    } else {
+      lines.push(
+        `KNOWN ORDER CONFIRM (404732305 / 508272038 / 532767659 / 533760226): you already asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון on an expedite/status-check thread. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
+      )
+    }
   }
 
   if (
