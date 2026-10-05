@@ -942,6 +942,16 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    /זיכוי/i.test(body) &&
+    /(?:פג(?:\s+תוקפ)?|תוקף|עבר\s+חודש)/i.test(body) &&
+    /(?:אישור|לא\s+חזר|דיברת|פנ(?:ית|יתי)|שבוע)/i.test(body)
+  ) {
+    lines.push(
+      "EXPIRED CREDIT APPROVAL (392297515): expired קוד זיכוי + waiting for service approval/callback — service rep summary with bullets + 'זה מדויק?' using **אעביר** (future) only — action reply + awaiting service_summary_confirm. Never אני מעביר/העברתי in intro before confirm; then human_service."
+    )
+  }
+
   if (isCreditCodeOnlineRedemptionRequest(body, history)) {
     lines.push("Online credit-code redemption → explain policy briefly, action human_service.")
   }
