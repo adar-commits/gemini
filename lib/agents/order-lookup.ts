@@ -1721,6 +1721,46 @@ export function resolveMissingProductChoice(
   return null
 }
 
+function lineItemMentionedInText(text: string, item: OrderLineItem) {
+  const name = item.name.trim().toLowerCase()
+  const corpus = text.toLowerCase()
+  if (name.length >= 4 && corpus.includes(name)) return true
+  const words = name.split(/\s+/).filter((word) => word.length >= 2)
+  for (let count = words.length; count >= 2; count -= 1) {
+    const phrase = words.slice(0, count).join(" ")
+    if (phrase.length >= 6 && corpus.includes(phrase)) return true
+  }
+  return false
+}
+
+/** When missing_item was already described in thread, bind line item without numbered pick. */
+export function matchMissingProductFromThread(
+  history: HistoryMessage[],
+  body: string,
+  items: OrderLineItem[]
+): OrderLineItem | null {
+  if (items.length <= 1) return items[0] ?? null
+
+  const corpus = recentUserCorpus(history, body)
+  if (!isMissingOrPartialDeliveryComplaint(corpus)) return null
+
+  const userMessages = history
+    .filter((message) => message.role === "user")
+    .slice(-6)
+    .map((message) => message.content)
+    .concat(body.trim())
+    .filter(Boolean)
+
+  for (const message of userMessages) {
+    const directPick = resolveMissingProductChoice(message, items)
+    if (directPick) return directPick
+    for (const item of items) {
+      if (lineItemMentionedInText(message, item)) return item
+    }
+  }
+  return null
+}
+
 export function buildMissingProductChoicePrompt(
   order: OrderShipmentStatus,
   items: OrderLineItem[]
@@ -3146,6 +3186,12 @@ async function resolveMissingItemServiceReply(
   }
 
   if (items.length > 1 && !intake.missingProductLabel) {
+    const fromThread = matchMissingProductFromThread(history, body, items)
+    if (fromThread) {
+      intake.missingProductLabel = fromThread.name
+      intake.missingProductSku = fromThread.sku
+      return buildServiceHandoffConfirmReply(intake, body, history)
+    }
     return buildMissingProductChoicePrompt(order, items)
   }
 

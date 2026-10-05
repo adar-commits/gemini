@@ -615,7 +615,8 @@ export function buildConversationHints(input: {
     }
   }
 
-  const postPurchaseKind = classifyPostPurchaseCase(body)
+  const postPurchaseKind =
+    classifyPostPurchaseCase(body) ?? extractServiceIntake(history, body).issueKind
   if (postPurchaseKind === "defect") {
     lines.push(
       'DEFECT / WARRANTY (534098184): empathize and describe what they reported — never confirm "מדובר בפגם" or "פגם מלכתחילה". Set `"crm_department": "service"` every turn. Collect photos + order # → rep summary → `human_service`. **Never** `human_sales` / יועץ מכירות. Rep bullet: דיווח על בעיה / חשש (לפי הלקוח). Human verifies liability.'
@@ -1086,7 +1087,7 @@ export function buildConversationHints(input: {
 
   if (postPurchaseKind === "missing_item") {
     lines.push(
-      "MISSING ITEM / PARTIAL DELIVERY: service case, NOT document copy. lookup_order_status → order confirm (no product list on card) → after כן, if order has line items show numbered pick for missing product → rep summary with פריט חסר → human_service. Never fetch_digital_document."
+      "MISSING ITEM / PARTIAL DELIVERY: service case, NOT document copy. lookup_order_status → order confirm (no product list on card) → after כן, if customer already named the missing product in thread (e.g. הגיע רק… מדבקות) skip numbered pick and go to rep summary; only when multiple line items AND missing product not yet named → numbered pick → rep summary with פריט חסר → human_service. If they add another issue (בנוסף + stain/defect) merge both in one summary. Never fetch_digital_document."
     )
   }
 
