@@ -31,6 +31,7 @@ import {
   historyHasOrderPickExhaustedRecheck,
   isPhoneLookupConfirmPending,
   isPurePhoneLookupConfirmYes,
+  orderReferenceFromCustomerHistory,
   orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
@@ -1091,6 +1092,15 @@ export function buildConversationHints(input: {
     lines.push(
       "SHIPPING / PICKUP STATUS: customer asked when an order arrives or branch pickup — NOT a document copy request (even if they said זה הקבלה with a receipt ref). On phone confirm (כן / זה המספר / כן!!) call lookup_order_status with channel phone immediately — never repeat phone confirm or ask document type."
     )
+  }
+
+  if (isPhoneLookupConfirmPending(history)) {
+    const customerOrder = orderReferenceFromCustomerHistory(history, body)
+    if (customerOrder && !isKnownOrderConfirmPending(history)) {
+      lines.push(
+        `PHONE CONFIRM + ORDER ID (534150047): customer already sent ${customerOrder} and is confirming the chat phone. On כן call lookup_order_status with that order id and the confirmed phone — never phone-only search that ignores the SO. Answer delivery ETA from live status; never human_service before lookup runs.`
+      )
+    }
   }
 
   if (

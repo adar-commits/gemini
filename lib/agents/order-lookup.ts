@@ -594,6 +594,24 @@ export function classifyDocumentNumber(rawText: string): {
   }
 }
 
+/** SO/IN/OV or # order id the customer typed earlier — not from bot receipt offers. */
+export function orderReferenceFromCustomerHistory(
+  history: HistoryMessage[],
+  body?: string
+) {
+  if (body?.trim()) {
+    const fromBody = extractOrderReference(body, history)
+    if (fromBody) return fromBody
+  }
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    const ref = extractOrderReference(message.content, history)
+    if (ref) return ref
+  }
+  return null
+}
+
 /** Receipt/invoice id the customer pasted earlier in the thread (RC/IN/OV). */
 export function documentReferenceGivenInThread(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -3702,6 +3720,15 @@ export async function resolveOrderShippingReply(input: {
       const confirmed = channelPhone(whatsappPhone)
       if (!confirmed) {
         return empathize(buildInvalidChannelPhonePrompt())
+      }
+      const customerOrderRef = orderReferenceFromCustomerHistory(history, body)
+      if (customerOrderRef) {
+        return lookupOrderByReference({
+          orderReference: customerOrderRef,
+          lookupPhone: confirmed,
+          body,
+          history,
+        })
       }
       return lookupAndStartOrderConfirm(confirmed, empathize, { history, body })
     }
