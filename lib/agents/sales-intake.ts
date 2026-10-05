@@ -65,6 +65,23 @@ export function isBedRugSizingConsultation(text: string) {
   return BED_RUG_SIZING_RE.test(text.trim())
 }
 
+const PAST_ORDER_SIZE_RECALL_RE =
+  /(?:איז(?:ה|ו)|מה)\s+(?:ה)?(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)|(?:רוצ(?:ה|יתי)|לדעת).{0,30}(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)/i
+
+/** Customer asks what size they ordered before — lookup_order_status, not handoff (534159887). */
+export function isPastOrderSizeRecallQuestion(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (
+    /^(?:שינוי\s+הזמנה|(?:אני\s+)?(?:רוצה|רצ(?:יתי|ית))\s+ל(?:שנ(?:ות|ה)|החליף|עדכן))/i.test(
+      trimmed
+    )
+  ) {
+    return false
+  }
+  return PAST_ORDER_SIZE_RECALL_RE.test(trimmed)
+}
+
 const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
 

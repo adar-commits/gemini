@@ -158,6 +158,7 @@ import {
   hasRoomPhotoInHistory,
   isAwaitingSalesIntakeAnswer,
   isBedRugSizingConsultation,
+  isPastOrderSizeRecallQuestion,
   isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoRequestPending,
   isServiceEvidencePhotoRequestPending,
@@ -1007,6 +1008,21 @@ export function buildConversationHints(input: {
   if (isBedRugSizingConsultation(body) && !hasOngoingSalesIntake(history)) {
     lines.push(
       'BED RUG SIZING OPENING (534057154): which rug/size under bed or for bedroom — `"crm_department": "sales"`, start sales intake (חדר שינה / מידות מיטה or room). Size guide or visualization link is optional one-liner only — never FAQ-only, never recommend a size, never human_service.'
+    )
+  }
+
+  const pastOrderSizeRecall =
+    isPastOrderSizeRecallQuestion(body) ||
+    substantiveUserMessages(history).some((message) =>
+      isPastOrderSizeRecallQuestion(message.content)
+    )
+  if (
+    pastOrderSizeRecall &&
+    !isOrderLookupCompletedInThread(history) &&
+    !isOrderConfirmationPending(history)
+  ) {
+    lines.push(
+      'PAST ORDER SIZE RECALL (534159887): customer asks what size they ordered before — call lookup_order_status on the channel phone first. After order confirm, answer size from line items. If they also ask whether you are human (נציג אנושי) — say briefly you are the bot, then continue lookup; do not skip to handoff. Never claim you have no access without running the tool. Never invent a product/model name not stated by the customer in this thread. human_sales only after lookup fails or they explicitly want an advisor to reorder.'
     )
   }
 
