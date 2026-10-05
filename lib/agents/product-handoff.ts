@@ -245,6 +245,18 @@ export function isSalesTransferPromisedInLastAssistant(history: HistoryMessage[]
   return false
 }
 
+const PRIOR_ORDER_SIZE_BOT_THREAD_RE =
+  /(?:אין\s+לי\s+(?:כאן\s+)?גישה\s+לפרטי\s+(?:ה)?הזמנה|(?:ב)?(?:איזו|איזה)\s+מידה\s+הזמנ(?:ת|תי)?)/i
+
+/** Bot promised or denied prior-order size lookup in a sales thread (534159887). */
+export function isPriorOrderSizeReorderThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      PRIOR_ORDER_SIZE_BOT_THREAD_RE.test(message.content)
+  )
+}
+
 /** Catalog intake has rug size + target room in user messages (thread state). */
 export function hasCatalogIntakeSizeAndRoom(
   history: HistoryMessage[],

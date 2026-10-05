@@ -60,6 +60,7 @@ import {
   isHomStorefrontUrl,
   extractRequestedModel,
   isActiveProductSalesPrepThread,
+  isPriorOrderSizeReorderThread,
   isProductDetailsRequest,
   isProductInventoryQuestion,
   isProductSpecDeferredToAdvisorInThread,
@@ -260,7 +261,19 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isSalesTransferPromisedInLastAssistant(history)) {
+  const pastOrderSizeRecallPending =
+    !isOrderLookupCompletedInThread(history) &&
+    !isOrderConfirmationPending(history) &&
+    (isPastOrderSizeRecallQuestion(body) ||
+      substantiveUserMessages(history).some((message) =>
+        isPastOrderSizeRecallQuestion(message.content)
+      ))
+
+  const blockSalesTransferForPastOrderSize =
+    pastOrderSizeRecallPending ||
+    (!isOrderLookupCompletedInThread(history) && isPriorOrderSizeReorderThread(history))
+
+  if (isSalesTransferPromisedInLastAssistant(history) && !blockSalesTransferForPastOrderSize) {
     lines.push(
       'SALES TRANSFER PROMISED (533891498): you already wrote מעביר ליועץ מכירות — customer may add rooms, quantities, or photos. Update the advisor recap + set `action: human_sales` in the **same** JSON now. Never stay on reply/faq while they wait for the rep.'
     )
@@ -1011,16 +1024,7 @@ export function buildConversationHints(input: {
     )
   }
 
-  const pastOrderSizeRecall =
-    isPastOrderSizeRecallQuestion(body) ||
-    substantiveUserMessages(history).some((message) =>
-      isPastOrderSizeRecallQuestion(message.content)
-    )
-  if (
-    pastOrderSizeRecall &&
-    !isOrderLookupCompletedInThread(history) &&
-    !isOrderConfirmationPending(history)
-  ) {
+  if (pastOrderSizeRecallPending) {
     lines.push(
       'PAST ORDER SIZE RECALL (534159887): customer asks what size they ordered before — call lookup_order_status on the channel phone first. After order confirm, answer size from line items. If they also ask whether you are human (נציג אנושי) — say briefly you are the bot, then continue lookup; do not skip to handoff. Never claim you have no access without running the tool. Never invent a product/model name not stated by the customer in this thread. human_sales only after lookup fails or they explicitly want an advisor to reorder.'
     )

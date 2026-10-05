@@ -2,7 +2,11 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
-import { isPastOrderSizeRecallQuestion } from "@/lib/agents/sales-intake"
+import { isPastOrderSizeRecallQuestion, hasOngoingSalesIntake } from "@/lib/agents/sales-intake"
+import {
+  isPriorOrderSizeReorderThread,
+  isSalesTransferPromisedInLastAssistant,
+} from "@/lib/agents/product-handoff"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import { VOICE_CLOSURE_TEMPLATE_BODY } from "@/lib/landbot/voice-closure-template"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -54,5 +58,39 @@ describe("past order size recall 534159887", () => {
     assert.match(WRONG_REPLY, /אין לי כאן גישה/)
     assert.match(WRONG_REPLY, /הוריזון אפור/)
     assert.doesNotMatch(WRONG_REPLY, /lookup_order_status/)
+  })
+
+  it("blocks sales transfer loop after bot promised size check", () => {
+    const BOT_TRANSFER =
+      "*הום בוט :)* בכיף אביבה. אני מעביר אותך עכשיו ליועץ מכירות. הוא יבדוק באיזו מידה הזמנת בפעם הקודמת."
+    const history: HistoryMessage[] = [
+      {
+        role: "user",
+        content:
+          "היי אשמח לפרטים נוספים לגבי שטיח הוריזון אפור HORIZON\nבעבר הזמנתי מכם שטיח",
+      },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)* היי אביבה! לאיזה חלל את מחפשת את השטיח? סלון, חדר שינה או משהו אחר?",
+      },
+      {
+        role: "user",
+        content:
+          "אני רוצה לברר איזו מידה זו הייתה, אני רוצה להזמין מכם את אותה המידה\nנציג אנושי",
+      },
+      { role: "assistant", content: BOT_TRANSFER },
+      { role: "user", content: "אני רוצה לברר מידה של ההזמנה האחרונה שלי" },
+    ]
+    const body = "אני רוצה לברר מידה של ההזמנה האחרונה שלי"
+
+    assert.equal(isPriorOrderSizeReorderThread(history), true)
+    assert.equal(hasOngoingSalesIntake(history), true)
+    assert.equal(isSalesTransferPromisedInLastAssistant(history), true)
+
+    const hints = buildConversationHints({ body, history }) ?? ""
+    assert.match(hints, /534159887/)
+    assert.match(hints, /lookup_order_status/)
+    assert.doesNotMatch(hints, /SALES TRANSFER PROMISED \(533891498\)/)
   })
 })
