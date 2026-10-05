@@ -1306,8 +1306,8 @@ export function buildConversationHints(input: {
   if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
     lines.push(
       salesIntakeMode() === "llm"
-        ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product/pets/practical already answered in the thread. On לא יודע/לא בטוח/לא alone: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). Never empty reply or silence — always the next question or final summary+human_sales."
-        : "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Short לא/אין/ללא counts as an answer to that step. Always a complete Hebrew question or summary — never stub words like placeholder/TODO or empty reply."
+        ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product/pets/practical already answered in the thread. On לא יודע/לא בטוח/לא alone: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). **Never** write ציינתי/העברתי/אעביר ליועץ mid-quiz with action reply (534144877) — ack (תודה, רשמתי) + next question, or final summary+human_sales. Never empty reply or silence — always the next question or final summary+human_sales."
+        : "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Short לא/אין/ללא counts as an answer to that step. **Never** ציינתי/העברתי/אעביר ליועץ mid-quiz with action reply — save advisor notes for summary+human_sales. Always a complete Hebrew question or summary — never stub words like placeholder/TODO or empty reply."
     )
   }
 
