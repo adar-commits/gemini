@@ -16,7 +16,10 @@ import {
   isWaitingForHumanRepReply,
   lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
-import { isTransferPromisedInThread } from "@/lib/agents/human-waiting"
+import {
+  isSalesHandoffCommittedInAssistantText,
+  isTransferPromisedInThread,
+} from "@/lib/agents/human-waiting"
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
   classifyPostPurchaseCase,
@@ -45,6 +48,7 @@ import {
 } from "@/lib/agents/policy-subjects"
 import {
   buildHumanHandoffConfirmedReply,
+  hasDeclarativeHandoffTransfer,
   inferHumanHandoffAction,
   isHumanHandoffAffirmation,
   isHumanHandoffOfferPending,
@@ -273,11 +277,31 @@ export function runPreTurnGuards(input: {
     }
   }
 
+  const lastAssistantBeforeThanks = lastNonInactivityAssistantText(input.history)
+  if (
+    lastAssistantBeforeThanks &&
+    (hasDeclarativeHandoffTransfer(lastAssistantBeforeThanks) ||
+      isSalesHandoffCommittedInAssistantText(lastAssistantBeforeThanks)) &&
+    isThanksAcknowledgment(body) &&
+    explicitThanks &&
+    !isPureHandoffAffirmation(body)
+  ) {
+    const action = isSalesHandoffCommittedInAssistantText(lastAssistantBeforeThanks)
+      ? "human_sales"
+      : inferHumanHandoffAction(input.history, null)
+    return {
+      kind: "handled",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`,
+      action,
+    }
+  }
+
   if (isHumanHandoffPending(input.history)) {
     if (
       isThanksAcknowledgment(body) &&
       explicitThanks &&
-      !isPureHandoffAffirmation(body)
+      !isPureHandoffAffirmation(body) &&
+      isHumanHandoffOfferPending(input.history)
     ) {
       return {
         kind: "handled",

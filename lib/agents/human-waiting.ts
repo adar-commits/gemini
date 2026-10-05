@@ -6,7 +6,17 @@ import type { HistoryMessage } from "@/lib/agents/types"
 export function isTransferPromisedInAssistantText(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return false
-  return /(?:תועבר\s+להמשך\s+טיפול|הפנייה\s+תועבר\s+להמשך)/i.test(trimmed)
+  if (/(?:תועבר\s+להמשך\s+טיפול|הפנייה\s+תועבר\s+להמשך)/i.test(trimmed)) {
+    return true
+  }
+  return isSalesHandoffCommittedInAssistantText(trimmed)
+}
+
+/** Declarative sales transfer (530164166) — "מעביר אותך ליועץ מכירות" without "אני מעביר את". */
+export function isSalesHandoffCommittedInAssistantText(text: string) {
+  const body = text.replace(/\*הום בוט\s:\)\*/gi, "").trim()
+  if (!body) return false
+  return /מעביר(?:ים|ה|א)?[^\n]{0,48}יועץ\s+מכירות/i.test(body)
 }
 
 export function isTransferPromisedInThread(history: HistoryMessage[]) {

@@ -19,6 +19,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  isOrderModificationInThread,
   documentReferenceGivenInThread,
   mentionsCancellationDesire,
   orderIdGivenInThread,
@@ -327,7 +328,7 @@ export function buildConversationHints(input: {
 
   if (isOrderModificationRequest(body) || isOrderModificationInThread(history, body)) {
     lines.push(
-      'ORDER MODIFICATION (532165595 / 422622122 / 530164166): customer wants to change color/size on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל while still in packaging → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+      'ORDER MODIFICATION (532165595 / 422622122 / 530164166): customer wants to change color/size/model on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
     )
   }
 
