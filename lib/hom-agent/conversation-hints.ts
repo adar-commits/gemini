@@ -147,6 +147,7 @@ import {
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
+  isServiceSummaryOrderReferenceClarification,
   isServiceHandoffSummaryPending,
   isServiceHandoffSummaryText,
 } from "@/lib/agents/service-intake"
@@ -547,7 +548,8 @@ export function buildConversationHints(input: {
     !kbSelfServiceFaqThisTurn &&
     (isHumanHandoffPending(history) ||
       isConfirmationPending(history) ||
-      (isServiceHandoffSummaryPending(history) && isServiceHandoffSummaryConfirmed(body)))
+      (isServiceHandoffSummaryPending(history) &&
+        isServiceHandoffSummaryConfirmed(body, history)))
   ) {
     const handoffAction = inferHumanHandoffAction(history, null)
     if (!isHumanAgentTeamOnline(handoffAction)) {
@@ -564,7 +566,11 @@ export function buildConversationHints(input: {
   }
 
   if (isServiceHandoffSummaryPending(history)) {
-    if (isServiceHandoffSummaryConfirmed(body)) {
+    if (isServiceSummaryOrderReferenceClarification(body, history)) {
+      lines.push(
+        "SERVICE ORDER ID CLARIFY (354673370): customer asked why SO… and #… differ after your summary — explain both are the same order (SO = tracking ORDNAME, # = customer REFERENCE). Keep action reply + awaiting service_summary_confirm; never human_service until they clearly confirm the case details."
+      )
+    } else if (isServiceHandoffSummaryConfirmed(body, history)) {
       const intake = extractServiceIntake(history, body)
       lines.push(
         `Service summary confirm (533773292): customer approved — including confirm+addition (כן ו… / כן, להוסיף…). Set action \`human_service\` NOW — never warm-close or action end. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence and include this compact rep note: ${buildServiceRepGoalNote(intake)}`

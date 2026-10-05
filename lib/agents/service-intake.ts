@@ -448,8 +448,33 @@ export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {
   return false
 }
 
-export function isServiceHandoffSummaryConfirmed(body: string) {
+/** Confirm+question about SO vs # mismatch after service summary — not handoff confirm. */
+export function isServiceSummaryOrderReferenceClarification(
+  body: string,
+  history: HistoryMessage[]
+) {
+  if (!isServiceHandoffSummaryPending(history)) return false
   const text = body.trim()
+  if (!startsWithHandoffAffirmation(text)) return false
+  const remainder = remainderAfterLeadingAffirmation(text)
+  if (!remainder || remainder.length < 6) return false
+  if (/^(?:ו|,\s*(?:ו|להוסיף|גם))/u.test(remainder)) return false
+  return (
+    /\?/u.test(remainder) &&
+    /(?:מס(?:פר|'׳)?\s*ה?זמנה|מס׳\s*הזמנה|SO\d|#\d{4,6}|משהו\s+אחר|שלחת.*?אחר)/iu.test(
+      remainder
+    )
+  )
+}
+
+export function isServiceHandoffSummaryConfirmed(
+  body: string,
+  history?: HistoryMessage[]
+) {
+  const text = body.trim()
+  if (history?.length && isServiceSummaryOrderReferenceClarification(body, history)) {
+    return false
+  }
   if (startsWithHandoffAffirmation(text)) return true
   return /^(?:נכון|בדיוק|מדויק)/i.test(text)
 }
@@ -466,7 +491,12 @@ export function isServiceHandoffSummaryConfirmedInThread(history: HistoryMessage
       continue
     }
     const reply = history.slice(index + 1).find((next) => next.role === "user")
-    if (reply && isServiceHandoffSummaryConfirmed(reply.content)) return true
+    if (
+      reply &&
+      isServiceHandoffSummaryConfirmed(reply.content, history.slice(0, index + 2))
+    ) {
+      return true
+    }
   }
   return false
 }

@@ -189,7 +189,7 @@ export function runPreTurnGuards(input: {
 
   if (
     isServiceHandoffSummaryPending(input.history) &&
-    isServiceHandoffSummaryConfirmed(body)
+    isServiceHandoffSummaryConfirmed(body, input.history)
   ) {
     const intake = extractServiceIntake(input.history, body)
     const repNote = buildServiceRepGoalNote(intake)
