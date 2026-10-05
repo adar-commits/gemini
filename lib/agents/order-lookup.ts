@@ -1823,6 +1823,21 @@ export function isOrderModificationInThread(
   )
 }
 
+/** After lookup: modification handoff only when this turn is not a pure status inquiry. */
+export function shouldUseModificationAwareStatusReply(
+  history: HistoryMessage[],
+  body: string
+): boolean {
+  if (!isOrderModificationInThread(history, body)) return false
+  if (
+    (isShippingStatusQuestion(body) || isOrderDeliveryStatusQuestion(body)) &&
+    !isOrderModificationRequest(body)
+  ) {
+    return false
+  }
+  return true
+}
+
 function isPostDeliveryOrder(order: OrderShipmentStatus): boolean {
   const statusId = String(order.statusCode ?? "").trim()
   return statusId === "6" || statusId === "23"
@@ -3182,7 +3197,7 @@ async function replyAfterOrderIdentified(
     if (contextReply) return contextReply
   }
 
-  if (isOrderModificationInThread(history, body)) {
+  if (shouldUseModificationAwareStatusReply(history, body)) {
     return buildOrderModificationAwareStatusReply(order, history, body)
   }
 

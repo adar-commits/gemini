@@ -655,7 +655,7 @@ export function buildConversationHints(input: {
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "ORDER STATUS OPENING (532163951 / 532360395): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate. Close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty."
+      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate. Close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
     )
   }
 
