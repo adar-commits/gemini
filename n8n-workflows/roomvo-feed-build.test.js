@@ -11,6 +11,7 @@ const {
   buildVariantRow,
   flattenQualifyingVariants,
   buildRoomvoFeed,
+  COLUMN_COUNT,
   SENTINEL_DO_NOT_DELETE,
   SENTINEL_MARKER,
 } = require("./roomvo-feed-build");
@@ -103,6 +104,8 @@ describe("buildVariantRow", () => {
     assert.equal(row[12].includes("}#addr"), false);
     assert.equal(row[12].includes("#addr"), false);
     assert.equal(row[14], "מלבן");
+    assert.equal(row[6], "13");
+    assert.equal(row[19], "13");
   });
 
   it("uses F in image for fringe SKU but not title-only פרנזים", () => {
@@ -216,6 +219,7 @@ describe("buildRoomvoFeed merge", () => {
     "Filters\n Features - סטייל",
     "Image Status",
     "special url",
+    "stock",
   ];
 
   const existingSheetRows = [
@@ -232,6 +236,7 @@ describe("buildRoomvoFeed merge", () => {
       "",
       "",
       "https://carpetbucket.s3.eu-west-1.amazonaws.com/tempimages/00115149-173233-RE.png",
+      "",
       "",
       "",
       "",
@@ -261,6 +266,7 @@ describe("buildRoomvoFeed merge", () => {
       "וינטג', קלאסי",
       "",
       "",
+      "13",
     ],
     [
       "שטיח מרסיי 03 אפור",
@@ -282,6 +288,7 @@ describe("buildRoomvoFeed merge", () => {
       "וינטג', קלאסי",
       "",
       "",
+      "18",
     ],
     [
       "שטיח OLD OUT OF STOCK",
@@ -303,6 +310,7 @@ describe("buildRoomvoFeed merge", () => {
       "old style",
       "",
       "",
+      "1",
     ],
     [
       SENTINEL_MARKER,
@@ -311,6 +319,7 @@ describe("buildRoomvoFeed merge", () => {
       SENTINEL_MARKER,
       SENTINEL_MARKER,
       SENTINEL_MARKER,
+      "",
       "",
       "",
       "",
@@ -385,6 +394,7 @@ describe("buildRoomvoFeed merge", () => {
 
     const first = result.bodyRows[1];
     assert.equal(first[6], "10");
+    assert.equal(first[19], "10");
     assert.equal(first[15], "אפור");
     assert.equal(first[16], "וינטג', קלאסי");
     assert.equal(
@@ -425,6 +435,7 @@ describe("buildRoomvoFeed merge", () => {
         "",
         "",
         "",
+        "",
       ],
       [
         "שטיח מרסיי 03 אפור",
@@ -446,8 +457,9 @@ describe("buildRoomvoFeed merge", () => {
         "shared features",
         "",
         "",
+        "13",
       ],
-      Array.from({ length: 19 }, (_, i) => (i < 6 ? SENTINEL_MARKER : "")),
+      Array.from({ length: COLUMN_COUNT }, (_, i) => (i < 6 ? SENTINEL_MARKER : "")),
     ];
 
     const result = buildRoomvoFeed({
@@ -482,6 +494,7 @@ describe("buildRoomvoFeed merge", () => {
     assert.ok(newRow);
     assert.equal(newRow[15], "אפור");
     assert.equal(newRow[16], "shared features");
+    assert.equal(newRow[19], "18");
     assert.deepEqual(result.newSkusMissingFilters, []);
   });
 });

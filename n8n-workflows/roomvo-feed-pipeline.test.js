@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   buildRoomvoFeed,
+  COLUMN_COUNT,
   SENTINEL_DO_NOT_DELETE,
   SENTINEL_MARKER,
 } = require("./roomvo-feed-build");
@@ -134,14 +135,15 @@ describe("roomvo feed pipeline (Shopify HTTP + Code nodes)", () => {
         "Price Before Sale",
         "Image Status",
         "special url",
+        "stock",
       ],
-      Array(19).fill(""),
+      Array(COLUMN_COUNT).fill(""),
       existingRow("00103007-80150", "Grey", "Classic"),
-      Array(19).fill(SENTINEL_MARKER),
+      Array(COLUMN_COUNT).fill(SENTINEL_MARKER),
     ];
 
     function existingRow(sku, color, style) {
-      const row = Array(19).fill("");
+      const row = Array(COLUMN_COUNT).fill("");
       row[1] = sku;
       row[14] = "REC";
       row[15] = color;
@@ -163,5 +165,8 @@ describe("roomvo feed pipeline (Shopify HTTP + Code nodes)", () => {
         (row) => !String(row[12] || "").includes("}#addr"),
       ),
     );
+    const dataRow = result.bodyRows.find((row) => row[1] === "00103007-80150");
+    assert.ok(dataRow);
+    assert.equal(dataRow[19], "3");
   });
 });

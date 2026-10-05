@@ -1,7 +1,9 @@
 /**
  * Pure Roomvo catalog builder — shared by unit tests and the n8n Code node.
- * Column order matches OsherSheet (19 columns, A–S).
+ * Column order matches OsherSheet (20 columns, A–T).
  */
+
+const COLUMN_COUNT = 20;
 
 /** @typedef {{ title: string, handle: string, variants: ShopifyVariant[] }} ShopifyProduct */
 /** @typedef {{ id: string, sku: string, title: string, price: string, compareAtPrice: string|null, inventoryQuantity: number }} ShopifyVariant */
@@ -128,6 +130,7 @@ function buildVariantRow(variant) {
     "",
     "",
     "",
+    String(inventory),
   ];
 }
 
@@ -153,6 +156,7 @@ function rowToRecord(row) {
     filterFeatures: row[16] || "",
     imageStatus: row[17] || "",
     specialUrl: row[18] || "",
+    stock: row[19] || "",
   };
 }
 
@@ -178,6 +182,7 @@ function recordToRow(rec) {
     rec.filterFeatures,
     rec.imageStatus,
     rec.specialUrl,
+    rec.stock,
   ];
 }
 
@@ -217,18 +222,18 @@ function parseExistingSheet(existingSheetRows) {
     const title = row[0] || "";
     if (title === SENTINEL_DO_NOT_DELETE) {
       doNotDeleteRow = [...row];
-      while (doNotDeleteRow.length < 19) doNotDeleteRow.push("");
+      while (doNotDeleteRow.length < COLUMN_COUNT) doNotDeleteRow.push("");
       continue;
     }
     if (title === SENTINEL_MARKER) {
       markerRow = [...row];
-      while (markerRow.length < 19) markerRow.push("");
+      while (markerRow.length < COLUMN_COUNT) markerRow.push("");
       continue;
     }
     const sku = row[1] || "";
     if (!sku) continue;
     dataRows.push([...row]);
-    while (dataRows[dataRows.length - 1].length < 19) {
+    while (dataRows[dataRows.length - 1].length < COLUMN_COUNT) {
       dataRows[dataRows.length - 1].push("");
     }
   }
@@ -347,12 +352,12 @@ function buildRoomvoFeed(input) {
 
   const doNotDeleteRow =
     parsed.doNotDeleteRow ||
-    Array.from({ length: 19 }, (_, i) =>
+    Array.from({ length: COLUMN_COUNT }, (_, i) =>
       i === 0 ? SENTINEL_DO_NOT_DELETE : "",
     );
   const markerRow =
     parsed.markerRow ||
-    Array.from({ length: 19 }, (_, i) =>
+    Array.from({ length: COLUMN_COUNT }, (_, i) =>
       i < 6 ? SENTINEL_MARKER : "",
     );
 
@@ -372,6 +377,7 @@ function buildRoomvoFeed(input) {
 }
 
 module.exports = {
+  COLUMN_COUNT,
   FORCED_RUNNER_SKUS,
   SENTINEL_DO_NOT_DELETE,
   SENTINEL_MARKER,

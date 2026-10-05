@@ -140,12 +140,12 @@ function buildRunPayload(existingSheetRows, shopifyProducts, previousRowCount) {
   const writeEndRow = result.bodyRows.length + 1;
   const clearRange =
     previousRowCount > writeEndRow
-      ? `OsherSheet!A${{writeEndRow + 1}}:S${{previousRowCount}}`
+      ? `OsherSheet!A${{writeEndRow + 1}}:T${{previousRowCount}}`
       : "";
   return {{
     sheetId: SHEET_ID,
     bodyRows: result.bodyRows,
-    writeRange: `OsherSheet!A2:S${{writeEndRow}}`,
+    writeRange: `OsherSheet!A2:T${{writeEndRow}}`,
     clearRange,
     logRow: [
       israelTimestamp(),
@@ -249,7 +249,7 @@ def build_workflow_nodes(
             position=[240, 400],
             parameters={
                 "method": "GET",
-                "url": f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/OsherSheet!A:S",
+                "url": f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/OsherSheet!A:T",
                 "authentication": "predefinedCredentialType",
                 "nodeCredentialType": "googleSheetsOAuth2Api",
                 "options": {},

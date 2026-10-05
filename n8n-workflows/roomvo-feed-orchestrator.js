@@ -1,6 +1,6 @@
 /**
  * n8n Code node orchestration — appended after roomvo-feed-build.js in the deployed workflow.
- * Expects $input.first().json.values from a Google Sheets values read (OsherSheet!A:S).
+ * Expects $input.first().json.values from a Google Sheets values read (OsherSheet!A:T).
  */
 
 const SHEET_ID = "1-1Hqtq0iyomItaf7dU4q4JHJgIZ1a0hCKIojVDUdWoE";
@@ -109,10 +109,10 @@ function buildRunPayload(input) {
     sheetId: SHEET_ID,
     sheetName: "OsherSheet",
     bodyRows: result.bodyRows,
-    writeRange: `OsherSheet!A2:S${writeEndRow}`,
+    writeRange: `OsherSheet!A2:T${writeEndRow}`,
     clearRange:
       clearFromRow && clearToRow
-        ? `OsherSheet!A${clearFromRow}:S${clearToRow}`
+        ? `OsherSheet!A${clearFromRow}:T${clearToRow}`
         : "",
     logRow: [
       israelTimestamp(),
