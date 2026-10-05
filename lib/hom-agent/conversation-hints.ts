@@ -30,7 +30,6 @@ import {
   isOrderStatusDeliveredInThread,
   historyHasOrderPickExhaustedRecheck,
   isPhoneLookupConfirmPending,
-  isOrderModificationInThread,
   isPurePhoneLookupConfirmYes,
   orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
