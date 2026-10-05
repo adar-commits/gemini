@@ -919,6 +919,17 @@ export function isOrderNumberRequestPending(history: HistoryMessage[]) {
   return false
 }
 
+/** Any assistant turn in thread asked for order # — not only the latest (533991279). */
+export function wasOrderNumberRequestedInThread(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isOrderLookupIdentificationAssistantMessage(message.content)) return true
+  }
+  return false
+}
+
 export function isServiceOrderIdentificationPending(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]

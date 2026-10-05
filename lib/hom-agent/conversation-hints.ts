@@ -16,6 +16,7 @@ import {
   isAlternatePhoneRequestPending,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
+  wasOrderNumberRequestedInThread,
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
@@ -690,12 +691,23 @@ export function buildConversationHints(input: {
   }
 
   if (
-    isOrderNumberRequestPending(history) &&
-    (isOrderReferencePresentation(body) || extractOrderNumber(body))
+    (isOrderNumberRequestPending(history) ||
+      (wasOrderNumberRequestedInThread(history) &&
+        isShippingThreadFromHistory(history))) &&
+    (isOrderReferencePresentation(body) ||
+      extractOrderNumber(body) ||
+      extractOrderReference(body, history))
   ) {
-    lines.push(
-      "ORDER ID BINDING: customer answered your order-number ask with SO/IN/OV (even if labeled חשבונית/הזמנה) — call lookup_order_status with that reference now. NOT fetch_digital_document, NOT 'איזה סוג חשבונית'."
-    )
+    const orderId = extractOrderReference(body, history) ?? extractOrderNumber(body)
+    if (wasOrderNumberRequestedInThread(history) && !isOrderNumberRequestPending(history)) {
+      lines.push(
+        `ORDER ID AFTER LOOKUP PIVOT (533991279): you asked for מספר הזמנה earlier in this shipping/ETA thread — customer now gave ${orderId ?? "that order id"}. Call lookup_order_status now — never generic ETA policy or human_service without running the tool. A later invoice ack or handoff offer does NOT cancel the order-number ask.`
+      )
+    } else {
+      lines.push(
+        "ORDER ID BINDING: customer answered your order-number ask with SO/IN/OV (even if labeled חשבונית/הזמנה) — call lookup_order_status with that reference now. NOT fetch_digital_document, NOT 'איזה סוג חשבונית'."
+      )
+    }
   }
 
   const receiptOrder = orderIdGivenInThread(history)
