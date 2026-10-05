@@ -783,6 +783,7 @@ function substantiveUserLinesForServiceGate(history: HistoryMessage[], body: str
     .concat(body.trim() ? [body.trim()] : [])
     .filter(
       (line) =>
+        !/\[media:(?:image|video):/i.test(line) &&
         !isOrderConfirmationYes(line) &&
         !isPureOrderConfirmation(line) &&
         line.length > 2

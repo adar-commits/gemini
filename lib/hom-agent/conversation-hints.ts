@@ -1306,6 +1306,15 @@ export function buildConversationHints(input: {
     lines.push(
       'DEFECT / DAMAGE PHOTO (534098184): defect or warranty-concern thread — **service**, not sales. Set `"crm_department": "service"`. Ack photo, describe visible concern without confirming liability, continue service intake (more photos / order # if needed). **Never** `human_sales` or יועץ מכירות — hand off with `human_service` when intake is ready.'
     )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isKnownOrderConfirmPending(history) &&
+    isShippingThreadFromHistory(history)
+  ) {
+    const known = orderIdGivenInThread(history)
+    lines.push(
+      `KNOWN ORDER CONFIRM PHOTO (531872131): you asked if they mean order ${known ?? "from tracking"} — receipt/tracking screenshot = confirmation. Call lookup_order_status with that id (read SO/# from the image if needed). Answer delivery status + ETA policy for the opening מתי/מועד הגעה ask. action reply — never service rep summary or human_service on this turn.`
+    )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
       'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
