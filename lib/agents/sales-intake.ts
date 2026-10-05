@@ -246,7 +246,11 @@ const SERVICE_EVIDENCE_PHOTO_ASK_RE =
 function isServiceEvidencePhotoRequest(text: string) {
   if (SERVICE_REP_PHOTO_REQUEST_RE.test(text)) return true
   if (!SERVICE_EVIDENCE_PHOTO_ASK_RE.test(text)) return false
-  return /(?:חור|פגם|נזק|תפר|קרע|ליקוי|בעיה|נפתח|נקר)|(?:ה)?נציג\s+יוכל/i.test(text)
+  if (/(?:חור|פגם|נזק|תפר|קרע|ליקוי|בעיה|נפתח|נקר)|(?:ה)?נציג\s+יוכל/i.test(text)) {
+    return true
+  }
+  // Label on package/box — wrong-order / misdelivery intake (534161594), not sales room photo.
+  return /מדבק(?:ה|ות).{0,24}(?:על\s+)?(?:ה)?(?:חבילה|אריזה)/i.test(text)
 }
 
 export function isServiceEvidencePhotoRequestPending(history: HistoryMessage[]) {

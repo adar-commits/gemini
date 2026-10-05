@@ -1258,7 +1258,7 @@ export function buildConversationHints(input: {
     isServiceEvidencePhotoRequestPending(history)
   ) {
     lines.push(
-      'SERVICE DEFECT PHOTO (504655399 / 534098184): you asked for damage/defect evidence for the service rep — customer sent it. Ack photos, note what you see or what they reported, continue service intake → rep summary → human_service. Set `"crm_department": "service"`. **Never** sales room question ("לאיזה חלל"), never יועץ העיצוב, never `human_sales`.'
+      'SERVICE DEFECT / LABEL PHOTO (504655399 / 534098184 / 534161594): you asked for damage/defect evidence or a label photo on the package for the service rep — customer sent it. Ack photos, note what you see or what they reported, continue service intake → rep summary → human_service. Set `"crm_department": "service"`. **Never** sales room question ("לאיזה חלל"), never יועץ העיצוב, never `human_sales`.'
     )
   } else if (
     /\[media:image:/i.test(body) &&
