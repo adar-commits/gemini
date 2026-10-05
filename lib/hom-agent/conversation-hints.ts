@@ -94,6 +94,7 @@ import {
   isExchangeIntakeActive,
   isExchangeKindPending,
   isExchangeOrderRequired,
+  isExchangeOriginalPackagingPolicyPending,
   isExchangeReasonPending,
   isExchangeReadyForSwitchRequest,
   isExchangeSkuPending,
@@ -888,6 +889,10 @@ export function buildConversationHints(input: {
   } else if (isExchangeOrderRequired(history)) {
     lines.push(
       "EXCHANGE ORDER REQUIRED: customer chose החלפה — call lookup_order_status until order card is confirmed. No create_switch_request yet."
+    )
+  } else if (isExchangeOriginalPackagingPolicyPending(history)) {
+    lines.push(
+      "EXCHANGE PACKAGING BARRIER (533332336 / 533502989): you just explained exchange requires unused + original packaging. If the customer says the rug is not in original packaging / opened / no box — acknowledge honestly (policy normally requires original packaging; advisor may review), then action human_sales in the same JSON. Never lookup_inventory, never ask for SKU to check branch stock on this turn."
     )
   } else if (needsExchangeKindQuestion(history)) {
     lines.push(

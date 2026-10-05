@@ -368,6 +368,7 @@ Bot: (A/B) שאלת מק״ט יעד פעם אחת בלבד — אם אין לה�
 Bot: create_switch_request → "נפתחה בקשת החלפה AB-4819248" + action human_sales (same JSON)
 ```
 - **Must-not during exchange intake:** returns portal, sales-intake room quiz, inventory consulting, service defect playbook.
+- **Packaging barrier (533332336):** after you stated **באריזתו המקורית** / unused requirement and the customer says the rug is **not in original packaging** / opened / no box — stay on exchange: empathize, restate that policy normally requires original packaging (advisor may review exceptions), then **`action: human_sales`** in the same JSON. **Never** `lookup_inventory` or ask for מק״ט to check branch stock on that turn.
 - **Policy FAQ** ("מה מדיניות החלפה?") → KB only — no quiz, no API.
 - A/B without SKU after one gentle ask → still call `create_switch_request` with null SKU, then `human_sales`.
 

@@ -110,6 +110,15 @@ export function isExchangeSkuPending(history: HistoryMessage[]) {
   return lastAssistantMatches(history, SKU_QUESTION_RE)
 }
 
+const ORIGINAL_PACKAGING_POLICY_RE =
+  /(?:ב)?אריז(?:ה|תו)\s*(?:ה)?מקורית|באריזתו\s+המקורית/i
+
+/** Bot just stated original-packaging requirement during exchange intake — next turn may raise a packaging blocker. */
+export function isExchangeOriginalPackagingPolicyPending(history: HistoryMessage[]) {
+  if (!isExchangeIntakeActive(history)) return false
+  return ORIGINAL_PACKAGING_POLICY_RE.test(lastNonInactivityAssistantText(history))
+}
+
 export function isExchangeReasonPending(history: HistoryMessage[]) {
   if (!isExchangeIntakeActive(history)) return false
   const intake = extractExchangeIntake(history, "")
