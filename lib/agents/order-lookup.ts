@@ -1311,6 +1311,18 @@ export function isShippingThreadFromHistory(history: HistoryMessage[]) {
   )
 }
 
+/** Thread opened with non-receipt shipping claim — not ETA timing, not yet partial delivery. */
+export function isNonReceiptShippingOpenerFromHistory(history: HistoryMessage[]) {
+  const firstUser = history.find((message) => message.role === "user")
+  if (!firstUser) return false
+  const text = firstUser.content
+  return (
+    isShippingStatusQuestion(text) &&
+    !isOrderDeliveryStatusQuestion(text) &&
+    !isMissingOrPartialDeliveryComplaint(text)
+  )
+}
+
 /** Customer asks when self-pickup will be possible — no exact date in our data. */
 export function isSelfPickupTimingQuestion(body: string) {
   const text = body.trim()

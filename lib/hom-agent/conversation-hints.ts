@@ -27,6 +27,7 @@ import {
   isPreorderEtaSharedInThread,
   isPostOrderShippingFollowUp,
   isShippingThreadFromHistory,
+  isNonReceiptShippingOpenerFromHistory,
   isOrderStatusDeliveredInThread,
   historyHasOrderPickExhaustedRecheck,
   isPhoneLookupConfirmPending,
@@ -655,7 +656,7 @@ export function buildConversationHints(input: {
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate. Close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
+      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate. If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
     )
   }
 
@@ -749,6 +750,10 @@ export function buildConversationHints(input: {
       if (kbSelfServiceFaqThisTurn) {
         lines.push(
           "ORDER CONFIRM + KB FAQ: customer confirmed (or is confirming) the order card AND asks policy (fees/eligibility/care) — answer from KB first. Trailing כן/כן כן binds to the FAQ answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
+        )
+      } else if (isOrderConfirmationYes(body) && isNonReceiptShippingOpenerFromHistory(history)) {
+        lines.push(
+          "NON-RECEIPT ORDER CONFIRM YES (532314606): thread opened with לא קיבלתי/עדיין לא קיבלתי and כן confirms the order card — call lookup_order_status. If status is delivered: say the system shows delivered AND acknowledge their claim; list line items; ask which items they actually received. action reply — never warm-close or action end until partial delivery is clarified or rep summary is sent. Partial follow-up (רק/חוץ מ/חסר) → rep summary → human_service. Never service rep summary on the bare confirm turn alone."
         )
       } else if (
         isOrderConfirmationYes(body) &&
@@ -1177,7 +1182,11 @@ export function buildConversationHints(input: {
 
   if (isKnownOrderConfirmPending(history)) {
     const known = orderIdGivenInThread(history)
-    if (isShippingThreadFromHistory(history)) {
+    if (isNonReceiptShippingOpenerFromHistory(history)) {
+      lines.push(
+        `KNOWN ORDER CONFIRM + NON-RECEIPT (532314606): thread opened with לא קיבלתי/עדיין לא קיבלתי and you asked if they mean order ${known ?? "from the receipt"}. כן confirms — call lookup_order_status with that id now. If delivered: acknowledge system vs customer claim, list line items, ask which arrived — action reply, never action end. Partial clarification → rep summary → human_service. Never re-ask for מספר הזמנה or phone.`
+      )
+    } else if (isShippingThreadFromHistory(history)) {
       lines.push(
         `KNOWN ORDER CONFIRM + ETA (533011641 / 532732459): thread opened with delivery timing and you asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) → call lookup_order_status with that id now. Answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Pre Order line → explain הזמנה מוקדמת and the expected date. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון. Never "לא הצלחתי להבין". Never human_service unless they ask for a rep.`
       )
