@@ -164,6 +164,8 @@ import {
   hasRoomPhotoInHistory,
   isAwaitingSalesIntakeAnswer,
   isBedRugSizingConsultation,
+  isOutdoorBalconyRugConsultation,
+  isOutdoorBalconyRugThread,
   isPastOrderSizeRecallQuestion,
   isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoDeclineAnswer,
@@ -1220,6 +1222,15 @@ export function buildConversationHints(input: {
   if (isBedRugSizingConsultation(body) && !hasOngoingSalesIntake(history)) {
     lines.push(
       'BED RUG SIZING OPENING (534057154): which rug/size under bed or for bedroom — `"crm_department": "sales"`, start sales intake (חדר שינה / מידות מיטה or room). Size guide or visualization link is optional one-liner only — never FAQ-only, never recommend a size, never human_service.'
+    )
+  }
+
+  if (
+    (isOutdoorBalconyRugConsultation(body) || isOutdoorBalconyRugThread(history)) &&
+    !hasOngoingSalesIntake(history)
+  ) {
+    lines.push(
+      'OUTDOOR BALCONY RUG OPENING (534278859): outdoor/balcony/garden rug purchase or sizing (שטיחי חוץ, מרפסת, גינה, גודל מומלץ לפינת ישיבה) — `"crm_department": "sales"`, start sales intake (outdoor space / seating area size). Brief durability facts from KB are fine one-liner — never FAQ-only deferral loop, never recommend a size, never human_service.'
     )
   }
 

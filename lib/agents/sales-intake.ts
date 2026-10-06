@@ -65,6 +65,26 @@ export function isBedRugSizingConsultation(text: string) {
   return BED_RUG_SIZING_RE.test(text.trim())
 }
 
+const OUTDOOR_BALCONY_RUG_RE =
+  /שטיח(?:י|ים)?\s*חוץ|(?:ל|ב)(?:מרפס(?:ה|ת)|גינ(?:ה|ה)|חצר)|(?:מרפס(?:ה|ת)|גינ(?:ה|ה)|פנטהאוז|פינת\s*(?:ה)?(?:ישיבה|אוכל)).*(?:שטיח|גודל|מיד(?:ה|ות))|(?:גודל|מיד(?:ה|ות))\s*(?:ה)?\s*מומלץ.*(?:מרפס|גינ|פינת)/i
+
+const OUTDOOR_SPACE_WORD_RE =
+  /(?:מרפס(?:ה|ת)|גינ(?:ה|ה)|פנטהאוז|פינת\s*(?:ה)?(?:ישיבה|אוכל)|שטיח(?:י|ים)?\s*חוץ)/i
+
+const OUTDOOR_SIZING_ASK_RE =
+  /(?:גודל|מיד(?:ה|ות))\s*(?:ה)?\s*מומלץ|(?:איזה|מה)\s+(?:ה)?(?:גודל|מיד(?:ה|ות))/i
+
+/** Pre-purchase outdoor / balcony / garden rug thread — sales intake, not FAQ-only (534278859). */
+export function isOutdoorBalconyRugConsultation(text: string) {
+  const trimmed = text.trim()
+  if (OUTDOOR_BALCONY_RUG_RE.test(trimmed)) return true
+  return OUTDOOR_SPACE_WORD_RE.test(trimmed) && OUTDOOR_SIZING_ASK_RE.test(trimmed)
+}
+
+export function isOutdoorBalconyRugThread(history: HistoryMessage[]) {
+  return history.some((m) => isOutdoorBalconyRugConsultation(m.content))
+}
+
 const PAST_ORDER_SIZE_RECALL_RE =
   /(?:איז(?:ה|ו)|מה)\s+(?:ה)?(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)|(?:רוצ(?:ה|יתי)|לדעת).{0,30}(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)/i
 
@@ -184,7 +204,11 @@ export function isSpecificProductQuery(text: string) {
 
 export function isSalesConsultationTrigger(text: string) {
   const trimmed = text.trim()
-  return CONSULTATION_RE.test(trimmed) || isBedRugSizingConsultation(trimmed)
+  return (
+    CONSULTATION_RE.test(trimmed) ||
+    isBedRugSizingConsultation(trimmed) ||
+    isOutdoorBalconyRugConsultation(trimmed)
+  )
 }
 
 const PET_MENTION_RE =
