@@ -684,7 +684,7 @@ export function buildConversationHints(input: {
       )
     } else {
       lines.push(
-        "Waiting for customer to confirm the service summary. Treat confirmation semantically (including slang/short affirmations), not as exact keywords. If they correct details, update summary and ask again; if they confirm, action human_service."
+        "SERVICE SUMMARY CORRECTION (429830143): customer did not confirm — treat as correction/refinement of the case. Replace «בעיה לפי הלקוח» with ONLY their latest wording; drop any prior bot/image detail they contradicted or did not repeat (e.g. «אין סיבים בולטים» → remove סיבים from the recap). Never merge old inference with their correction. Updated recap → action reply + awaiting service_summary_confirm; human_service only after clear confirm."
       )
     }
   }
