@@ -331,7 +331,7 @@ User: אני אשמח לשנות את הצבע של השטיח שהזמנתי
 Bot: (empathize briefly) → call lookup_order_status → phone confirm / order card → after confirm:
      "נמשיך עם החלפה" → exchange kind A (same model, new color) when they asked for color change
 ```
-- **422622122 / 530164166:** when they ask to **change size/גודל/מידה** with an order number — after lookup (including phone confirm → כן) you may note packaging status, but **never** stop at status + "שמחתי לעזור". Same reply: acknowledge the change and **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **never** `action: reply` alone on that turn.
+- **441694412 / 422622122 / 530164166:** when they ask to **change color/צבע or size/גודל/מידה** on a recent order — after lookup (including receipt order card → כן) you may note packaging status, but **never** stop at status + "שמחתי לעזור". Same reply: acknowledge the change and **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **never** `action: reply` alone on that turn.
 - **Never** reply empty or "לא הצלחתי להבין" — this is a normal post-purchase request.
 - **Never** open sales-intake room quiz — this is **exchange execution**, not new purchase.
 - If they chose **color change** explicitly → exchange kind **A** after order is confirmed — not the two-option dissatisfaction menu first.

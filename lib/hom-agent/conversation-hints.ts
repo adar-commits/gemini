@@ -403,7 +403,7 @@ export function buildConversationHints(input: {
 
   if (isOrderModificationRequest(body) || isOrderModificationInThread(history, body)) {
     lines.push(
-      'ORDER MODIFICATION (532165595 / 422622122 / 530164166): customer wants to change color/size/model on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+      'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166): customer wants to change color/size/model on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
     )
   }
 
@@ -819,7 +819,11 @@ export function buildConversationHints(input: {
         )
       }
     } else {
-      if (isOrderConfirmationYes(body)) {
+      if (isOrderConfirmationYes(body) && isOrderModificationInThread(history, body)) {
+        lines.push(
+          "ORDER CONFIRM + MODIFICATION (441694412 / 530164166): כן confirms the order card on a color/size/model change thread — call lookup_order_status now. If status is still packaging/in warehouse: address the change in the same reply and set **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never action reply alone. Never warm-close or paraphrase status without the tool."
+        )
+      } else if (isOrderConfirmationYes(body)) {
         lines.push(
           "ORDER CONFIRM YES: כן/נכון/אוקיי confirms the pending order card — call lookup_order_status immediately with the bound order/phone. Never never-stuck on this turn."
         )
