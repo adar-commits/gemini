@@ -423,7 +423,7 @@ export function buildConversationHints(input: {
         ? "If they still need a rep, or you cannot resolve it, set action human_sales + crm_department sales in the same JSON — the prior handoff was to sales (441678247); ignore the template's 'שירות' wording."
         : "If they still need a rep, or you cannot resolve it, set action human_service in the same JSON."
     lines.push(
-      `VOICE CALLBACK TEMPLATE (532661685): the last outbound ("כאן נציג/ה ... בהמשך לבקשתך לדבר עם נציג") is an automatic template sent after the customer chose, on a phone call, to keep waiting for a rep on WhatsApp — no rep has written yet. Answer their request normally this turn with tools (e.g. shipping status → lookup_order_status). Never stay silent and never ask a "זה מדויק?" summary confirmation. ${departmentLine}`
+      `VOICE CALLBACK TEMPLATE (532661685 / 533657825): the last outbound is an automatic voice-closure template ("כאן נציג/ה ... בהמשך לבקשתך לדבר עם נציג" or "מחלקת שירות ... בהמשך לשיחתך הטלפונית") sent after the customer chose, on a phone call, to keep waiting for a rep on WhatsApp — no rep has written yet. Answer their request normally this turn with tools (e.g. shipping status → lookup_order_status). Never stay silent and never ask a "זה מדויק?" summary confirmation. ${departmentLine}`
     )
   }
 

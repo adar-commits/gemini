@@ -7,7 +7,10 @@ import {
   INACTIVITY_PING_MS,
 } from "@/lib/agents/inactivity"
 import { getCustomer } from "@/lib/landbot/client"
-import { handleLandbotInbound } from "@/lib/landbot/handle-inbound"
+import {
+  handleLandbotInbound,
+  prepareVoiceClosureCustomerReplyWake,
+} from "@/lib/landbot/handle-inbound"
 import { claimInbound, releaseInbound } from "@/lib/landbot/inbound"
 import {
   claimConversationProcessor,
@@ -147,8 +150,12 @@ export async function POST(request: Request) {
     summarizeTurn(inbound.turn)
   )
   const inboundBody = summarizeTurn(inbound.turn)
+  const voiceClosureWake =
+    !trainerResetBypass &&
+    (await prepareVoiceClosureCustomerReplyWake(inbound.conversationId).catch(() => false))
   if (
     !trainerResetBypass &&
+    !voiceClosureWake &&
     (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId))
   ) {
     const history = await getHistory(inbound.conversationId)
@@ -197,8 +204,14 @@ export async function POST(request: Request) {
         conversationId: inbound.conversationId,
         handler: async (turn) => {
           const turnBody = summarizeTurn(turn)
+          const turnVoiceClosureWake =
+            !trainerResetBypass &&
+            (await prepareVoiceClosureCustomerReplyWake(inbound.conversationId).catch(
+              () => false
+            ))
           if (
             !trainerResetBypass &&
+            !turnVoiceClosureWake &&
             (await isHumanThreadActive(
               inbound.conversationId,
               inbound.assignedAgentId

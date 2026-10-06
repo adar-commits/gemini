@@ -6,7 +6,10 @@ import {
   type HistoryMessage,
 } from "@/lib/agents/types"
 import { isLandbotApiAgentId } from "@/lib/landbot/api-agent-ids"
-import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-template"
+import {
+  isVoiceClosureTemplateMessage,
+  type OutgoingMessageRow,
+} from "@/lib/landbot/voice-closure-template"
 
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
 
@@ -240,10 +243,12 @@ export async function isLiveHumanLastOutbound(conversationId: string) {
   return false
 }
 
-/** Last outbound on the thread is the dashboard voice-closure template (rep promised). */
-export async function isVoiceClosureTemplateLastOutbound(conversationId: string) {
+/** Last outbound on the thread is a dashboard voice-closure template. */
+export async function getVoiceClosureTemplateLastOutbound(
+  conversationId: string
+): Promise<OutgoingMessageRow | null> {
   const sessionIds = await resolveMessageSessionIds(conversationId)
-  if (!sessionIds.length) return false
+  if (!sessionIds.length) return null
 
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
@@ -251,12 +256,16 @@ export async function isVoiceClosureTemplateLastOutbound(conversationId: string)
     .select("message_type, body, payload")
     .in("session_id", sessionIds)
     .eq("direction", "outgoing")
-    .not("body", "is", null)
     .order("sent_at", { ascending: false })
     .limit(1)
 
-  if (error || !data?.length) return false
-  return isVoiceClosureTemplateMessage(data[0])
+  if (error || !data?.length) return null
+  const row = data[0] as OutgoingMessageRow
+  return isVoiceClosureTemplateMessage(row) ? row : null
+}
+
+export async function isVoiceClosureTemplateLastOutbound(conversationId: string) {
+  return (await getVoiceClosureTemplateLastOutbound(conversationId)) != null
 }
 
 async function loadLandbotMessages(

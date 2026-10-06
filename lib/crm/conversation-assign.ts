@@ -105,3 +105,67 @@ export async function assignCrmConversationToHomBot(input: {
     previousAgentCode,
   }
 }
+
+/**
+ * Customer replied after a voice-closure template — reclaim CRM inbox for HoM bot even when
+ * a human rep is still assigned (533657825).
+ */
+export async function assignCrmConversationToHomBotOnVoiceClosureReply(input: {
+  conversationId: string
+}): Promise<AssignCrmHomBotResult> {
+  if (!crmHomBotAssignEnabled()) {
+    return { ok: true, updated: false, reason: "disabled" }
+  }
+
+  const row = await findCrmConversation(input.conversationId)
+  if (!row?.session_id) {
+    console.warn("[crm-assign] voice-closure reply: conversation not found", input.conversationId)
+    return { ok: true, updated: false, reason: "not_found" }
+  }
+
+  const previousAgentCode =
+    typeof row.assigned_agent_code === "string"
+      ? row.assigned_agent_code.trim()
+      : null
+  if (previousAgentCode === HOM_CRM_BOT_AGENT_CODE) {
+    return { ok: true, updated: false, reason: "unchanged" }
+  }
+
+  const supabase = getAgentSupabase()
+  const now = new Date().toISOString()
+  const { error: updateError } = await supabase
+    .from("conversations")
+    .update({
+      assigned_agent_code: HOM_CRM_BOT_AGENT_CODE,
+      assigned_at: now,
+      updated_at: now,
+    })
+    .eq("session_id", row.session_id)
+
+  if (updateError) throw updateError
+
+  const { error: logError } = await supabase.from("conversation_status_log").insert({
+    session_id: row.session_id,
+    action_type: "agent_assigned",
+    old_value: previousAgentCode || "ללא שיוך",
+    new_value: HOM_CRM_BOT_AGENT_NAME,
+    source: "hom_bot_voice_closure_reply",
+    changed_at: now,
+    payload: {
+      next_agent_code: HOM_CRM_BOT_AGENT_CODE,
+      previous_agent_code: previousAgentCode,
+      landbot_customer_id: row.landbot_customer_id ?? input.conversationId,
+    },
+  })
+
+  if (logError) {
+    console.warn("[crm-assign] voice-closure reply audit log failed", row.session_id, logError.message)
+  }
+
+  return {
+    ok: true,
+    updated: true,
+    sessionId: row.session_id,
+    previousAgentCode,
+  }
+}

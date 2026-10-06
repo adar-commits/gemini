@@ -36,7 +36,7 @@ describe("voice callback template → bot answers shipping check (532661685)", (
 
   it("hints the LLM to answer the request and hand off to service only when needed", () => {
     const hints = buildConversationHints({ history, body: "היי\nלבדוק משלוח" }) ?? ""
-    assert.match(hints, /VOICE CALLBACK TEMPLATE \(532661685\)/)
+    assert.match(hints, /VOICE CALLBACK TEMPLATE \(532661685 \/ 533657825\)/)
     assert.match(hints, /lookup_order_status/)
     assert.match(hints, /Never stay silent/)
     assert.match(hints, /human_service/)

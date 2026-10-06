@@ -8,8 +8,18 @@ import {
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { shouldSkipInactivityPingForCompleteReply } from "@/lib/agents/inactivity-policy"
-import { appendTurn, clearInactivityWatchState, getHistory, getSessionInactivityState, isVoiceClosureTemplateLastOutbound, recordProactiveAssistantMessage } from "@/lib/agents/memory"
-import { assignCrmConversationToHomBot } from "@/lib/crm/conversation-assign"
+import {
+  appendTurn,
+  clearInactivityWatchState,
+  getHistory,
+  getSessionInactivityState,
+  getVoiceClosureTemplateLastOutbound,
+  recordProactiveAssistantMessage,
+} from "@/lib/agents/memory"
+import {
+  assignCrmConversationToHomBot,
+  assignCrmConversationToHomBotOnVoiceClosureReply,
+} from "@/lib/crm/conversation-assign"
 import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
 import { closeCrmConversation } from "@/lib/crm/conversation-close"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
@@ -25,8 +35,8 @@ import {
 import { scheduleCursorAutomationQa } from "@/lib/landbot/schedule-cursor-automation-qa"
 import { executeHumanHandoff } from "@/lib/landbot/human-handoff"
 import {
-  VOICE_CLOSURE_TEMPLATE_BODY,
   isVoiceClosureTemplateMessage,
+  voiceClosureTemplateBodyFromRow,
 } from "@/lib/landbot/voice-closure-template"
 import { logShadowTurn } from "@/lib/landbot/shadow-log"
 import {
@@ -116,6 +126,31 @@ export function shouldRecordVoiceClosureTemplate(history: HistoryMessage[]) {
   return true
 }
 
+/**
+ * Customer replied after a dashboard voice-closure template — wake HoM bot even when CRM
+ * still shows a human rep (533657825).
+ */
+export async function prepareVoiceClosureCustomerReplyWake(conversationId: string) {
+  const lastOutbound = await getVoiceClosureTemplateLastOutbound(conversationId).catch(() => null)
+  if (!lastOutbound) return false
+
+  await releaseHumanThread(conversationId)
+  await assignCrmConversationToHomBotOnVoiceClosureReply({ conversationId }).catch((error) => {
+    console.warn("[voice-closure] CRM reclaim failed", conversationId, error)
+  })
+
+  const history = await getHistory(conversationId)
+  if (shouldRecordVoiceClosureTemplate(history)) {
+    await recordProactiveAssistantMessage({
+      conversationId,
+      assistantText: voiceClosureTemplateBodyFromRow(lastOutbound),
+      action: "voice_closure_template",
+    }).catch(() => {})
+  }
+
+  return true
+}
+
 /** Final fallback when the pipeline produced no sendable reply — never a bare hold message. */
 function emptyReplyFallback(body: string, input?: { customerName?: string; history?: HistoryMessage[] }) {
   return salvagedReply(body, input) ?? buildNeverStuckReply()
@@ -142,9 +177,15 @@ export async function handleLandbotInbound(
     turnSummary
   )
 
+  const voiceClosureWake =
+    replyEnabled &&
+    !trainerResetBypass &&
+    (await prepareVoiceClosureCustomerReplyWake(conversationId).catch(() => false))
+
   if (
     replyEnabled &&
     !trainerResetBypass &&
+    !voiceClosureWake &&
     (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
   ) {
     const history = await getHistory(conversationId)
@@ -161,21 +202,6 @@ export async function handleLandbotInbound(
     }
     if (shouldClearHumanThreadOnBypass(turnSummary, history)) {
       await releaseHumanThread(conversationId)
-    }
-  }
-
-  if (
-    replyEnabled &&
-    !trainerResetBypass &&
-    (await isVoiceClosureTemplateLastOutbound(conversationId).catch(() => false))
-  ) {
-    const history = await getHistory(conversationId)
-    if (shouldRecordVoiceClosureTemplate(history)) {
-      await recordProactiveAssistantMessage({
-        conversationId,
-        assistantText: VOICE_CLOSURE_TEMPLATE_BODY,
-        action: "voice_closure_template",
-      }).catch(() => {})
     }
   }
 
