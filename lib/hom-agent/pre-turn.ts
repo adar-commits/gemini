@@ -344,11 +344,7 @@ export function runPreTurnGuards(input: {
     !isDesignerCodeRequestPending(input.history) &&
     !isAwaitingSalesIntakeAnswer(input.history) &&
     !isServiceHandoffSummaryPending(input.history) &&
-    !isOrderLookupPhoneReplyPending(input.history) &&
-    !(
-      isOrderLookupCompletedInThread(input.history) &&
-      isShippingThreadFromHistory(input.history)
-    )
+    !isOrderLookupPhoneReplyPending(input.history)
   ) {
     return {
       kind: "handled",

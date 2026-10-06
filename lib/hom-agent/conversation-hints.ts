@@ -613,14 +613,12 @@ export function buildConversationHints(input: {
     isThanksAcknowledgment(body) &&
     !isHumanHandoffPending(history) &&
     !isOrderConfirmationPending(history) &&
-    !isDesignerCodeRequestPending(history) &&
-    !(
-      isOrderLookupCompletedInThread(history) &&
-      isShippingThreadFromHistory(history)
-    )
+    !isDesignerCodeRequestPending(history)
   ) {
     lines.push(
-      "THANKS AFTER RESOLVED THREAD: customer is closing — reply with warm close only (`{name}, שמחתי לעזור היום! 😊`), action end, expects_reply false. Never ask במה עוד אוכל לעזור."
+      isShippingThreadFromHistory(history)
+        ? "THANKS AFTER SHIPPING STATUS (533474524): customer thanked after your status/ETA update — warm close only (`{name}, שמחתי לעזור היום! 😊`), action end. Never human_service/human_sales unless they explicitly asked for a rep. A soft «עדכני אם מגיע» is not a handoff offer."
+        : "THANKS AFTER RESOLVED THREAD: customer is closing — reply with warm close only (`{name}, שמחתי לעזור היום! 😊`), action end, expects_reply false. Never ask במה עוד אוכל לעזור."
     )
   }
 
