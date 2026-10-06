@@ -278,15 +278,28 @@ export function runPreTurnGuards(input: {
   }
 
   const lastAssistantBeforeThanks = lastNonInactivityAssistantText(input.history)
+  const salesHandoffOnThanks =
+    lastAssistantBeforeThanks != null &&
+    isSalesHandoffCommittedInAssistantText(lastAssistantBeforeThanks)
+  const declarativeHandoffOnThanks =
+    lastAssistantBeforeThanks != null &&
+    hasDeclarativeHandoffTransfer(lastAssistantBeforeThanks) &&
+    !salesHandoffOnThanks
+  const shippingThanksAfterServiceHandoff =
+    declarativeHandoffOnThanks &&
+    isShippingThreadFromHistory(input.history) &&
+    isThanksAcknowledgment(body) &&
+    explicitThanks
+
   if (
     lastAssistantBeforeThanks &&
-    (hasDeclarativeHandoffTransfer(lastAssistantBeforeThanks) ||
-      isSalesHandoffCommittedInAssistantText(lastAssistantBeforeThanks)) &&
+    (declarativeHandoffOnThanks || salesHandoffOnThanks) &&
     isThanksAcknowledgment(body) &&
     explicitThanks &&
-    !isPureHandoffAffirmation(body)
+    !isPureHandoffAffirmation(body) &&
+    !shippingThanksAfterServiceHandoff
   ) {
-    const action = isSalesHandoffCommittedInAssistantText(lastAssistantBeforeThanks)
+    const action = salesHandoffOnThanks
       ? "human_sales"
       : inferHumanHandoffAction(input.history, null)
     return {

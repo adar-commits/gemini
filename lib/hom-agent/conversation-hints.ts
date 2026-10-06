@@ -182,6 +182,7 @@ import {
   isInactivityStillHereReply,
 } from "@/lib/agents/inactivity"
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
+import { isSalesHandoffCommittedInAssistantText } from "@/lib/agents/human-waiting"
 import { isPostHumanHandoff, postHandoffKind } from "@/lib/agents/post-handoff"
 import {
   customerRespondedToHandoffWithoutConfirm,
@@ -304,10 +305,14 @@ export function buildConversationHints(input: {
   const lines: string[] = []
 
   const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
+  const lastAssistantText = lastNonInactivityAssistant(history)
   const shippingServiceThanksClose =
     isThanksAcknowledgment(body) &&
     isShippingThreadFromHistory(history) &&
-    !isHumanHandoffPending(history)
+    (!isHumanHandoffPending(history) ||
+      (lastAssistantText &&
+        hasDeclarativeHandoffTransfer(lastAssistantText) &&
+        !isSalesHandoffCommittedInAssistantText(lastAssistantText)))
   const poufAssemblyFaqThread =
     isPoufAssemblyFaqThread(history) && !hasOngoingSalesIntake(history)
 
@@ -437,7 +442,7 @@ export function buildConversationHints(input: {
 
   if (shippingServiceThanksClose) {
     lines.push(
-      'SHIPPING SERVICE THANKS CLOSE (533476186): active delivery/missing-order thread — customer thanks after status update (human rep or bot). Warm close only (`action: end`, `crm_department: service`) — **never** `human_sales` / יועץ מכירות. Stale sales intake or old מעביר ליועץ מכירות from prior purchase threads does NOT apply on this closing turn.'
+      'SHIPPING SERVICE THANKS CLOSE (533476186 / 533428072): active delivery/ETA thread — customer thanks after status update or after you already transferred to service (`אני מעביר לנציג`). Warm close only (`action: end` or short post-handoff ack) — **never** repeat «העברתי את השיחה» / `human_service` again. Stale sales intake does NOT apply on this closing turn.'
     )
   }
 
