@@ -246,6 +246,10 @@ const SERVICE_EVIDENCE_PHOTO_ASK_RE =
 function isServiceEvidencePhotoRequest(text: string) {
   if (SERVICE_REP_PHOTO_REQUEST_RE.test(text)) return true
   if (!SERVICE_EVIDENCE_PHOTO_ASK_RE.test(text)) return false
+  // Sales intake ack "אין בעיה" before optional room photo — not defect evidence (534274234).
+  if (/אין\s+בעיה/i.test(text) && !/(?:חור|פגם|נזק|תפר|קרע|ליקוי|נפתח|נקר)/i.test(text)) {
+    return false
+  }
   if (/(?:חור|פגם|נזק|תפר|קרע|ליקוי|בעיה|נפתח|נקר)|(?:ה)?נציג\s+יוכל/i.test(text)) {
     return true
   }
@@ -1179,7 +1183,7 @@ function applyStyleAnswer(intake: SalesIntake, answers: string[]) {
   }
 }
 
-function isStylePhotoDeclined(text: string) {
+export function isSalesPhotoDeclineAnswer(text: string) {
   const trimmed = text.trim()
   if (!trimmed || /\[media:image:/i.test(trimmed)) return false
   if (
@@ -1213,7 +1217,7 @@ function applyStylePhotoAnswer(intake: SalesIntake, history: HistoryMessage[], b
     return
   }
 
-  if (isStylePhotoDeclined(combined)) {
+  if (isSalesPhotoDeclineAnswer(combined)) {
     intake.stylePhotoSkipped = true
   }
 }
@@ -1497,7 +1501,7 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
         } else if (hasStylePreferenceSignal(combined)) {
           intake.stylePhotoSkipped = true
           applyStyleAnswer(intake, answers)
-        } else if (isStylePhotoDeclined(combined)) {
+        } else if (isSalesPhotoDeclineAnswer(combined)) {
           intake.stylePhotoSkipped = true
         }
         break

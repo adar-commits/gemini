@@ -165,7 +165,9 @@ import {
   isBedRugSizingConsultation,
   isPastOrderSizeRecallQuestion,
   isSalesIntakeCompleteWithOptionalPhotoPending,
+  isSalesPhotoDeclineAnswer,
   isSalesPhotoRequestPending,
+  pendingSalesIntakeQuestionKind,
   isSalesSizingPhotoSubstitutePending,
   isServiceEvidencePhotoRequestPending,
   isServicePhotoAnalysisContext,
@@ -1531,6 +1533,18 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'ORDER CARD SOURCE (533912766): customer verifies model/SKU on their order — call lookup_order_status. Phone lookup without customer-sent order # or tracking link this thread → say "לפי מספר הטלפון שלך מצאתי…", never "קישור המעקב" / "שמופיעה בקישור". Card: "נדמה לי שמצאתי… — זו ההזמנה?" + awaiting order_confirm. After confirm → line items/order document, not shipping status.'
+    )
+  }
+
+  if (
+    (isSalesPhotoRequestPending(history) ||
+      pendingSalesIntakeQuestionKind(history) === "style_photo" ||
+      pendingSalesIntakeQuestionKind(history) === "photo") &&
+    isSalesPhotoDeclineAnswer(body) &&
+    !/\[media:image:/i.test(body)
+  ) {
+    lines.push(
+      'SALES PHOTO DECLINE (534274234): optional room photo was offered — לא/אין/לא נוח/דילוג means **skip photo**, not handoff. Ack (אין בעיה, נדלג), continue intake → דרישות מיוחדות, then summary+human_sales. **`action: reply`** on this turn — **never** `human_sales` on photo decline alone.'
     )
   }
 
