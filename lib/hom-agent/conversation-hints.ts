@@ -769,6 +769,20 @@ export function buildConversationHints(input: {
     )
   }
 
+  const shippingOpenerOrderId =
+    extractOrderReference(body, history) ?? extractOrderNumber(body)
+  if (
+    shippingOpenerOrderId &&
+    !isOrderLookupCompletedInThread(history) &&
+    !isOrderConfirmationPending(history) &&
+    !isOrderNumberRequestPending(history) &&
+    (isShippingStatusQuestion(body) || isOrderDeliveryStatusQuestion(body))
+  ) {
+    lines.push(
+      `ETA OPENER + ORDER ID (533428072): customer asks when the order will arrive and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. Never a generic SLA paragraph + human_service without running the tool.`
+    )
+  }
+
   if (
     postPurchaseKind === "return_pickup_pending" &&
     !isReturnPickupAwaitingThread(history, body) &&
