@@ -32,6 +32,7 @@ import {
   shouldRecordHumanAgentActivity,
 } from "@/lib/landbot/human-takeover"
 import { getHistory } from "@/lib/agents/memory"
+import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
@@ -100,7 +101,10 @@ export async function POST(request: Request) {
   if (isLandbotEvent(hook)) {
     if (hook.action === "assign") {
       if (isLandbotApiAgent({ agentId: hook.agentId })) {
-        await releaseHumanThread(hook.conversationId)
+        const history = await getHistory(hook.conversationId).catch(() => [])
+        if (!isPostHumanHandoff(null, history)) {
+          await releaseHumanThread(hook.conversationId)
+        }
       } else if (hook.agentId && hook.agentId > 0) {
         await recordHumanAgentActivity(hook.conversationId)
       }

@@ -5,6 +5,14 @@ import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-templ
 const HANDOFF_CONFIRMED_RE =
   /העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|הפנייה\s+הועברה|ניצור\s+קשר\s+בהקדם/i
 
+/** Bot committed to transfer — "אני מעביר אותך לנציג" (534249637), not only "מעביר את". */
+const DECLARATIVE_HANDOFF_TRANSFER_RE =
+  /(?:אני|אנחנו|בינתיים אני)\s+מעביר(?:ים|ה|א)?(?:\s+א(?:ות(?:ך|כם|ה)|ת(?:כם|)?))?/iu
+
+export function hasDeclarativeHandoffTransferInText(text: string) {
+  return DECLARATIVE_HANDOFF_TRANSFER_RE.test(text.trim())
+}
+
 function lastMeaningfulAssistantText(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
@@ -18,7 +26,9 @@ function lastMeaningfulAssistantText(history: HistoryMessage[]) {
 
 export function isPostHumanHandoff(lastAction: string | null, history: HistoryMessage[]) {
   if (lastAction === "human_sales" || lastAction === "human_service") return true
-  return HANDOFF_CONFIRMED_RE.test(lastMeaningfulAssistantText(history))
+  const last = lastMeaningfulAssistantText(history)
+  if (HANDOFF_CONFIRMED_RE.test(last)) return true
+  return hasDeclarativeHandoffTransferInText(last)
 }
 
 export function postHandoffKind(

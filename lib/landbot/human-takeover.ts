@@ -1,9 +1,11 @@
 import {
   clearHumanAgentActivity,
+  getHistory,
   getHumanTakeoverState,
   isLiveHumanLastOutbound,
   markHumanAgentActivity,
 } from "@/lib/agents/memory"
+import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { isLandbotApiAgentId, landbotApiAgentIds } from "@/lib/landbot/api-agent-ids"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
@@ -122,8 +124,11 @@ export async function isHumanThreadActive(
     effectiveAssignedAgentId > 0 &&
     isLandbotApiAgentId(effectiveAssignedAgentId)
   ) {
-    await releaseHumanThread(conversationId)
-    defer = false
+    const history = await getHistory(conversationId).catch(() => [])
+    if (!isPostHumanHandoff(null, history)) {
+      await releaseHumanThread(conversationId)
+      defer = false
+    }
   }
 
   if (defer) return true

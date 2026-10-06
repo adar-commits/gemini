@@ -7,7 +7,10 @@ import {
 } from "@/lib/agents/service-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
-import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
+import {
+  hasDeclarativeHandoffTransferInText,
+  isPostHumanHandoff,
+} from "@/lib/agents/post-handoff"
 import { hasImmediateBusinessAsk, isCasualGreeting } from "@/lib/agents/greeting"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isPriorityApiWaitMessage } from "@/lib/agents/priority-webhook"
@@ -72,7 +75,7 @@ export function isHumanHandoffOfferText(text: string) {
 
 /** Bot already committed to transfer — do not also ask "האם להעביר?". */
 export function hasDeclarativeHandoffTransfer(text: string) {
-  return /(?:אני|אנחנו)\s+מעביר(?:ים|ה|א)?\s+את(?:כם|)/i.test(text)
+  return hasDeclarativeHandoffTransferInText(text)
 }
 
 export function sanitizeRedundantHandoffConfirm(reply: string) {
