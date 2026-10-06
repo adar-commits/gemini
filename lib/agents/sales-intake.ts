@@ -319,11 +319,49 @@ export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
   return false
 }
 
+const CUSTOMER_PHOTO_UPLOAD_ASK_RE =
+  /אפשר\s+(?:פשוט\s+)?(?:ל)?(?:העל(?:ות|ה)|של(?:ח|וח)|צר(?:ף|ור))(?:\/י)?\s+תמונה/i
+
+const SOFA_SIZING_QUESTION_RE =
+  /מידת הספה|גודל(?:\s+כללי)?\s+של\s+הסלון|גודל\s+הסלון|בערך\s+גודל\s+הסלון/i
+
+/** Customer chose a room photo instead of typing sofa/room dimensions — photo is the sizing answer. */
+export function isSalesSizingPhotoSubstitutePending(history: HistoryMessage[]) {
+  if (!isSalesPhotoRequestPending(history)) return false
+
+  let sawPhotoApproval = false
+  let sawCustomerPhotoAsk = false
+  let sawSizingQuestion = false
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role === "assistant") {
+      if (isInactivityAssistantMessage(message.content)) continue
+      if (!sawPhotoApproval && SALES_PHOTO_REQUEST_RE.test(message.content)) {
+        sawPhotoApproval = true
+        continue
+      }
+      if (sawPhotoApproval && !sawSizingQuestion && SOFA_SIZING_QUESTION_RE.test(message.content)) {
+        sawSizingQuestion = true
+      }
+      continue
+    }
+    if (message.role === "user" && sawPhotoApproval && !sawCustomerPhotoAsk) {
+      if (CUSTOMER_PHOTO_UPLOAD_ASK_RE.test(message.content)) {
+        sawCustomerPhotoAsk = true
+      }
+    }
+  }
+
+  return sawPhotoApproval && sawCustomerPhotoAsk && sawSizingQuestion
+}
+
 const SALES_RECAP_SENT_RE = /(?:רשמתי|אז לסיכום|לסיכום)/i
 
 /** Intake quiz done — bot asked optional room photo; handoff must not wait on it. */
 export function isSalesIntakeCompleteWithOptionalPhotoPending(history: HistoryMessage[]) {
   if (!isSalesPhotoRequestPending(history)) return false
+  if (isSalesSizingPhotoSubstitutePending(history)) return false
   const last = lastNonInactivityAssistantText(history)
   if (SALES_RECAP_SENT_RE.test(last)) return true
   return !isAwaitingSalesIntakeAnswer(history)
@@ -2165,7 +2203,22 @@ export function buildSalesPhotoReceivedTurnResult(
   body: string,
   turn?: UserTurn
 ): SalesIntakeTurnResult {
-  const ack = `${buildSalesPhotoAck(history, turn ?? { text: body, media: [] })}\n`
+  const turnObj = turn ?? { text: body, media: [] }
+  if (
+    isSalesSizingPhotoSubstitutePending(history) &&
+    turnHasCustomerImage(turnObj)
+  ) {
+    const intake = extractSalesIntake(history, body)
+    intake.roomPhotoReceived = true
+    if (!hasKnownSofaSize(intake) && !hasKnownRugSize(intake)) {
+      intake.sizeUnknown = true
+    }
+    const ack = buildSalesPhotoAck(history, turnObj)
+    const summary = buildConfirmationSummary(intake)
+    return { reply: `${ack}\n${summary}`.trimEnd(), action: "human_sales" }
+  }
+
+  const ack = `${buildSalesPhotoAck(history, turnObj)}\n`
   const intakeTurn = buildSalesIntakeTurnResult(
     history,
     bodyForPhotoIntakeContinuation(body, turn)

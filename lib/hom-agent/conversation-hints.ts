@@ -166,6 +166,7 @@ import {
   isPastOrderSizeRecallQuestion,
   isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoRequestPending,
+  isSalesSizingPhotoSubstitutePending,
   isServiceEvidencePhotoRequestPending,
   isServicePhotoAnalysisContext,
   isWrongItemDeliveryPhotoTurn,
@@ -1415,6 +1416,13 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'SALES PHOTO + SIZE (534083625): room photo **and** stated rug dimensions in the same turn — ack once (קיבלתי את התמונה), bullet recap (product from thread, size, use case), **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON (מעביר ליועץ מכירות). **Never** write אעביר/מעביר and then ask another intake question (pets, room). Missing optional fields → note for advisor in recap.'
+    )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isSalesSizingPhotoSubstitutePending(history)
+  ) {
+    lines.push(
+      'SALES SIZING PHOTO SUBSTITUTE (534254797): customer chose a room photo **instead of** typing sofa/room dimensions — the photo **is** the sizing answer. Ack once (קיבלתי את התמונה), bullet recap (product ask from thread, room, photo for advisor), **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON (מעביר ליועץ מכירות). **Never** ask sofa size again or write אעביר/מעביר with `action: reply` only.'
     )
   } else if (
     /\[media:image:/i.test(body) &&
