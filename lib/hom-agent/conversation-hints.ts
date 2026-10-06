@@ -526,10 +526,26 @@ export function buildConversationHints(input: {
     /(?:שתי|2|שני).*?(?:הזמנ|שטיח)|(?:הזמנה אחת|אחת נוספת|ההזמנה השנ)/i.test(
       multiOrderShippingCorpus
     ) &&
-    /(?:צפי|מתי.*(?:מגיע|יגיע|אספקה)|סטטוס משלוח)/i.test(multiOrderShippingCorpus)
+    /(?:צפי|מתי.*(?:מגיע|יגיע|אספקה)|סטטוס משלוח|(?:עדיין\s+)?לא\s+(?:הגיע|קיבל)|לפני\s+שבוע|ימי\s+עסקים)/i.test(
+      multiOrderShippingCorpus
+    )
   ) {
     lines.push(
       "MULTI-ORDER DELIVERY ETA (532828502): two+ orders + delivery timing ask — if you cannot show ETA for all, send service rep summary with bullets + 'זה מדויק?' using **אעביר** (future) only — action reply + awaiting service_summary_confirm. Never אני מעביר/העברתי until they confirm; then human_service."
+    )
+  }
+
+  const distinctSoInBody = new Set(
+    (body.match(/\bSO\d+\b/gi) ?? []).map((id) => id.toUpperCase())
+  )
+  const shippingDelayMultiOrderClarification =
+    isShippingThreadFromHistory(history) &&
+    (distinctSoInBody.size >= 2 ||
+      (/(?:so\d+|SO\d+).*(?:so\d+|SO\d+)/i.test(body) &&
+        /(?:יש|ו?יש|ו)/i.test(body)))
+  if (shippingDelayMultiOrderClarification) {
+    lines.push(
+      "MULTI-ORDER SHIPPING DELAY (534274729): customer clarifies two+ SO numbers in a delivery-delay thread — call lookup_order_status for each and answer **outbound delivery** status/ETA. **Never** return-pickup / בקשת החזרה / איסוף שליח rep summary — ERP return flags on one order do NOT override their stated לא הגיע / תביאו את השטיחים. If you cannot show ETA for all → multi-order delivery ETA summary (532828502), not return service."
     )
   }
 
@@ -693,6 +709,7 @@ export function buildConversationHints(input: {
 
   if (
     isReturnPickupAwaitingThread(history, body) &&
+    !shippingDelayMultiOrderClarification &&
     !isServiceHandoffSummaryPending(history) &&
     !isPostPurchaseIntentConfirmPending(history)
   ) {

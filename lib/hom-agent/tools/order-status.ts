@@ -31,6 +31,8 @@ import {
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
   isServiceHandoffOrderLookupReply,
+  isShippingLookupContext,
+  isShippingThreadFromHistory,
   resolveOrderShippingReply,
   shouldAllowOrderLookupRestart,
 } from "@/lib/agents/order-lookup"
@@ -41,11 +43,17 @@ function returnPickupContextInThread(
   history: HistoryMessage[],
   body: string
 ) {
-  return (
+  const explicitReturnPickup =
     isReturnPickupAwaitingThread(history, body) ||
     isActiveReturnExchangePickupCase(body) ||
     classifyPostPurchaseCase(body) === "return_pickup_pending"
-  )
+  if (
+    !explicitReturnPickup &&
+    (isShippingLookupContext(body, history) || isShippingThreadFromHistory(history))
+  ) {
+    return false
+  }
+  return explicitReturnPickup
 }
 
 export async function executeLookupOrderStatus(input: {

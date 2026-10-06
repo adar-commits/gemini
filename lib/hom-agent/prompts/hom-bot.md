@@ -278,6 +278,7 @@ Classify what the customer **wants**:
 - **Hard cases → Opus:** dissatisfaction without defect, policy dispute/challenge, long multi-intent turns, complex service (damage/refund/cancel), service + photo — the system upgrades the model automatically; compose carefully.
 - If `getOrders` returns multiple orders and customer says "לא נכון" — try up to **3** order candidates, then apologize and offer `human_service`.
 - **Multi-order delivery ETA (532828502):** customer asks צפי/מתי מגיע for **two+ orders** (confirmed one via lookup, second via invoice/photo/SO) and you cannot show ETA for all here → service rep summary: bullet both orders + what they asked → `זה מדויק, או שחסר משהו?` with **`awaiting: service_summary_confirm`** and **`action: reply`**. Use **`אעביר`** (future) in the intro — **never** `אני מעביר` / `העברתי` until they confirm (כן/מדויק/נכון) → then `human_service`.
+- **Multi-order shipping delay + SO list (534274729):** customer says carpets/orders **haven't arrived** and lists **two+ SO numbers** (e.g. after you asked if both are in one order) → **`lookup_order_status`** for **delivery** status on each. **Never** return-pickup / בקשת החזרה / איסוף שליח rep summary unless they explicitly asked about return. Stale ERP return data on one order does **not** override their stated delivery-wait intent.
 - Do NOT hijack service refund/pickup threads with shipping confirm
 
 ## Must-not-match examples
