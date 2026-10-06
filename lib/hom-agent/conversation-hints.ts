@@ -70,7 +70,7 @@ import {
   isSpecificProductMention,
   isCheckoutPriceDiscrepancyThread,
 } from "@/lib/agents/product-handoff"
-import { isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
+import { isCampaignQuestion, isCouponCodeRequest } from "@/lib/agents/campaign-lookup"
 import {
   activeDigitalDocumentRequest,
   documentLookupFailureOfferedInThread,
@@ -1192,6 +1192,12 @@ export function buildConversationHints(input: {
   if (isMembershipClubCheckoutQuestion(body)) {
     lines.push(
       "MEMBERSHIP / RELOADABLE CHECKOUT: answer SHORT from membership-clubs-payments KB — if their program is listed, confirm we work with it; completing the order with that card usually needs a service rep (like קוד זיכוי). Offer human_service — never a long payment-methods dump, never 'אין לי מידע'. If they ask נציג אנושי → handoff immediately."
+    )
+  }
+
+  if (isCampaignQuestion(body) && !isCouponCodeRequest(body)) {
+    lines.push(
+      "CAMPAIGN VALIDITY (327887473): customer asked if a promotion/% is active or ended — call get_campaigns now. Answer from live data (end date, active/expired). Never say לא הצלחתי לבדוק מבצעים without calling the tool. A named model (e.g. סידני 02) in the question does not block lookup — answer campaign status first; human_sales only if they need purchase advice beyond dates."
     )
   }
 
