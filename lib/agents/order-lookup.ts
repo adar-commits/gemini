@@ -1981,7 +1981,7 @@ function formatPreorderRestockExplanation(
   allItems: OrderLineItem[] = preorderItems
 ) {
   const meaning =
-    "הזמנה מוקדמת משמעותה שהפריט לא היה במלאי כפי שצוין בעמוד ההזמנה"
+    "הזמנה מוקדמת משמעותה שהפריט לא היה במלאי כפי שצוין בעמוד ההזמנה — ולכן לא חלה הבטחת משלוח ממלאי (כולל יום-למחרת)"
 
   const displayItems = allItems.length > 0 ? allItems : preorderItems
   const hasNonPreorder = displayItems.some((item) => !isPreorderLineItem(item))
