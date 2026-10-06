@@ -210,6 +210,27 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   )
 }
 
+const CALLBACK_ASK_RE =
+  /(?:ת(?:ת|)קשר(?:ו|י)?|(?:ל)?(?:ה)?תקשר(?:ו|י)?|אנא\s+התקשר|בבקשה\s+ת(?:ת|)קשר|חז(?:ור|ר(?:ו|ה))\s+אלי(?:י|ך))/i
+
+const PRIOR_CALLBACK_HANDOFF_RE =
+  /(?:שיחה\s+חוזרת|רשמתי.*(?:שיחה|התקשר|מספר)|העבר(?:תי|נו)|סימנתי\s+לנציג|ניצור\s+(?:א(?:ית)?כם\s+)?קשר)/i
+
+function isCallbackRepeatAfterHandoff(history: HistoryMessage[], body: string) {
+  const text = body.trim()
+  if (!text || text.length > 280) return false
+  if (!CALLBACK_ASK_RE.test(text)) return false
+  const priorUserCallback = history.some(
+    (message) => message.role === "user" && CALLBACK_ASK_RE.test(message.content)
+  )
+  if (!priorUserCallback) return false
+  if (isPostHumanHandoff(null, history)) return true
+  return history.some(
+    (message) =>
+      message.role === "assistant" && PRIOR_CALLBACK_HANDOFF_RE.test(message.content)
+  )
+}
+
 function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: string) {
   const text = body.trim()
   if (!text || text.length > 280) return false
@@ -336,7 +357,22 @@ export function buildConversationHints(input: {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
   }
 
-  if (isVoiceClosureTemplateLastAssistant(history) && !isOrderConfirmationPending(history)) {
+  if (isCallbackRepeatAfterHandoff(history, body)) {
+    const handoffKind = postHandoffKind(null, history) ?? "human_service"
+    const department =
+      handoffKind === "human_sales"
+        ? "human_sales + crm_department sales"
+        : "human_service + crm_department service"
+    lines.push(
+      `CALLBACK REPEAT RE-ESCALATION (533886824): customer already asked for a phone callback and a prior handoff/callback was logged — empathize that nobody called yet if they say so. Re-confirm the case + phone, mark urgent, and set action ${department} in the **same** JSON when you write העברתי/סימנתי/מעביר. Never replay "אין נציגים זמינים" after you already transferred during business hours. The voice-callback template ("כאן נציג/ה…") is automatic — not a live rep in chat.`
+    )
+  }
+
+  if (
+    isVoiceClosureTemplateLastAssistant(history) &&
+    !isOrderConfirmationPending(history) &&
+    !isCallbackRepeatAfterHandoff(history, body)
+  ) {
     const handoffKind = postHandoffKind(null, history) ?? "human_service"
     const departmentLine =
       handoffKind === "human_sales"
