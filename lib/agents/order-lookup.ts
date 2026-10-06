@@ -795,6 +795,18 @@ function isShippingOnlyOrderIdentificationThread(
   history: HistoryMessage[],
   body: string
 ) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (flowMarkerFromText(message.content)) return false
+    if (SERVICE_ASSISTANT_CONTEXT_RE.test(message.content)) return false
+    if (SHIPPING_ASSISTANT_CONTEXT_RE.test(message.content)) return true
+    break
+  }
+  if (isShippingThreadFromHistory(history) && isOrderConfirmationPending(history)) {
+    return true
+  }
   if (isServiceLookupContext(history)) return false
   const lines = substantiveUserLinesForServiceGate(history, body)
   if (lines.length === 0) return false
@@ -815,7 +827,6 @@ export function isServiceOrderIdentificationFlow(
   history: HistoryMessage[],
   body = ""
 ) {
-  if (isServiceLookupContext(history)) return true
   if (
     !isOrderConfirmationPending(history) &&
     !isServiceOrderIdentificationPending(history)
@@ -823,6 +834,7 @@ export function isServiceOrderIdentificationFlow(
     return false
   }
   if (isShippingOnlyOrderIdentificationThread(history, body)) return false
+  if (isServiceLookupContext(history)) return true
   const userText = history
     .filter((message) => message.role === "user")
     .slice(-8)

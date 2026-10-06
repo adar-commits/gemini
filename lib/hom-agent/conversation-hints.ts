@@ -791,6 +791,16 @@ export function buildConversationHints(input: {
         lines.push(
           "SHIPPING ORDER CONFIRM YES (532732459 / 532742549 / 533011641): כן confirms the order card when the thread opened with delivery timing (מתי/מועד הגעה) — call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
         )
+      } else if (
+        isShippingThreadFromHistory(history) &&
+        isKnownOrderConfirmPending(history) &&
+        !isOrderConfirmationYes(body) &&
+        !isOrderConfirmationNo(body)
+      ) {
+        const known = orderIdGivenInThread(history)
+        lines.push(
+          `KNOWN ORDER CONFIRM FAQ (528863688): delivery/ETA thread — you asked if they mean order ${known ?? "from tracking"}. They have not confirmed yet (meta/FAQ turn — e.g. where to find מספר הזמנה): explain briefly (order confirmation email/SMS, receipt, account order history), then re-ask whether ${known ?? "that order"} is the right one. action reply — never service rep summary, never אי-שביעות רצון, never human_service until lookup runs after confirm.`
+        )
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
           "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → rep summary bullets → summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
