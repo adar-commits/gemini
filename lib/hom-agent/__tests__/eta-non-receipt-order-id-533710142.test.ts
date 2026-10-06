@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 import {
+  buildOrderStatusReply,
   extractOrderReference,
   isOrderDeliveryStatusQuestion,
+  mapPriorityOrderRow,
 } from "@/lib/agents/order-lookup"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -48,5 +50,18 @@ describe("eta non-receipt order id 533710142", () => {
     assert.match(BAD_REPLY, /נמסרה/)
     assert.match(BAD_REPLY, /שמחתי לעזור/)
     assert.doesNotMatch(BAD_REPLY, /איזה|מה הגיע|חסר|חוץ|סתירה/)
+  })
+
+  it("empty shipping status must not infer delivered from ORDSTATUSDES alone", () => {
+    const order = mapPriorityOrderRow({
+      ORDNAME: "SO26077957",
+      REFERENCE: "#77957",
+      ORDSTATUSDES: "הושלם",
+      ZPIT_DELSTATUSCODE: null,
+      ZPIT_DELSTATUSDES: null,
+    })
+    const reply = buildOrderStatusReply(order)
+    assert.doesNotMatch(reply, /מסומנת כנמסרה/)
+    assert.match(reply, /סטטוס ההזמנה במערכת: הושלם/)
   })
 })

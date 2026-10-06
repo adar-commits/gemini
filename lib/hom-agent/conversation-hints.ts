@@ -821,7 +821,7 @@ export function buildConversationHints(input: {
     (isShippingStatusQuestion(body) || isOrderDeliveryStatusQuestion(body))
   ) {
     lines.push(
-      `ETA OPENER + ORDER ID (533428072 / 533710142): customer asks when the order will arrive and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. If they also say טרם הגיע/לא קיבל/עדיין לא and status is delivered — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
+      `ETA OPENER + ORDER ID (533428072 / 533710142): customer asks when the order will arrive and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
     )
   }
 

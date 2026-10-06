@@ -21,10 +21,6 @@ const ORDER_STATUS_COPY: Array<{ pattern: RegExp; message: string }> = [
     pattern: /מבוטל/i,
     message: "ההזמנה מסומנת כבוטלה.",
   },
-  {
-    pattern: /הושלם|נמסר/i,
-    message: "ההזמנה מסומנת כנמסרה ליעדה בהצלחה.",
-  },
 ]
 
 /** Mapped Sheet2 copy only — null when ORDSTATUSDES is empty or not in the sheet. */

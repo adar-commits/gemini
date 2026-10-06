@@ -137,7 +137,7 @@ describe("delivery status terminology", () => {
     assert.doesNotMatch(reply, /אפשר לעזור במשהו נוסף/)
   })
 
-  it("uses ORDSTATUSDES הושלם when there is no shipment code, without a delivery date", () => {
+  it("uses neutral ORDSTATUSDES when there is no shipment code (533710142)", () => {
     const order = mapPriorityOrderRow({
       ORDNAME: "SO26075921",
       ORDSTATUSDES: "הושלם",
@@ -145,7 +145,8 @@ describe("delivery status terminology", () => {
     })
     assert.match(orderStatusDatePhrase(order), /נכון לתאריך 07\/09\/2026/)
     const reply = buildOrderStatusReply(order)
-    assert.match(reply, /מסומנת כנמסרה ליעדה/)
+    assert.match(reply, /סטטוס ההזמנה במערכת: הושלם/)
+    assert.doesNotMatch(reply, /מסומנת כנמסרה/)
     assert.doesNotMatch(reply, /לא ניתן להציג כרגע סטטוס משלוח/)
     assert.doesNotMatch(reply, /נמסר באמצעות שליח/)
     assert.doesNotMatch(reply, /נמסר בתאריך/)
@@ -173,7 +174,8 @@ describe("delivery status terminology", () => {
       ZPIT_DELDATE: "2026-09-05T00:00:00+03:00",
     })
     const reply = buildOrderStatusReply(order)
-    assert.match(reply, /מסומנת כנמסרה ליעדה/)
+    assert.match(reply, /סטטוס ההזמנה במערכת: הושלם/)
+    assert.doesNotMatch(reply, /מסומנת כנמסרה/)
     assert.doesNotMatch(reply, /נמסר באמצעות שליח/)
     assert.doesNotMatch(reply, /נמסר בתאריך/)
   })

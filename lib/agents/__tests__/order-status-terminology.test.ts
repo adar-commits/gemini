@@ -23,7 +23,8 @@ describe("order status terminology", () => {
     assert.match(buildOrderStatusMessage("לוקטה"), /ממתינה לאיסוף/)
     assert.match(buildOrderStatusMessage("מאושר לביצוע"), /בתהליכי אריזה/)
     assert.match(buildOrderStatusMessage("מבוטלת"), /בוטלה/)
-    assert.match(buildOrderStatusMessage("הושלם"), /נמסרה/)
+    assert.match(buildOrderStatusMessage("הושלם"), /סטטוס ההזמנה במערכת: הושלם/)
+    assert.doesNotMatch(buildOrderStatusMessage("הושלם") ?? "", /נמסרה/)
   })
 
   it("falls back to ORDSTATUSDES when ZPIT_DELSTATUSCODE is empty (532759384)", () => {

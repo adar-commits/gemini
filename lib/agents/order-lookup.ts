@@ -81,7 +81,10 @@ import {
   isUnknownDeliveryStatusMessage,
 } from "@/lib/agents/delivery-status-terminology"
 import { buildDeliveryEstimatePolicyReply } from "@/lib/agents/delivery-estimate-policy"
-import { buildKnownOrderStatusMessage } from "@/lib/agents/order-status-terminology"
+import {
+  buildKnownOrderStatusMessage,
+  buildOrderStatusMessage,
+} from "@/lib/agents/order-status-terminology"
 import {
   isValidIsraeliMobilePhone,
   isValidInventorySku,
@@ -370,12 +373,13 @@ function buildOrderPickExhaustedFallback(
 
 export function describeShipmentStatus(order: OrderShipmentStatus) {
   const statusId = String(order.statusCode ?? "").trim()
-  // No shipment code at all — customer copy comes from ORDSTATUSDES (Sheet2).
-  // A present but unmapped code (15 הוקפא, 99) stays unknown so order status
-  // cannot override a freeze or call the order delivered.
+  // No shipment code — fall back to mapped ORDSTATUSDES (Sheet2) or a neutral label.
+  // Never infer delivered from order status alone; delivery copy requires code 6/23.
   if (!statusId) {
     const fromOrderStatus = buildKnownOrderStatusMessage(order.orderStatus)
     if (fromOrderStatus) return fromOrderStatus
+    const neutralOrderStatus = buildOrderStatusMessage(order.orderStatus)
+    if (neutralOrderStatus) return neutralOrderStatus
   }
 
   const deliveryDate = formatHebrewCustomerDate(order.raw.ZPIT_DELDATE)
@@ -402,7 +406,9 @@ export function orderStatusDatePhrase(order: OrderShipmentStatus) {
   }
 
   const datedFromOrderStatus =
-    !statusId && Boolean(buildKnownOrderStatusMessage(order.orderStatus))
+    !statusId &&
+    (Boolean(buildKnownOrderStatusMessage(order.orderStatus)) ||
+      Boolean(String(order.orderStatus ?? "").trim()))
   if (!isMappedDeliveryStatusId(statusId) && !datedFromOrderStatus) return ""
 
   const lastUpdate = formatHebrewCustomerDateTime(order.raw.ZPIT_UDATE)
