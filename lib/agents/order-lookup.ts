@@ -1242,6 +1242,8 @@ export function isOrderDeliveryStatusQuestion(body: string) {
     /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|(?:^|\s)משלוח(?:\s|$)|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה|יגיע|יסופק|תסופק))/i.test(
       text
     ) ||
+    /(?:ל)?גבי\s+(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))/i.test(text) ||
+    /(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))/i.test(text) ||
     /(?:רוצ(?:ה|ים|ות)\s+לדעת|ברצוני\s+לדעת).*(?:מתי|יגיע|יסופק|מגיע|הגיע|סטטוס)/i.test(
       text
     ) ||
@@ -1487,6 +1489,7 @@ export function isOrderConfirmationYes(body: string) {
     return true
   }
   if (/^(?:אוקיי|אוקי|ok|okay|סבבה)(?:[\s,.!?]|$)/i.test(firstLine)) return true
+  if (/^כן\s+בבקשה(?:[\s,.!?]|$)/i.test(firstLine)) return true
   if (/^(?:זה|זו|זאת)\s+(?:נכון|ה(?:יא|וא)|מדובר)/i.test(firstLine)) return true
   if (/זה\s+המספר\s+שלי|המספר\s+(?:ה)?(?:נכון|שלי)/i.test(firstLine)) return true
   if (/(?:^|[\s,])(?:נראה|כנראה)\s+(?:לי\s+)?שכן(?:[\s,.!?]|$)/i.test(firstLine)) return true
