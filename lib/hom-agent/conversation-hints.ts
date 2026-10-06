@@ -303,6 +303,10 @@ export function buildConversationHints(input: {
   const lines: string[] = []
 
   const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
+  const shippingServiceThanksClose =
+    isThanksAcknowledgment(body) &&
+    isShippingThreadFromHistory(history) &&
+    !isHumanHandoffPending(history)
   const poufAssemblyFaqThread =
     isPoufAssemblyFaqThread(history) && !hasOngoingSalesIntake(history)
 
@@ -430,7 +434,16 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isOrderModificationRequest(body) || isOrderModificationInThread(history, body)) {
+  if (shippingServiceThanksClose) {
+    lines.push(
+      'SHIPPING SERVICE THANKS CLOSE (533476186): active delivery/missing-order thread — customer thanks after status update (human rep or bot). Warm close only (`action: end`, `crm_department: service`) — **never** `human_sales` / יועץ מכירות. Stale sales intake or old מעביר ליועץ מכירות from prior purchase threads does NOT apply on this closing turn.'
+    )
+  }
+
+  if (
+    !shippingServiceThanksClose &&
+    (isOrderModificationRequest(body) || isOrderModificationInThread(history, body))
+  ) {
     lines.push(
       'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166): customer wants to change color/size/model on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
     )
@@ -452,7 +465,10 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isSalesIntakeCompleteWithOptionalPhotoPending(history)) {
+  if (
+    isSalesIntakeCompleteWithOptionalPhotoPending(history) &&
+    !shippingServiceThanksClose
+  ) {
     lines.push(
       'SALES RECAP + OPTIONAL PHOTO (533759845): intake quiz is done — you already sent recap + optional room photo. Customer photo, "שלחתי תמונה", thanks, or waiting → `action: human_sales` NOW (מעביר ליועץ מכירות) with brief ack. Optional photo never blocks handoff; never stay on reply/faq. Quote sofa/room sizes exactly as the customer wrote — never invent (e.g. 2 מ׳ רוחב ≠ 2.5 מ׳).'
     )
