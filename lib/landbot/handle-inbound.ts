@@ -104,10 +104,16 @@ function salvagedReply(body: string, input?: { customerName?: string; history?: 
 /**
  * The voice-closure template is sent by the dashboard, not by the bot, so it is missing from
  * the bot's stored history. Record it once so the LLM answers with that context.
+ * Never re-inject after the bot has already replied in the same thread (534266493).
  */
 export function shouldRecordVoiceClosureTemplate(history: HistoryMessage[]) {
-  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
-  return !isVoiceClosureTemplateMessage(lastAssistant ? { body: lastAssistant.content } : null)
+  const hasVoiceTemplateInHistory = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isVoiceClosureTemplateMessage({ body: message.content })
+  )
+  if (hasVoiceTemplateInHistory) return false
+  return true
 }
 
 /** Final fallback when the pipeline produced no sendable reply — never a bare hold message. */

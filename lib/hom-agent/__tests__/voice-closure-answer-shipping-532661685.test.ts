@@ -25,6 +25,13 @@ describe("voice callback template → bot answers shipping check (532661685)", (
       shouldRecordVoiceClosureTemplate([{ role: "assistant", content: VOICE_CLOSURE_TEMPLATE_BODY }]),
       false
     )
+    assert.equal(
+      shouldRecordVoiceClosureTemplate([
+        { role: "assistant", content: "*הום בוט :)* היי יעל" },
+        { role: "assistant", content: VOICE_CLOSURE_TEMPLATE_BODY },
+      ]),
+      false
+    )
   })
 
   it("hints the LLM to answer the request and hand off to service only when needed", () => {
