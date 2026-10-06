@@ -1327,6 +1327,12 @@ export function isShippingThreadFromHistory(history: HistoryMessage[]) {
   )
 }
 
+/** ETA/shipping confirm thread — unknown delivery status stays action reply, not auto-handoff (532716685). */
+export function shouldDeferUnknownDeliveryStatusHandoff(history: HistoryMessage[]) {
+  if (!isShippingThreadFromHistory(history)) return false
+  return isKnownOrderConfirmPending(history) || isOrderConfirmationPending(history)
+}
+
 /** Thread opened with non-receipt shipping claim — not ETA timing, not yet partial delivery. */
 export function isNonReceiptShippingOpenerFromHistory(history: HistoryMessage[]) {
   const firstUser = history.find((message) => message.role === "user")

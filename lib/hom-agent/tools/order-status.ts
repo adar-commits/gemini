@@ -24,6 +24,7 @@ import {
   isOrderLookupCompletedInThread,
   orderIdGivenInThread,
   isShippingAddressUpdateThread,
+  shouldDeferUnknownDeliveryStatusHandoff,
   shouldLookupKnownOrderForCancel,
   shouldRefuseKnownOrderLookup,
   isOrderLookupPhoneReplyPending,
@@ -225,8 +226,11 @@ async function deliverOrderLookupReply(input: {
           "Order lookup could not interpret this turn. Answer the customer directly from context/KB; only retry the tool if they explicitly ask about a specific order status.",
       }
     }
+    const history = input.history ?? []
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
-      ? ("human_service" as const)
+      ? shouldDeferUnknownDeliveryStatusHandoff(history)
+        ? ("reply" as const)
+        : ("human_service" as const)
       : /מעביר.*יועץ מכירות/i.test(trimmed)
         ? ("human_sales" as const)
       : isResolvedStatusCloseReply(trimmed)

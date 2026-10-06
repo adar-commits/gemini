@@ -128,6 +128,7 @@ import {
   mentionsCancellationDesire,
   isServiceLookupContext,
   isShippingLookupContext,
+  shouldDeferUnknownDeliveryStatusHandoff,
   requiresOrderIdentification,
   isServiceHandoffOrderLookupReply,
   resolveOrderShippingReply,
@@ -850,7 +851,9 @@ export async function runStructuredOrderLookupPreTurn(input: {
   }
 
   const action: HomAgentAction = /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply)
-    ? "human_service"
+    ? shouldDeferUnknownDeliveryStatusHandoff(input.history)
+      ? "reply"
+      : "human_service"
     : isResolvedStatusCloseReply(reply)
       ? "end"
       : "reply"
