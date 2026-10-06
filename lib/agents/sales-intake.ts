@@ -102,6 +102,19 @@ export function isPastOrderSizeRecallQuestion(text: string) {
   return PAST_ORDER_SIZE_RECALL_RE.test(trimmed)
 }
 
+const ORDER_PRODUCT_IDENTITY_RE =
+  /(?:רוצ(?:ה|יתי)|לדעת).{0,40}איז(?:ה|ו)\s+שטיח|איז(?:ה|ו)\s+שטיח\s+(?:זה|הוא)|(?:ממה|מאיז(?:ה|ו)\s+(?:חומר|סיב)).{0,30}(?:עשוי|מיוצר)/i
+
+/** Customer asks which carpet / material is on their order — lookup line items, not handoff (294198093). */
+export function isOrderProductIdentityQuestion(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || trimmed.length <= 2) return false
+  if (isBedRugSizingConsultation(trimmed)) return false
+  if (isOutdoorBalconyRugConsultation(trimmed)) return false
+  if (/^(?:\?+|!+)$/.test(trimmed)) return false
+  return ORDER_PRODUCT_IDENTITY_RE.test(trimmed)
+}
+
 const SPECIFIC_PRODUCT_RE =
   /דגם|sku|קזבלנקה|גארדה|collection|www\.|carpetshop\.co\.il\/products/i
 

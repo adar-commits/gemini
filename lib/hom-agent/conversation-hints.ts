@@ -167,6 +167,7 @@ import {
   isBedRugSizingConsultation,
   isOutdoorBalconyRugConsultation,
   isOutdoorBalconyRugThread,
+  isOrderProductIdentityQuestion,
   isPastOrderSizeRecallQuestion,
   isSalesIntakeCompleteWithOptionalPhotoPending,
   isSalesPhotoDeclineAnswer,
@@ -358,6 +359,14 @@ export function buildConversationHints(input: {
     (isPastOrderSizeRecallQuestion(body) ||
       substantiveUserMessages(history).some((message) =>
         isPastOrderSizeRecallQuestion(message.content)
+      ))
+
+  const orderProductIdentityPending =
+    !isOrderLookupCompletedInThread(history) &&
+    !isOrderConfirmationPending(history) &&
+    (isOrderProductIdentityQuestion(body) ||
+      substantiveUserMessages(history).some((message) =>
+        isOrderProductIdentityQuestion(message.content)
       ))
 
   const blockSalesTransferForPastOrderSize =
@@ -1251,6 +1260,12 @@ export function buildConversationHints(input: {
   if (pastOrderSizeRecallPending) {
     lines.push(
       'PAST ORDER SIZE RECALL (534159887): customer asks what size they ordered before — call lookup_order_status on the channel phone first. After order confirm, answer size from line items. If they also ask whether you are human (נציג אנושי) — say briefly you are the bot, then continue lookup; do not skip to handoff. Never claim you have no access without running the tool. Never invent a product/model name not stated by the customer in this thread. human_sales only after lookup fails or they explicitly want an advisor to reorder.'
+    )
+  }
+
+  if (orderProductIdentityPending) {
+    lines.push(
+      'ORDER PRODUCT IDENTITY (294198093): customer asks which carpet / what material is on their order — call lookup_order_status on the channel phone → order confirm → after confirm list line items (product name). For material: use product name + KB when available; if not in order data, say briefly and offer human_service only if they need more detail or lookup fails. Never apologize and hand off without lookup. Never reply with shipping status alone when they asked product identity/material. action reply until answered or lookup fails.'
     )
   }
 
