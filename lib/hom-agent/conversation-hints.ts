@@ -1240,7 +1240,7 @@ export function buildConversationHints(input: {
       )
     } else if (isShippingThreadFromHistory(history)) {
       lines.push(
-        `KNOWN ORDER CONFIRM + ETA (533011641 / 532732459): thread opened with delivery timing and you asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) → call lookup_order_status with that id now. Answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Pre Order line → explain הזמנה מוקדמת and the expected date. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון. Never "לא הצלחתי להבין". Never human_service unless they ask for a rep.`
+        `KNOWN ORDER CONFIRM + ETA (533011641 / 532732459 / 528863688): thread opened with delivery timing and you asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) → call lookup_order_status with that id now. If they ask where to find the order number — explain briefly (confirmation email/SMS, invoice # prefix, SO on tracking link) and re-ask if ${known ?? "that SO"} is theirs. Answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Pre Order line → explain הזמנה מוקדמת and the expected date. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון. Never "לא הצלחתי להבין". Never human_service unless they ask for a rep.`
       )
     } else {
       lines.push(
