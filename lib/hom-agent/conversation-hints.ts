@@ -78,6 +78,7 @@ import {
   isDigitalDocumentRequest,
   outboundDocumentDeliveryInThread,
   isOutboundDocumentDeliveryMessage,
+  isReceiptReferencePresentation,
   lastAssistantWasOutboundDocumentDelivery,
   shouldDeferDocumentFlowToOrderLookup,
   shouldReleaseStructuredDocumentFlow,
@@ -805,6 +806,32 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `ETA OPENER + ORDER ID (533428072 / 533710142): customer asks when the order will arrive and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. If they also say טרם הגיע/לא קיבל/עדיין לא and status is delivered — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
+    )
+  }
+
+  const threadKnownOrder = orderIdGivenInThread(history)
+  if (
+    threadKnownOrder &&
+    !isOrderLookupCompletedInThread(history) &&
+    isDeliveryEtaThread(history) &&
+    (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body)) &&
+    !isKnownOrderConfirmPending(history) &&
+    !isServiceOrderIdentificationFlow(history, body) &&
+    !shippingOpenerOrderId
+  ) {
+    lines.push(
+      `REPEAT ETA KNOWN ORDER (531872131): delivery thread already names order ${threadKnownOrder} — customer repeats מתי/מועד הגעה (e.g. after receipt ref RC…, automated invoice, or stale service summary). Call lookup_order_status with ${threadKnownOrder} now — answer status + ETA policy. Never "אין לי צפi מדויק" + human_service without running the tool first. Receipt/RC numbers are order refs on this thread — not fetch_digital_document. action reply unless they explicitly ask for a rep after status.`
+    )
+  }
+
+  if (
+    isShippingThreadFromHistory(history) &&
+    isReceiptReferencePresentation(body) &&
+    threadKnownOrder &&
+    shouldDeferDocumentFlowToOrderLookup(history, body)
+  ) {
+    lines.push(
+      `RECEIPT REF ON SHIPPING (531872131): customer sent a receipt/RC reference on a delivery/ETA thread — call lookup_order_status with ${threadKnownOrder} (never the RC as the lookup id), never fetch_digital_document. Continue answering מתי/מועד הגעה from live status.`
     )
   }
 
