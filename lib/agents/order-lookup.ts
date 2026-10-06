@@ -1013,6 +1013,44 @@ export function orderSummaryFromConfirmationHistory(
   return null
 }
 
+/** Shopify # / מס׳ הזמנה when invoice lookup failed but the customer named both in the same turn. */
+export function supplementalOrderReferencesForLookup(
+  body: string,
+  history: HistoryMessage[] = [],
+  primaryReference: string
+): string[] {
+  const seen = new Set<string>()
+  const primary = primaryReference.trim().toUpperCase()
+  const primaryDigits = primary.replace(/\D/g, "")
+  if (primary) seen.add(primary)
+  if (primaryDigits) seen.add(primaryDigits)
+
+  const refs: string[] = []
+  const corpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .slice(-6)
+      .map((message) => message.content),
+  ]
+
+  for (const text of corpus) {
+    const withoutDocumentIds = stripMediaAndUrls(text).replace(
+      /\b(?:SO|IN|OV)\s*\d+\b/gi,
+      " "
+    )
+    const ref = extractOrderReference(withoutDocumentIds, history)
+    if (!ref || /^(?:SO|IN|OV)/i.test(ref)) continue
+    const digits = ref.replace(/\D/g, "")
+    if (!digits || seen.has(digits) || seen.has(ref.toUpperCase())) continue
+    seen.add(digits)
+    seen.add(ref.toUpperCase())
+    refs.push(ref)
+  }
+
+  return refs
+}
+
 /** Order reference from customer reply — prefixed (SO/IN/OV), Shopify #, or bare digits (not a phone). */
 export function extractOrderReference(rawText: string, history: HistoryMessage[] = []) {
   const text = stripMediaAndUrls(rawText)
@@ -3342,6 +3380,23 @@ async function lookupOrderByReference(input: {
   if (matched) {
     return replyAfterOrderIdentified(matched, input.lookupPhone, input.history, input.body)
   }
+
+  for (const supplemental of supplementalOrderReferencesForLookup(
+    input.body,
+    input.history,
+    input.orderReference
+  )) {
+    const fallback = findOrderByNumber(orders, supplemental)
+    if (fallback) {
+      return replyAfterOrderIdentified(
+        fallback,
+        input.lookupPhone,
+        input.history,
+        input.body
+      )
+    }
+  }
+
   if (!alternatePhoneAskedInThread(input.history)) {
     return buildOrderNotOnPhoneAskOrderPhonePrompt(
       input.orderReference,
@@ -3718,20 +3773,12 @@ export async function resolveOrderShippingReply(input: {
       resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
       channelPhone(whatsappPhone)
     if (lookupPhone) {
-      const orders = await lookupOrdersForPhone(lookupPhone)
-      if (orders == null) return buildOrderLookupApiFailureReply()
-      const matched = findOrderByDocumentReference(orders, shippingDocumentRef)
-      if (matched) {
-        return replyAfterOrderIdentified(matched, lookupPhone, history, body)
-      }
-      if (orders.length > 0) {
-        return buildOrderNumberNotFoundReply(
-          shippingDocumentRef,
-          history,
-          body
-        )
-      }
-      return buildNoOrdersFoundReply(lookupPhone)
+      return lookupOrderByReference({
+        orderReference: shippingDocumentRef,
+        lookupPhone,
+        body,
+        history,
+      })
     }
   }
 
