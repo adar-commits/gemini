@@ -43,3 +43,43 @@ describe("expired credit approval handoff (392297515)", () => {
     assert.match(hints, /Never.*מעביר/)
   })
 })
+
+const RE_ESCALATION_BODY =
+  "אני מנסה כבר מעל שבוע לתפוס את שירות הלקוחות לגבי זיכוי שיש לי אצלכם ואף אחד לא חוזר אלי"
+
+const BAD_RE_ESCALATION_REPLY =
+  "*הום בוט :)*\nצודק, עבר יותר משבוע ואף אחד לא חזר עם תשובה על הזיכוי. מצטער על זה.\n\nהעברתי עכשיו את הפנייה לנציג שירות עם כל הפרטים: זיכוי שתוקפו פג, הבקשה לאישור מהשבוע שעבר, ושעדיין אין תשובה. הנציג יחזור למספר 050-9110844.\n\nאם יש לך את קוד הזיכוי, אפשר לשלוח אותו כאן והוא יתווסף לפנייה."
+
+function historyThroughPriorHandoff(): HistoryMessage[] {
+  return [
+    { role: "user", content: OPENING },
+    { role: "assistant", content: BAD_SUMMARY },
+    { role: "user", content: "נכון מצויין" },
+    {
+      role: "assistant",
+      content: "*הום בוט :)*\nמעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם.",
+    },
+    { role: "user", content: "תודה רבה" },
+    { role: "assistant", content: "*הום בוט :)*\nבשמחה! הנציג כבר קיבל את הפנייה." },
+    { role: "user", content: "היי עדיין לא חזרו אלי" },
+  ]
+}
+
+/** Replay 392297515 Oct 5 — no-callback re-escalation must bind העברתי to human_service. */
+describe("expired credit no-callback re-escalation (392297515)", () => {
+  it("bad re-escalation reply uses past-tense transfer wording without human_service", () => {
+    assert.match(BAD_RE_ESCALATION_REPLY, /העברתי\s+עכשיו/)
+    assert.match(BAD_RE_ESCALATION_REPLY, /נציג שירות/)
+  })
+
+  it("emits no-callback re-escalation hint requiring human_service", () => {
+    const hints =
+      buildConversationHints({
+        history: historyThroughPriorHandoff(),
+        body: RE_ESCALATION_BODY,
+      }) ?? ""
+    assert.match(hints, /NO-CALLBACK RE-ESCALATION/)
+    assert.match(hints, /human_service/)
+    assert.doesNotMatch(hints, /service_summary_confirm/)
+  })
+})

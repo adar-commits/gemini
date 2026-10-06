@@ -210,6 +210,27 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   )
 }
 
+function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: string) {
+  const text = body.trim()
+  if (!text || text.length > 280) return false
+  if (!/זיכוי/i.test(text)) return false
+  if (
+    !/(?:אף\s+אחד\s+לא|עדיין\s+לא\s+חזר|לא\s+חזר(?:ו|ה)?(?:\s+אלי(?:י|ך))?|מנסה.*(?:תפוס|להשיג).*שירות)/i.test(
+      text
+    )
+  ) {
+    return false
+  }
+  if (!history.some((m) => /זיכוי/i.test(m.content))) return false
+  return history.some(
+    (m) =>
+      m.role === "assistant" &&
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|הנציג\s+כבר\s+קיבל|ניצור\s+קשר\s+בהקדם)/i.test(
+        m.content
+      )
+  )
+}
+
 function userTurnFromBody(body: string): UserTurn {
   const media: UserTurn["media"] = []
   for (const match of body.matchAll(/\[media:image:([^\]]+)\]/gi)) {
@@ -1003,7 +1024,14 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isExpiredCreditNoCallbackReEscalation(history, body)) {
+    lines.push(
+      "EXPIRED CREDIT NO-CALLBACK RE-ESCALATION (392297515): customer returned after prior human_service on expired-credit approval — empathize briefly, recap case + phone, write העברתי/מעביר לנציג שירות **now** with action human_service + crm_department service in the **same** JSON. No second 'זה מדויק?' summary — assign immediately. Never action reply with העברתי/העברתי."
+    )
+  }
+
   if (
+    !isExpiredCreditNoCallbackReEscalation(history, body) &&
     /זיכוי/i.test(body) &&
     /(?:פג(?:\s+תוקפ)?|תוקף|עבר\s+חודש)/i.test(body) &&
     /(?:אישור|לא\s+חזר|דיברת|פנ(?:ית|יתי)|שבוע)/i.test(body)
