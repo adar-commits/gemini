@@ -2344,7 +2344,9 @@ export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]
     if (
       !isOrderConfirmationNo(body) &&
       !isIdentifiedOrderRejection(body) &&
-      isShippingThreadFromHistory(history) &&
+      (isShippingThreadFromHistory(history) ||
+        isShippingStatusQuestion(body) ||
+        isOrderDeliveryStatusQuestion(body)) &&
       body.trim().length > 0
     ) {
       return true

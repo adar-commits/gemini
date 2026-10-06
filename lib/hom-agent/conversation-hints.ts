@@ -750,7 +750,7 @@ export function buildConversationHints(input: {
       isOrderLookupCompletedInThread(history))
   ) {
     lines.push(
-      "CALLBACK URGENCY + SHIPPING (262348751): urgent phone callback while delivery is still open — brief empathize, answer shipping/status if you can, then action human_service + crm_department service. Never replay a stale sales intake summary or human_sales — this is שירות."
+      "CALLBACK URGENCY + SHIPPING (262348751 / 530810101): urgent phone callback while delivery is still open — call lookup_order_status first when lookup is not completed yet, then brief empathize + status, then action human_service + crm_department service. Never replay a stale sales intake summary or human_sales — this is שירות."
     )
   }
 
@@ -1346,7 +1346,7 @@ export function buildConversationHints(input: {
       )
     } else {
       lines.push(
-        `KNOWN ORDER CONFIRM (404732305 / 508272038 / 532767659 / 533760226): you already asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון on an expedite/status-check thread. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service.`
+        `KNOWN ORDER CONFIRM (404732305 / 508272038 / 530810101 / 532767659 / 533760226): you already asked if they mean order ${known ?? "from the receipt"}. כן OR כן תבדוק/תבדקו OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע, לא מגיעה, לא חזרו) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון on an expedite/status-check thread. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date, then action end. Never "לא הצלחתי להבין". Never human_service before lookup.`
       )
     }
   }
