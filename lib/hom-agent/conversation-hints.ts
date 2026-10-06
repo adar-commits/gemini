@@ -103,6 +103,7 @@ import {
   needsExchangeKindQuestion,
 } from "@/lib/agents/exchange-intake"
 import {
+  hasImmediateBusinessAsk,
   isCasualGreeting,
   isCasualSmallTalk,
   extractLeadingGreeting,
@@ -612,6 +613,19 @@ export function buildConversationHints(input: {
   if (greetingAfterDocumentDelivery) {
     lines.push(
       'FRESH START after invoice/receipt delivery: customer said hello to begin anew — mirror hello warmly (e.g. "היי! 😊") and ask how you can help. NOT a thanks wrap-up — never "בשמחה! אם יעלה עוד משהו".'
+    )
+  }
+
+  const wrongPhoneAfterProactiveSms =
+    lastAssistantWasOutboundDocumentDelivery(history) &&
+    history.filter((message) => message.role === "user").length === 1 &&
+    !greetingAfterDocumentDelivery &&
+    !isThanksAcknowledgment(body) &&
+    !hasImmediateBusinessAsk(body)
+
+  if (wrongPhoneAfterProactiveSms) {
+    lines.push(
+      'WRONG PHONE / MISTaken proactive SMS (534285929): first reply to automated receipt+tracking template reporting wrong phone / not their order / «טעות במספר» — apologize briefly, say they can ignore it, note you logged for ops to fix the phone on the order. **`action: reply`** — **never** `human_service` unless they explicitly ask for נציג. No lookup_order_status.'
     )
   }
 
