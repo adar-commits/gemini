@@ -361,7 +361,48 @@ export function isSalesPhotoRequestPending(history: HistoryMessage[]) {
 }
 
 const CUSTOMER_PHOTO_UPLOAD_ASK_RE =
-  /אפשר\s+(?:פשוט\s+)?(?:ל)?(?:העל(?:ות|ה)|של(?:ח|וח)|צר(?:ף|ור))(?:\/י)?\s+תמונה/i
+  /(?:אפשר|יכ(?:ול(?:ה|ים)?|ול(?:ים|ות)?))\s+(?:פשוט\s+)?(?:ל)?(?:העל(?:ות|ה)|של(?:ח|וח)|צר(?:ף|ור))(?:\/י)?\s+תמונה|(?:ש(?:לח|לוח)(?:\/י)?|לשל(?:ח|וח))\s+.*\s+תמונה/i
+
+/** Customer offers to send a room photo mid-intake — format detection only. */
+export function isSalesCustomerPhotoOfferRequest(body: string) {
+  return CUSTOMER_PHOTO_UPLOAD_ASK_RE.test(body.trim())
+}
+
+/** Room photo invited or offered — no customer image attached yet. */
+export function isSalesRoomPhotoAwaitingAttachment(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (/\[media:image:/i.test(body)) return false
+  if (isSalesCustomerPhotoOfferRequest(body)) return true
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (
+      !SALES_PHOTO_REQUEST_RE.test(message.content) ||
+      isServiceEvidencePhotoRequest(message.content)
+    ) {
+      continue
+    }
+    for (let after = index + 1; after < history.length; after += 1) {
+      if (
+        history[after].role === "user" &&
+        /\[media:image:/i.test(history[after].content)
+      ) {
+        return false
+      }
+    }
+    return true
+  }
+  return false
+}
+
+/** Space/room already captured in sales intake from thread context. */
+export function hasSalesIntakeSpaceCaptured(history: HistoryMessage[], body: string) {
+  return Boolean(extractSalesIntake(history, body).targetSpace)
+}
 
 const SOFA_SIZING_QUESTION_RE =
   /מידת הספה|גודל(?:\s+כללי)?\s+של\s+הסלון|גודל\s+הסלון|בערך\s+גודל\s+הסלון/i

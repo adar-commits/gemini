@@ -170,8 +170,11 @@ import {
   isOrderProductIdentityQuestion,
   isPastOrderSizeRecallQuestion,
   isSalesIntakeCompleteWithOptionalPhotoPending,
+  hasSalesIntakeSpaceCaptured,
+  isSalesCustomerPhotoOfferRequest,
   isSalesPhotoDeclineAnswer,
   isSalesPhotoRequestPending,
+  isSalesRoomPhotoAwaitingAttachment,
   pendingSalesIntakeQuestionKind,
   isSalesSizingPhotoSubstitutePending,
   isServiceEvidencePhotoRequestPending,
@@ -493,6 +496,26 @@ export function buildConversationHints(input: {
   if (salesIntakeActive) {
     lines.push(
       'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר ליועץ מכירות) — never אני צודק? and never wait for approval.'
+    )
+  }
+
+  if (
+    hasOngoingSalesIntake(history) &&
+    hasSalesIntakeSpaceCaptured(history, body) &&
+    !/\[media:image:/i.test(body)
+  ) {
+    lines.push(
+      'SALES INTAKE SPACE CAPTURED (534344486): room/space already stated in the thread (e.g. סלון) — **never** re-ask לאיזה חדר / לאיזה חלל. Ack what you have (תודה, רשמתי…) and ask the **next** unanswered intake step only.'
+    )
+  }
+
+  if (
+    hasOngoingSalesIntake(history) &&
+    isSalesRoomPhotoAwaitingAttachment(history, body) &&
+    !isSalesPhotoDeclineAnswer(body)
+  ) {
+    lines.push(
+      'SALES PHOTO OFFER PENDING (534344486): customer offered a room photo or you invited one — invite them to attach **now** and **wait**. **`action: reply`** — **never** ask pets, sofa size, or another quiz step in the same turn until the photo arrives or they decline (לא/אין/דילוג). Never combine photo invite + בעלי חיים in one message.'
     )
   }
 
