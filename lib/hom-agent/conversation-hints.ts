@@ -240,6 +240,15 @@ function isCallbackRepeatAfterHandoff(history: HistoryMessage[], body: string) {
   )
 }
 
+function isStoreCreditValidityExtensionRequest(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 400) return false
+  if (!/זיכוי/i.test(text)) return false
+  if (!/(?:האריך|הארכת|להאריך|תוקף|אחרי\s+חודש)/i.test(text)) return false
+  if (!/(?:החזר|בסניף|בחנות|שמ(?:ור|איר))/i.test(text)) return false
+  return true
+}
+
 function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: string) {
   const text = body.trim()
   if (!text || text.length > 280) return false
@@ -1237,6 +1246,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "STORE CREDIT FOR EXCHANGE (533474035): customer wants credit toward another rug (not cash refund). Explain eligibility briefly (unused + original packaging → credit code), then action human_service in the same JSON when you write מעביר לנציג — rep issues credit on the order. Never action reply with declarative מעביר."
+    )
+  }
+
+  if (isStoreCreditValidityExtensionRequest(body)) {
+    lines.push(
+      "STORE CREDIT VALIDITY EXTENSION (325658694): branch return + credit kept for future purchase — customer needs to extend credit validity. Empathize briefly, bullet case + phone, action human_service + crm_department service in the **same** JSON when you write מעביר לנציג. Never action reply with declarative מעביר."
     )
   }
 
