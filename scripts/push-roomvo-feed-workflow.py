@@ -391,33 +391,22 @@ def build_workflow_nodes(
         node(
             id="roomvo-log",
             name="Append Log Row",
-            type="n8n-nodes-base.googleSheets",
-            type_version=4.7,
+            type="n8n-nodes-base.httpRequest",
+            type_version=4.4,
             position=[1900, 620],
             parameters={
-                "operation": "append",
-                "documentId": {
-                    "__rl": True,
-                    "mode": "id",
-                    "value": SHEET_ID,
-                },
-                "sheetName": {
-                    "__rl": True,
-                    "mode": "name",
-                    "value": "Log",
-                },
-                "columns": {
-                    "mappingMode": "defineBelow",
-                    "value": {
-                        "Date": expr("{{ $('Build Roomvo Feed').item.json.logRow[0] }}"),
-                        "RowsCreated": expr(
-                            "{{ $('Build Roomvo Feed').item.json.logRow[1] }}"
-                        ),
-                        "NewSkusMissingFilters": expr(
-                            "{{ $('Build Roomvo Feed').item.json.logRow[2] }}"
-                        ),
-                    },
-                },
+                "method": "POST",
+                "url": (
+                    f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}"
+                    "/values/Log:append?valueInputOption=USER_ENTERED"
+                ),
+                "authentication": "predefinedCredentialType",
+                "nodeCredentialType": "googleSheetsOAuth2Api",
+                "sendBody": True,
+                "specifyBody": "json",
+                "jsonBody": expr(
+                    "{{ JSON.stringify({ values: [ $('Build Roomvo Feed').item.json.logRow ] }) }}"
+                ),
                 "options": {},
             },
             credentials=sheets_cred,

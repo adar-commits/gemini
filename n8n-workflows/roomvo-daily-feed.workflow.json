@@ -243,32 +243,20 @@
     {
       "id": "roomvo-log",
       "name": "Append Log Row",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
       "position": [
         1900,
         620
       ],
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "1-1Hqtq0iyomItaf7dU4q4JHJgIZ1a0hCKIojVDUdWoE"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Log"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Date": "={{ $('Build Roomvo Feed').item.json.logRow[0] }}",
-            "RowsCreated": "={{ $('Build Roomvo Feed').item.json.logRow[1] }}",
-            "NewSkusMissingFilters": "={{ $('Build Roomvo Feed').item.json.logRow[2] }}"
-          }
-        },
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1-1Hqtq0iyomItaf7dU4q4JHJgIZ1a0hCKIojVDUdWoE/values/Log:append?valueInputOption=USER_ENTERED",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ values: [ $('Build Roomvo Feed').item.json.logRow ] }) }}",
         "options": {}
       },
       "credentials": {
