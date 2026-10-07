@@ -17,6 +17,9 @@ const BOT_CONFIRM_2 =
 const BODY = "כניראה\nהמס טל הזה הוא שלי"
 const BAD_REPLY =
   "*הום בוט :)*\nתודה רמי, רשמתי שההזמנה על הטלפון שלך, 0529468606.\n\nכרגע אני לא יכול להציג כאן את סטטוס ההזמנה של 2 השטיחים העגולים, לכן אני מעביר אותך לנציג שירות שיבדוק ויעדכן אותך."
+const REPEAT_BODY = "מה קורה עים המישלוח של השטיחים"
+const REPEAT_BAD_REPLY =
+  "*הום בוט :)*\nרמי, מצטער שעדיין אין לך תשובה.\n\nאני לא יכול להציג כאן את סטטוס המשלוח של 2 השטיחים העגולים (הזמנה SO26024984), לכן אני מעביר אותך עכשיו לנציג שירות."
 
 /** Replay 534269217 — status opener + receipt confirm must lookup, not handoff. */
 describe("order status confirm 534269217", () => {
@@ -49,5 +52,40 @@ describe("order status confirm 534269217", () => {
   it("bad reply handed off without lookup", () => {
     assert.match(BAD_REPLY, /לא יכול להציג/)
     assert.match(BAD_REPLY, /מעביר/)
+  })
+
+  const repeatHistory: HistoryMessage[] = [
+    { role: "user", content: OPENER },
+    { role: "assistant", content: BOT_CONFIRM_1 },
+    { role: "user", content: "הזמנת 2 שטיחים עגולים לא יודע מה מיס ההזמנה" },
+    { role: "assistant", content: BOT_CONFIRM_2 },
+    { role: "user", content: BODY },
+    { role: "assistant", content: BAD_REPLY },
+    { role: "user", content: "אפשר לדבר עים נציג שרות" },
+    {
+      role: "assistant",
+      content:
+        "היי 😀👋, מחלקת שירות הלקוחות שלנו פועלת ב-WhatsApp / אימייל בלבד. פונה אליך בהמשך לשיחתך הטלפונית, איך אוכל לעזור?",
+    },
+  ]
+
+  it("repeat shipping after premature handoff binds to lookup — not another handoff", () => {
+    const hints = buildConversationHints({ body: REPEAT_BODY, history: repeatHistory }) ?? ""
+    assert.match(hints, /REPEAT SHIPPING AFTER PREMATURE HANDOFF \(534269217\)/)
+    assert.match(hints, /SO26024984/)
+    assert.match(hints, /lookup_order_status/)
+    assert.match(hints, /Never "לא יכול להציג"/)
+  })
+
+  it("prompt teaches repeat shipping after premature handoff", () => {
+    const line = prompt.split("\n").find((l) => l.includes("Repeat shipping after premature handoff"))
+    assert.ok(line, "missing repeat shipping rule for 534269217")
+    assert.match(line!, /lookup_order_status/)
+    assert.match(line!, /534269217/)
+  })
+
+  it("repeat bad reply handed off again without lookup", () => {
+    assert.match(REPEAT_BAD_REPLY, /לא יכול להציג/)
+    assert.match(REPEAT_BAD_REPLY, /מעביר/)
   })
 })

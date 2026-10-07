@@ -357,6 +357,17 @@ function isDeliveryEtaThread(history: HistoryMessage[]) {
   )
 }
 
+/** Bot handed off claiming it cannot show status — lookup never ran (534269217). */
+function hasPrematureHandoffWithoutLookupInThread(history: HistoryMessage[]) {
+  if (isOrderLookupCompletedInThread(history)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      hasDeclarativeHandoffTransfer(message.content) &&
+      /לא\s+(?:יכול|ניתן)\s+(?:להציג|לראות)/i.test(message.content)
+  )
+}
+
 function isPoliteOrderConfirmYes(body: string) {
   return /^כן\s+בבקשה(?:[\s,.!?]|$)/i.test(body.trim())
 }
@@ -903,8 +914,25 @@ export function buildConversationHints(input: {
   if (
     threadKnownOrder &&
     !isOrderLookupCompletedInThread(history) &&
+    hasPrematureHandoffWithoutLookupInThread(history) &&
+    (isOrderDeliveryStatusQuestion(body) ||
+      isShippingStatusQuestion(body) ||
+      isOrderStatusProgressOpener(body)) &&
+    !isKnownOrderConfirmPending(history) &&
+    !isServiceOrderIdentificationFlow(history, body)
+  ) {
+    lines.push(
+      `REPEAT SHIPPING AFTER PREMATURE HANDOFF (534269217): order ${threadKnownOrder} was confirmed but lookup_order_status never ran — you already handed off once claiming you cannot show status. Customer repeats delivery/ETA ask (מה קורה עם המשלוח/ההזמנה). Call lookup_order_status with ${threadKnownOrder} now — answer status + ETA policy. Never "לא יכול להציג" or human_service again unless lookup fails AND they explicitly ask for a rep this turn. action reply.`
+    )
+  }
+
+  if (
+    threadKnownOrder &&
+    !isOrderLookupCompletedInThread(history) &&
     isDeliveryEtaThread(history) &&
-    (isOrderDeliveryStatusQuestion(body) || isShippingStatusQuestion(body)) &&
+    (isOrderDeliveryStatusQuestion(body) ||
+      isShippingStatusQuestion(body) ||
+      isOrderStatusProgressOpener(body)) &&
     !isKnownOrderConfirmPending(history) &&
     !isServiceOrderIdentificationFlow(history, body) &&
     !shippingOpenerOrderId
