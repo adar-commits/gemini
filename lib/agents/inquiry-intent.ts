@@ -532,6 +532,10 @@ const ALREADY_INITIATED_RETURN_EXCHANGE_RE =
 const MISSING_ITEM_RE =
   /(?:קיבלתי|הגיע(?:ה|ו)?)\s+רק|רק\s+(?:אח(?:ת|ד)|חלק|ח(?:מ)?יש(?:ה|ית)?)|(?:\d+|שת(?:י|יים|יים)?)\s+הזמנות.*(?:קיבלתי|הגיע).*רק|חסר(?:ים|ה)?\s+(?:לי\s+)?(?:פריט|מוצר|שטיח|חלק)|(?:לא\s+(?:קיבלתי|הגיע(?:ה|ו)?)\s+(?:את\s+)?(?:ה?(?:שני|2|שאר)))|(?:קיבלתי|הגיע(?:ה|ו)?)\s+(?:את\s+)?(?:ה?(?:שני|2|שאר))|רק\s+חלק\s+מ(?:ן|)?(?:ה)?הזמנה|משלוח\s+חסר/i
 
+/** Same product twice / extra unit not ordered — service pickup, not shipping status. */
+const DUPLICATE_EXTRA_ITEM_RE =
+  /(?:ש(?:ל)?ח(?:ו)?(?:ו)?|הגיע(?:ו|ה)?|קיבלתי).{0,40}(?:נוסף|פעמיים|כפול)|(?:נוסף|פעמיים|כפול).{0,40}(?:ש(?:לא|ל)\s+הזמנ|לא\s+הזמנ)|(?:ש(?:לא|ל)\s+הזמנתי|לא\s+הזמנתי).{0,30}(?:שטיח|מוצר|פריט)|(?:אות[oa])\s+שטיח\s+פעמיים/i
+
 function isPolicyInformationQuestion(text: string) {
   if (isRefundTimelineQuestion(text)) return true
   return /(?:איך|מה\s+(?:ה)?(?:דרך|מדיניות|אפשר|עושים|לעשות)|מה\s+(?:ה)?(?:אפשרויות|אופציות))/i.test(
@@ -622,6 +626,15 @@ function matchesMissingItem(text: string) {
   return MISSING_ITEM_RE.test(text)
 }
 
+function matchesDuplicateExtraItem(text: string) {
+  if (!text) return false
+  return DUPLICATE_EXTRA_ITEM_RE.test(text)
+}
+
+export function isDuplicateOrExtraItemComplaint(body: string) {
+  return matchesDuplicateExtraItem(body.trim())
+}
+
 function matchesReturnPickupPending(text: string) {
   return isActiveReturnExchangePickupCase(text)
 }
@@ -683,6 +696,9 @@ export function classifyPostPurchaseCase(body: string): PostPurchaseCaseKind | n
   }
   for (const text of candidates) {
     if (matchesExchangeRequest(text)) return "exchange_request"
+  }
+  for (const text of candidates) {
+    if (matchesDuplicateExtraItem(text)) return "missing_item"
   }
   for (const text of candidates) {
     if (matchesMissingItem(text)) return "missing_item"

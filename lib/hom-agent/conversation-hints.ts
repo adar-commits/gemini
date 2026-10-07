@@ -48,6 +48,7 @@ import {
   isCreditCodeOnlineRedemptionRequest,
   isCreditRedemptionQuestion,
   isDefectReplacementStatusQuestion,
+  isDuplicateOrExtraItemComplaint,
   isMissingOrPartialDeliveryComplaint,
   isOrderModificationRequest,
   isRefundTimelineQuestion,
@@ -1386,6 +1387,18 @@ export function buildConversationHints(input: {
   if (postPurchaseKind === "missing_item") {
     lines.push(
       "MISSING ITEM / PARTIAL DELIVERY: service case, NOT document copy. lookup_order_status → order confirm (no product list on card) → after כן, if customer already named the missing product in thread (e.g. הגיע רק… מדבקות) skip numbered pick and go to rep summary; only when multiple line items AND missing product not yet named → numbered pick → rep summary with פריט חסר → human_service. If they add another issue (בנוסף + stain/defect) merge both in one summary. Never fetch_digital_document."
+    )
+  }
+
+  if (
+    isDuplicateOrExtraItemComplaint(body) ||
+    history.some(
+      (message) =>
+        message.role === "user" && isDuplicateOrExtraItemComplaint(message.content)
+    )
+  ) {
+    lines.push(
+      'DUPLICATE / EXTRA ITEM (533672658): same product twice / extra unit not ordered — **service**, `"crm_department": "service"`. lookup_order_status only to identify מס׳ הזמנה → rep summary (פריט נוסף/כפול לא מוזמן, תיאום איסוף) → human_service. **Never** reply with delivery status alone (נמסר/שמחתי לעזור/action end). If they also ask for a **new purchase** (בנוסף + המלצה/שטיח לסלון) — finish service summary first, note the sales ask for the rep; do not pivot to sales intake before handoff.'
     )
   }
 
