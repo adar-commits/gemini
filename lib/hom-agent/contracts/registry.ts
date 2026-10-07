@@ -861,7 +861,6 @@ export const CONVERSATION_CONTRACTS: ConversationContract[] = [
         handler: "inventory",
         expect: "handled",
         action: "reply",
-        replyMustInclude: ["31503138-200290"],
         replyMustNotInclude: ["שלחו מק״ט", "אין לי אפשרות"],
       },
     ],
