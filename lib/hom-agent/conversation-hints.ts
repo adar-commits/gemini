@@ -871,6 +871,13 @@ export function buildConversationHints(input: {
       lines.push(
         `Service summary confirm (533773292): customer approved — including confirm+addition (כן ו… / כן, להוסיף…). Set action \`human_service\` NOW — never warm-close or action end. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence and include this compact rep note: ${buildServiceRepGoalNote(intake)}`
       )
+    } else if (
+      /נקוד/u.test(body) &&
+      /(?:^|\s)לא\s*(?:קשור|קשורות|קשיר)/u.test(body)
+    ) {
+      lines.push(
+        "SERVICE SUMMARY DOTS CORRECTION (533667546): customer corrected dots vs threads (נקודות + לא קשור/לא קשורות). Replace «בעיה לפי הלקוח» with their exact wording — e.g. «שתי נקודות באמצע השטיח, לא קשירות» — never «קשורות». Set action human_service NOW with one short transfer line; do NOT ask another summary-check question after they fixed a misread."
+      )
     } else {
       lines.push(
         "SERVICE SUMMARY CORRECTION (429830143): customer did not confirm — treat as correction/refinement of the case. Replace «בעיה לפי הלקוח» with ONLY their latest wording; drop any prior bot/image detail they contradicted or did not repeat (e.g. «אין סיבים בולטים» → remove סיבים from the recap). Never merge old inference with their correction. Updated recap → action reply + awaiting service_summary_confirm; human_service only after clear confirm."
