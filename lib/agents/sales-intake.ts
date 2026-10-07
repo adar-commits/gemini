@@ -145,7 +145,7 @@ const FORBIDDEN_HOUSEHOLD_Q =
   /למי\s+הסלון\s+משמש|למי\s+(?:ה)?(?:סלון|חדר)\s+משמש\s+ביום/i
 
 const INTAKE_MARKER_RE =
-  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|צבע שאהוב|מידת הספה|מידת המיטה|רהיט העיקרי|גודל כללי של הסלון|לאיזה חלל|לאן השטיח מיועד|החדר משמש ביום|דרישות מיוחדות|משהו חשוב שכדאי|לפני שנגיע למחיר|ילדים קטנים|תמונה\s+תעזור\s+ליועץ\s+לדייק|יעזור\s+ליועץ\s+העיצוב|אעזור\s+לדייק\s+את\s+המידה/i
+  /התאמת שטיח|שאלות קצרות|האם זה נכון עד כה|אני צודק|יש בעלי חיים|להתאים לבעלי חיים|מה התקציב|איזה סגנון|צבע מועדף|צבע שאהוב|מידת הספה|גודל הספה|מידת המיטה|רהיט העיקרי|גודל כללי של הסלון|מידות(?:\s+הכלליות)?(?:\s+של)?(?:\s+ה)?סלון|לאיזה חדר|לאיזה חלל|לאן השטיח(?:\s+מיועד|\s+הוא\s+מיועד)?|החדר משמש ביום|דרישות מיוחדות|משהו חשוב שכדאי|לפני שנגיע למחיר|ילדים קטנים|תמונה\s+תעזור\s+ליועץ\s+לדייק|יעזור\s+ליועץ\s+העיצוב|אעזור\s+לדייק\s+את\s+המידה/i
 
 const HEBREW_COLOR_RE =
   /כחול|אדום|ירוק|צהוב|ורוד|סגול|שחור|לבן|בז(?:'|׳)?|אפור|כתום|טורקיז|חום|בורדו|זהב|כסף|נייבי|ביי(?:ז|'|׳)?/i
@@ -520,11 +520,12 @@ export function isLikelyBudgetIntakeAnswer(body: string) {
 function questionKindForText(question: string): string | null {
   if (/אוקיי,\s+אני\s+מבין/i.test(question) && /אני\s+צודק/i.test(question)) return null
   if (/לגבי איסוף להחלפה\/החזרה|מצטער על הפגם|לגבי פריט חסר/i.test(question)) return null
-  if (/לאיזה חלל|לאן השטיח/.test(question)) return "space"
+  if (/לאיזה חדר|לאיזה חלל|לאן השטיח/.test(question)) return "space"
   if (/באיזה מוצר/.test(question)) return "product"
   if (/החדר משמש|איך חדר השינה/.test(question)) return "bedroom"
   if (/ילדים קטנים/.test(question)) return "children"
-  if (/מידת הספה|גודל כללי של הסלון/.test(question)) return "sofa"
+  if (/מידת הספה|גודל הספה|גודל כללי של הסלון|מידות(?:\s+הכלליות)?(?:\s+של)?(?:\s+ה)?סלון/.test(question))
+    return "sofa"
   if (/מידת המיטה|רהיט העיקרי/.test(question)) return "furniture"
   if (/יעזור\s+ליועץ\s+העיצוב/.test(question)) return "style_photo"
   if (/תמונה\s+של\s+החלל|תמונה\s+תעזור\s+ליועץ\s+לדייק/.test(question)) return "photo"
@@ -1573,7 +1574,7 @@ function walkIntakeFromHistory(history: HistoryMessage[], body: string): SalesIn
 
 function wasSpaceQuestionAsked(history: HistoryMessage[]) {
   const last = lastAssistantText(history)
-  return /לאיזה חלל|לאן השטיח|מקום פנוי|גודל.*סלון|לאיזה\s+חלל/.test(last)
+  return /לאיזה חדר|לאיזה חלל|לאן השטיח|מקום פנוי|גודל.*סלון|מידות.*סלון|לאיזה\s+חלל/.test(last)
 }
 
 export function extractSalesIntake(history: HistoryMessage[], body: string): SalesIntake {

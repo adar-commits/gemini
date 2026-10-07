@@ -401,7 +401,7 @@ export function buildConversationHints(input: {
 
   if (isCatalogProductInquiry(body, history) || isHomStorefrontUrl(body) || isProductDetailsRequest(body)) {
     lines.push(
-      'CATALOG PRODUCT (מכירות): carpetshop.co.il / pozitiveshop.co.il link or Landbot "פרטים נוספים לגבי …" is a product they saw on the site — not an order. Never lookup_order_status / phone-confirm. Set `"crm_department": "sales"`, answer from KB or continue sales intake (room / photo / advisor). A photo asking about the model shape belongs here too.'
+      'CATALOG PRODUCT (534348772 / מכירות): carpetshop.co.il / pozitiveshop.co.il link or Landbot "פרטים נוספים לגבי …" is a product they saw on the site — not an order. Never lookup_order_status / phone-confirm. Set `"crm_department": "sales"`, answer from KB or continue sales intake (room / photo / advisor). A photo asking about the model shape belongs here too. **Never `human_service`** — handoff only as `human_sales` after intake or when customer asks for a sales advisor.'
     )
   }
 
