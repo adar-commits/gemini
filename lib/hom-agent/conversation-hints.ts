@@ -313,7 +313,7 @@ function isOrderStatusProgressOpener(content: string) {
   const text = content.trim()
   if (!text) return false
   return (
-    /(?:מה|איך)\s+קור(?:ה|ים).*(?:ה)?הזמנה/i.test(text) ||
+    /(?:מה|איך)\s+קור(?:ה|ים).*(?:ה)?(?:הזמנה|שטיח|פוף)/i.test(text) ||
     /(?:מבקש(?:ים|ות)?\s+לדעת|רוצ(?:ה|ים|ות)\s+לדעת).*(?:ה)?הזמנה/i.test(text)
   )
 }
@@ -874,11 +874,11 @@ export function buildConversationHints(input: {
   }
 
   if (
-    isShippingStatusQuestion(body) &&
+    (isShippingStatusQuestion(body) || isOrderStatusProgressOpener(body)) &&
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
+      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332 / 532250107): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
     )
   }
 
@@ -889,10 +889,12 @@ export function buildConversationHints(input: {
     !isOrderLookupCompletedInThread(history) &&
     !isOrderConfirmationPending(history) &&
     !isOrderNumberRequestPending(history) &&
-    (isShippingStatusQuestion(body) || isOrderDeliveryStatusQuestion(body))
+    (isShippingStatusQuestion(body) ||
+      isOrderDeliveryStatusQuestion(body) ||
+      isOrderStatusProgressOpener(body))
   ) {
     lines.push(
-      `ETA OPENER + ORDER ID (533428072 / 533710142): customer asks when the order will arrive and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
+      `ETA OPENER + ORDER ID (533428072 / 533710142 / 532250107): customer asks when the order will arrive (including «מה קורה עם השטיח») and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
     )
   }
 

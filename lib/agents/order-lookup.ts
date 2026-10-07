@@ -583,6 +583,8 @@ export function extractOrderNumber(rawText: string) {
   if (compact?.[1]) return normalizeExtractedOrderNumber(compact[1])
   const match = text.match(/\b((?:SO|IN|OV)\d+)\b/i)
   if (match?.[1]) return normalizeExtractedOrderNumber(match[1])
+  const sTypo = text.match(/\b[Ss]\s*0(\d{7,})\b/)
+  if (sTypo?.[1]) return `SO${sTypo[1]}`
   return null
 }
 
