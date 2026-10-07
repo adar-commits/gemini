@@ -749,6 +749,7 @@ export function requiresOrderIdentification(body: string, history: HistoryMessag
   if (isActiveDigitalDocumentFlow(history, body)) return false
   if (isOrderLineItemVerificationRequest(body)) return true
   if (isShippingStatusQuestion(body)) return true
+  if (isOrderDeliveryStatusQuestion(body)) return true
   if (isPreorderDelayComplaint(body)) return true
   if (isMissingOrPartialDeliveryComplaint(body)) return true
   if (isActiveReturnExchangePickupCase(body)) return true
@@ -887,7 +888,7 @@ export function isShippingLookupContext(
 ): boolean {
   if (isServiceLookupContext(history, lastAgent)) return false
   if (isOrderLineItemVerificationRequest(body)) return false
-  if (isShippingStatusQuestion(body)) return true
+  if (isShippingStatusQuestion(body) || isOrderDeliveryStatusQuestion(body)) return true
 
   for (const message of history.filter((entry) => entry.role === "user").slice(-4)) {
     if (isOrderLineItemVerificationRequest(message.content)) return false
@@ -2739,7 +2740,21 @@ export function buildNoOrdersFoundReply(lookupPhone?: string | null) {
 export function buildShippingNoOrdersAskOrderNumberReply(lookupPhone: string) {
   return `${CUSTOMER_HEADER}
 לא מצאתי הזמנות לפי הטלפון ${formatDisplayPhone(lookupPhone)}.
-אשמח למספר ההזמנה ${ORDER_NUMBER_ASK_EXAMPLES} — או לכתוב "לפי הטלפון" ואאתר לפי המספר שממנו את כותבים.`
+אשמח למספר ההזמנה ${ORDER_NUMBER_ASK_EXAMPLES}.`
+}
+
+/** Phone was already searched and came back empty — ask for the order number only. */
+export function buildShippingPhoneMissAskOrderNumberReply(lookupPhone: string) {
+  return `${CUSTOMER_HEADER}
+לא מצאתי הזמנות פעילות לפי הטלפון ${formatDisplayPhone(lookupPhone)}.
+אשמח למספר ההזמנה ${ORDER_NUMBER_ASK_EXAMPLES}.`
+}
+
+/** After a phone miss and no order number — confirm the phone, then ask for another. */
+export function buildOrderRegisteredOnPhonePrompt(phone: string) {
+  return `${CUSTOMER_HEADER}
+האם בטוח שההזמנה רשומה על המספר ${formatDisplayPhone(phone)}?
+אם לא, שלחו את המספר שעליו בוצעה ההזמנה.`
 }
 
 export function orderLookupEnabled() {
@@ -3214,6 +3229,29 @@ function alternatePhoneAskedInThread(history: HistoryMessage[]) {
   )
 }
 
+function isOrderPhoneCertaintyPending(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message.content.includes("האם בטוח שההזמנה רשומה על המספר")
+  }
+  return false
+}
+
+function earlierTypedLookupPhone(history: HistoryMessage[], channel: string | null) {
+  const channelKey = channel ? phoneForOrderApi(channel) : null
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    const typed = userProvidedPhone(message.content)
+    if (!typed) continue
+    if (channelKey && phoneForOrderApi(typed) === channelKey) continue
+    return typed
+  }
+  return null
+}
+
 /** Order number given but not on the looked-up phone — ask for the order's phone before offering a rep. */
 export function buildOrderNotOnPhoneAskOrderPhonePrompt(
   orderReference: string,
@@ -3498,6 +3536,12 @@ async function lookupAndStartOrderConfirm(
 
     if (wasOrderNumberRequestedInThread(history)) {
       const reply = buildShippingNoOrdersAskOrderNumberReply(phone)
+      return empathize ? empathize(reply) : reply
+    }
+
+    const askBody = context?.body ?? ""
+    if (isShippingStatusQuestion(askBody) || isOrderDeliveryStatusQuestion(askBody)) {
+      const reply = buildShippingPhoneMissAskOrderNumberReply(phone)
       return empathize ? empathize(reply) : reply
     }
 
@@ -3960,6 +4004,9 @@ export async function resolveOrderShippingReply(input: {
 
     if (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body)) {
       const confirmed = channelPhone(whatsappPhone)
+      if (isOrderPhoneCertaintyPending(history)) {
+        return buildNoOrdersFoundReply(confirmed)
+      }
       if (!confirmed) {
         return empathize(buildInvalidChannelPhonePrompt())
       }
@@ -3980,6 +4027,15 @@ export async function resolveOrderShippingReply(input: {
     }
 
     if (isPhoneLookupConfirmNo(body)) {
+      if (isOrderPhoneCertaintyPending(history)) {
+        const earlier = earlierTypedLookupPhone(history, channelPhone(whatsappPhone))
+        if (earlier) {
+          return lookupAndStartOrderConfirm(earlier, empathize, { history, body })
+        }
+        if (!alternatePhoneAskedInThread(history)) {
+          return buildAlternatePhoneRequestPrompt()
+        }
+      }
       if (historyHasOrderPickExhaustedRecheck(history)) {
         return buildAlternatePhoneRequestPrompt()
       }
@@ -4004,7 +4060,11 @@ export async function resolveOrderShippingReply(input: {
     }
 
     if (isOrderNumberUnknownAnswer(body)) {
-      if (whatsappPhone && channelPhone(whatsappPhone)) {
+      const channel = channelPhone(whatsappPhone)
+      if (channel && isNoOrdersFoundReplyPending(history)) {
+        return buildOrderRegisteredOnPhonePrompt(channel)
+      }
+      if (whatsappPhone && channel) {
         return empathize(buildPhoneLookupConfirmPrompt(whatsappPhone))
       }
       return empathize(buildInvalidChannelPhonePrompt())
@@ -4070,6 +4130,16 @@ export async function resolveOrderShippingReply(input: {
     if (isPostOrderShippingFollowUp(body, history)) {
       return buildOrderStatusClarificationReply(history)
     }
+  }
+
+  const channel = channelPhone(whatsappPhone)
+  if (
+    channel &&
+    !isServiceLookupContext(history) &&
+    !isOrderModificationRequest(body) &&
+    (isShippingStatusQuestion(body) || isOrderDeliveryStatusQuestion(body))
+  ) {
+    return lookupAndStartOrderConfirm(channel, empathize, { history, body })
   }
 
   if (whatsappPhone) {

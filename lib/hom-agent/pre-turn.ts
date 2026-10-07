@@ -124,6 +124,9 @@ import {
   isShippingAddressUpdateThread,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
+  isOrderNumberUnknownAnswer,
+  isPhoneLookupConfirmNo,
+  isPhoneLookupConfirmPending,
   isPurePhoneLookupConfirmYes,
   mentionsCancellationDesire,
   isServiceLookupContext,
@@ -811,6 +814,10 @@ export async function runStructuredOrderLookupPreTurn(input: {
   const phoneConfirmBinding =
     phoneLookupPending &&
     (isPurePhoneLookupConfirmYes(body) || isChannelPhoneSelfReference(body))
+  const phoneConfirmNoBinding =
+    isPhoneLookupConfirmPending(input.history) && isPhoneLookupConfirmNo(body)
+  const orderNumberUnknownBinding =
+    orderNumberRequestPending && isOrderNumberUnknownAnswer(body)
   const orderNumberPhoneChoiceBinding =
     orderNumberRequestPending && isChannelPhoneSelfReference(body)
   const orderConfirmBinding =
@@ -833,6 +840,8 @@ export async function runStructuredOrderLookupPreTurn(input: {
     !typedPhone &&
     !orderLookupStructuredBinding(body, input.history) &&
     !phoneConfirmBinding &&
+    !phoneConfirmNoBinding &&
+    !orderNumberUnknownBinding &&
     !orderNumberPhoneChoiceBinding &&
     !orderConfirmBinding &&
     !deliveryLookupBinding &&

@@ -32,6 +32,7 @@ import {
   isOrderStatusDeliveredInThread,
   historyHasOrderPickExhaustedRecheck,
   isPhoneLookupConfirmPending,
+  isServiceLookupContext,
   isPurePhoneLookupConfirmYes,
   orderReferenceFromCustomerHistory,
   orderPhoneNamedByAssistant,
@@ -1114,6 +1115,22 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "ORDER RESEND DURING PHONE ASK (534088322): customer repeated the order number instead of the phone — acknowledge the order # and ask again for phone digits only. Never reply «לא זיהיתי מספר טלפון»."
+    )
+  }
+
+  if (
+    input.whatsappPhone &&
+    channelPhone(input.whatsappPhone) &&
+    !isOrderLookupCompletedInThread(history) &&
+    !isOrderNumberRequestPending(history) &&
+    !isPhoneLookupConfirmPending(history) &&
+    !isOrderConfirmationPending(history) &&
+    !orderIdGivenInThread(history) &&
+    !isServiceLookupContext(history) &&
+    (isShippingStatusQuestion(body) || isOrderDeliveryStatusQuestion(body))
+  ) {
+    lines.push(
+      'PHONE-FIRST LOOKUP (534048082): shipment/ETA ask and the chat phone is already known. Call lookup_order_status now — the tool searches that phone itself and returns the order card if it finds one. Do NOT ask for מספר הזמנה and do NOT tell them to write "לפי הטלפון" before the tool has searched. Ask for an order number only after the tool reports nothing on that phone. If they cannot give a number, ask whether the order was registered on that phone; if not, ask for the other phone (unless they already sent one) and look that up.'
     )
   }
 
