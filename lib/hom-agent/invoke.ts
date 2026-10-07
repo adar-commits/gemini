@@ -28,10 +28,11 @@ const MAX_TOOL_ROUNDS = 2
 const INVOKE_FALLBACK_MODEL = "anthropic/claude-sonnet-5"
 
 /**
- * One manual cache breakpoint after the static playbook (tools + hom-bot +
- * FINAL OUTPUT), shared by every conversation. Do not switch back to gateway
- * `caching: "auto"`: it marks the last message, so each turn pays a full-prompt
- * cache write that the next turn cannot read (the per-turn system tail differs).
+ * Manual cache breakpoints after the static playbook core and after the full
+ * static playbook (tools + hom-bot + FINAL OUTPUT), shared by every
+ * conversation. Do not switch back to gateway automatic caching: it marks the
+ * last message, so each turn pays a full-prompt cache write that the next turn
+ * cannot read (the per-turn system tail differs).
  */
 const STATIC_PREFIX_CACHE_OPTIONS = {
   anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
@@ -55,7 +56,12 @@ function homAgentSystemMessages(
   suffix: string | null
 ): SystemModelMessage[] {
   return [
-    { role: "system", content: parts.staticPrefix, providerOptions: STATIC_PREFIX_CACHE_OPTIONS },
+    { role: "system", content: parts.staticCore, providerOptions: STATIC_PREFIX_CACHE_OPTIONS },
+    {
+      role: "system",
+      content: parts.staticPrefix.slice(parts.staticCore.length),
+      providerOptions: STATIC_PREFIX_CACHE_OPTIONS,
+    },
     { role: "system", content: suffix ? `${parts.dynamic}\n\n${suffix}` : parts.dynamic },
   ]
 }

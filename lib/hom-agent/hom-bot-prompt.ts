@@ -63,13 +63,24 @@ function shouldIncludeReferenceSections(input: HomBotPromptInput) {
 
 /** Assemble hom-bot.md with conditional playbooks (plan I/J). Must-not-match always included. */
 export function buildHomBotPrompt(input?: HomBotPromptInput) {
+  const { core, tail } = buildHomBotPromptParts(input)
+  return `${core}${tail}`
+}
+
+/**
+ * `core` is shared by every playbook variant and rarely edited; `tail` holds the
+ * sections QA fixes edit most. Separate cache breakpoints let a tail edit keep
+ * the core cached. `core + tail` must equal the single-string prompt.
+ */
+export function buildHomBotPromptParts(input?: HomBotPromptInput) {
   const sections = loadHomBotSections()
-  const parts: string[] = ["# HoM Bot — Single Agent (v3)\n"]
+  const coreParts: string[] = ["# HoM Bot — Single Agent (v3)\n"]
+  const parts: string[] = []
   const includeReference = shouldIncludeReferenceSections(input ?? {})
 
   for (const section of sections) {
     if (CORE_TITLES.has(section.title)) {
-      parts.push(section.body)
+      coreParts.push(section.body)
     }
   }
 
@@ -95,7 +106,9 @@ export function buildHomBotPrompt(input?: HomBotPromptInput) {
     parts.push(sectionByTitle(DEPARTMENT_TITLE))
   }
 
-  return parts.filter(Boolean).join("\n\n")
+  const core = coreParts.filter(Boolean).join("\n\n")
+  const tailParts = parts.filter(Boolean)
+  return { core, tail: tailParts.length ? `\n\n${tailParts.join("\n\n")}` : "" }
 }
 
 /** Test helper — bytes saved when department playbook omitted. */

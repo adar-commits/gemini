@@ -5,7 +5,7 @@ import {
 } from "@/lib/agents/human-agent-hours"
 import { selectFaqKb, selectFaqKbAsync } from "@/lib/agents/kb"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
-import { buildHomBotPrompt } from "@/lib/hom-agent/hom-bot-prompt"
+import { buildHomBotPrompt, buildHomBotPromptParts } from "@/lib/hom-agent/hom-bot-prompt"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import type { HistoryMessage } from "@/lib/agents/types"
 
@@ -117,8 +117,11 @@ function homBotInput(input?: HomAgentPromptInput) {
 /**
  * `staticPrefix` is byte-identical across turns of the same playbook variant
  * (prompt-cache breakpoint goes after it); `dynamic` changes every turn.
+ * `staticCore` is the leading part of `staticPrefix` shared by all variants
+ * (its own breakpoint, so QA edits to later playbook sections keep it cached).
  */
 export type HomAgentSystemPromptParts = {
+  staticCore: string
   staticPrefix: string
   dynamic: string
 }
@@ -126,13 +129,14 @@ export type HomAgentSystemPromptParts = {
 export async function buildHomAgentSystemPromptPartsAsync(
   input?: HomAgentPromptInput
 ): Promise<HomAgentSystemPromptParts> {
-  const staticPrefix = `${buildHomBotPrompt(homBotInput(input))}${FINAL_OUTPUT_BLOCK}`
+  const { core, tail } = buildHomBotPromptParts(homBotInput(input))
+  const staticPrefix = `${core}${tail}${FINAL_OUTPUT_BLOCK}`
 
   const parts = ["\n\n### VERIFIED KNOWLEDGE BASE\n"]
   parts.push(await selectFaqKbAsync(input?.userText?.trim() ?? "", input?.modelTier ?? null))
 
   appendDynamicSections(parts, input)
-  return { staticPrefix, dynamic: parts.join("") }
+  return { staticCore: core, staticPrefix, dynamic: parts.join("") }
 }
 
 export async function buildHomAgentSystemPromptAsync(input?: HomAgentPromptInput) {

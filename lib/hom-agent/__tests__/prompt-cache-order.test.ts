@@ -73,6 +73,29 @@ describe("prompt cache prefix order", () => {
     assert.equal(joined, `${a.staticPrefix}${a.dynamic}`, "model must see the same text as before the split")
   })
 
+  it("shares one cached core across light and full playbook variants", async () => {
+    const light = await buildHomAgentSystemPromptPartsAsync({
+      modelTier: "T3",
+      userText: "שלום",
+      history: [{ role: "user", content: "שלום" }],
+      llmOwnsIntent: false,
+    })
+    const full = await buildHomAgentSystemPromptPartsAsync({
+      modelTier: "T3",
+      userText: "שלום",
+      history: [{ role: "user", content: "שלום" }],
+      llmOwnsIntent: true,
+    })
+    assert.equal(light.staticCore, full.staticCore)
+    assert.notEqual(light.staticPrefix, full.staticPrefix)
+    for (const parts of [light, full]) {
+      assert.ok(parts.staticPrefix.startsWith(parts.staticCore))
+      assert.ok(parts.staticPrefix.length > parts.staticCore.length)
+    }
+    assert.doesNotMatch(full.staticCore, /Department boundaries \(owner-locked\)|Must-not-match examples/)
+    assert.match(full.staticCore, /Voice & identity/)
+  })
+
   it("light playbook variant does not vary with the customer's words", () => {
     const light = (text: string) =>
       buildHomBotPrompt({ userText: text, history: [{ role: "user", content: text }], llmOwnsIntent: false })
@@ -86,7 +109,11 @@ describe("prompt cache prefix order", () => {
       .join("\n")
     assert.doesNotMatch(source, /caching\s*:\s*["']auto["']/)
     assert.match(source, /cacheControl: \{ type: "ephemeral", ttl: "1h" \}/)
-    assert.match(source, /content: parts\.staticPrefix, providerOptions: STATIC_PREFIX_CACHE_OPTIONS/)
+    assert.match(source, /content: parts\.staticCore, providerOptions: STATIC_PREFIX_CACHE_OPTIONS/)
+    assert.match(
+      source,
+      /content: parts\.staticPrefix\.slice\(parts\.staticCore\.length\),\s*providerOptions: STATIC_PREFIX_CACHE_OPTIONS/
+    )
 
     const systemArgs = [...source.matchAll(/generateText\(\{\s*model: [^\n]+\n\s*system: ([^\n]+),\n/g)].map(
       (m) => m[1]
