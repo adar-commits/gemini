@@ -17,7 +17,11 @@ describe("delivery status terminology", () => {
     )
     assert.match(
       buildDeliveryStatusMessage({ deliveryStatusId: "4" }),
-      /שוייך לשליח/
+      /ממתין להפצה/
+    )
+    assert.doesNotMatch(
+      buildDeliveryStatusMessage({ deliveryStatusId: "4" }),
+      /שוייך לשליח|טרם מוכנה לאיסוף/
     )
     assert.match(
       buildDeliveryStatusMessage({ deliveryStatusId: "5" }),

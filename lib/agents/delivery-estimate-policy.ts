@@ -76,7 +76,13 @@ ${COURIER_COORDINATES}`
 ${COURIER_COORDINATES}`
   }
 
-  if (statusId === "3" || statusId === "4") {
+  if (statusId === "4") {
+    return `${CUSTOMER_HEADER}
+לפי הסטטוס — המשלוח ממתין להפצה.
+כשייצא, השליח יתקשר ביום האספקה לפני ההגעה.`
+  }
+
+  if (statusId === "3") {
     return `${CUSTOMER_HEADER}
 לפי הסטטוס — המשלוח כבר אצל חברת השליחויות.
 ${COURIER_COORDINATES}`

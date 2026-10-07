@@ -1392,6 +1392,22 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        message.content.includes("הזמנתך") &&
+        message.content.includes("איסוף עצמי")
+    ) &&
+    (isOrderDeliveryStatusQuestion(body) ||
+      isShippingStatusQuestion(body) ||
+      isDeliveryEstimateQuestion(body))
+  ) {
+    lines.push(
+      "AWAITING DISPATCH (533179535): an older automated message named a self-pickup order. They are asking when the order arrives. Call lookup_order_status on the chat phone and do NOT pass that old SO. Shipping status 4 is ממתין להפצה — waiting for dispatch. Never answer טרם מוכנה לאיסוף עצמי and never say שוייך לשליח for status 4. action reply."
+    )
+  }
+
   if (isEnRouteNotYetArrivedUpdate(body, history)) {
     lines.push(
       `EN ROUTE NOT YET ARRIVED (533790731): you already said the shipment is loaded on the driver and on the way. They are only updating that it has not arrived. Do NOT call lookup_order_status again and do NOT ask for מספר הזמנה. NEVER mention בקשה לדחיית מסירה, מיום X, or *3076 — they did not ask to postpone. Say: ${EN_ROUTE_NOT_YET_ARRIVED_REPLY} action reply.`

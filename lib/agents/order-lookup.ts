@@ -3436,6 +3436,32 @@ async function lookupKnownOrderConfirmationCard(input: {
   return buildOrderConfirmationPrompt(matched, input.history, input.body)
 }
 
+/**
+ * An old self-pickup draft (status 21) named only by the model must not hide
+ * a live delivery order waiting for dispatch (status 4, ממתין להפצה).
+ * A number the customer typed themselves still wins.
+ */
+export function preferAwaitingDispatchOverSelfPickupDraft(
+  matched: OrderShipmentStatus,
+  orders: OrderShipmentStatus[],
+  body: string
+) {
+  if (extractOrderNumber(body)) return matched
+  if (String(matched.statusCode ?? "").trim() !== "21") return matched
+  if (
+    !isOrderDeliveryStatusQuestion(body) &&
+    !isDeliveryEstimateQuestion(body)
+  ) {
+    return matched
+  }
+  const dispatch = sortOrdersNewestFirst(orders).find(
+    (order) =>
+      String(order.statusCode ?? "").trim() === "4" &&
+      isOfferableOrderCandidate(order)
+  )
+  return dispatch ?? matched
+}
+
 async function lookupOrderByReference(input: {
   orderReference: string
   lookupPhone: string
@@ -3469,7 +3495,12 @@ async function lookupOrderByReference(input: {
       ) ?? null
 
   if (matched) {
-    return replyAfterOrderIdentified(matched, input.lookupPhone, input.history, input.body)
+    const order = preferAwaitingDispatchOverSelfPickupDraft(
+      matched,
+      orders,
+      input.body
+    )
+    return replyAfterOrderIdentified(order, input.lookupPhone, input.history, input.body)
   }
 
   for (const supplemental of supplementalOrderReferencesForLookup(
