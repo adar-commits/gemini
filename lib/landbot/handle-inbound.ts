@@ -22,12 +22,16 @@ import {
 } from "@/lib/crm/conversation-assign"
 import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
 import { closeCrmConversation } from "@/lib/crm/conversation-close"
-import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
+import {
+  isPendingHandoffCustomerReply,
+  shouldBypassHumanThreadSilence,
+  shouldClearHumanThreadOnBypass,
+} from "@/lib/agents/off-topic"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import type { UserTurn } from "@/lib/agents/user-turn"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { assignToApiAgent, getCustomer, sendCustomerText } from "@/lib/landbot/client"
-import { PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
+import { isPriorityApiWaitMessage, PRIORITY_API_PREMESSAGE } from "@/lib/agents/priority-webhook"
 import {
   cursorAutomationQaEnabled,
   executeCursorAutomationQa,
@@ -71,7 +75,10 @@ import {
   ensureSessionMetaFromInbound,
   scheduleInactivityPingWatch,
 } from "@/lib/landbot/inactivity-watcher"
-import { shouldSuppressInactivityWatch } from "@/lib/agents/inactivity"
+import {
+  isInactivityAssistantMessage,
+  shouldSuppressInactivityWatch,
+} from "@/lib/agents/inactivity"
 import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
 import { buildNeverStuckReply, isBotFailureReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
@@ -126,6 +133,32 @@ export function shouldRecordVoiceClosureTemplate(history: HistoryMessage[]) {
   return true
 }
 
+function lastNonSystemAssistantMessage(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitMessage(message.content)) continue
+    return message
+  }
+  return null
+}
+
+/** Skip voice-closure wake when the bot already moved past the template or handoff is pending (533915316). */
+export function shouldSkipVoiceClosureCustomerReplyWake(
+  body: string,
+  history: HistoryMessage[]
+) {
+  const lastAssistant = lastNonSystemAssistantMessage(history)
+  if (
+    lastAssistant &&
+    !isVoiceClosureTemplateMessage({ body: lastAssistant.content })
+  ) {
+    return true
+  }
+  return isPendingHandoffCustomerReply(body, history)
+}
+
 /** Send-time human-thread gate — must match inbound start (534274729 voice-closure wake). */
 export function shouldSuppressOutboundForHumanThread(input: {
   voiceClosureWake: boolean
@@ -142,16 +175,23 @@ export function shouldSuppressOutboundForHumanThread(input: {
  * Customer replied after a dashboard voice-closure template — wake HoM bot even when CRM
  * still shows a human rep (533657825).
  */
-export async function prepareVoiceClosureCustomerReplyWake(conversationId: string) {
+export async function prepareVoiceClosureCustomerReplyWake(
+  conversationId: string,
+  body = ""
+) {
   const lastOutbound = await getVoiceClosureTemplateLastOutbound(conversationId).catch(() => null)
   if (!lastOutbound) return false
+
+  const history = await getHistory(conversationId)
+  if (shouldSkipVoiceClosureCustomerReplyWake(body, history)) {
+    return false
+  }
 
   await releaseHumanThread(conversationId)
   await assignCrmConversationToHomBotOnVoiceClosureReply({ conversationId }).catch((error) => {
     console.warn("[voice-closure] CRM reclaim failed", conversationId, error)
   })
 
-  const history = await getHistory(conversationId)
   if (shouldRecordVoiceClosureTemplate(history)) {
     await recordProactiveAssistantMessage({
       conversationId,
@@ -192,7 +232,7 @@ export async function handleLandbotInbound(
   const voiceClosureWake =
     replyEnabled &&
     !trainerResetBypass &&
-    (await prepareVoiceClosureCustomerReplyWake(conversationId).catch(() => false))
+    (await prepareVoiceClosureCustomerReplyWake(conversationId, turnSummary).catch(() => false))
 
   if (
     replyEnabled &&

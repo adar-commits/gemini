@@ -152,7 +152,9 @@ export async function POST(request: Request) {
   const inboundBody = summarizeTurn(inbound.turn)
   const voiceClosureWake =
     !trainerResetBypass &&
-    (await prepareVoiceClosureCustomerReplyWake(inbound.conversationId).catch(() => false))
+    (await prepareVoiceClosureCustomerReplyWake(inbound.conversationId, inboundBody).catch(
+      () => false
+    ))
   if (
     !trainerResetBypass &&
     !voiceClosureWake &&
@@ -206,9 +208,10 @@ export async function POST(request: Request) {
           const turnBody = summarizeTurn(turn)
           const turnVoiceClosureWake =
             !trainerResetBypass &&
-            (await prepareVoiceClosureCustomerReplyWake(inbound.conversationId).catch(
-              () => false
-            ))
+            (await prepareVoiceClosureCustomerReplyWake(
+              inbound.conversationId,
+              turnBody
+            ).catch(() => false))
           if (
             !trainerResetBypass &&
             !turnVoiceClosureWake &&
