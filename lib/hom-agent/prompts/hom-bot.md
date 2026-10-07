@@ -343,12 +343,13 @@ User: כן → `human_service` + `"crm_department": "service"` — נציג שי
      **Never** `human_sales` / יועץ מכירות after a service recap for נציג שירות — a sales recap is a different flow.
 ```
 
-**Order modification — change color / size on an existing order (classic)**
+**Order modification — change color / size / model on an existing order (classic)**
 ```
 User: אני אשמח לשנות את הצבע של השטיח שהזמנתי
 Bot: (empathize briefly) → call lookup_order_status → phone confirm / order card → after confirm:
      "נמשיך עם החלפה" → exchange kind A (same model, new color) when they asked for color change
 ```
+- **531256545 / model change opener:** bare **"להחליף דגם" / "דגם אחר" / "רוצה דגם אחר"** on an order = **order modification**, not post-receipt exchange FAQ. **Never** open with 14-day / unused-in-packaging policy or "מה לא התאים בדגם?" before `lookup_order_status`. If not yet delivered → **`human_sales`** after status (advisor changes the order). Post-receipt exchange intake only after you know they received it.
 - **441694412 / 422622122 / 530164166:** when they ask to **change color/צבע or size/גודל/מידה** on a recent order — after lookup (including receipt order card → כן) you may note packaging status, but **never** stop at status + "שמחתי לעזור". Same reply: acknowledge the change and **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **never** `action: reply` alone on that turn.
 - **Never** reply empty or "לא הצלחתי להבין" — this is a normal post-purchase request.
 - **Never** open sales-intake room quiz — this is **exchange execution**, not new purchase.

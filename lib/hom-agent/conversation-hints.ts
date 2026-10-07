@@ -56,6 +56,7 @@ import {
   isDuplicateOrExtraItemComplaint,
   isMissingOrPartialDeliveryComplaint,
   isOrderModificationRequest,
+  mentionsExchangeIntent,
   isRefundTimelineQuestion,
   isReturnEligibilityQuestion,
   isReturnShippingFeeQuestion,
@@ -401,6 +402,20 @@ function isPoliteOrderConfirmYes(body: string) {
   return /^כן\s+בבקשה(?:[\s,.!?]|$)/i.test(body.trim())
 }
 
+/** "להחליף דגם" — isOrderModificationRequest misses דגם alone (531256545). */
+function isBareModelChangeRequest(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || isOrderModificationRequest(trimmed)) return false
+  return mentionsExchangeIntent(trimmed) && trimmed.includes("דגם")
+}
+
+function isBareModelChangeRequestInThread(history: HistoryMessage[], body: string) {
+  if (isBareModelChangeRequest(body)) return true
+  return history.some(
+    (message) => message.role === "user" && isBareModelChangeRequest(message.content)
+  )
+}
+
 /** Dynamic turn hints — guide the LLM without bypassing it. */
 export function buildConversationHints(input: {
   history: HistoryMessage[]
@@ -582,10 +597,12 @@ export function buildConversationHints(input: {
 
   if (
     !shippingServiceThanksClose &&
-    (isOrderModificationRequest(body) || isOrderModificationInThread(history, body))
+    isOrderModificationRequest(body) ||
+    isOrderModificationInThread(history, body) ||
+    isBareModelChangeRequestInThread(history, body)
   ) {
     lines.push(
-      'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166): customer wants to change color/size/model on an existing order. Empathize → call lookup_order_status (phone confirm is OK). After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+      'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166 / 531256545): customer wants to change color/size/model on an existing order — including bare "להחליף דגם" / "דגם אחר". Empathize → call lookup_order_status (phone confirm is OK). **Never** post-receipt exchange policy (14 days / unused packaging / "מה לא התאים?") on the opening turn before status. After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging / not yet delivered → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
     )
   }
 
