@@ -19,7 +19,9 @@ import {
 import {
   assignCrmConversationToHomBot,
   assignCrmConversationToHomBotOnVoiceClosureReply,
+  crmHoldsHumanAssignment,
 } from "@/lib/crm/conversation-assign"
+import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { maybeSyncCrmDepartmentFromTurn } from "@/lib/crm/conversation-department"
 import { closeCrmConversation } from "@/lib/crm/conversation-close"
 import {
@@ -264,7 +266,10 @@ export async function handleLandbotInbound(
   }
 
   if (replyEnabled) {
-    await assignToApiAgent(customerId)
+    const crmRow = await findCrmConversation(conversationId).catch(() => null)
+    if (!crmHoldsHumanAssignment(crmRow?.assigned_agent_code)) {
+      await assignToApiAgent(customerId)
+    }
   }
 
   await ensureSessionMetaFromInbound({

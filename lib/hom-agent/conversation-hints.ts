@@ -493,6 +493,12 @@ export function buildConversationHints(input: {
     lines.push(BOT_VOICE_NO_MIRROR_HINT)
   }
 
+  if (isPostHumanHandoff(null, history)) {
+    lines.push(
+      'ASSIGNMENT TRUTH (278792620): a previous "אני מעביר לנציג" is not proof a human still holds the chat — Landbot webhooks must not be described as an assignment. Do NOT say "הפנייה כבר אצל נציג" / "השיחה כבר משויכת" / "הנציג כבר קיבל" with action reply. If they still need the rep, set action human_service or human_sales in this same JSON so our app assigns them. You may answer the question without claiming a rep already has the case.'
+    )
+  }
+
   if (isCallbackRepeatAfterHandoff(history, body)) {
     const handoffKind = postHandoffKind(null, history) ?? "human_service"
     const department =

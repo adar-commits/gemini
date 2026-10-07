@@ -2,7 +2,6 @@ import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 import {
   HOM_CRM_BOT_AGENT_CODE,
-  HOM_CRM_BOT_AGENT_NAME,
   isLandbotApiAgentId,
 } from "@/lib/landbot/api-agent-ids"
 
@@ -26,6 +25,42 @@ export function shouldClaimCrmHomBotAssignment(
   assignedAgentCode: string | null | undefined
 ) {
   return crmHomBotAssignDecision(assignedAgentCode) === "claim"
+}
+
+/** A live rep holds the inbox — not empty and not the HoM / Landbot API bot. */
+export function crmHoldsHumanAssignment(assignedAgentCode: string | null | undefined) {
+  const current = String(assignedAgentCode ?? "").trim()
+  if (!current || current === HOM_CRM_BOT_AGENT_CODE) return false
+  const asNumber = Number(current)
+  if (Number.isFinite(asNumber) && isLandbotApiAgentId(asNumber)) return false
+  return true
+}
+
+/**
+ * Landbot webhooks and other external writers must not clear a human or
+ * replace them with the API bot. Another human (dashboard / auto_assign) may.
+ */
+export function externalAssignmentWouldReplaceHuman(
+  previousAgentCode: string | null | undefined,
+  nextAgentCode: string | null | undefined
+) {
+  if (!crmHoldsHumanAssignment(previousAgentCode)) return false
+  const next = String(nextAgentCode ?? "").trim()
+  if (!next || next === HOM_CRM_BOT_AGENT_CODE) return true
+  const asNumber = Number(next)
+  return Number.isFinite(asNumber) && isLandbotApiAgentId(asNumber)
+}
+
+/** Ignore a Landbot assign/unassign when it disagrees with the human we stored. */
+export function shouldIgnoreLandbotAssignmentEvent(input: {
+  crmAgentCode: string | null | undefined
+  action: "assign" | "unassign"
+  eventAgentId: number | null
+}) {
+  if (!crmHoldsHumanAssignment(input.crmAgentCode)) return false
+  if (input.action === "unassign") return true
+  if (input.eventAgentId == null) return true
+  return String(input.eventAgentId) !== String(input.crmAgentCode).trim()
 }
 
 export type AssignCrmHomBotResult =
@@ -67,36 +102,13 @@ export async function assignCrmConversationToHomBot(input: {
     return { ok: true, updated: false, reason: decision }
   }
 
-  const supabase = getAgentSupabase()
-  const now = new Date().toISOString()
-  const { error: updateError } = await supabase
-    .from("conversations")
-    .update({
-      assigned_agent_code: HOM_CRM_BOT_AGENT_CODE,
-      assigned_at: now,
-      updated_at: now,
-    })
-    .eq("session_id", row.session_id)
-
-  if (updateError) throw updateError
-
-  const { error: logError } = await supabase.from("conversation_status_log").insert({
-    session_id: row.session_id,
-    action_type: "agent_assigned",
-    old_value: previousAgentCode || "ללא שיוך",
-    new_value: HOM_CRM_BOT_AGENT_NAME,
+  await writeCrmAgentAssignment({
+    sessionId: row.session_id,
+    nextAgentCode: HOM_CRM_BOT_AGENT_CODE,
+    previousAgentCode,
     source: "hom_bot",
-    changed_at: now,
-    payload: {
-      next_agent_code: HOM_CRM_BOT_AGENT_CODE,
-      previous_agent_code: previousAgentCode,
-      landbot_customer_id: row.landbot_customer_id ?? input.conversationId,
-    },
+    landbotCustomerId: row.landbot_customer_id ?? input.conversationId,
   })
-
-  if (logError) {
-    console.warn("[crm-assign] audit log failed", row.session_id, logError.message)
-  }
 
   return {
     ok: true,
@@ -131,36 +143,13 @@ export async function assignCrmConversationToHomBotOnVoiceClosureReply(input: {
     return { ok: true, updated: false, reason: "unchanged" }
   }
 
-  const supabase = getAgentSupabase()
-  const now = new Date().toISOString()
-  const { error: updateError } = await supabase
-    .from("conversations")
-    .update({
-      assigned_agent_code: HOM_CRM_BOT_AGENT_CODE,
-      assigned_at: now,
-      updated_at: now,
-    })
-    .eq("session_id", row.session_id)
-
-  if (updateError) throw updateError
-
-  const { error: logError } = await supabase.from("conversation_status_log").insert({
-    session_id: row.session_id,
-    action_type: "agent_assigned",
-    old_value: previousAgentCode || "ללא שיוך",
-    new_value: HOM_CRM_BOT_AGENT_NAME,
+  await writeCrmAgentAssignment({
+    sessionId: row.session_id,
+    nextAgentCode: HOM_CRM_BOT_AGENT_CODE,
+    previousAgentCode,
     source: "hom_bot_voice_closure_reply",
-    changed_at: now,
-    payload: {
-      next_agent_code: HOM_CRM_BOT_AGENT_CODE,
-      previous_agent_code: previousAgentCode,
-      landbot_customer_id: row.landbot_customer_id ?? input.conversationId,
-    },
+    landbotCustomerId: row.landbot_customer_id ?? input.conversationId,
   })
-
-  if (logError) {
-    console.warn("[crm-assign] voice-closure reply audit log failed", row.session_id, logError.message)
-  }
 
   return {
     ok: true,
@@ -168,4 +157,69 @@ export async function assignCrmConversationToHomBotOnVoiceClosureReply(input: {
     sessionId: row.session_id,
     previousAgentCode,
   }
+}
+
+/**
+ * Persist the rep we picked. Landbot assign is best-effort and must not be
+ * the inbox source of truth — webhooks often replace this with the API bot.
+ */
+export async function assignCrmConversationToHumanAgent(input: {
+  conversationId: string
+  agentCode: string
+}): Promise<AssignCrmHomBotResult> {
+  const agentCode = input.agentCode.trim()
+  if (!agentCode || agentCode === HOM_CRM_BOT_AGENT_CODE) {
+    return { ok: true, updated: false, reason: "disabled" }
+  }
+
+  const row = await findCrmConversation(input.conversationId)
+  if (!row?.session_id) {
+    console.warn("[crm-assign] human assign: conversation not found", input.conversationId)
+    return { ok: true, updated: false, reason: "not_found" }
+  }
+
+  const previousAgentCode =
+    typeof row.assigned_agent_code === "string"
+      ? row.assigned_agent_code.trim()
+      : null
+  if (previousAgentCode === agentCode) {
+    return { ok: true, updated: false, reason: "unchanged" }
+  }
+  if (crmHoldsHumanAssignment(previousAgentCode)) {
+    return { ok: true, updated: false, reason: "human_assigned" }
+  }
+
+  await writeCrmAgentAssignment({
+    sessionId: row.session_id,
+    nextAgentCode: agentCode,
+    previousAgentCode,
+    source: "hom_bot",
+    landbotCustomerId: row.landbot_customer_id ?? input.conversationId,
+  })
+
+  return {
+    ok: true,
+    updated: true,
+    sessionId: row.session_id,
+    previousAgentCode,
+  }
+}
+
+async function writeCrmAgentAssignment(input: {
+  sessionId: string
+  nextAgentCode: string
+  previousAgentCode: string | null
+  source: string
+  landbotCustomerId: string | null
+}) {
+  const supabase = getAgentSupabase()
+  const { error } = await supabase.rpc("assign_conversation_agent", {
+    p_session_id: input.sessionId,
+    p_agent_code: input.nextAgentCode,
+    p_source: input.source,
+    p_previous: input.previousAgentCode ?? "",
+    p_landbot_customer_id: input.landbotCustomerId ?? "",
+    p_action_type: "agent_assigned",
+  })
+  if (error) throw error
 }

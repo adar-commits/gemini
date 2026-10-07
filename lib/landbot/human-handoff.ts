@@ -3,7 +3,8 @@ import {
   type HandoffAction,
 } from "@/lib/crm/conversation-department"
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
-import { assignToHuman, unassignCustomer } from "@/lib/landbot/client"
+import { assignCrmConversationToHumanAgent } from "@/lib/crm/conversation-assign"
+import { assignToHuman } from "@/lib/landbot/client"
 import { pickHumanAgentId } from "@/lib/landbot/human-agents"
 import {
   isAssignedToHumanAgent,
@@ -40,8 +41,19 @@ export async function executeHumanHandoff(input: {
   }
 
   const human = await resolveHandoffHumanAgentId(input)
-  if (human) await assignToHuman(input.customerId, human)
-  else await unassignCustomer(input.customerId)
+  if (human) {
+    await assignCrmConversationToHumanAgent({
+      conversationId: input.conversationId,
+      agentCode: String(human),
+    }).catch((error) => {
+      console.warn("[human-handoff] crm human assign failed", {
+        conversationId: input.conversationId,
+        agentCode: human,
+        error: error instanceof Error ? error.message : error,
+      })
+    })
+    await assignToHuman(input.customerId, human)
+  }
 
   await recordHumanAgentActivity(input.conversationId)
 }

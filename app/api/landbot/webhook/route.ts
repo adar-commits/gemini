@@ -35,6 +35,8 @@ import {
   shouldRecordHumanAgentActivity,
 } from "@/lib/landbot/human-takeover"
 import { getHistory } from "@/lib/agents/memory"
+import { shouldIgnoreLandbotAssignmentEvent } from "@/lib/crm/conversation-assign"
+import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { summarizeTurn } from "@/lib/agents/user-turn"
@@ -102,6 +104,16 @@ export async function POST(request: Request) {
   }
 
   if (isLandbotEvent(hook)) {
+    const crmRow = await findCrmConversation(hook.conversationId).catch(() => null)
+    if (
+      shouldIgnoreLandbotAssignmentEvent({
+        crmAgentCode: crmRow?.assigned_agent_code ?? null,
+        action: hook.action,
+        eventAgentId: hook.agentId,
+      })
+    ) {
+      return NextResponse.json({ ok: true, skipped: "landbot_assignment_ignored" })
+    }
     if (hook.action === "assign") {
       if (isLandbotApiAgent({ agentId: hook.agentId })) {
         const history = await getHistory(hook.conversationId).catch(() => [])
