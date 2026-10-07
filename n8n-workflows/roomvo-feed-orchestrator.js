@@ -17,6 +17,9 @@ const PRODUCTS_QUERY = `
       nodes {
         title
         handle
+        metafield(namespace: "custom", key: "roomvo_sync_active") {
+          value
+        }
         variants(first: 100) {
           nodes {
             id
@@ -55,6 +58,7 @@ function parseShopifyPage(response) {
     products.push({
       title: node.title,
       handle: node.handle,
+      roomvoSyncActive: node.metafield?.value ?? null,
       variants: (node.variants?.nodes || []).map((variant) => ({
         id: numericVariantId(variant.id),
         sku: variant.sku || "",

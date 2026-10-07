@@ -28,7 +28,9 @@ SHOPIFY_PRODUCTS_QUERY = (
     "query RoomvoProducts($cursor: String) { "
     "products(first: 100, after: $cursor, query: \"status:active published_status:published\") { "
     "pageInfo { hasNextPage endCursor } "
-    "nodes { title handle variants(first: 100) { "
+    "nodes { title handle "
+    "metafield(namespace: \"custom\", key: \"roomvo_sync_active\") { value } "
+    "variants(first: 100) { "
     "nodes { id sku title price compareAtPrice inventoryQuantity } } } } }"
 )
 
@@ -98,6 +100,7 @@ for (const node of payload.nodes || []) {
   staticData.shopifyProducts.push({
     title: node.title,
     handle: node.handle,
+    roomvoSyncActive: node.metafield?.value ?? null,
     variants: (node.variants?.nodes || []).map((variant) => ({
       id: numericVariantId(variant.id),
       sku: variant.sku || "",

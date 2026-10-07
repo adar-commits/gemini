@@ -10,6 +10,7 @@ const {
   sanitizeDisplayTitle,
   buildVariantRow,
   flattenQualifyingVariants,
+  isRoomvoSyncActive,
   buildRoomvoFeed,
   COLUMN_COUNT,
   SENTINEL_DO_NOT_DELETE,
@@ -71,6 +72,19 @@ describe("roomvo-feed-build helpers", () => {
     assert.equal(formatCompareAt("195", "390"), "390");
     assert.equal(formatCompareAt("8750", "8750"), "");
     assert.equal(formatCompareAt("8750", ""), "");
+  });
+
+  it("accepts roomvo_sync_active metafield truthy values", () => {
+    assert.equal(isRoomvoSyncActive(true), true);
+    assert.equal(isRoomvoSyncActive("true"), true);
+    assert.equal(isRoomvoSyncActive("True"), true);
+    assert.equal(isRoomvoSyncActive("1"), true);
+    assert.equal(isRoomvoSyncActive("yes"), true);
+    assert.equal(isRoomvoSyncActive(false), false);
+    assert.equal(isRoomvoSyncActive("false"), false);
+    assert.equal(isRoomvoSyncActive(null), false);
+    assert.equal(isRoomvoSyncActive(undefined), false);
+    assert.equal(isRoomvoSyncActive(""), false);
   });
 
   it("strips Latin letters from column A display title", () => {
@@ -158,6 +172,7 @@ describe("flattenQualifyingVariants", () => {
     const rug = flattenQualifyingVariants({
       title: "שטיח מרסיי 03 אפור",
       handle: "marseille-03-grey",
+      roomvoSyncActive: "true",
       variants: [
         {
           id: "1",
@@ -180,9 +195,27 @@ describe("flattenQualifyingVariants", () => {
     assert.equal(rug.length, 1);
     assert.equal(rug[0].sku, "00103007-80150");
 
+    const inactiveRug = flattenQualifyingVariants({
+      title: "שטיח מרסיי 03 אפור",
+      handle: "marseille-03-grey",
+      roomvoSyncActive: "false",
+      variants: [
+        {
+          id: "4",
+          sku: "00103007-80150",
+          title: "80*150 - XS",
+          price: "195",
+          compareAtPrice: "390",
+          inventoryQuantity: 13,
+        },
+      ],
+    });
+    assert.equal(inactiveRug.length, 0);
+
     const pouf = flattenQualifyingVariants({
       title: "פוף אלמר 01 כחול/לבן ELMAR",
       handle: "elmar-pouf",
+      roomvoSyncActive: "true",
       variants: [
         {
           id: "3",
@@ -340,6 +373,7 @@ describe("buildRoomvoFeed merge", () => {
     {
       title: "שטיח מרסיי 03 אפור",
       handle: "marseille-03-grey",
+      roomvoSyncActive: "true",
       variants: [
         {
           id: "40957728293055",
@@ -362,6 +396,7 @@ describe("buildRoomvoFeed merge", () => {
     {
       title: "שטיח BRAND NEW PRODUCT",
       handle: "brand-new-product",
+      roomvoSyncActive: "true",
       variants: [
         {
           id: "55555555555555",
@@ -468,6 +503,7 @@ describe("buildRoomvoFeed merge", () => {
         {
           title: "שטיח מרסיי 03 אפור",
           handle: "marseille-03-grey",
+          roomvoSyncActive: "true",
           variants: [
             {
               id: "40957728293055",

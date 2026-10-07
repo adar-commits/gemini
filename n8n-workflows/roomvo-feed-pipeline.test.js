@@ -26,6 +26,7 @@ function parseShopifyPage(response) {
     products.push({
       title: node.title,
       handle: node.handle,
+      roomvoSyncActive: node.metafield?.value ?? null,
       variants: (node.variants?.nodes || []).map((variant) => ({
         id: numericVariantId(variant.id),
         sku: variant.sku || "",
@@ -66,6 +67,7 @@ describe("roomvo feed pipeline (Shopify HTTP + Code nodes)", () => {
             {
               title: "שטיח Marseille 03 Grey",
               handle: "marseille-03-grey",
+              metafield: { value: "true" },
               variants: {
                 nodes: [
                   {
@@ -92,6 +94,7 @@ describe("roomvo feed pipeline (Shopify HTTP + Code nodes)", () => {
             {
               title: "שטיח Test Runner",
               handle: "test-runner",
+              metafield: { value: "true" },
               variants: {
                 nodes: [
                   {

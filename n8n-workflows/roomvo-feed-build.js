@@ -5,7 +5,7 @@
 
 const COLUMN_COUNT = 20;
 
-/** @typedef {{ title: string, handle: string, variants: ShopifyVariant[] }} ShopifyProduct */
+/** @typedef {{ title: string, handle: string, roomvoSyncActive?: boolean|string|null, variants: ShopifyVariant[] }} ShopifyProduct */
 /** @typedef {{ id: string, sku: string, title: string, price: string, compareAtPrice: string|null, inventoryQuantity: number }} ShopifyVariant */
 
 const FORCED_RUNNER_SKUS = new Set([
@@ -21,6 +21,14 @@ const IMAGE_BASE =
   "https://carpetbucket.s3.eu-west-1.amazonaws.com/tempimages";
 const STORE_BASE = "https://www.carpetshop.co.il/products";
 const CART_ADD_BASE = "https://www.carpetshop.co.il/cart/add?id=";
+
+/** Product metafield custom.roomvo_sync_active must be true to sync variants. */
+function isRoomvoSyncActive(value) {
+  if (value === true) return true;
+  if (value === false || value === null || value === undefined) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
 
 /** Column A: Hebrew display title without Latin letters (Shopify often appends brand codes). */
 function sanitizeDisplayTitle(title) {
@@ -191,6 +199,8 @@ function recordToRow(rec) {
  * @returns {(ShopifyVariant & { productTitle: string, handle: string })[]}
  */
 function flattenQualifyingVariants(product) {
+  if (!isRoomvoSyncActive(product.roomvoSyncActive)) return [];
+
   const title = product.title || "";
   if (!title.startsWith("שטיח")) return [];
 
@@ -382,6 +392,7 @@ module.exports = {
   SENTINEL_DO_NOT_DELETE,
   SENTINEL_MARKER,
   CART_ADD_BASE,
+  isRoomvoSyncActive,
   sanitizeDisplayTitle,
   extractStyleNumber,
   skuHasFringeFlag,
