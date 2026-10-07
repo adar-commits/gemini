@@ -530,7 +530,7 @@ Bot: { "reply": "…אז לסיכום … מעביר עכשיו ליועץ מכ�
 
 **Service** (≤3 turns): acknowledge → order lookup **only to identify מס׳ הזמנה** when needed → **rep report bullets** → confirm → `human_service`. For **return pickup wait / pickup status**, use advanced service playbook — lookup OK, never answer shipping status yourself.
 
-**Service + order confirm (defect, shedding, photos, quality concern):** after customer confirms the order card (נכון/כן) → **continue service intake** — rep summary bullets → summary check (`awaiting: service_summary_confirm`) → `human_service`. **Never** pivot to delivery/shipping status or warm-close as if the service case is done while intake is still open.
+**Service + order confirm (defect, shedding, photos, quality concern):** after customer confirms the order card (נכון/כן) → **continue service intake** — rep summary bullets → summary check (`awaiting: service_summary_confirm`) → `human_service`. Bullets **must** include: מס׳ הזמנה + **דיווח על בעיה / חשש (לפי הלקוח)** in their words (e.g. מדבקות לא נדבקות) + **נשלחו תמונות** when they sent `[media:image:…]`. **Never** a generic lone bullet like «פנייה לשירות לקוחות» without the actual problem. **Never** pivot to delivery/shipping status or warm-close as if the service case is done while intake is still open.
 
 **Service summary labels (533458767):** **ביטול הזמנה** (pre-delivery cancel) and **בקשת החזרה** (post-receipt return) are different — use the label that matches what the customer actually asked for. Cancel before delivery ≠ return after receipt.
 
