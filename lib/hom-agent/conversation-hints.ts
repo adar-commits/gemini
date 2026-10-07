@@ -60,6 +60,7 @@ import {
   hasCatalogIntakeSizeAndRoom,
   isCatalogProductInquiry,
   isColorVariantRealPhotoRequest,
+  isDesignerPartnershipInquiry,
   isHomStorefrontUrl,
   extractRequestedModel,
   isActiveProductSalesPrepThread,
@@ -420,6 +421,12 @@ export function buildConversationHints(input: {
   if (isColorVariantRealPhotoRequest(body, history) && !hasOngoingSalesIntake(history)) {
     lines.push(
       'COLOR VARIANT PHOTOS (533891498): customer hesitates between color variants or asks for real-life photos you cannot send — יועץ המכירות owns the comparison. Send bullet recap + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone (Action ↔ transfer wording). Optional room photo may be requested in the same message but must not block handoff.'
+    )
+  }
+
+  if (isDesignerPartnershipInquiry(body, history) && !hasOngoingSalesIntake(history)) {
+    lines.push(
+      'DESIGNER PARTNERSHIP (534359537): interior designer asking about discount/partnership process — יועץ מכירות owns the terms. Brief intro + bullet recap + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone. You may ask optional studio name/project in the same message; optional info must **not** block handoff.'
     )
   }
 

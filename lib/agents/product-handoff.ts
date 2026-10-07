@@ -130,6 +130,14 @@ const COLOR_VARIANT_REAL_PHOTO_REQUEST_RE =
 const SALES_TRANSFER_PROMISED_RE =
   /מעביר(?:ים|ה|\s+אות(?:ך|כם))?\s+(?:עכשיו\s+)?(?:ל)?(?:יועץ\s+)?מכירות|מעביר\s+אות(?:ך|כם)\s+עכשיו/i
 
+const DESIGNER_IDENTITY_RE =
+  /(?:אני\s+)?(?:מעצב(?:ת)?(?:\s+פנים)?|interior\s+design)/i
+
+const DESIGNER_PARTNERSHIP_ASK_RE =
+  /(?:הנח(?:ה|ות)?|שיתוף\s+פעול|איך\s+(?:אני\s+)?(?:משיג|מקבל)|מה\s+תהליך|תהליך\s+(?:ה)?(?:שיתוף|הנח))/i
+
+const DESIGNER_CODE_ORDER_RE = /קוד\s*(?:ה)?מעצב(?:ת)?/i
+
 const CATALOG_SIZE_IN_THREAD_RE = /\d{2,4}\s*[/*x×]\s*\d{2,4}/
 
 const CATALOG_ROOM_IN_THREAD_RE =
@@ -233,6 +241,24 @@ export function isColorVariantRealPhotoRequest(
       .map((message) => message.content),
   ].join("\n")
   return COLOR_VARIANT_REAL_PHOTO_REQUEST_RE.test(userCorpus)
+}
+
+/** Interior designer asking about partnership/discount process — sales advisor owns terms (534359537). */
+export function isDesignerPartnershipInquiry(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const userCorpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  ].join("\n")
+  if (DESIGNER_CODE_ORDER_RE.test(userCorpus)) return false
+  return (
+    DESIGNER_IDENTITY_RE.test(userCorpus) &&
+    DESIGNER_PARTNERSHIP_ASK_RE.test(userCorpus)
+  )
 }
 
 /** Bot's last real reply promised sales transfer — bind follow-up turns to human_sales. */
