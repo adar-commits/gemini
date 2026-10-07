@@ -1174,6 +1174,18 @@ export function buildConversationHints(input: {
     )
   }
 
+  const providedOrderPhone = userProvidedPhone(body)
+  const chatChannelPhone = channelPhone(input.whatsappPhone)
+  if (
+    providedOrderPhone &&
+    chatChannelPhone &&
+    providedOrderPhone !== chatChannelPhone
+  ) {
+    lines.push(
+      `CUSTOMER ORDER PHONE IN MESSAGE (534379659): customer typed ${providedOrderPhone} — different from WhatsApp channel ${chatChannelPhone}. For returns.carpetshop.co.il portal links use ?phone=${providedOrderPhone} (the order phone they gave), NOT the channel phone. Keep handoff recap on the phone they stated.`
+    )
+  }
+
   if (
     isAlternatePhoneRequestPending(history) &&
     extractOrderReference(body, history) &&
