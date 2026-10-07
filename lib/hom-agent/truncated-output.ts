@@ -1,4 +1,5 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { EN_ROUTE_NOT_YET_ARRIVED_REPLY } from "@/lib/hom-agent/en-route-follow-up"
 
 const COMPLETE_REPLY_ENDING = /[.!?…*"»)\]😊🙏👋]\s*$/
 
@@ -68,11 +69,16 @@ function dropIncompleteTrailingSentence(text: string) {
 }
 
 function truncationCompletionTail(repaired: string) {
-  if (/תיאום|משלוח|מסירה|אספקה|שליח|יום\s+רביע/i.test(repaired)) {
+  // Only when the cut reply itself is a postponement / date-preference answer (301810743).
+  // An en-route status that mentions שליח must not grow בקשה לדחיית מסירה (533790731).
+  if (/דחי(?:ית|ה)|מיום\s+\S+|לא\s+ניתן\s+לקבוע\s+מראש|תיאום\s+מועד/i.test(repaired)) {
     return (
       "בקשה לדחיית מסירה (למשל \"מיום X ואילך\") לא נקבעת מראש במערכת — אפשר לציין אותה, ובמידת הצורך לפנות ל*3076 עם מספר הזמנה.\n\n" +
       "יש מספר הזמנה לבדיקת סטטוס?"
     )
+  }
+  if (/הועמס\s+לשליח|בדרכו|עכשיו\s+בדרך|אצל\s+השליח/i.test(repaired)) {
+    return EN_ROUTE_NOT_YET_ARRIVED_REPLY
   }
   if (/כרטיס\s+נטען|מועדון|תשלום|גיפט/i.test(repaired)) {
     return "נציג שירות יכול לעזור להשלים — להעביר לנציג שירות?"

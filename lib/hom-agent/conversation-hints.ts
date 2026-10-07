@@ -48,6 +48,10 @@ import {
   trackingUrlFromThread,
 } from "@/lib/hom-agent/tracking-link-ask"
 import {
+  EN_ROUTE_NOT_YET_ARRIVED_REPLY,
+  isEnRouteNotYetArrivedUpdate,
+} from "@/lib/hom-agent/en-route-follow-up"
+import {
   classifyPostPurchaseCase,
   isCallbackUrgencyRequest,
   isCreditCodeOnlineRedemptionRequest,
@@ -1250,6 +1254,12 @@ export function buildConversationHints(input: {
   if (isOrderStatusDeliveredInThread(history) && isPostOrderShippingFollowUp(body, history)) {
     lines.push(
       "POST-ORDER SHIPPING THREAD (529503176 / 531893004 / 533482593): customer still on delivery timing/status — continue that thread. Do NOT pivot to cancel/return/exchange menus. A complete status answer (בדרך, נארז, השליח יתאם, מוכן לאיסוף) is the whole reply — action reply, never append האם להעביר לנציג. human_service only when they ask for a rep, status is unknown, or the system says נמסר and they say it did not arrive."
+    )
+  }
+
+  if (isEnRouteNotYetArrivedUpdate(body, history)) {
+    lines.push(
+      `EN ROUTE NOT YET ARRIVED (533790731): you already said the shipment is loaded on the driver and on the way. They are only updating that it has not arrived. Do NOT call lookup_order_status again and do NOT ask for מספר הזמנה. NEVER mention בקשה לדחיית מסירה, מיום X, or *3076 — they did not ask to postpone. Say: ${EN_ROUTE_NOT_YET_ARRIVED_REPLY} action reply.`
     )
   }
 
