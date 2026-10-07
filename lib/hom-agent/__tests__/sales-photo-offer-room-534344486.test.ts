@@ -59,7 +59,7 @@ describe("sales photo offer room 534344486", () => {
     const hints = buildConversationHints({
       body: photoOfferBody,
       history: historyBeforePhotoOffer,
-      phone: "+972547495083",
+      whatsappPhone: "+972547495083",
     })
     assert.match(hints ?? "", /SALES INTAKE SPACE CAPTURED \(534344486\)/i)
     assert.match(hints ?? "", /SALES PHOTO OFFER PENDING \(534344486\)/i)

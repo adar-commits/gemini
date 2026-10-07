@@ -499,8 +499,13 @@ export function buildConversationHints(input: {
     )
   }
 
+  const salesSizeConsultThread =
+    hasOngoingSalesIntake(history) ||
+    hasSalesIntakeSpaceCaptured(history, body) ||
+    isSpecificProductMention(body, history)
+
   if (
-    hasOngoingSalesIntake(history) &&
+    salesSizeConsultThread &&
     hasSalesIntakeSpaceCaptured(history, body) &&
     !/\[media:image:/i.test(body)
   ) {
@@ -510,7 +515,7 @@ export function buildConversationHints(input: {
   }
 
   if (
-    hasOngoingSalesIntake(history) &&
+    salesSizeConsultThread &&
     isSalesRoomPhotoAwaitingAttachment(history, body) &&
     !isSalesPhotoDeclineAnswer(body)
   ) {
