@@ -198,7 +198,11 @@ import {
 } from "@/lib/agents/inactivity"
 import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
 import { isSalesHandoffCommittedInAssistantText } from "@/lib/agents/human-waiting"
-import { isPostHumanHandoff, postHandoffKind } from "@/lib/agents/post-handoff"
+import {
+  hasLiveRepReplyAfterBotHandoff,
+  isPostHumanHandoff,
+  postHandoffKind,
+} from "@/lib/agents/post-handoff"
 import {
   customerRespondedToHandoffWithoutConfirm,
   hasDeclarativeHandoffTransfer,
@@ -392,9 +396,10 @@ export function buildConversationHints(input: {
   const lastAssistantText = lastNonInactivityAssistant(history)
   const postHandoffThanksClose =
     isThanksAcknowledgment(body) &&
-    lastAssistantText != null &&
-    hasDeclarativeHandoffTransfer(lastAssistantText) &&
-    !isSalesHandoffCommittedInAssistantText(lastAssistantText)
+    (hasLiveRepReplyAfterBotHandoff(history) ||
+      (lastAssistantText != null &&
+        hasDeclarativeHandoffTransfer(lastAssistantText) &&
+        !isSalesHandoffCommittedInAssistantText(lastAssistantText)))
   const shippingServiceThanksClose =
     postHandoffThanksClose && isShippingThreadFromHistory(history)
   const poufAssemblyFaqThread =
@@ -546,7 +551,7 @@ export function buildConversationHints(input: {
 
   if (postHandoffThanksClose) {
     lines.push(
-      'POST-HANDOFF THANKS CLOSE (499989618 / 533428072 / 533476186): customer thanks after you already transferred (`אני מעביר לנציג` / human_service executed). Warm close only (`action: end` or short post-handoff ack) — **never** repeat «העברתי את השיחה» / `human_service` again. Stale sales intake does NOT apply on this closing turn.'
+      'POST-HANDOFF THANKS CLOSE (499989618 / 533428072 / 533476186 / 534366103): customer thanks after you already transferred (`אני מעביר לנציג` / human_service executed) **or after a live rep already answered post-handoff**. Warm close only (`action: end` or short post-handoff ack) — **never** repeat «העברתי את השיחה» / `human_sales` / `human_service` again. Stale sales intake does NOT apply on this closing turn.'
     )
   }
 

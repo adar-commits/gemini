@@ -60,7 +60,10 @@ import {
   isPureHandoffAffirmation,
   replyAwaitingCustomerInput,
 } from "@/lib/agents/compound-reply"
-import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
+import {
+  hasLiveRepReplyAfterBotHandoff,
+  isPostHumanHandoff,
+} from "@/lib/agents/post-handoff"
 import {
   buildPostPurchaseAlternateSizeAdvisorReply,
   isPostPurchaseAlternateSizeAvailabilityQuestion,
@@ -284,6 +287,19 @@ export function runPreTurnGuards(input: {
       kind: "handled",
       reply: buildInactivityDeferAck(input.customerName),
       action: "reply",
+    }
+  }
+
+  if (
+    isThanksAcknowledgment(body) &&
+    explicitThanks &&
+    hasLiveRepReplyAfterBotHandoff(input.history)
+  ) {
+    return {
+      kind: "handled",
+      reply: buildThanksAckReply(input.customerName, { postHandoff: true }),
+      action: "end",
+      suppressInactivityWatch: true,
     }
   }
 
