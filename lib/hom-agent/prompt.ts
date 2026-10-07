@@ -114,14 +114,30 @@ function homBotInput(input?: HomAgentPromptInput) {
   }
 }
 
-export async function buildHomAgentSystemPromptAsync(input?: HomAgentPromptInput) {
-  const parts = [buildHomBotPrompt(homBotInput(input)), FINAL_OUTPUT_BLOCK]
+/**
+ * `staticPrefix` is byte-identical across turns of the same playbook variant
+ * (prompt-cache breakpoint goes after it); `dynamic` changes every turn.
+ */
+export type HomAgentSystemPromptParts = {
+  staticPrefix: string
+  dynamic: string
+}
 
-  parts.push("\n\n### VERIFIED KNOWLEDGE BASE\n")
+export async function buildHomAgentSystemPromptPartsAsync(
+  input?: HomAgentPromptInput
+): Promise<HomAgentSystemPromptParts> {
+  const staticPrefix = `${buildHomBotPrompt(homBotInput(input))}${FINAL_OUTPUT_BLOCK}`
+
+  const parts = ["\n\n### VERIFIED KNOWLEDGE BASE\n"]
   parts.push(await selectFaqKbAsync(input?.userText?.trim() ?? "", input?.modelTier ?? null))
 
   appendDynamicSections(parts, input)
-  return parts.join("")
+  return { staticPrefix, dynamic: parts.join("") }
+}
+
+export async function buildHomAgentSystemPromptAsync(input?: HomAgentPromptInput) {
+  const { staticPrefix, dynamic } = await buildHomAgentSystemPromptPartsAsync(input)
+  return `${staticPrefix}${dynamic}`
 }
 
 /** Sync path for tests — regex KB slice without async RAG fetch. */

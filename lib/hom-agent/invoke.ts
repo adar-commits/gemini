@@ -1,4 +1,4 @@
-import { generateText, stepCountIs } from "ai"
+import { generateText, stepCountIs, type SystemModelMessage } from "ai"
 import { bindRuntimeConfig } from "@/lib/agent-core/config"
 import { normalizeBotAwaiting } from "@/lib/agents/bot-awaiting"
 import { homAgentLearnedRulesSection } from "@/lib/agents/learned-rules"
@@ -9,7 +9,10 @@ import { buildModelMessages } from "@/lib/agents/multimodal"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { resolveVisionPolicy } from "@/lib/agents/vision-policy"
 import type { UserTurn } from "@/lib/agents/user-turn"
-import { buildHomAgentSystemPromptAsync } from "@/lib/hom-agent/prompt"
+import {
+  buildHomAgentSystemPromptPartsAsync,
+  type HomAgentSystemPromptParts,
+} from "@/lib/hom-agent/prompt"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
 import {
   homAgentOutputSchema,
@@ -25,23 +28,36 @@ const MAX_TOOL_ROUNDS = 2
 const INVOKE_FALLBACK_MODEL = "anthropic/claude-sonnet-5"
 
 /**
- * Gateway-managed prompt caching: adds Anthropic cache markers automatically
- * (5-min TTL). The big system prompt is re-billed at ~10% on cache hits —
- * multi-step tool turns and active conversations benefit most.
+ * One manual cache breakpoint after the static playbook (tools + hom-bot +
+ * FINAL OUTPUT), shared by every conversation. Do not switch back to gateway
+ * `caching: "auto"`: it marks the last message, so each turn pays a full-prompt
+ * cache write that the next turn cannot read (the per-turn system tail differs).
  */
-const GATEWAY_PROVIDER_OPTIONS = {
-  gateway: { caching: "auto" as const, cacheTtl: "1h" as const },
+const STATIC_PREFIX_CACHE_OPTIONS = {
+  anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
 }
 
 const TOOL_SYSTEM_SUFFIX =
   "If you need live data, call the appropriate tool first. Do not invent order status, stock, or documents. Base the reply on tool results exactly — never contradict them."
 
+const KB_ONLY_SYSTEM_SUFFIX =
+  "Tools are unavailable this turn. Answer from the knowledge base only. For live order status, ask for order number or offer human_service — do not invent status."
+
+const TRUNCATION_RETRY_SYSTEM_SUFFIX =
+  "Your previous customer reply was TRUNCATED before finishing (output token limit). Rewrite the COMPLETE answer in ≤4 short Hebrew paragraphs. Every paragraph must end with proper punctuation — never cut off mid-word."
+
 const TOOL_RECOVERY_USER_PREFIX = `[Tool call was rejected as misrouted/uncertain for this turn. Re-evaluate the user's intent semantically and answer directly. Call tools again only if the user explicitly asks for live data matching that tool. CRITICAL: you have NO lookup results — never claim you checked, found, or see orders/stock/documents, and never promise to check and come back (no "רגע אחד ואחזור", no "אבדוק ואעדכן"). Answer from context/KB or ask the customer for what you need.
 
 Compose the best direct customer reply for:`
 
-function homAgentToolSystemPrompt(system: string) {
-  return `${system}\n\n${TOOL_SYSTEM_SUFFIX}`
+function homAgentSystemMessages(
+  parts: HomAgentSystemPromptParts,
+  suffix: string | null
+): SystemModelMessage[] {
+  return [
+    { role: "system", content: parts.staticPrefix, providerOptions: STATIC_PREFIX_CACHE_OPTIONS },
+    { role: "system", content: suffix ? `${parts.dynamic}\n\n${suffix}` : parts.dynamic },
+  ]
 }
 
 function homAgentGatewayHeaders(conversationId: string) {
@@ -157,7 +173,7 @@ export async function invokeHomAgent(input: {
 }
 
 async function invokeWithTools(ctx: InvokeContext) {
-  const system = await buildHomAgentSystemPromptAsync({
+  const system = await buildHomAgentSystemPromptPartsAsync({
     sessionSummary: ctx.sessionSummary,
     customerName: ctx.customerName,
     whatsappPhone: ctx.phone,
@@ -184,7 +200,7 @@ async function invokeWithTools(ctx: InvokeContext) {
   // Single pass: the model may call tools (up to MAX_TOOL_ROUNDS steps) and must
   // finish with the structured { reply, action } output in the same call — the
   // large system prompt is billed once per turn instead of twice.
-  const toolSystem = homAgentToolSystemPrompt(system)
+  const toolSystem = homAgentSystemMessages(system, TOOL_SYSTEM_SUFFIX)
   const result = await generateText({
     model: ctx.model,
     system: toolSystem,
@@ -194,7 +210,6 @@ async function invokeWithTools(ctx: InvokeContext) {
     temperature: homAgentTemperature(ctx.runtime),
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
-    providerOptions: GATEWAY_PROVIDER_OPTIONS,
     headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
@@ -240,7 +255,6 @@ async function invokeWithTools(ctx: InvokeContext) {
       temperature: homAgentTemperature(ctx.runtime),
       maxOutputTokens: homAgentMaxTokens(ctx.runtime),
       output: homAgentOutputSchema(),
-      providerOptions: GATEWAY_PROVIDER_OPTIONS,
       headers: homAgentGatewayHeaders(ctx.conversationId),
     })
 
@@ -303,7 +317,6 @@ async function invokeWithTools(ctx: InvokeContext) {
     temperature: homAgentTemperature(ctx.runtime),
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
-    providerOptions: GATEWAY_PROVIDER_OPTIONS,
     headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
@@ -320,7 +333,7 @@ async function invokeWithTools(ctx: InvokeContext) {
 }
 
 async function invokeKbOnly(ctx: InvokeContext) {
-  const system = await buildHomAgentSystemPromptAsync({
+  const system = await buildHomAgentSystemPromptPartsAsync({
     sessionSummary: ctx.sessionSummary,
     customerName: ctx.customerName,
     whatsappPhone: ctx.phone,
@@ -340,7 +353,7 @@ async function invokeKbOnly(ctx: InvokeContext) {
 
   const structured = await generateText({
     model: ctx.model,
-    system: `${system}\n\nTools are unavailable this turn. Answer from the knowledge base only. For live order status, ask for order number or offer human_service — do not invent status.`,
+    system: homAgentSystemMessages(system, KB_ONLY_SYSTEM_SUFFIX),
     messages: [
       ...messages,
       {
@@ -351,7 +364,6 @@ async function invokeKbOnly(ctx: InvokeContext) {
     temperature: homAgentTemperature(ctx.runtime),
     maxOutputTokens: homAgentMaxTokens(ctx.runtime),
     output: homAgentOutputSchema(),
-    providerOptions: GATEWAY_PROVIDER_OPTIONS,
     headers: homAgentGatewayHeaders(ctx.conversationId),
   })
 
@@ -381,7 +393,7 @@ async function deliverValidatedOutput(input: {
   structured: StructuredResultLike
   ctx: InvokeContext
   messages: ModelMessage[]
-  system: string
+  system: HomAgentSystemPromptParts
   llmCalls: number
   truncationRetried?: boolean
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
@@ -399,7 +411,7 @@ async function deliverValidatedOutput(input: {
   if (shouldRetry) {
     const retry = await generateText({
       model: input.ctx.model,
-      system: `${input.system}\n\nYour previous customer reply was TRUNCATED before finishing (output token limit). Rewrite the COMPLETE answer in ≤4 short Hebrew paragraphs. Every paragraph must end with proper punctuation — never cut off mid-word.`,
+      system: homAgentSystemMessages(input.system, TRUNCATION_RETRY_SYSTEM_SUFFIX),
       messages: [
         ...input.messages,
         {
@@ -410,7 +422,6 @@ async function deliverValidatedOutput(input: {
       temperature: homAgentTemperature(input.ctx.runtime),
       maxOutputTokens: maxTokens + TRUNCATION_RETRY_EXTRA_TOKENS,
       output: homAgentOutputSchema(),
-      providerOptions: GATEWAY_PROVIDER_OPTIONS,
       headers: homAgentGatewayHeaders(input.ctx.conversationId),
     })
 
@@ -475,7 +486,7 @@ async function finalizeStructuredOutput(
   structured: StructuredResultLike,
   ctx: InvokeContext,
   messages: ModelMessage[],
-  system: string,
+  system: HomAgentSystemPromptParts,
   llmCalls: number,
   truncationRetried = false
 ) {
