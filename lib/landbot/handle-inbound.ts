@@ -126,6 +126,18 @@ export function shouldRecordVoiceClosureTemplate(history: HistoryMessage[]) {
   return true
 }
 
+/** Send-time human-thread gate — must match inbound start (534274729 voice-closure wake). */
+export function shouldSuppressOutboundForHumanThread(input: {
+  voiceClosureWake: boolean
+  trainerResetBypass: boolean
+  humanThreadActive: boolean
+  bypassHumanThreadSilence: boolean
+}) {
+  if (input.trainerResetBypass || input.voiceClosureWake) return false
+  if (!input.humanThreadActive) return false
+  return !input.bypassHumanThreadSilence
+}
+
 /**
  * Customer replied after a dashboard voice-closure template — wake HoM bot even when CRM
  * still shows a human rep (533657825).
@@ -490,25 +502,37 @@ export async function handleLandbotInbound(
   // (previously the computed reply was silently dropped after a hold, leaving
   // the customer with "אני על זה…" and nothing else).
   if (replyEnabled) {
+    const humanThreadActive = await isHumanThreadActive(
+      conversationId,
+      options?.assignedAgentId ?? null
+    )
+    const historyForSendGate = await getHistory(conversationId)
     if (
-      !trainerResetBypass &&
-      (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
+      shouldSuppressOutboundForHumanThread({
+        voiceClosureWake,
+        trainerResetBypass,
+        humanThreadActive,
+        bypassHumanThreadSilence: shouldBypassHumanThreadSilence(
+          body,
+          historyForSendGate
+        ),
+      })
     ) {
-      const history = await getHistory(conversationId)
-      if (!shouldBypassHumanThreadSilence(body, history)) {
-        return {
-          ok: true,
-          agent: "master",
-          action: "reply",
-          reply: "",
-          duplicateSuppressed: true,
-          mode,
-          skipped: "human_thread_active",
-        }
+      return {
+        ok: true,
+        agent: "master",
+        action: "reply",
+        reply: "",
+        duplicateSuppressed: true,
+        mode,
+        skipped: "human_thread_active",
       }
-      if (shouldClearHumanThreadOnBypass(body, history)) {
-        await releaseHumanThread(conversationId)
-      }
+    }
+    if (
+      humanThreadActive &&
+      shouldClearHumanThreadOnBypass(body, historyForSendGate)
+    ) {
+      await releaseHumanThread(conversationId)
     }
 
     for (const text of outboundMessages) {
