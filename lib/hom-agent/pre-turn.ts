@@ -282,31 +282,17 @@ export function runPreTurnGuards(input: {
   const salesHandoffOnThanks =
     lastAssistantBeforeThanks != null &&
     isSalesHandoffCommittedInAssistantText(lastAssistantBeforeThanks)
-  const declarativeHandoffOnThanks =
-    lastAssistantBeforeThanks != null &&
-    hasDeclarativeHandoffTransfer(lastAssistantBeforeThanks) &&
-    !salesHandoffOnThanks
-  const shippingThanksAfterServiceHandoff =
-    declarativeHandoffOnThanks &&
-    isShippingThreadFromHistory(input.history) &&
-    isThanksAcknowledgment(body) &&
-    explicitThanks
-
   if (
     lastAssistantBeforeThanks &&
-    (declarativeHandoffOnThanks || salesHandoffOnThanks) &&
+    salesHandoffOnThanks &&
     isThanksAcknowledgment(body) &&
     explicitThanks &&
-    !isPureHandoffAffirmation(body) &&
-    !shippingThanksAfterServiceHandoff
+    !isPureHandoffAffirmation(body)
   ) {
-    const action = salesHandoffOnThanks
-      ? "human_sales"
-      : inferHumanHandoffAction(input.history, null)
     return {
       kind: "handled",
-      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`,
-      action,
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply("human_sales")}`,
+      action: "human_sales",
     }
   }
 

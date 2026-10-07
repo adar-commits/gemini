@@ -371,13 +371,13 @@ export function buildConversationHints(input: {
 
   const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
   const lastAssistantText = lastNonInactivityAssistant(history)
-  const shippingServiceThanksClose =
+  const postHandoffThanksClose =
     isThanksAcknowledgment(body) &&
-    isShippingThreadFromHistory(history) &&
-    (!isHumanHandoffPending(history) ||
-      (lastAssistantText &&
-        hasDeclarativeHandoffTransfer(lastAssistantText) &&
-        !isSalesHandoffCommittedInAssistantText(lastAssistantText)))
+    lastAssistantText != null &&
+    hasDeclarativeHandoffTransfer(lastAssistantText) &&
+    !isSalesHandoffCommittedInAssistantText(lastAssistantText)
+  const shippingServiceThanksClose =
+    postHandoffThanksClose && isShippingThreadFromHistory(history)
   const poufAssemblyFaqThread =
     isPoufAssemblyFaqThread(history) && !hasOngoingSalesIntake(history)
 
@@ -513,9 +513,9 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (shippingServiceThanksClose) {
+  if (postHandoffThanksClose) {
     lines.push(
-      'SHIPPING SERVICE THANKS CLOSE (533476186 / 533428072): active delivery/ETA thread — customer thanks after status update or after you already transferred to service (`אני מעביר לנציג`). Warm close only (`action: end` or short post-handoff ack) — **never** repeat «העברתי את השיחה» / `human_service` again. Stale sales intake does NOT apply on this closing turn.'
+      'POST-HANDOFF THANKS CLOSE (499989618 / 533428072 / 533476186): customer thanks after you already transferred (`אני מעביר לנציג` / human_service executed). Warm close only (`action: end` or short post-handoff ack) — **never** repeat «העברתי את השיחה» / `human_service` again. Stale sales intake does NOT apply on this closing turn.'
     )
   }
 
@@ -667,7 +667,11 @@ export function buildConversationHints(input: {
   }
 
   const lastAssistant = lastNonInactivityAssistant(history)
-  if (lastAssistant && hasDeclarativeHandoffTransfer(lastAssistant)) {
+  if (
+    lastAssistant &&
+    hasDeclarativeHandoffTransfer(lastAssistant) &&
+    !isThanksAcknowledgment(body)
+  ) {
     lines.push(
       "You already told the customer you are transferring — if action is still reply, set human_service or human_sales immediately (same turn or next). Never repeat transfer prose without the matching action."
     )
