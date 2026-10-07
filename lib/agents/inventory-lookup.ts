@@ -39,6 +39,33 @@ export function isBackInStockNotificationRequest(body: string) {
   return BACK_IN_STOCK_NOTIFICATION_RE.test(text) && RESTOCK_RE.test(text)
 }
 
+const BACK_IN_STOCK_SALES_HANDOFF_RE =
+  /מעביר(?:ים|ה|\s+אות(?:ך|כם))?(?:\s+[^\n]{0,40})?(?:ל)?(?:יועץ\s+)?מכירות|העבר(?:תי|ה)\s+(?:את\s+)?(?:ה)?(?:שיחה|בקשה)/i
+
+/** Opening was restock-alert ask and sales handoff already happened (534357895). */
+export function isBackInStockSalesHandoffThread(history: HistoryMessage[]) {
+  const openingUser = history.find((message) => message.role === "user")
+  if (!openingUser || !isBackInStockNotificationRequest(openingUser.content)) {
+    return false
+  }
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      BACK_IN_STOCK_SALES_HANDOFF_RE.test(message.content)
+  )
+}
+
+/** Customer adds another color/variant after back-in-stock sales handoff — not a fresh alert ask. */
+export function isBackInStockVariantFollowUp(body: string, history: HistoryMessage[]) {
+  if (!isBackInStockSalesHandoffThread(history)) return false
+  const text = body.trim()
+  if (!text || isBackInStockNotificationRequest(text)) return false
+  return (
+    /גם/i.test(text) &&
+    /(?:שטיח|קרם|בז|גוון|צבע|מידה|סיטאר|sitar|pearl|אשמח\s+לדעת)/i.test(text)
+  )
+}
+
 const HOM_SKU_RE = /\b(\d{8}-\d{6})\b/
 
 const DATE_SKU_RE = /^\d{4}-\d{2}-\d{2}$/

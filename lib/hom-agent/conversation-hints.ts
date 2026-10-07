@@ -137,6 +137,7 @@ import {
   hasPendingBranchDisplayQuestion,
   isActiveInventoryThread,
   isBackInStockNotificationRequest,
+  isBackInStockVariantFollowUp,
   isInventoryRecheckRequest,
   isSkuCorrectionAfterStockAnswer,
   isSkuRequestPending,
@@ -1372,6 +1373,12 @@ export function buildConversationHints(input: {
   if (isBackInStockNotificationRequest(body)) {
     lines.push(
       "BACK-IN-STOCK NOTIFICATION OPENING (534030320 / 441678247): customer wants an alert when a size comes back — you cannot register stock alerts from chat. Echo product + size, say a sales advisor will check ETA and update them, write מעביר + action human_sales in the same JSON. Never lookup_inventory, never ask for מק״ט, never conditional 'if no stock then sales'."
+    )
+  }
+
+  if (isBackInStockVariantFollowUp(body, history)) {
+    lines.push(
+      'BACK-IN-STOCK VARIANT FOLLOW-UP (534357895): sales handoff already happened for a restock alert — customer thanks and adds another color/variant (e.g. גם על הקרם בז׳). Acknowledge both products in a bullet recap for the advisor; set `"crm_department": "sales"`. **`action: reply`** with «רשמתי גם… היועץ יבדוק ויעדכן» — **never** repeat «העברתי את השיחה» / «מעולה, העברתי» / a second `human_sales` unless they explicitly ask for a rep again. Never FAQ/inventory pivot.'
     )
   }
 
