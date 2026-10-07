@@ -135,6 +135,7 @@ import {
   extractRecentSku,
   extractSku,
   hasPendingBranchDisplayQuestion,
+  isBranchStoreAvailabilityThanksClose,
   isActiveInventoryThread,
   isBackInStockNotificationRequest,
   isBackInStockVariantFollowUp,
@@ -402,6 +403,7 @@ export function buildConversationHints(input: {
         !isSalesHandoffCommittedInAssistantText(lastAssistantText)))
   const shippingServiceThanksClose =
     postHandoffThanksClose && isShippingThreadFromHistory(history)
+  const branchStoreThanksClose = isBranchStoreAvailabilityThanksClose(body, history)
   const poufAssemblyFaqThread =
     isPoufAssemblyFaqThread(history) && !hasOngoingSalesIntake(history)
 
@@ -555,6 +557,12 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (branchStoreThanksClose) {
+    lines.push(
+      'BRANCH STORE AVAILABILITY THANKS CLOSE (534200437): customer asked if a product is in a branch/store to view — you answered yes/no briefly. Their thanks closes the thread — warm close (`action: end`, e.g. בכיף / שמחתי לעזור). **Never** `human_sales` / «העברתי ליועץ מכירות» — even if earlier in the thread there was a stock-alert handoff or product links. No rep needed.'
+    )
+  }
+
   if (
     !shippingServiceThanksClose &&
     (isOrderModificationRequest(body) || isOrderModificationInThread(history, body))
@@ -582,7 +590,8 @@ export function buildConversationHints(input: {
 
   if (
     isSalesIntakeCompleteWithOptionalPhotoPending(history) &&
-    !shippingServiceThanksClose
+    !shippingServiceThanksClose &&
+    !branchStoreThanksClose
   ) {
     lines.push(
       'SALES RECAP + OPTIONAL PHOTO (533759845): intake quiz is done — you already sent recap + optional room photo. Customer photo, "שלחתי תמונה", thanks, or waiting → `action: human_sales` NOW (מעביר ליועץ מכירות) with brief ack. Optional photo never blocks handoff; never stay on reply/faq. Quote sofa/room sizes exactly as the customer wrote — never invent (e.g. 2 מ׳ רוחב ≠ 2.5 מ׳).'

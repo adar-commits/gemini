@@ -2,6 +2,7 @@ import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
 import { isPostPurchaseAlternateSizeAvailabilityQuestion } from "@/lib/agents/post-purchase-alt-size"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
@@ -291,6 +292,35 @@ export function hasPendingBranchDisplayQuestion(
   }
   return recentUserTexts(body, history, 8).some((text) =>
     DISPLAY_AT_BRANCH_RE.test(text)
+  )
+}
+
+const BRANCH_STORE_VISIT_QUESTION_RE =
+  /(?:בחנות|בסניף).*(?:יש|לראות|אפשר)|יש\s+א(?:ותו|ת)\s+ב(?:חנות|סניף)|כדי\s+ש(?:אוכל|נוכל)\s+לראות|(?:ל(?:ראות|תצוגה)|מוצג).*(?:ב(?:חנות|סניף)|סניף)/i
+
+const SHORT_BRANCH_AVAILABILITY_ANSWER_RE = /^(?:כן|לא|בטח|נכון)(?:[\s.!?]|$)/i
+
+/** Thanks after bot answered a short branch/store yes/no — warm close, not handoff (534200437). */
+export function isBranchStoreAvailabilityThanksClose(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (!isThanksAcknowledgment(body)) return false
+  const lastAssistant = [...history]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "assistant" &&
+        !isInactivityAssistantMessage(message.content)
+    )
+  if (!lastAssistant) return false
+  const lastText = lastAssistant.content.replace(CUSTOMER_HEADER, "").trim()
+  if (lastText.length > 30 || /מעביר|העברתי|יועץ|נציג/i.test(lastText)) {
+    return false
+  }
+  if (!SHORT_BRANCH_AVAILABILITY_ANSWER_RE.test(lastText)) return false
+  return recentUserTexts(body, history, 4).some((text) =>
+    BRANCH_STORE_VISIT_QUESTION_RE.test(text)
   )
 }
 
