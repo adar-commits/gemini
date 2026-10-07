@@ -2455,12 +2455,32 @@ export function shouldLookupReceiptOrderAfterWrongPick(
   return false
 }
 
+/**
+ * Tracking/receipt already named the order and they asked when it arrives,
+ * before any confirm card. Look it up and send the branch/days/# card (534031731).
+ */
+export function shouldConfirmKnownOrderWithCard(body: string, history: HistoryMessage[]) {
+  const known = orderIdGivenInThread(history)
+  if (!known || isOrderLookupCompletedInThread(history)) return false
+  if (knownOrderWasOffered(history) || isKnownOrderConfirmPending(history)) return false
+  if (shouldLookupKnownOrderForCancel(body, history)) return false
+  if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
+  const other = extractOrderNumber(body)
+  if (other && other.toUpperCase() !== known.toUpperCase()) return false
+  return (
+    isOrderDeliveryStatusQuestion(body) ||
+    isShippingStatusQuestion(body) ||
+    isDeliveryEstimateQuestion(body)
+  )
+}
+
 /** Order id is already in the thread and this turn is not a confirm of it. */
 export function shouldRefuseKnownOrderLookup(body: string, history: HistoryMessage[]) {
   const known = orderIdGivenInThread(history)
   if (!known || isOrderLookupCompletedInThread(history)) return false
   if (shouldBindKnownOrderTurn(body, history)) return false
   if (shouldLookupKnownOrderForCancel(body, history)) return false
+  if (shouldConfirmKnownOrderWithCard(body, history)) return false
   if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
   const other = extractOrderNumber(body)
   if (other && other.toUpperCase() !== known.toUpperCase()) return false
@@ -3358,6 +3378,26 @@ async function lookupOrdersForPhone(phone: string) {
   return orders
 }
 
+/** First confirm for a receipt/tracking order — card with #, branch, and age, not live status. */
+async function lookupKnownOrderConfirmationCard(input: {
+  orderReference: string
+  lookupPhone: string
+  body: string
+  history: HistoryMessage[]
+}) {
+  const orders = await lookupOrdersForPhone(input.lookupPhone)
+  if (orders == null) return buildOrderLookupApiFailureReply()
+  const matched = findOrderByNumber(orders, input.orderReference)
+  if (!matched) {
+    return buildOrderNumberNotFoundReply(
+      input.orderReference,
+      input.history,
+      input.body
+    )
+  }
+  return buildOrderConfirmationPrompt(matched, input.history, input.body)
+}
+
 async function lookupOrderByReference(input: {
   orderReference: string
   lookupPhone: string
@@ -3740,6 +3780,21 @@ export async function resolveOrderShippingReply(input: {
 
   const empathize = (reply: string) =>
     maybeApplyCancellationEmpathy(reply, body, history)
+
+  if (shouldConfirmKnownOrderWithCard(body, history)) {
+    const known = orderIdGivenInThread(history)
+    const lookupPhone =
+      resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+      channelPhone(whatsappPhone)
+    if (known && lookupPhone) {
+      return lookupKnownOrderConfirmationCard({
+        orderReference: known,
+        lookupPhone,
+        body,
+        history,
+      })
+    }
+  }
 
   if (
     shouldBindKnownOrderTurn(body, history) ||

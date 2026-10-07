@@ -16,6 +16,8 @@ Before editing, read `.cursor/rules/conversation-fix-playbook.mdc`, `.cursor/rul
 
 **If the only fix you see needs a banned technique → stop with `no action`.** Do not ship regex/sanitizer hacks.
 
+`npm run guard:qa-fix` blocks a new Hebrew regex in strict files (`order-lookup.ts`, `pre-turn.ts`, `shipping.ts`). A thread-state detector that must match customer wording lives in a non-strict helper (for example `lib/hom-agent/tracking-link-ask.ts`); the strict file only calls it. Do not put the regex on the strict-file line.
+
 Stay on `main`. After code changes:
 
 ```bash

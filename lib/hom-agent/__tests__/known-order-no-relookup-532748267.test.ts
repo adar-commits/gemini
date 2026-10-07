@@ -5,7 +5,11 @@ import {
   isKnownOrderConfirmPending,
   orderIdGivenInThread,
   shouldBindKnownOrderTurn,
+  shouldConfirmKnownOrderWithCard,
+  shouldRefuseKnownOrderLookup,
+  type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
+import { clearOrdersLookupCache, rememberOrdersLookup } from "@/lib/agents/order-lookup-cache"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import { runStructuredOrderLookupPreTurn } from "@/lib/hom-agent/pre-turn"
 import { executeLookupOrderStatus } from "@/lib/hom-agent/tools/order-status"
@@ -61,17 +65,39 @@ describe("known order skips fresh lookup 532748267", () => {
     )
   })
 
-  it("does not ask for an order number on the opening delivery question", async () => {
+  it("opens with the order card for the receipt order, not an SO tracking-link question", async () => {
     const history: HistoryMessage[] = [{ role: "assistant", content: RECEIPT }]
+    const body = "היי אשמח לדעת מתי השטיח יגיע?"
+    assert.equal(shouldConfirmKnownOrderWithCard(body, history), true)
+    assert.equal(shouldRefuseKnownOrderLookup(body, history), false)
+    clearOrdersLookupCache()
+    const order: OrderShipmentStatus = {
+      orderNumber: "SO26022813",
+      branchLabel: "אתר אינטרנט",
+      statusCode: "4",
+      statusLabel: "בדרך",
+      statusDescription: "המשלוח אצל חברת השליחויות.",
+      branchCode: "3000",
+      totalPrice: 420,
+      raw: {
+        ORDNAME: "SO26022813",
+        REFERENCE: "77001",
+        CURDATE: new Date(Date.now() - 5.5 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    }
+    rememberOrdersLookup("+972500000000", [order])
     const result = await executeLookupOrderStatus({
-      body: "היי אשמח לדעת מתי השטיח יגיע?",
+      body,
       history,
       phone: "+972500000000",
     })
-    assert.equal(result.ok, false)
-    if (result.ok) return
-    assert.match(result.error, /SO26022813/)
-    assert.match(result.error, /Do NOT call lookup_order_status/)
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    assert.match(result.reply, /שבוצעה/)
+    assert.match(result.reply, /באתר אינטרנט/)
+    assert.match(result.reply, /77001/)
+    assert.doesNotMatch(result.reply, /SO26022813/)
+    assert.doesNotMatch(result.reply, /קישור המעקב/)
   })
 
   it("hints to confirm the receipt order and not start identification", () => {

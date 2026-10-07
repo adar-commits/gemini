@@ -133,8 +133,14 @@ import {
   isServiceHandoffOrderLookupReply,
   resolveOrderShippingReply,
   shouldBindKnownOrderTurn,
+  shouldConfirmKnownOrderWithCard,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
+import {
+  buildTrackingLinkReply,
+  isTrackingLinkLocationQuestion,
+  trackingUrlFromThread,
+} from "@/lib/hom-agent/tracking-link-ask"
 import { remainderAfterLeadingAffirmation } from "@/lib/agents/compound-reply"
 import { hasProductUrl, isCatalogProductInquiry } from "@/lib/agents/product-handoff"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
@@ -730,6 +736,17 @@ export async function runStructuredOrderLookupPreTurn(input: {
   if (isHumanHandoffOfferPending(input.history)) {
     return { kind: "skip", response: null }
   }
+  if (isTrackingLinkLocationQuestion(body)) {
+    const url = trackingUrlFromThread(input.history)
+    if (url) {
+      return {
+        kind: "handled",
+        reply: buildTrackingLinkReply(url),
+        action: "reply",
+      }
+    }
+    return { kind: "skip", response: null }
+  }
   if (shouldHandleDigitalDocumentFlow(body, input.history)) {
     return { kind: "skip", response: null }
   }
@@ -772,6 +789,7 @@ export async function runStructuredOrderLookupPreTurn(input: {
     requiresOrderIdentification(body, input.history)
 
   const knownOrderBind = shouldBindKnownOrderTurn(body, input.history)
+  const knownOrderCard = shouldConfirmKnownOrderWithCard(body, input.history)
 
   const documentReferenceBinding = Boolean(
     extractShippingOrderDocumentReference(body, input.history)
@@ -784,6 +802,7 @@ export async function runStructuredOrderLookupPreTurn(input: {
     !typedPhone &&
     !openingShippingStatus &&
     !knownOrderBind &&
+    !knownOrderCard &&
     !documentReferenceBinding
   ) {
     return { kind: "skip", response: null }
@@ -818,7 +837,8 @@ export async function runStructuredOrderLookupPreTurn(input: {
     !orderConfirmBinding &&
     !deliveryLookupBinding &&
     !documentReferenceBinding &&
-    !knownOrderBind
+    !knownOrderBind &&
+    !knownOrderCard
   ) {
     return { kind: "skip", response: null }
   }

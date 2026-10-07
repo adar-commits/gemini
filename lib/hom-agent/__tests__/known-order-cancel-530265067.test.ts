@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   shouldBindKnownOrderTurn,
+  shouldConfirmKnownOrderWithCard,
   shouldLookupKnownOrderForCancel,
   shouldRefuseKnownOrderLookup,
 } from "@/lib/agents/order-lookup"
@@ -31,10 +32,11 @@ describe("known order cancel 530265067", () => {
     assert.equal(shouldBindKnownOrderTurn(OPENING, history), false)
   })
 
-  it("still asks once on a bare delivery question", () => {
+  it("shows the order card on a bare delivery question instead of blocking lookup", () => {
     const body = "היי אשמח לדעת מתי השטיח יגיע?"
     assert.equal(shouldLookupKnownOrderForCancel(body, history), false)
-    assert.equal(shouldRefuseKnownOrderLookup(body, history), true)
+    assert.equal(shouldConfirmKnownOrderWithCard(body, history), true)
+    assert.equal(shouldRefuseKnownOrderLookup(body, history), false)
   })
 
   it("hints to look up that order and never send the confusion line", () => {

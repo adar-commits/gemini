@@ -26,6 +26,7 @@ import {
   isShippingAddressUpdateThread,
   shouldDeferUnknownDeliveryStatusHandoff,
   shouldLookupKnownOrderForCancel,
+  shouldConfirmKnownOrderWithCard,
   shouldRefuseKnownOrderLookup,
   isOrderLookupPhoneReplyPending,
   isOrderNumberNotFoundReplyPending,
@@ -39,6 +40,11 @@ import {
 } from "@/lib/agents/order-lookup"
 import { isResolvedStatusCloseReply } from "@/lib/agents/conversation-close"
 import type { HistoryMessage } from "@/lib/agents/types"
+import {
+  buildTrackingLinkReply,
+  isTrackingLinkLocationQuestion,
+  trackingUrlFromThread,
+} from "@/lib/hom-agent/tracking-link-ask"
 
 function returnPickupContextInThread(
   history: HistoryMessage[],
@@ -66,6 +72,23 @@ export async function executeLookupOrderStatus(input: {
   const history = input.history ?? []
   const body = input.body.trim()
 
+  if (isTrackingLinkLocationQuestion(body)) {
+    const url = trackingUrlFromThread(history)
+    if (url) {
+      return {
+        ok: true as const,
+        reply: buildTrackingLinkReply(url),
+        action: "reply" as const,
+      }
+    }
+    return {
+      ok: false as const,
+      errorCode: "lookup_misroute",
+      error:
+        "TRACKING LINK (534031731): they asked where the tracking link is. Do not send shipment status. Paste the tracking.carpetshop.co.il URL already in the thread.",
+    }
+  }
+
   const knownOrder = orderIdGivenInThread(history)
   if (shouldLookupKnownOrderForCancel(body, history)) {
     return deliverOrderLookupReply(input)
@@ -91,6 +114,7 @@ export async function executeLookupOrderStatus(input: {
   const needsOrderLookup = requiresOrderIdentification(body, history)
   const lookupAllowed =
     needsOrderLookup ||
+    shouldConfirmKnownOrderWithCard(body, history) ||
     isOrderModificationRequest(body) ||
     isOrderConfirmationPending(history) ||
     isOrderLookupPhoneReplyPending(history) ||
