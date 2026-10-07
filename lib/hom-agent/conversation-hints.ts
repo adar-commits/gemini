@@ -991,7 +991,7 @@ export function buildConversationHints(input: {
         )
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
-          "SERVICE ORDER ID: lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding, photos). After customer confirms the order card → rep summary bullets → summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never אפשר לעזור במשהו נוסף as the main answer."
+          "SERVICE ORDER ID (505886895): lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding/משיר צמר, photos). After customer confirms the order card → rep summary bullets → summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never «לשנות את ההזמנה» / human_sales / יועץ מכירות, never «לא ניתן להציג סטטוס משלוח», never אפשר לעזור במשהו נוסף as the main answer."
         )
       } else {
         lines.push(

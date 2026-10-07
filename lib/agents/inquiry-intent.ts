@@ -34,6 +34,9 @@ const REPLACEMENT_STATUS_RE =
 const SOFT_PROBLEM_RE =
   /כתם|כתמים|ריח|רטוב|דהוי|לא\s+תקין|לא\s+בסדר|מוזר|יש\s+בעיה|משהו\s+לא\s+כ(?:\"|״|')?כ/i
 
+const SHEDDING_RE =
+  /(?:משיר|יורד(?:ים)?\s+(?:מ)?(?:מנ)?(?:ו|ה|ם)?\s*(?:סיב|צמר|שיער))/i
+
 const RECEIVED_RE = /(?:קיבלתי|הגיע(?:ה|ו)?|התקבל|קיבלנו)/i
 const PRODUCT_RE = /(?:שטיח|פוף|מוצר|הזמנה|תמונ(?:ה|ת)|כרית)/i
 
@@ -382,6 +385,7 @@ function matchesReturnRequest(text: string) {
 function matchesDefect(text: string) {
   if (!text) return false
   if (matchesReceivedWithProblem(text)) return true
+  if (SHEDDING_RE.test(text) && PRODUCT_RE.test(text)) return true
   if (DEFECT_RE.test(text)) {
     if (RECEIVED_RE.test(text) || PRODUCT_RE.test(text)) return true
     if (/(?:יש|קיים)\s+(?:ב(?:ו|ה|הם)?\s+)?(?:פגם|ליקוי)/i.test(text)) return true
