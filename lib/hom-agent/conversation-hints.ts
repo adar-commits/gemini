@@ -1364,17 +1364,17 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isReturnEligibilityQuestion(body, history)) {
-    lines.push(
-      "Return ELIGIBILITY FAQ (hypothetical — not executing a return now): answer immediately from return policy — 14 days from receipt, unused + original packaging, branch or paid courier, returns portal to open the request. Confirm their planned day (e.g. Sunday) is within the window. Do NOT call lookup_order_status."
-    )
-  } else if (
+  if (
     isOrderCancellationSummaryLabel(body) &&
     !isOrderLookupCompletedInThread(history) &&
     !isReturnPortalSelfServiceThread(history)
   ) {
     lines.push(
-      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 534295968 / 534268241): customer wants to cancel (may also mention missing receipt/invoice — that is NOT post-receipt received). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). A new order afterward is for the rep — service owns cancel + callback first."
+      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 530313226 / 534295968 / 534268241): customer wants to cancel (may also mention missing receipt/invoice — that is NOT post-receipt received; may name an undelivered line — עדיין לא סופק / אין במלאי). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). Never open with order-level משלוח נמסר/נמסר בשליח when they cancel a line they say never arrived — per-line Pre Order status only if lookup already ran. A new order afterward is for the rep — service owns cancel + callback first."
+    )
+  } else if (isReturnEligibilityQuestion(body, history)) {
+    lines.push(
+      "Return ELIGIBILITY FAQ (hypothetical — not executing a return now): answer immediately from return policy — 14 days from receipt, unused + original packaging, branch or paid courier, returns portal to open the request. Confirm their planned day (e.g. Sunday) is within the window. Do NOT call lookup_order_status."
     )
   } else if (isCancelShipmentConfirmPending(history)) {
     lines.push(
