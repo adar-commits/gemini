@@ -331,6 +331,23 @@ function isOrderStatusProgressOpener(content: string) {
   )
 }
 
+/** Customer described a service/shipping issue before order confirm — not phone-only lookup (534367153). */
+function threadHasStatedCustomerIssue(history: HistoryMessage[], body: string) {
+  const userText = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .concat(body.trim())
+    .join("\n")
+  if (classifyPostPurchaseCase(userText)) return true
+  if (isOrderDeliveryStatusQuestion(userText)) return true
+  if (isShippingStatusQuestion(userText)) return true
+  if (isShippingThreadFromHistory(history)) return true
+  if (/\[media:image:/i.test(userText)) return true
+  if (isDuplicateOrExtraItemComplaint(userText)) return true
+  if (isMissingOrPartialDeliveryComplaint(userText)) return true
+  return false
+}
+
 function isOrderStatusProgressOpenerFromHistory(history: HistoryMessage[]) {
   return history.some(
     (message) => message.role === "user" && isOrderStatusProgressOpener(message.content)
@@ -1083,7 +1100,10 @@ export function buildConversationHints(input: {
         lines.push(
           "ORDER CONFIRM + MODIFICATION (441694412 / 530164166): כן confirms the order card on a color/size/model change thread — call lookup_order_status now. If status is still packaging/in warehouse: address the change in the same reply and set **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never action reply alone. Never warm-close or paraphrase status without the tool."
         )
-      } else if (isOrderConfirmationYes(body)) {
+      } else if (
+        isOrderConfirmationYes(body) &&
+        threadHasStatedCustomerIssue(history, body)
+      ) {
         lines.push(
           "ORDER CONFIRM YES: כן/נכון/אוקיי confirms the pending order card — call lookup_order_status immediately with the bound order/phone. Never never-stuck on this turn."
         )
@@ -1108,6 +1128,14 @@ export function buildConversationHints(input: {
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
           "SERVICE ORDER ID (505886895 / 533051674): lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding/משיר צמר, photos). After customer confirms the order card → rep summary bullets **must** include: מס׳ הזמנה + דיווח על בעיה/חשש (לפי הלקוח) from the thread + נשלחו תמונות if they sent images — never a generic lone «פנייה לשירות לקוחות» without the problem. Then summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never «לשנות את ההזמנה» / human_sales / יועץ מכירות, never «לא ניתן להציג סטטוס משלוח», never אפשר לעזור במשהו נוסף as the main answer."
+        )
+      } else if (
+        isOrderConfirmationYes(body) &&
+        !threadHasStatedCustomerIssue(history, body) &&
+        !kbSelfServiceFaqThisTurn
+      ) {
+        lines.push(
+          "ORDER CONFIRM NO ISSUE STATED (534367153): order card confirmed but customer never described the problem (phone/name lookup only). Ask ONE short question what they need help with — action reply. Never service rep summary, never «פנייה לשירות לקוחות», never «משך ההמתנה» unless they explicitly stated wait duration in their words. Never invent issue labels."
         )
       } else {
         lines.push(
