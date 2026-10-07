@@ -290,6 +290,16 @@ function isDeliveryTimingConfirmOfferedByBot(history: HistoryMessage[]) {
   return /(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))/i.test(lastAssistant.content)
 }
 
+function isShippingStatusCheckOfferedInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:אבדוק|לבדוק).*סטטוס\s*(?:ה)?משלוח|רוצים\s+שאבדוק\s+א(?:ת\s+)?סטטוס\s*(?:ה)?משלוח/i.test(
+        message.content
+      )
+  )
+}
+
 function isDeliveryEtaThread(history: HistoryMessage[]) {
   return (
     isShippingThreadFromHistory(history) ||
@@ -1570,6 +1580,14 @@ export function buildConversationHints(input: {
     const known = orderIdGivenInThread(history)
     lines.push(
       `KNOWN ORDER CONFIRM PHOTO (531872131): you asked if they mean order ${known ?? "from tracking"} — receipt/tracking screenshot = confirmation. Call lookup_order_status with that id (read SO/# from the image if needed). Answer delivery status + ETA policy for the opening מתי/מועד הגעה ask. action reply — never service rep summary or human_service on this turn.`
+    )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isOrderNumberRequestPending(history) &&
+    (isShippingThreadFromHistory(history) || isShippingStatusCheckOfferedInThread(history))
+  ) {
+    lines.push(
+      "SHIPPING INVOICE PHOTO (285505270): shipping/ETA thread — you asked for order # or phone and customer sent receipt/invoice image (even bare photo). Read IN… / SO… / #… from vision, call lookup_order_status, answer status + ETA policy. Only if lookup fails → service rep summary (awaiting service_summary_confirm) with future אעביר — never skip lookup and jump to rep summary for shipping status."
     )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
