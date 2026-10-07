@@ -1408,6 +1408,16 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    orderIdGivenInThread(history) &&
+    extractOrderReference(body, history)?.replace(/\D/g, "").length === 5 &&
+    !extractOrderNumber(body)
+  ) {
+    lines.push(
+      `REFERENCE ON KNOWN ORDER (533606875): ${extractOrderReference(body, history)} is the customer order # (REFERENCE), not a failed phone answer and not a missing ERP order. Call lookup_order_status now. It may be the same order as the tracking SO already in the thread. Never say you could not pull it from the system.`
+    )
+  }
+
   if (isEnRouteNotYetArrivedUpdate(body, history)) {
     lines.push(
       `EN ROUTE NOT YET ARRIVED (533790731): you already said the shipment is loaded on the driver and on the way. They are only updating that it has not arrived. Do NOT call lookup_order_status again and do NOT ask for מספר הזמנה. NEVER mention בקשה לדחיית מסירה, מיום X, or *3076 — they did not ask to postpone. Say: ${EN_ROUTE_NOT_YET_ARRIVED_REPLY} action reply.`

@@ -62,6 +62,7 @@ Plan the smallest change that makes the next similar turn correct:
 - Landbot message hooks write `conversations.assigned_agent_code` from outside this repo (`message_hook_auto`, `api_force_close`). A human assignment is locked by the DB trigger `protect_crm_assignment_from_landbot`; our writes go through `assign_conversation_agent`. Do not call Landbot unassign or assign-api over that human, and do not teach the model to say the rep already has the case on `action: reply`.
 - If the bad sentence is only in `truncationCompletionTail`, complete a request already in the cut reply. An en-route status that mentions a courier must not gain postponement policy or a fresh order-number ask.
 - When one phone has two orders, an SO that appears only in an old automated self-pickup message must not beat a live shipping status 4 (ממתין להפצה) on a when-does-it-arrive ask. Status 4 is waiting for dispatch, not “assigned to a driver” and not self-pickup processing (21).
+- A bare 5-digit customer number sent after a tracking SO is a Priority REFERENCE on the chat phone. Do not refuse that lookup, and do not treat it as a failed phone-confirm.
 - If the model picked the wrong action or flow, add one binding rule and one hint gated on thread state that already exists.
 - If Hebrew policy is ambiguous, AskQuestion (≤10). Read `docs/intent-routing-audit.md` first. Do not guess.
 

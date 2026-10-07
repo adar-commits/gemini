@@ -30,6 +30,8 @@ import {
   shouldRefuseKnownOrderLookup,
   isOrderLookupPhoneReplyPending,
   isOrderNumberNotFoundReplyPending,
+  extractOrderReference,
+  extractOrderNumber,
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
   isServiceHandoffOrderLookupReply,
@@ -175,7 +177,11 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
-  if (isPostPurchaseServiceFlow(history) || isServiceOrderIdentificationFlow(history, body)) {
+  if (
+    (isPostPurchaseServiceFlow(history) || isServiceOrderIdentificationFlow(history, body)) &&
+    !extractOrderReference(body, history) &&
+    !extractOrderNumber(body)
+  ) {
     return {
       ok: false as const,
       error:

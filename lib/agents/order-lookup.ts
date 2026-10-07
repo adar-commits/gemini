@@ -2485,6 +2485,11 @@ export function shouldRefuseKnownOrderLookup(body: string, history: HistoryMessa
   if (isIdentifiedOrderRejection(body) || isOrderConfirmationNo(body)) return false
   const other = extractOrderNumber(body)
   if (other && other.toUpperCase() !== known.toUpperCase()) return false
+  const reference = extractOrderReference(body, history)
+  if (reference && !/^(?:SO|IN|OV)/i.test(reference)) {
+    const digits = reference.replace(/\D/g, "")
+    if (digits.length === 5) return false
+  }
   return true
 }
 
@@ -4025,6 +4030,21 @@ export async function resolveOrderShippingReply(input: {
           return buildOrderNumberNotFoundReply(shippingDocumentRef, history, body)
         }
         return buildNoOrdersFoundReply(lookupPhone)
+      }
+    }
+
+    const typedOrder = extractOrderReference(body, history)
+    if (typedOrder && !userProvidedPhone(body)) {
+      const lookupPhone =
+        resolveLookupPhoneFromHistory(history, whatsappPhone, body) ??
+        channelPhone(whatsappPhone)
+      if (lookupPhone) {
+        return lookupOrderByReference({
+          orderReference: typedOrder,
+          lookupPhone,
+          body,
+          history,
+        })
       }
     }
 
