@@ -1345,7 +1345,7 @@ export function buildConversationHints(input: {
     !isReturnPortalSelfServiceThread(history)
   ) {
     lines.push(
-      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 534295968): customer wants to cancel (may also mention missing receipt/invoice — that is NOT post-receipt received). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). A new order afterward is for the rep — service owns cancel + callback first."
+      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 534295968 / 534268241): customer wants to cancel (may also mention missing receipt/invoice — that is NOT post-receipt received). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). A new order afterward is for the rep — service owns cancel + callback first."
     )
   } else if (isCancelShipmentConfirmPending(history)) {
     lines.push(
@@ -1489,7 +1489,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isMembershipClubCheckoutQuestion(body)) {
+  if (isMembershipClubCheckoutQuestion(body) && isOrderCancellationSummaryLabel(body)) {
+    lines.push(
+      "CHECKOUT PAYMENT SPLIT CANCEL (534268241): BUYME/voucher/מועדון + credit balance checkout charged wrong and customer wants to cancel — you cannot reverse charges from here. Same turn: empathize, say transferring to service rep to cancel and verify charges → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Rep owns cancel + charge verification; optional portal link if pre-delivery."
+    )
+  } else if (isMembershipClubCheckoutQuestion(body)) {
     lines.push(
       "MEMBERSHIP / RELOADABLE CHECKOUT: answer SHORT from membership-clubs-payments KB — if their program is listed, confirm we work with it; completing the order with that card usually needs a service rep (like קוד זיכוי). Offer human_service — never a long payment-methods dump, never 'אין לי מידע'. If they ask נציג אנושי → handoff immediately."
     )
