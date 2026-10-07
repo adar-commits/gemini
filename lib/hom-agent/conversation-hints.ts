@@ -1225,7 +1225,7 @@ export function buildConversationHints(input: {
     !isReturnPortalSelfServiceThread(history)
   ) {
     lines.push(
-      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405): customer wants to cancel (may also ask for a rep to call back) — pre-delivery cancel playbook in the same turn: returns portal link with phone prefill + action human_service so delivery can be stopped. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). A new order afterward is for the rep — service owns cancel + callback first."
+      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 534295968): customer wants to cancel (may also mention missing receipt/invoice — that is NOT post-receipt received). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). A new order afterward is for the rep — service owns cancel + callback first."
     )
   } else if (isCancelShipmentConfirmPending(history)) {
     lines.push(
