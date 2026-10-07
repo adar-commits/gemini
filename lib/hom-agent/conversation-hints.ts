@@ -1226,6 +1226,18 @@ export function buildConversationHints(input: {
 
   if (
     isOrderLookupCompletedInThread(history) &&
+    (isShippingThreadFromHistory(history) || isOrderStatusDeliveredInThread(history)) &&
+    /(?:טלפון\s*נוסף|מס(?:פר)?\s*נוסף|ש(?:י)?תקשר(?:ו)?\s*(?:רק\s*)?(?:ל|ע(?:ל|ם)?)|(?:ל)?עדכ(?:ן|ון)\s*(?:מס(?:פר)?|טלפון).*ש(?:ליח|משלוח))/i.test(
+      body
+    )
+  ) {
+    lines.push(
+      "DELIVERY CONTACT PHONE (534370893): after shipping status, customer wants courier calls on a different/additional number (טלפון נוסף / שיתקשרו רק ל…). Chat phone and order phone may differ — ack the requested number when stated. Bot cannot update courier contacts → human_service in the SAME JSON with short transfer + order # + callback request. Courier WhatsApp 077-9725055 only as optional backup — never action reply with only self-service + להעביר?"
+    )
+  }
+
+  if (
+    isOrderLookupCompletedInThread(history) &&
     isOrderStatusDeliveredInThread(history) &&
     /(?:מתי\s+.*(?:יבוצע|תבוצע)|(?:י)?(?:בוצע|תבוצע)\s+(?:ה)?(?:ה)?(?:אספק|הספק))/i.test(body)
   ) {
