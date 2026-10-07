@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { describe, it } from "node:test"
+import { buildHomBotPrompt } from "@/lib/hom-agent/hom-bot-prompt"
 import {
   buildHomAgentSystemPrompt,
   buildHomAgentSystemPromptAsync,
@@ -68,6 +71,34 @@ describe("prompt cache prefix order", () => {
       now: new Date("2026-10-07T09:15:00Z"),
     })
     assert.equal(joined, `${a.staticPrefix}${a.dynamic}`, "model must see the same text as before the split")
+  })
+
+  it("light playbook variant does not vary with the customer's words", () => {
+    const light = (text: string) =>
+      buildHomBotPrompt({ userText: text, history: [{ role: "user", content: text }], llmOwnsIntent: false })
+    assert.equal(light("שלום"), light("מה שעות הפתיחה בסניף?"))
+  })
+
+  it("every HoM LLM call sends the cached static block, never gateway auto caching", () => {
+    const source = readFileSync(join(process.cwd(), "lib/hom-agent/invoke.ts"), "utf8")
+      .split("\n")
+      .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line))
+      .join("\n")
+    assert.doesNotMatch(source, /caching\s*:\s*["']auto["']/)
+    assert.match(source, /cacheControl: \{ type: "ephemeral", ttl: "1h" \}/)
+    assert.match(source, /content: parts\.staticPrefix, providerOptions: STATIC_PREFIX_CACHE_OPTIONS/)
+
+    const systemArgs = [...source.matchAll(/generateText\(\{\s*model: [^\n]+\n\s*system: ([^\n]+),\n/g)].map(
+      (m) => m[1]
+    )
+    assert.ok(systemArgs.length >= 5, "expected every generateText call to pass system")
+    for (const arg of systemArgs) {
+      assert.match(
+        arg,
+        /^(toolSystem|homAgentSystemMessages\()/,
+        `system must be the split cached messages, got: ${arg}`
+      )
+    }
   })
 })
 

@@ -140,6 +140,17 @@ const GUARD_RULES: GuardRule[] = [
     },
   },
   {
+    id: "no_gateway_auto_caching",
+    hint:
+      "Keep the manual 1h cache breakpoint on the static HoM prompt (invoke.ts). Gateway caching:auto re-writes the full prompt every turn (~5× cost).",
+    matches: ({ file, line }) => {
+      if (!file.startsWith("lib/")) return false
+      if (isTestOrFixturePath(file)) return false
+      if (isAllowlistedLine(line)) return false
+      return /caching\s*:\s*["']auto["']|cacheTtl\s*:/.test(line)
+    },
+  },
+  {
     id: "no_digital_document_noun_hijack",
     hint:
       "Do not add noun-only document/receipt detectors. Defer to LLM or thread-state guards.",

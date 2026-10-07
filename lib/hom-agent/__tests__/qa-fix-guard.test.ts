@@ -43,6 +43,15 @@ describe("qa-fix-guard", () => {
     assert.equal(violations[0]?.ruleId, "no_pre_turn_customer_intent_arm")
   })
 
+  it("blocks re-enabling gateway auto caching on the HoM prompt", () => {
+    const violations = scanAddedLine({
+      file: "lib/hom-agent/invoke.ts",
+      lineNumber: 33,
+      line: '+  gateway: { caching: "auto" as const, cacheTtl: "1h" as const },',
+    })
+    assert.equal(violations[0]?.ruleId, "no_gateway_auto_caching")
+  })
+
   it("respects qa-fix-guard allow marker", () => {
     const violations = scanAddedLine({
       file: "lib/agents/off-topic.ts",
