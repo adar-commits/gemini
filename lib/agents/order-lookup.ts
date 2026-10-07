@@ -905,7 +905,7 @@ export function isShippingLookupContext(
 }
 
 const ORDER_NUMBER_REQUEST_RE =
-  /(?:אוכל לקבל|מה|איז(?:ה|ו))\s+(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)|מספר(?:י)?\s+(?:ה)?הזמנ(?:ה|ות)/i
+  /(?:אוכל לקבל|מה|איז(?:ה|ו))\s+(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)|אשמח\s+(?:ל)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)|מספר(?:י)?\s+(?:ה)?הזמנ(?:ה|ות)/i
 
 const ORDER_PHONE_ID_REQUEST_RE =
   /מספר\s+(?:ה)?טלפון\s+ש(?:בו|איתו|שאיתו)|הטלפון\s+ש(?:בו|איתו|שאיתו)\s+בוצע|מספר\s+(?:ה)?הזמנה[^?\n]{0,48}מספר\s+(?:ה)?טלפון/i
@@ -2707,12 +2707,17 @@ export function buildDigitalDocumentNotFoundReply() {
 }
 
 export function buildNoOrdersFoundReply(lookupPhone?: string | null) {
-  const phoneHint = lookupPhone
-    ? ` (${formatDisplayPhone(lookupPhone)})`
-    : ""
+  const phoneHint = lookupPhone ? ` ${formatDisplayPhone(lookupPhone)}` : ""
   return `${CUSTOMER_HEADER}
 לא מצאתי הזמנות פעילות לפי הטלפון${phoneHint}.
 האם להעביר את השיחה לנציג שירות שיבדוק עבורכם?`
+}
+
+/** Shipping ETA thread — phone lookup empty during order identification; ask order # before rep handoff. */
+export function buildShippingNoOrdersAskOrderNumberReply(lookupPhone: string) {
+  return `${CUSTOMER_HEADER}
+לא מצאתי הזמנות לפי הטלפון ${formatDisplayPhone(lookupPhone)}.
+אשמח למספר ההזמנה ${ORDER_NUMBER_ASK_EXAMPLES} — או לכתוב "לפי הטלפון" ואאתר לפי המספר שממנו את כותבים.`
 }
 
 export function orderLookupEnabled() {
@@ -3422,11 +3427,40 @@ async function lookupOrderByReference(input: {
 async function lookupAndStartOrderConfirm(
   phone: string,
   empathize?: (reply: string) => string,
-  context?: { history: HistoryMessage[]; body?: string }
+  context?: { history: HistoryMessage[]; body?: string; skipChannelFallback?: boolean }
 ) {
   const orders = await lookupOrdersForPhone(phone)
   if (orders == null) return buildOrderLookupApiFailureReply()
-  if (orders.length === 0) return buildNoOrdersFoundReply(phone)
+  if (orders.length === 0) {
+    const history = context?.history ?? []
+    const whatsappPhone = getPriorityApiLogContext()?.whatsappPhone
+    const channel = channelPhone(whatsappPhone)
+    const phoneKey = phoneForOrderApi(phone)
+    const channelKey = channel ? phoneForOrderApi(channel) : null
+
+    if (
+      !context?.skipChannelFallback &&
+      channelKey &&
+      phoneKey !== channelKey &&
+      wasOrderNumberRequestedInThread(history)
+    ) {
+      const channelOrders = await lookupOrdersForPhone(channel!)
+      if (channelOrders != null && channelOrders.length > 0) {
+        return lookupAndStartOrderConfirm(channel!, empathize, {
+          history,
+          body: context?.body,
+          skipChannelFallback: true,
+        })
+      }
+    }
+
+    if (wasOrderNumberRequestedInThread(history)) {
+      const reply = buildShippingNoOrdersAskOrderNumberReply(phone)
+      return empathize ? empathize(reply) : reply
+    }
+
+    return buildNoOrdersFoundReply(phone)
+  }
   const conversationId = getPriorityApiLogContext()?.conversationId
   const priorPhone = conversationId ? recallConversationLookupPhone(conversationId) : null
   const phoneKey = phoneForOrderApi(phone)
