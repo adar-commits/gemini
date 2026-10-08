@@ -70,6 +70,7 @@ import {
   hasCatalogIntakeSizeAndRoom,
   isCatalogProductInquiry,
   isColorVariantRealPhotoRequest,
+  isAffiliateCommissionInquiry,
   isDesignerPartnershipInquiry,
   isHomStorefrontUrl,
   extractRequestedModel,
@@ -532,6 +533,12 @@ export function buildConversationHints(input: {
   if (isColorVariantRealPhotoRequest(body, history) && !hasOngoingSalesIntake(history)) {
     lines.push(
       'COLOR VARIANT PHOTOS (533891498): customer hesitates between color variants or asks for real-life photos you cannot send — יועץ המכירות owns the comparison. Send bullet recap + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone (Action ↔ transfer wording). Optional room photo may be requested in the same message but must not block handoff.'
+    )
+  }
+
+  if (isAffiliateCommissionInquiry(body, history) && !hasOngoingSalesIntake(history)) {
+    lines.push(
+      'AFFILIATE COMMISSION (487016993): partner asking how to receive commissions on purchases with their personal/referral code — יועץ מכירות owns payout process. Brief intro + bullet recap (topic, recent purchases via code, phone) + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone. You may ask optional studio name or the code itself in the same message; optional info must **not** block handoff.'
     )
   }
 

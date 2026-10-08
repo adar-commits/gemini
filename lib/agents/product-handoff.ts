@@ -138,6 +138,14 @@ const DESIGNER_PARTNERSHIP_ASK_RE =
 
 const DESIGNER_CODE_ORDER_RE = /קוד\s*(?:ה)?מעצב(?:ת)?/i
 
+const AFFILIATE_CODE_CONTEXT_RE =
+  /(?:ה)?קוד\s*(?:ה)?(?:אישי|שלי|שלך|הפנ(?:י|)י)|(?:שמ(?:י|)ים|ש(?:ם|)ים)\s+(?:א(?:ת|)|)?(?:ה)?קוד/i
+
+const AFFILIATE_COMMISSION_ASK_RE = /עמל(?:ה|ות)/i
+
+const AFFILIATE_PURCHASE_VIA_CODE_RE =
+  /לקוח(?:ות)?\s+רכ(?:ש(?:ו)?|קנ(?:ו)?)\s+דר(?:ך|כי|כם)/i
+
 const CATALOG_SIZE_IN_THREAD_RE = /\d{2,4}\s*[/*x×]\s*\d{2,4}/
 
 const CATALOG_ROOM_IN_THREAD_RE =
@@ -241,6 +249,25 @@ export function isColorVariantRealPhotoRequest(
       .map((message) => message.content),
   ].join("\n")
   return COLOR_VARIANT_REAL_PHOTO_REQUEST_RE.test(userCorpus)
+}
+
+/** Affiliate/referral partner asking how to receive commissions on code purchases (487016993). */
+export function isAffiliateCommissionInquiry(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const userCorpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  ].join("\n")
+  if (DESIGNER_CODE_ORDER_RE.test(userCorpus)) return false
+  const commissionTopic =
+    AFFILIATE_COMMISSION_ASK_RE.test(userCorpus) ||
+    AFFILIATE_PURCHASE_VIA_CODE_RE.test(userCorpus)
+  if (!commissionTopic) return false
+  return AFFILIATE_CODE_CONTEXT_RE.test(userCorpus)
 }
 
 /** Interior designer asking about partnership/discount process — sales advisor owns terms (534359537). */
