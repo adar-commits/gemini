@@ -1310,9 +1310,9 @@ export function isPostOrderShippingFollowUp(body: string, history: HistoryMessag
   if (isPreorderDelayComplaint(text) || isMissingOrPartialDeliveryComplaint(text)) return true
   if (isOrderStatusClarificationQuestion(text)) return true
   if (isHelpInsufficient(text)) return true
+  if (isOrderOutOfScopeMetadataQuestion(text)) return true
 
   if (isOrderStatusDeliveredInThread(history)) {
-    if (isOrderOutOfScopeMetadataQuestion(text)) return true
     if (text.length <= 48) {
       if (/^עבר\s+(?:שבוע|חודש|\d+)/i.test(text)) return true
       if (/^מי\s/i.test(text)) return true
