@@ -126,6 +126,15 @@ export function shouldDeferToHumanAgent(input: {
   return resolveHumanThreadAssistMode(input).mode === "fresh"
 }
 
+/**
+ * Inactivity ping + close stays off while a rep may still be working the case.
+ * A stale thread (rep silent 2+ staff days, bot answering — e.g. sticky reopen) gets the
+ * normal routine so it does not sit open in the rep's queue (532876329).
+ */
+export function blocksInactivityRoutine(assist: HumanThreadAssist) {
+  return assist.owned && assist.mode !== "stale"
+}
+
 export async function resolveEffectiveAssignedAgentId(
   conversationId: string,
   assignedAgentId?: number | null

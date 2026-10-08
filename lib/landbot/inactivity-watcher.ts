@@ -1,6 +1,6 @@
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { isBotWaitingForCustomerReply } from "@/lib/agents/inactivity-session"
-import { resolveHumanThreadAssist } from "@/lib/landbot/human-takeover"
+import { blocksInactivityRoutine, resolveHumanThreadAssist } from "@/lib/landbot/human-takeover"
 import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
@@ -105,7 +105,7 @@ async function lastMeaningfulAssistantMessage(conversationId: string) {
 }
 
 async function isHumanWaitingConversation(conversationId: string) {
-  if ((await resolveHumanThreadAssist(conversationId)).owned) return true
+  if (blocksInactivityRoutine(await resolveHumanThreadAssist(conversationId))) return true
   const [lastAction, meaningful] = await Promise.all([
     lastMessageAction(conversationId),
     lastMeaningfulAssistantMessage(conversationId),

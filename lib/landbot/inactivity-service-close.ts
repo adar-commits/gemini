@@ -1,7 +1,9 @@
 import { buildInactivityCloseReply } from "@/lib/agents/inactivity"
 import { recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
+import { crmHoldsHumanAssignment } from "@/lib/crm/conversation-assign"
 import { closeCrmConversation } from "@/lib/crm/conversation-close"
+import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 
 /**
@@ -14,7 +16,10 @@ export async function executeInactivityServiceClose(input: {
 }) {
   const reply = buildInactivityCloseReply()
 
-  await assignToApiAgent(input.customerId)
+  const crmRow = await findCrmConversation(input.conversationId).catch(() => null)
+  if (!crmHoldsHumanAssignment(crmRow?.assigned_agent_code)) {
+    await assignToApiAgent(input.customerId)
+  }
   await sendCustomerText(input.customerId, reply)
   await recordProactiveAssistantMessage({
     conversationId: input.conversationId,
