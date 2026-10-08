@@ -386,7 +386,10 @@ function isOrderStatusProgressOpener(content: string) {
   if (!text) return false
   return (
     /(?:מה|איך)\s+קור(?:ה|ים).*(?:ה)?(?:הזמנה|שטיח|פוף)/i.test(text) ||
-    /(?:מבקש(?:ים|ות)?\s+לדעת|רוצ(?:ה|ים|ות)\s+לדעת).*(?:ה)?הזמנה/i.test(text)
+    /(?:מבקש(?:ים|ות)?\s+לדעת|רוצ(?:ה|ים|ות)\s+לדעת).*(?:ה)?הזמנה/i.test(text) ||
+    /(?:מתי|ממתי).{0,80}(?:יגיע|תגיע|מגיע).*(?:שטיח|הזמנה|פוף)/i.test(text) ||
+    /(?:מתי|ממתי).*(?:שטיח|הזמנה|פוף).{0,80}(?:יגיע|תגיע|מגיע)/i.test(text) ||
+    /(?:אשמח|רוצ(?:ה|ים|ות)|מבקש(?:ים|ות)?)\s+לדעת\s+מתי/i.test(text)
   )
 }
 
@@ -443,6 +446,7 @@ function isSoftKnownOrderConfirm(body: string) {
   if (isOrderConfirmationYes(body)) return true
   const firstLine = body.trim().split(/\n+/)[0]?.trim() ?? body.trim()
   if (/^כן[\s,.!?]+(?:זו|זאת|זה)\s+(?:ה)?הזמנה(?:[\s,.!?]|$)/i.test(firstLine)) return true
+  if (/^(?:הן\s+)?כן(?!\s+לא\b)/i.test(firstLine) && firstLine.length <= 60) return true
   if (/^(?:כ)?(?:נ)?(?:י)?(?:י)?ראה(?:\s+לי)?(?:[\s,.!?]|$)/i.test(firstLine)) return true
   if (/^כן\s+(?:מ(?:תאריך)?\s*)[\d./-]+(?:[\s,.!?]|$)/i.test(firstLine)) return true
   return /(?:ה)?(?:מס(?:פר)?|טל(?:פון)?)\s+(?:ה)?זה\s+(?:הוא\s+)?(?:שלי|שלנו)/i.test(body)
@@ -470,6 +474,11 @@ function hasPrematureHandoffWithoutLookupInThread(history: HistoryMessage[]) {
 
 function isPoliteOrderConfirmYes(body: string) {
   return /^כן\s+בבקשה(?:[\s,.!?]|$)/i.test(body.trim())
+}
+
+/** Customer asks for a product/rug photo — not receipt upload (530087154). */
+function isProductPhotoAsk(body: string) {
+  return /(?:יש\s+(?:לך\s+)?תמונה|תמונ[הות]\s+של|צילום\s+של)/i.test(body)
 }
 
 /** "להחליף דגם" — isOrderModificationRequest misses דגם alone (531256545). */
@@ -1261,6 +1270,15 @@ export function buildConversationHints(input: {
       ) {
         lines.push(
           "SHIPPING ORDER CONFIRM YES (532732459 / 532742549 / 532864454 / 533011641 / 533856219 / 534429742): כן / כן בבקשה / כן מ 20.09.26 (confirm + order date from the card) / כן. זו/זאת ההזמנה confirms the order card when the thread has a delivery-timing ask (מתי/מועד/תאריך אספקה/מתי אקבל — even mid-thread after FAQ) — call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Even when status is partial, share what the tool returned — never \"לא ניתן להציג סטטוס\" / \"אין תאריך מדויק\" + human_service on this turn. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
+        )
+      } else if (
+        isDeliveryEtaThread(history) &&
+        (isProductPhotoAsk(body) ||
+          isOrderConfirmationYes(body) ||
+          isSoftKnownOrderConfirm(body))
+      ) {
+        lines.push(
+          "ORDER CONFIRM + PHOTO ON ETA (530087154): delivery-timing thread with pending order card — customer confirmed (כן/הן כן) and/or asked for a rug photo. Call lookup_order_status NOW — answer status + ETA policy for the opening מתי/מועד הגעה ask first. You cannot send product photos from chat; offer human_service for a model photo only after status, never skip lookup or hand off before answering ETA. action reply."
         )
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
