@@ -46,7 +46,7 @@ export async function executeInactivityHandoffRecovery(input: {
   customerId: number
   history: HistoryMessage[]
   lastAgent?: AgentId | null
-  /** Sales quiz / מכירות timeout — CRM assign only, no customer message. */
+  /** @deprecated Always notifies the customer — kept for call-site compatibility. */
   silent?: boolean
 }) {
   const action = resolveInactivityHandoffAction(
@@ -93,7 +93,7 @@ export async function executeInactivityHandoffRecovery(input: {
   }
 }
 
-/** CRM assign only — no customer message (handoff offer / summary quiet timeout). */
+/** Quiet-window auto-assign — CRM assign plus customer handoff ack (534053369). */
 export async function executeInactivitySilentQueueRecovery(input: {
   conversationId: string
   customerId: number
@@ -104,6 +104,6 @@ export async function executeInactivitySilentQueueRecovery(input: {
     ...input,
     history: context.history,
     lastAgent: context.lastAgent,
-    silent: true,
+    silent: false,
   })
 }

@@ -72,6 +72,14 @@ describe("human agent hours", () => {
     assert.doesNotMatch(reply, /שעות הפעילות/)
   })
 
+  it("appends transfer ack when human_service reply forgot assignment wording (534053369)", () => {
+    const at1400 = new Date("2026-09-09T11:00:00.000Z")
+    const llm = `${CUSTOMER_HEADER}\nמעולה, רשמתי את כל הפרטים לנציג.`
+    const reply = enrichHandoffReply(llm, "human_service", at1400)
+    assert.match(reply, /רשמתי את כל הפרטים/)
+    assert.match(reply, /העברתי את השיחה לנציג שירות/)
+  })
+
   it("keeps the agent's help after hours and closes with one offline notice", () => {
     const at1900 = new Date("2026-09-09T16:00:00.000Z")
     const llm = `${CUSTOMER_HEADER}\nאפשר להחליף למידה גדולה יותר בכל סניף, בתוך 14 יום ובאריזה המקורית.`

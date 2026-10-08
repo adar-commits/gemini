@@ -753,7 +753,7 @@ export function buildConversationHints(input: {
 
   if (isServiceHandoffSummaryPending(history)) {
     lines.push(
-      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/מדויק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (this is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות (no inactivity ping)."
+      "SERVICE SUMMARY PENDING: on customer confirm (כן/נכון/בדיוק/מדויק/כן תודה) set action human_service + crm_department service immediately — short transfer to נציג שירות only. Never human_sales / יועץ מכירות (this is the service recap, not a sales summary). If they stay silent, the system auto-assigns to שירות with the standard העברתי את השיחה ack (no inactivity ping)."
     )
   }
 

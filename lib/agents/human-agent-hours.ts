@@ -120,6 +120,23 @@ function onlineHandoffCore(action: HumanHandoffAction) {
     : "מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם."
 }
 
+/** Customer-visible proof the chat was assigned — used when enriching handoff replies. */
+export function replyIncludesHandoffAck(text: string) {
+  return /הועבר(?:ה|ו)?\s+ל(?:נציג|יועץ|שירות)|העבר(?:תי|נו)\s+א(?:ת|ת)?\s+(?:ה)?(?:פנייה|שיחה)|מעולה,\s*העברתי|קיבלנו\s+א(?:ת|ת)?\s+(?:ה)?פנייה/i.test(
+    text
+  )
+}
+
+function appendOnlineHandoffAck(reply: string, action: HumanHandoffAction) {
+  const core = onlineHandoffCore(action)
+  const hasHeader = reply.trimStart().startsWith(CUSTOMER_HEADER)
+  const body = (hasHeader ? reply.trimStart().slice(CUSTOMER_HEADER.length) : reply).trim()
+  if (!body) return hasHeader ? `${CUSTOMER_HEADER}\n${core}` : core
+  if (replyIncludesHandoffAck(body)) return reply
+  const text = `${body}\n\n${core}`
+  return hasHeader ? `${CUSTOMER_HEADER}\n${text}` : text
+}
+
 /** Customer-visible copy after handoff — one paragraph when reps are offline. */
 export function buildHumanHandoffConfirmedReply(
   action: HumanHandoffAction,
@@ -141,8 +158,7 @@ export function enrichHandoffReply(
   now = new Date()
 ) {
   if (isHumanAgentTeamOnline(action, now)) {
-    const text = reply.trim()
-    return text || onlineHandoffCore(action)
+    return appendOnlineHandoffAck(reply, action)
   }
 
   const canonical = buildAfterHoursHandoffPrefix(action, now)
