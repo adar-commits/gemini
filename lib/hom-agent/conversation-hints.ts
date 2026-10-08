@@ -145,6 +145,8 @@ import {
   isActiveInventoryThread,
   isBackInStockNotificationRequest,
   isBackInStockVariantFollowUp,
+  isBranchInventoryQuestion,
+  isInventoryQuestion,
   isInventoryRecheckRequest,
   isSkuCorrectionAfterStockAnswer,
   isSkuRequestPending,
@@ -1967,7 +1969,22 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isAwaitingSalesIntakeAnswer(history) && hasOngoingSalesIntake(history)) {
+  const salesBranchStockPivot =
+    isAwaitingSalesIntakeAnswer(history) &&
+    hasOngoingSalesIntake(history) &&
+    (isBranchInventoryQuestion(body) || isInventoryQuestion(body))
+
+  if (salesBranchStockPivot) {
+    lines.push(
+      'SALES + BRANCH STOCK PIVOT (431273377): during catalog sales intake the customer pivoted to store stock / buy today — this is NOT their answer to the room quiz. Pause intake; set `"crm_department": "sales"`. Ask once for מק״ט (format 31503138-200290) + preferred area if missing, then call `lookup_inventory` when SKU is available. Stay `action: reply` — never `human_sales` until lookup runs or they explicitly ask for an advisor. Never re-ask the pending room question this turn.'
+    )
+  }
+
+  if (
+    isAwaitingSalesIntakeAnswer(history) &&
+    hasOngoingSalesIntake(history) &&
+    !salesBranchStockPivot
+  ) {
     lines.push(
       salesIntakeMode() === "llm"
         ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product/pets/practical already answered in the thread. On לא יודע/לא בטוח/לא alone: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). **Never** write ציינתי/העברתי/אעביר ליועץ mid-quiz with action reply (534144877) — ack (תודה, רשמתי) + next question, or final summary+human_sales. Never empty reply or silence — always the next question or final summary+human_sales."
