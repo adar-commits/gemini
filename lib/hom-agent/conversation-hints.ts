@@ -440,6 +440,7 @@ function isSoftKnownOrderConfirm(body: string) {
   if (isOrderConfirmationYes(body)) return true
   const firstLine = body.trim().split(/\n+/)[0]?.trim() ?? body.trim()
   if (/^(?:כ)?(?:נ)?(?:י)?(?:י)?ראה(?:\s+לי)?(?:[\s,.!?]|$)/i.test(firstLine)) return true
+  if (/^כן\s+(?:מ(?:תאריך)?\s*)[\d./-]+(?:[\s,.!?]|$)/i.test(firstLine)) return true
   return /(?:ה)?(?:מס(?:פר)?|טל(?:פון)?)\s+(?:ה)?זה\s+(?:הוא\s+)?(?:שלי|שלנו)/i.test(body)
 }
 
@@ -1241,13 +1242,15 @@ export function buildConversationHints(input: {
           "NON-RECEIPT ORDER CONFIRM YES (532314606): thread opened with לא קיבלתי/עדיין לא קיבלתי and כן confirms the order card — call lookup_order_status. If status is delivered: say the system shows delivered AND acknowledge their claim; list line items; ask which items they actually received. action reply — never warm-close or action end until partial delivery is clarified or rep summary is sent. Partial follow-up (רק/חוץ מ/חסר) → rep summary → human_service. Never service rep summary on the bare confirm turn alone."
         )
       } else if (
-        (isOrderConfirmationYes(body) || isPoliteOrderConfirmYes(body)) &&
+        (isOrderConfirmationYes(body) ||
+          isPoliteOrderConfirmYes(body) ||
+          isSoftKnownOrderConfirm(body)) &&
         (isShippingStatusQuestion(body) ||
           isOrderDeliveryStatusQuestion(body) ||
           isDeliveryEtaThread(history))
       ) {
         lines.push(
-          "SHIPPING ORDER CONFIRM YES (532732459 / 532742549 / 533011641 / 533856219): כן / כן בבקשה confirms the order card when the thread opened with delivery timing (מתי/מועד/תאריך אספקה) — call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Even when status is partial, share what the tool returned — never \"לא ניתן להציג סטטוס\" + human_service on this turn. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
+          "SHIPPING ORDER CONFIRM YES (532732459 / 532742549 / 532864454 / 533011641 / 533856219): כן / כן בבקשה / כן מ 20.09.26 (confirm + order date from the card) confirms the order card when the thread opened with delivery timing (מתי/מועד/תאריך אספקה) — call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Even when status is partial, share what the tool returned — never \"לא ניתן להציג סטטוס\" + human_service on this turn. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
         )
       } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
         lines.push(
