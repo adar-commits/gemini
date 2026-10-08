@@ -295,6 +295,25 @@ function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: 
   )
 }
 
+const NO_RESPONSE_COMPLAINT_RE =
+  /(?:אין\s+מענה|לא\s+(?:חוזר(?:ים|ה)?|עונ(?:ים|ה)?)(?:\s+אלי(?:י|ך))?|לא\s+ה(?:בנת|בין)(?:י|תי)\s+למה|עדיין\s+לא\s+חזר(?:ו|ה)?|אף\s+אחד\s+לא(?:\s+חזר)?|עבר\s+(?:יותר\s+מ?)?(?:זמן|מדי\s+זמן)|לא\s+רוצ(?:ה|ים|ות)\s+.*(?:עובר|יגיע))/i
+
+/** Customer returns after a logged handoff complaining nobody responded (306743535). */
+function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: string) {
+  const text = body.trim()
+  if (!text || text.length > 320) return false
+  if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
+  if (!isPostHumanHandoff(null, history)) return false
+  if (hasLiveRepReplyAfterBotHandoff(history)) return false
+  return history.some(
+    (m) =>
+      m.role === "assistant" &&
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|ניצור\s+קשר\s+בהקדם|מ(?:עביר|חבר)(?:ים|ה|א)?[^\n]{0,48}יועץ\s+מכירות|נציג\s+שירות)/i.test(
+        m.content
+      )
+  )
+}
+
 function userTurnFromBody(body: string): UserTurn {
   const media: UserTurn["media"] = []
   for (const match of body.matchAll(/\[media:image:([^\]]+)\]/gi)) {
@@ -505,6 +524,10 @@ export function buildConversationHints(input: {
 }): string | null {
   const { history, body } = input
   const lines: string[] = []
+  const postHandoffNoResponseReEscalation = isPostHandoffNoResponseReEscalation(
+    history,
+    body
+  )
 
   if (input.humanThreadAssist === "stale") {
     lines.push(
@@ -714,7 +737,7 @@ export function buildConversationHints(input: {
   const salesIntakeActive =
     hasOngoingSalesIntake(history) && awaitingSalesIntakeAnswer
 
-  if (salesIntakeActive) {
+  if (salesIntakeActive && !postHandoffNoResponseReEscalation) {
     lines.push(
       'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר ליועץ מכירות) — never אני צודק? and never wait for approval.'
     )
@@ -1597,6 +1620,17 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (postHandoffNoResponseReEscalation) {
+    const handoffKind = postHandoffKind(null, history) ?? "human_service"
+    const department =
+      handoffKind === "human_sales"
+        ? "human_sales + crm_department sales"
+        : "human_service + crm_department service"
+    lines.push(
+      `POST-HANDOFF NO-RESPONSE RE-ESCALATION (306743535): customer returned after a prior handoff complaining nobody responded (אין מענה / לא חוזרים / עבר זמן). Empathize briefly for the delay. Recap the **full open case** from thread history (exchange, return, product choice — not a fresh sales intake). Re-mark urgent and set action ${department} in the **same** JSON when you write סימנתי/העברתי/מעלה בעדיפות. **Never** restart sales intake quiz or summarize as a new "שטיח לסלון" request. **Never** say מעביר עכשיו as if first transfer — they already waited. No second service_summary_confirm if already confirmed.`
+    )
+  }
+
   if (
     !isExpiredCreditNoCallbackReEscalation(history, body) &&
     /זיכוי/i.test(body) &&
@@ -2116,7 +2150,8 @@ export function buildConversationHints(input: {
   if (
     isAwaitingSalesIntakeAnswer(history) &&
     hasOngoingSalesIntake(history) &&
-    !salesBranchStockPivot
+    !salesBranchStockPivot &&
+    !postHandoffNoResponseReEscalation
   ) {
     lines.push(
       salesIntakeMode() === "llm"
@@ -2140,7 +2175,8 @@ export function buildConversationHints(input: {
   if (
     salesIntake.pets != null &&
     hasOngoingSalesIntake(history) &&
-    petsQuestionWasAsked(history)
+    petsQuestionWasAsked(history) &&
+    !postHandoffNoResponseReEscalation
   ) {
     lines.push(
       "PETS ALREADY ANSWERED (533966352): customer already answered the pets question in this thread — never ask about בעלי חיים again. Continue to דרישות מיוחדות or handoff summary+human_sales."

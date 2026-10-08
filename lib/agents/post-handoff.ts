@@ -80,8 +80,10 @@ function lastMeaningfulAssistantText(history: HistoryMessage[]) {
 export function isPostHumanHandoff(lastAction: string | null, history: HistoryMessage[]) {
   if (lastAction === "human_sales" || lastAction === "human_service") return true
   const last = lastMeaningfulAssistantText(history)
+  if (!last) return false
   if (HANDOFF_CONFIRMED_RE.test(last)) return true
-  return hasDeclarativeHandoffTransferInText(last)
+  if (hasDeclarativeHandoffTransferInText(last)) return true
+  return isBotHandoffAssistantMessage(last)
 }
 
 export function postHandoffKind(
