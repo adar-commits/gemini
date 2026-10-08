@@ -18,6 +18,7 @@ import {
 } from "@/lib/agents/product-handoff"
 import {
   customerRespondedToHandoffWithoutConfirm,
+  isHumanHandoffOfferPending,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
 import {
@@ -115,7 +116,8 @@ export function hasOpenFaqFollowUpQuestion(
 
 /**
  * Pending human queue — never "עדיין כאן?". After the quiet window, silently assign
- * (sales intake, handoff offer, or service summary awaiting confirm).
+ * (sales intake, committed declarative transfer, or service summary awaiting confirm).
+ * Open handoff offers need customer confirm — no silent assign (532619558).
  */
 export function shouldSilentAutoAssignOnQuietWindow(
   history: HistoryMessage[],
@@ -124,6 +126,7 @@ export function shouldSilentAutoAssignOnQuietWindow(
   if (shouldSkipInactivityPingForSalesHandoff(history, lastAgent)) return true
   if (isHumanHandoffPending(history)) {
     if (customerRespondedToHandoffWithoutConfirm(history)) return false
+    if (isHumanHandoffOfferPending(history)) return false
     return true
   }
   if (isServiceHandoffSummaryPending(history)) return true

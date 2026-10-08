@@ -11,7 +11,7 @@ import {
 import { resolveInactivityHandoffAction } from "@/lib/landbot/inactivity-handoff-recovery"
 import type { HistoryMessage } from "@/lib/agents/types"
 
-/** 532185810 — handoff offer without customer confirm → silent CRM assign after 1 min. */
+/** 532185810 / 532619558 — open handoff offer waits for customer confirm, not silent assign. */
 describe("handoff quiet-window silent assign", () => {
   const handoffOfferHistory: HistoryMessage[] = [
     { role: "user", content: "רוצה לדבר עם נציג" },
@@ -22,10 +22,10 @@ describe("handoff quiet-window silent assign", () => {
     },
   ]
 
-  it("uses 1-minute delay when handoff offer is pending", () => {
+  it("uses normal ping delay when handoff offer awaits confirm", () => {
     assert.equal(
       resolveInactivityPingDelayMs(handoffOfferHistory, "faq"),
-      INACTIVITY_HANDOFF_AUTO_ASSIGN_MS
+      INACTIVITY_PING_MS
     )
     assert.equal(
       resolveInactivityPingDelayMs(
@@ -36,10 +36,10 @@ describe("handoff quiet-window silent assign", () => {
     )
   })
 
-  it("detects pending handoff queue for silent assign", () => {
+  it("does not silent-assign an open handoff offer without confirm", () => {
     assert.equal(
       shouldSilentAutoAssignOnQuietWindow(handoffOfferHistory, "faq"),
-      true
+      false
     )
     assert.equal(
       resolveInactivityHandoffAction(handoffOfferHistory, "faq"),
