@@ -423,6 +423,24 @@ function isExpectReceiveDeliveryAsk(body: string) {
   )
 }
 
+/** Return/pickup in progress plus waiting for carpet matching / design advisor — sales owns the advisory (533663665). */
+function isReturnWithSalesAdvisoryInThread(history: HistoryMessage[], body: string) {
+  const userText = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .concat(body.trim())
+    .join("\n")
+  const hasReturnContext =
+    /(?:החזר(?:ה|ת)?|מוחזר|(?:בקש(?:ה|ת)?\s+)?(?:ל)?(?:ה)?איסוף(?:\s+(?:מ)?(?:ה)?(?:בית|הבית))?)/i.test(
+      userText
+    )
+  const hasSalesAdvisory =
+    /(?:התא(?:ים|מת)(?:\s+(?:של\s+)?)?(?:ש)?טיח|שטיח\s+(?:אחר|ל(?:סלון|חדר))|(?:מ(?:מת(?:in(?:ה|ים)?|ינ(?:ה|ים)?)|ח(?:כ(?:ה|ים)?)))[^\n]{0,50}(?:עיצוב|יועץ)|(?:מ|ב)(?:ה)?עיצוב|י(?:יעוץ|עוץ)|יועץ(?:\s+(?:מכירות|העיצוב))?)/i.test(
+      userText
+    )
+  return hasReturnContext && hasSalesAdvisory
+}
+
 /** Customer described a service/shipping issue before order confirm — not phone-only lookup (534367153). */
 function threadHasStatedCustomerIssue(history: HistoryMessage[], body: string) {
   const userText = history
@@ -1282,7 +1300,16 @@ export function buildConversationHints(input: {
         )
       } else if (
         isOrderConfirmationYes(body) &&
-        threadHasStatedCustomerIssue(history, body)
+        isReturnWithSalesAdvisoryInThread(history, body) &&
+        !kbSelfServiceFaqThisTurn
+      ) {
+        lines.push(
+          "RETURN + SALES ADVISORY (533663665): order confirmed on a thread that combines return/pickup in progress AND waiting for carpet matching / design advisor (התאמת שטיח, עיצוב, שטיח אחר לסלון). After כן → **sales** bullet recap for יועץ מכירות (room/context + note return already handled at branch if stated) → **`action: human_sales`** + `crm_department: sales` in the **same** JSON when you write מעביר. **Never** service rep summary (אי-שביעות רצון / בקשת איסוף / human_service / awaiting service_summary_confirm) when their primary ask is advisory matching for a replacement rug."
+        )
+      } else if (
+        isOrderConfirmationYes(body) &&
+        threadHasStatedCustomerIssue(history, body) &&
+        !isReturnWithSalesAdvisoryInThread(history, body)
       ) {
         lines.push(
           "ORDER CONFIRM YES: כן/נכון/אוקיי confirms the pending order card — call lookup_order_status immediately with the bound order/phone. Never never-stuck on this turn."
@@ -1297,6 +1324,7 @@ export function buildConversationHints(input: {
           "NON-RECEIPT ORDER CONFIRM YES (532314606): thread opened with לא קיבלתי/עדיין לא קיבלתי and כן confirms the order card — call lookup_order_status. If status is delivered: say the system shows delivered AND acknowledge their claim; list line items; ask which items they actually received. action reply — never warm-close or action end until partial delivery is clarified or rep summary is sent. Partial follow-up (רק/חוץ מ/חסר) → rep summary → human_service. Never service rep summary on the bare confirm turn alone."
         )
       } else if (
+        !isReturnWithSalesAdvisoryInThread(history, body) &&
         (isOrderConfirmationYes(body) ||
           isPoliteOrderConfirmYes(body) ||
           isSoftKnownOrderConfirm(body)) &&
@@ -1316,7 +1344,11 @@ export function buildConversationHints(input: {
         lines.push(
           "ORDER CONFIRM + PHOTO ON ETA (530087154): delivery-timing thread with pending order card — customer confirmed (כן/הן כן) and/or asked for a rug photo. Call lookup_order_status NOW — answer status + ETA policy for the opening מתי/מועד הגעה ask first. You cannot send product photos from chat; offer human_service for a model photo only after status, never skip lookup or hand off before answering ETA. action reply."
         )
-      } else if (isServiceOrderIdentificationFlow(history, body) && !kbSelfServiceFaqThisTurn) {
+      } else if (
+        isServiceOrderIdentificationFlow(history, body) &&
+        !isReturnWithSalesAdvisoryInThread(history, body) &&
+        !kbSelfServiceFaqThisTurn
+      ) {
         lines.push(
           "SERVICE ORDER ID (505886895 / 533051674): lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding/משיר צמר, photos). After customer confirms the order card → rep summary bullets **must** include: מס׳ הזמנה + דיווח על בעיה/חשש (לפי הלקוח) from the thread + נשלחו תמונות if they sent images — never a generic lone «פנייה לשירות לקוחות» without the problem. Then summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never «לשנות את ההזמנה» / human_sales / יועץ מכירות, never «לא ניתן להציג סטטוס משלוח», never אפשר לעזור במשהו נוסף as the main answer."
         )
