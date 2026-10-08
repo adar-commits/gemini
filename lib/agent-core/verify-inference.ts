@@ -5,10 +5,11 @@ import {
   routerConfig,
   specialistConfig,
 } from "@/lib/agent-core/config"
+import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
 import { getRuntimeConfig, runtimeConfigSnapshot } from "@/lib/agent-core/runtime-config"
 
 const CODE_DEFAULTS = {
-  router: "anthropic/claude-haiku-4.5",
+  router: HAIKU_GATEWAY_MODEL,
   specialist: "anthropic/claude-sonnet-5",
 }
 

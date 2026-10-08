@@ -14,6 +14,7 @@ import {
   TRAINER_CORRECTION_PREFIX,
   TRAINER_QUESTION_PREFIX,
 } from "@/lib/landbot/training-guards"
+import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
 
 export const TRAINER_CORRECTION_ACK = "קיבלתי מאמן, מייד אבצע תיקונים..."
 export const TRAINER_CORRECTION_DONE =
@@ -27,7 +28,7 @@ function correctionModel() {
     process.env.TRAINER_CORRECTION_MODEL?.trim() ||
     process.env.SHADOW_AUTOFIX_MODEL?.trim() ||
     process.env.AGENT_ROUTER_MODEL?.trim() ||
-    "anthropic/claude-haiku-4.5"
+    HAIKU_GATEWAY_MODEL
   )
 }
 

@@ -18,7 +18,9 @@ export type ModelProfile = {
 }
 
 const SONNET = "anthropic/claude-sonnet-5"
-const HAIKU = "anthropic/claude-haiku-4.5"
+/** Vercel AI Gateway id — summaries, router role, trainer/shadow helpers */
+export const HAIKU_GATEWAY_MODEL = "anthropic/claude-haiku-5.5"
+const HAIKU = HAIKU_GATEWAY_MODEL
 const GPT_55 = "openai/gpt-5.5"
 const FLASH = "google/gemini-2.5-flash"
 const FLASH_LITE = "google/gemini-2.5-flash-lite"
@@ -34,7 +36,7 @@ export const MODEL_PROFILES: Record<Exclude<ProfileName, "custom">, ModelProfile
   },
   balanced: {
     name: "balanced",
-    label: "Balanced (Sonnet 5 agent, Haiku 4.5 summaries)",
+    label: "Balanced (Sonnet 5 agent, Haiku 5.5 summaries)",
     router: { model: HAIKU, temperature: 0.1, maxOutputTokens: 256 },
     faq: { model: SONNET, temperature: 0.18, maxOutputTokens: 700 },
     sales: { model: SONNET, temperature: 0.25, maxOutputTokens: 700 },

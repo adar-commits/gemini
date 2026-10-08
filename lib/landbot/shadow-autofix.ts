@@ -10,6 +10,7 @@ import { isReviewFailureReason } from "@/lib/landbot/shadow-deterministic"
 import { proposeDeterministicFixes } from "@/lib/landbot/shadow-autofix-deterministic"
 import type { ShadowIssueType } from "@/lib/landbot/shadow-review"
 import type { ShadowLogRow } from "@/lib/landbot/shadow-review"
+import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
 
 type IssueRow = {
   review_id: string
@@ -61,7 +62,7 @@ function autofixModel() {
     process.env.SHADOW_AUTOFIX_MODEL?.trim() ||
     process.env.SHADOW_REVIEW_MODEL?.trim() ||
     process.env.AGENT_ROUTER_MODEL?.trim() ||
-    "anthropic/claude-haiku-4.5"
+    HAIKU_GATEWAY_MODEL
   )
 }
 

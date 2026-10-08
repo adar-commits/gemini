@@ -1,5 +1,6 @@
 import { generateText } from "ai"
 import { getConversationContext } from "@/lib/agents/memory"
+import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
 
 const TRAINER_CHAT_SYSTEM = `
 You are the internal AI assistant behind the HoM GROUP WhatsApp bot (הום בוט).
@@ -18,7 +19,7 @@ function trainerQuestionModel() {
   return (
     process.env.TRAINER_QUESTION_MODEL?.trim() ||
     process.env.AGENT_ROUTER_MODEL?.trim() ||
-    "anthropic/claude-haiku-4.5"
+    HAIKU_GATEWAY_MODEL
   )
 }
 

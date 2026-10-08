@@ -6,6 +6,7 @@ import {
   isReviewFailureReason,
   kbExcerptForLog,
 } from "@/lib/landbot/shadow-deterministic"
+import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
 
 export const SHADOW_ISSUE_TYPES = [
   "route_wrong",
@@ -71,7 +72,7 @@ function reviewModel() {
     process.env.SHADOW_REVIEW_MODEL?.trim() ||
     process.env.AGENT_ROUTER_MODEL?.trim() ||
     process.env.AGENT_MODEL?.trim() ||
-    "anthropic/claude-haiku-4.5"
+    HAIKU_GATEWAY_MODEL
   )
 }
 

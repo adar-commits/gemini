@@ -23,9 +23,9 @@ Customer message
 |------|-------|----------|
 | faq (main agent) | `anthropic/claude-sonnet-5` ($2/$10 MTok) | Every substantive reply |
 | hard-case agent | `anthropic/claude-opus-5` | Dissatisfaction, policy dispute, multi-intent, complex service |
-| router | `anthropic/claude-haiku-4.5` ($1/$5 MTok) | Conversation summaries only |
-| error fallback | `anthropic/claude-haiku-4.5` | kb-only pass after tool invoke failure |
-| trainer/shadow helpers | `anthropic/claude-haiku-4.5` | Correction parsing, shadow review, autofix |
+| router | `anthropic/claude-haiku-5.5` ($0.10/$0.50 MTok) | Conversation summaries only |
+| error fallback | `anthropic/claude-sonnet-5` | kb-only pass after tool invoke failure (same as main faq model) |
+| trainer/shadow helpers | `anthropic/claude-haiku-5.5` | Correction parsing, shadow review, autofix |
 
 Supabase `active_profile` = `custom` (see `lib/agents/sql/hom_agent_runtime_production_stack.sql`). Per-role `temperature` from the profile is honored by `invoke.ts`.
 
