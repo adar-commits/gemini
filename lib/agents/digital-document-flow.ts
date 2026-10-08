@@ -11,6 +11,7 @@ import {
   buildDigitalDocumentNotFoundReply,
   buildDigitalDocumentReply,
   buildPhoneLookupDeclinedReply,
+  channelPhone,
   extractOrderNumber,
   extractPhoneFromText,
   formatDisplayPhone,
@@ -382,7 +383,13 @@ function computeDocumentFlowState(history: HistoryMessage[]): DocumentFlowState 
       if (kind === "type") state.typeQuestionSent = true
       if (kind === "channel") state.channelQuestionSent = true
       if (kind === "purchase_location") state.purchaseLocationQuestionSent = true
-      if (kind === "phone") state.phoneQuestionSent = true
+      if (kind === "phone") {
+        state.phoneQuestionSent = true
+        if (!state.typeQuestionSent && !state.selectedType) {
+          state.intent = "receipt"
+          state.selectedType = DOCUMENT_TYPE_RECEIPT
+        }
+      }
       if (kind === "alternate_phone") state.alternatePhoneQuestionSent = true
       continue
     }
@@ -512,11 +519,19 @@ export function isShippingOrPickupStatusThread(history: HistoryMessage[]) {
   return false
 }
 
+/** Document phone confirm without a prior type menu — FAQ receipt-offer path (533106217). */
+export function isDirectReceiptPhoneIntakeThread(history: HistoryMessage[]) {
+  if (!hasAssistantDocumentFlowInThread(history)) return false
+  const state = computeDocumentFlowState(history)
+  return state.phoneQuestionSent && !state.typeQuestionSent
+}
+
 function hasExplicitDigitalDocumentRequestInThread(
   history: HistoryMessage[],
   body = ""
 ) {
   if (body.trim() && isDigitalDocumentRequest(body)) return true
+  if (isDirectReceiptPhoneIntakeThread(history)) return true
   for (const message of history) {
     if (message.role === "user" && isDigitalDocumentRequest(message.content)) return true
   }
@@ -532,11 +547,9 @@ export function shouldDeferDocumentFlowToOrderLookup(
   if (isOrderConfirmationPending(history)) return true
   if (isPhoneLookupConfirmPending(history)) {
     if (shouldReleaseStructuredDocumentFlow(history, body)) return true
-    if (
-      hasAssistantDocumentFlowInThread(history) &&
-      !isShippingOrPickupStatusThread(history)
-    ) {
-      return false
+    if (hasAssistantDocumentFlowInThread(history)) {
+      if (hasExplicitDigitalDocumentRequestInThread(history, body)) return false
+      if (!isShippingOrPickupStatusThread(history)) return false
     }
     return true
   }
@@ -986,16 +999,45 @@ ${lines.join("\n")}
 ${CUSTOMER_NATURAL_CLOSE}`
 }
 
+async function lookupDocumentsForPhone(
+  phone: string,
+  input: { channel?: DocumentPurchaseChannel; documentType?: DocumentType }
+) {
+  return input.channel
+    ? lookupDigitalDocumentsForChannel(phone, input.channel)
+    : lookupDigitalDocumentsByType(phone, input.documentType ?? DOCUMENT_TYPE_RECEIPT)
+}
+
 async function deliverDocumentsForPhone(
   phone: string,
   input: { channel?: DocumentPurchaseChannel; documentType?: DocumentType }
 ) {
-  const result = input.channel
-    ? await lookupDigitalDocumentsForChannel(phone, input.channel)
-    : await lookupDigitalDocumentsByType(phone, input.documentType ?? DOCUMENT_TYPE_RECEIPT)
+  const result = await lookupDocumentsForPhone(phone, input)
   if (result.ok) return buildMultiDocumentReply(result.links)
   if (result.reason === "not_found") return buildDigitalDocumentNotFoundReply()
   return buildDigitalDocumentLookupFailureReply()
+}
+
+async function deliverDocumentsForPhoneWithChannelFallback(
+  typedPhone: string,
+  whatsappPhone: string | undefined,
+  input: { channel?: DocumentPurchaseChannel; documentType?: DocumentType }
+) {
+  const primary = await lookupDocumentsForPhone(typedPhone, input)
+  if (primary.ok || primary.reason !== "not_found" || !whatsappPhone) {
+    return deliverDocumentsForPhone(typedPhone, input)
+  }
+
+  const channel = channelPhone(whatsappPhone)
+  const typedKey = phoneForOrderApi(typedPhone)
+  const channelKey = channel ? phoneForOrderApi(channel) : null
+  if (!channel || !channelKey || !typedKey || typedKey === channelKey) {
+    return buildDigitalDocumentNotFoundReply()
+  }
+
+  const fallback = await lookupDocumentsForPhone(channel, input)
+  if (fallback.ok) return buildMultiDocumentReply(fallback.links)
+  return buildDigitalDocumentNotFoundReply()
 }
 
 function resolveDocumentLookupPhone(
@@ -1076,7 +1118,7 @@ async function replyWithPhoneConfirmOrLookup(input: {
     if (!typed) return buildPhoneLookupDeclinedReply()
     return withRecoveryPrefix(
       input.recoveryPrefix,
-      await deliverDocumentsForPhone(typed, {
+      await deliverDocumentsForPhoneWithChannelFallback(typed, input.whatsappPhone, {
         channel: input.channel,
         documentType: input.selectedType,
       })
@@ -1121,7 +1163,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
     if (typed) {
       return withRecoveryPrefix(
         recoveryPrefix,
-        await deliverDocumentsForPhone(typed, {
+        await deliverDocumentsForPhoneWithChannelFallback(typed, whatsappPhone, {
           channel: channel ?? undefined,
           documentType: selectedType ?? undefined,
         })
@@ -1150,7 +1192,7 @@ export async function resolveDigitalDocumentFlowReply(input: {
       if (!typed) return buildPhoneLookupDeclinedReply()
       return withRecoveryPrefix(
         recoveryPrefix,
-        await deliverDocumentsForPhone(typed, {
+        await deliverDocumentsForPhoneWithChannelFallback(typed, whatsappPhone, {
           channel: channel ?? undefined,
           documentType: selectedType ?? undefined,
         })

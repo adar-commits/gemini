@@ -92,6 +92,7 @@ import {
   isOutboundDocumentDeliveryMessage,
   isReceiptReferencePresentation,
   lastAssistantWasOutboundDocumentDelivery,
+  isDirectReceiptPhoneIntakeThread,
   shouldDeferDocumentFlowToOrderLookup,
   shouldReleaseStructuredDocumentFlow,
 } from "@/lib/agents/digital-document-flow"
@@ -1665,11 +1666,19 @@ export function buildConversationHints(input: {
   }
 
   if (
-    (isDigitalDocumentRequest(body) || isActiveDigitalDocumentFlow(history, body)) &&
+    (isDigitalDocumentRequest(body) ||
+      isActiveDigitalDocumentFlow(history, body) ||
+      isDirectReceiptPhoneIntakeThread(history)) &&
     !shouldReleaseStructuredDocumentFlow(history, body)
   ) {
     lines.push(
       "DOCUMENT COPY (קבלה / חשבונית / העתק): fetch_digital_document only — getDocument API by phone. Never lookup_order_status or getOrders for invoice/receipt requests."
+    )
+  }
+
+  if (isDirectReceiptPhoneIntakeThread(history) && isPhoneLookupConfirmPending(history)) {
+    lines.push(
+      "RECEIPT COPY AFTER ETA (533106217): bot opened document phone confirm without a type menu — fetch_digital_document only. Alternate phone with no doc → retry channel phone before handoff. Never lookup_order_status or לא מצאתי הזמנות פעילות."
     )
   }
 
