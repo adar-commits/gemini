@@ -95,6 +95,25 @@ export function shouldSkipInactivityPingForCompleteReply(
 }
 
 /**
+ * Bot asked a substantive FAQ follow-up — silence must not trigger silent handoff
+ * on sales CRM threads (534469923: rug cleaning tips + model question).
+ */
+export function hasOpenFaqFollowUpQuestion(
+  history: HistoryMessage[],
+  lastAgent: AgentId | null = null
+) {
+  if (hasPendingCustomerInputThreadState(history, lastAgent)) return false
+  if (isHumanHandoffPending(history)) return false
+  const lastText = lastNonInactivityAssistantText(history)
+  if (!lastText) return false
+  if (endsWithOptionalFollowUpOffer(lastText)) return false
+  const assistantBody = lastText.replace(CUSTOMER_HEADER, "").trim()
+  if (!assistantBody || assistantBody.length < 20) return false
+  if (!/[?؟]/.test(assistantBody)) return false
+  return true
+}
+
+/**
  * Pending human queue — never "עדיין כאן?". After the quiet window, silently assign
  * (sales intake, handoff offer, or service summary awaiting confirm).
  */

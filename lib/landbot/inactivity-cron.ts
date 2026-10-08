@@ -27,6 +27,7 @@ import { executeInactivitySalesRecovery } from "@/lib/landbot/inactivity-sales-r
 import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-close"
 import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 import {
+  hasOpenFaqFollowUpQuestion,
   shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
   shouldSkipInactivityPingForCompleteReply,
@@ -549,6 +550,10 @@ async function attemptInactivityPing(row: IdleSessionRow) {
   }
 
   if (!(await crmConversationAllowsServiceInactivity(row.conversation_id))) {
+    if (hasOpenFaqFollowUpQuestion(context.history, context.lastAgent)) {
+      await clearInactivityWatchState(row.conversation_id)
+      return "skipped" as const
+    }
     await executeInactivitySilentQueueRecovery({
       conversationId: row.conversation_id,
       customerId,
