@@ -14,6 +14,7 @@ export async function runCustomerConversation(
     priorityApiEnabled?: boolean
     onPriorityApiCall?: () => void | Promise<void>
     persistTurn?: boolean
+    humanThreadAssist?: "bridge" | "stale"
   }
 ): Promise<AgentResponse> {
   if (!usesHomAgentV3()) {

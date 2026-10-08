@@ -214,15 +214,14 @@ async function resolveMessageSessionIds(conversationId: string) {
   ).filter(Boolean)
 }
 
-/** Last CRM outbound was from a live Landbot rep (any id except the API bot). */
-export async function isLiveHumanLastOutbound(conversationId: string) {
+async function recentAgentOutbounds(conversationId: string) {
   const sessionIds = await resolveMessageSessionIds(conversationId)
-  if (!sessionIds.length) return false
+  if (!sessionIds.length) return []
 
   const supabase = getAgentSupabase()
   const { data, error } = await supabase
     .from("messages")
-    .select("sender_id, body")
+    .select("sender_id, body, sent_at")
     .in("session_id", sessionIds)
     .eq("direction", "outgoing")
     .eq("sender_type", "agent")
@@ -230,17 +229,38 @@ export async function isLiveHumanLastOutbound(conversationId: string) {
     .order("sent_at", { ascending: false })
     .limit(12)
 
-  if (error || !data?.length) return false
+  if (error || !data?.length) return []
+  return data
+}
 
-  for (const row of data) {
+/** Last CRM outbound was from a live Landbot rep (any id except the API bot). */
+export async function isLiveHumanLastOutbound(conversationId: string) {
+  for (const row of await recentAgentOutbounds(conversationId)) {
     const body = asText(row.body)
     if (!body || LANDBOT_ASSIGN_EVENT_BODY.test(body)) continue
     const agentId = Number(asText(row.sender_id))
     if (!Number.isFinite(agentId) || agentId <= 0) continue
     return !isLandbotApiAgentId(agentId)
   }
-
   return false
+}
+
+/** ISO time of the latest live-rep outbound (skip later bot/API rows). */
+export async function getLastLiveHumanOutboundAt(conversationId: string) {
+  for (const row of await recentAgentOutbounds(conversationId)) {
+    const body = asText(row.body)
+    if (!body || LANDBOT_ASSIGN_EVENT_BODY.test(body)) continue
+    const agentId = Number(asText(row.sender_id))
+    if (!Number.isFinite(agentId) || agentId <= 0) continue
+    if (isLandbotApiAgentId(agentId)) continue
+    return (
+      asText(row.sent_at) ||
+      (row.sent_at instanceof Date && Number.isFinite(row.sent_at.getTime())
+        ? row.sent_at.toISOString()
+        : null)
+    )
+  }
+  return null
 }
 
 /** Last outbound on the thread is a dashboard voice-closure template. */

@@ -15,6 +15,8 @@ import {
   parseLandbotHookMessage,
 } from "@/lib/landbot/parse-webhook"
 
+const FRESH_NOW = new Date("2026-09-02T15:10:00.000Z")
+
 describe("shouldDeferToHumanAgent", () => {
   it("defers when Landbot assigns a configured human rep", () => {
     const prevSales = process.env.LANDBOT_HUMAN_AGENT_SALES_IDS
@@ -22,7 +24,12 @@ describe("shouldDeferToHumanAgent", () => {
     try {
       assert.equal(isConfiguredHumanAgentId(40684), true)
       assert.equal(
-        shouldDeferToHumanAgent({ assignedAgentId: 40684, humanAgentLastAt: null, lastUserAt: null }),
+        shouldDeferToHumanAgent({
+          assignedAgentId: 40684,
+          humanAgentLastAt: null,
+          lastUserAt: null,
+          now: FRESH_NOW,
+        }),
         true
       )
     } finally {
@@ -36,6 +43,7 @@ describe("shouldDeferToHumanAgent", () => {
         assignedAgentId: null,
         humanAgentLastAt: "2026-09-02T15:05:00.000Z",
         lastUserAt: "2026-09-02T15:00:00.000Z",
+        now: FRESH_NOW,
       }),
       true
     )
@@ -47,15 +55,45 @@ describe("shouldDeferToHumanAgent", () => {
         assignedAgentId: null,
         humanAgentLastAt: "2026-09-02T15:00:00.000Z",
         lastUserAt: "2026-09-02T15:05:00.000Z",
+        now: FRESH_NOW,
       }),
       true
+    )
+  })
+
+  it("lets the bot speak after 2 staff days (412809595)", () => {
+    assert.equal(
+      shouldDeferToHumanAgent({
+        assignedAgentId: 533841,
+        humanAgentLastAt: "2026-09-22T08:26:32.007Z",
+        lastUserAt: "2026-10-08T06:16:27.000Z",
+        now: new Date("2026-10-08T06:16:27.000Z"),
+      }),
+      false
+    )
+  })
+
+  it("lets the bot speak after 4 staff hours while the rep stays assigned", () => {
+    assert.equal(
+      shouldDeferToHumanAgent({
+        assignedAgentId: 664483,
+        humanAgentLastAt: "2026-10-08T07:00:00.000Z",
+        lastUserAt: "2026-10-08T13:00:00.000Z",
+        now: new Date("2026-10-08T13:00:00.000Z"),
+      }),
+      false
     )
   })
 
   it("does not defer when assigned to builtin HoM API agent 279136", () => {
     assert.equal(isAssignedToHumanAgent(279136), false)
     assert.equal(
-      shouldDeferToHumanAgent({ assignedAgentId: 279136, humanAgentLastAt: null, lastUserAt: null }),
+      shouldDeferToHumanAgent({
+        assignedAgentId: 279136,
+        humanAgentLastAt: null,
+        lastUserAt: null,
+        now: FRESH_NOW,
+      }),
       false
     )
   })
@@ -68,7 +106,12 @@ describe("shouldDeferToHumanAgent", () => {
     try {
       assert.equal(isAssignedToHumanAgent(333), true)
       assert.equal(
-        shouldDeferToHumanAgent({ assignedAgentId: 333, humanAgentLastAt: null, lastUserAt: null }),
+        shouldDeferToHumanAgent({
+          assignedAgentId: 333,
+          humanAgentLastAt: null,
+          lastUserAt: null,
+          now: FRESH_NOW,
+        }),
         true
       )
     } finally {
@@ -232,6 +275,7 @@ describe("parseLandbotHookMessage", () => {
         assignedAgentId: 51234,
         humanAgentLastAt: null,
         lastUserAt: null,
+        now: FRESH_NOW,
       }),
       true
     )

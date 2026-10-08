@@ -187,4 +187,26 @@ describe("buildConversationHints", () => {
     assert.match(hints, /never answer each line separately/i)
     assert.match(hints, /never add a second greeting/i)
   })
+
+  it("teaches stale human threads not to restart a hard case (412809595)", () => {
+    const hints = buildConversationHints({
+      history: [],
+      body: "מעוניינת לדעת מה קורה עם האספקה",
+      humanThreadAssist: "stale",
+    })
+    assert.ok(hints)
+    assert.match(hints, /STALE HUMAN THREAD \(412809595\)/)
+    assert.match(hints, /OPEN HARD CASE/)
+  })
+
+  it("teaches bridge mode to answer status without taking the case", () => {
+    const hints = buildConversationHints({
+      history: [],
+      body: "מתי יגיע השטיח?",
+      humanThreadAssist: "bridge",
+    })
+    assert.ok(hints)
+    assert.match(hints, /HUMAN THREAD BRIDGE/)
+    assert.match(hints, /Do not start a new sales or service intake/)
+  })
 })

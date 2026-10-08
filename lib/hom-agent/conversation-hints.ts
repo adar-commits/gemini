@@ -501,9 +501,20 @@ export function buildConversationHints(input: {
   history: HistoryMessage[]
   body: string
   whatsappPhone?: string
+  humanThreadAssist?: "bridge" | "stale"
 }): string | null {
   const { history, body } = input
   const lines: string[] = []
+
+  if (input.humanThreadAssist === "stale") {
+    lines.push(
+      "STALE HUMAN THREAD (412809595): a rep last wrote more than 2 staff days ago and the customer wrote again. Decide from the full thread — do not restart a hard case. NEW question (status, stock, product, invoice, a different order) → answer with tools as a new inquiry. OPEN HARD CASE (defect, missing items, refund dispute, pickup/repair in progress) → do not start intake over; acknowledge the case stays with the team, add only what a lookup can add, `action: reply` unless they explicitly ask for a transfer. Never claim a rep already has the case on `action: reply`."
+    )
+  } else if (input.humanThreadAssist === "bridge") {
+    lines.push(
+      "HUMAN THREAD BRIDGE: a rep still owns this chat and has not answered for several staff hours. Answer delivery status / stock / product / invoice from tools. Anything else → one short holding line that the team continues, then stop. Do not start a new sales or service intake, do not recap for handoff, do not take the case. `action: reply` unless they explicitly ask for a different transfer. Never claim a rep already has the case on `action: reply`."
+    )
+  }
 
   const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
   const lastAssistantText = lastNonInactivityAssistant(history)

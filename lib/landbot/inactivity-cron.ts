@@ -1,6 +1,6 @@
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
 import { isBotWaitingForCustomerReply } from "@/lib/agents/inactivity-session"
-import { isHumanThreadActive } from "@/lib/landbot/human-takeover"
+import { resolveHumanThreadAssist } from "@/lib/landbot/human-takeover"
 import {
   INACTIVITY_CLOSE_AFTER_PING_MS,
   INACTIVITY_HANDOFF_AUTO_ASSIGN_MS,
@@ -206,7 +206,7 @@ function shouldSkipIdle(row: IdleSessionRow) {
 
 async function shouldSkipIdleForHumanWait(row: IdleSessionRow) {
   if (shouldSkipIdle(row)) return true
-  if (await isHumanThreadActive(row.conversation_id)) return true
+  if ((await resolveHumanThreadAssist(row.conversation_id)).owned) return true
   const meaningful = await getLastMeaningfulAssistantMessage(row.conversation_id)
   return shouldSkipInactivityForHumanWait({
     lastAction: asText(row.last_action) || asText(meaningful?.action),

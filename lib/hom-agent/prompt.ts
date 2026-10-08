@@ -32,6 +32,8 @@ export type HomAgentPromptInput = {
   /** WhatsApp profile name — may be a nickname, business or non-Latin/Hebrew name. */
   customerName?: string | null
   now?: Date
+  /** Human still owns the inbox; bot is allowed to speak after a wait. */
+  humanThreadAssist?: "bridge" | "stale"
 }
 
 const ISRAEL_NOW_FORMAT = new Intl.DateTimeFormat("he-IL", {
@@ -87,6 +89,7 @@ function appendDynamicSections(parts: string[], input?: HomAgentPromptInput) {
           history: input.history,
           body: input.userText,
           whatsappPhone: input.whatsappPhone ?? undefined,
+          humanThreadAssist: input.humanThreadAssist,
         })
       : null
   if (hints) {

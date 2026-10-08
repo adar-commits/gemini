@@ -84,6 +84,7 @@ type InvokeContext = {
   modelTier: ModelTier | null
   llmOwnsIntent: boolean
   lastAgent: AgentId | null
+  humanThreadAssist?: "bridge" | "stale"
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }
 
@@ -119,6 +120,7 @@ function buildInvokeContext(input: {
   modelTier?: ModelTier | null
   llmOwnsIntent?: boolean
   lastAgent?: AgentId | null
+  humanThreadAssist?: "bridge" | "stale"
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }): InvokeContext {
   return {
@@ -135,6 +137,7 @@ function buildInvokeContext(input: {
     modelTier: input.modelTier ?? null,
     llmOwnsIntent: input.llmOwnsIntent ?? false,
     lastAgent: input.lastAgent ?? null,
+    humanThreadAssist: input.humanThreadAssist,
     runtime: input.runtime,
   }
 }
@@ -150,6 +153,7 @@ export async function invokeHomAgent(input: {
   modelTier?: ModelTier | null
   llmOwnsIntent?: boolean
   lastAgent?: AgentId | null
+  humanThreadAssist?: "bridge" | "stale"
   /** Retry path — use a lighter model when the primary call failed instantly. */
   modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
@@ -189,6 +193,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     ownerAnswers: ctx.ownerAnswers,
     modelTier: ctx.modelTier,
     llmOwnsIntent: ctx.llmOwnsIntent,
+    humanThreadAssist: ctx.humanThreadAssist,
   })
   const tools = createHomAgentTools({
     body: ctx.body,
@@ -349,6 +354,7 @@ async function invokeKbOnly(ctx: InvokeContext) {
     ownerAnswers: ctx.ownerAnswers,
     modelTier: ctx.modelTier,
     llmOwnsIntent: ctx.llmOwnsIntent,
+    humanThreadAssist: ctx.humanThreadAssist,
   })
   const visionPolicy = resolveVisionPolicy({
     history: ctx.history,

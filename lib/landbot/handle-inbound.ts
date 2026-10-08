@@ -14,6 +14,7 @@ import {
   getHistory,
   getSessionInactivityState,
   getVoiceClosureTemplateLastOutbound,
+  isLiveHumanLastOutbound,
   recordProactiveAssistantMessage,
 } from "@/lib/agents/memory"
 import {
@@ -85,7 +86,11 @@ import type { AgentResponse, HistoryMessage } from "@/lib/agents/types"
 import { buildNeverStuckReply, isBotFailureReply } from "@/lib/agent-core/fallbacks"
 import { salvageReturnPickupAwaitingReply } from "@/lib/agents/service-intake"
 import { coalesceTrailingBufferedTurn } from "@/lib/landbot/message-buffer"
-import { isHumanThreadActive, releaseHumanThread } from "@/lib/landbot/human-takeover"
+import {
+  isHumanThreadActive,
+  releaseHumanThread,
+  resolveHumanThreadAssist,
+} from "@/lib/landbot/human-takeover"
 import {
   handleTrainerProfileCommand,
   isTrainerProfileCommand,
@@ -236,13 +241,28 @@ export async function handleLandbotInbound(
     !trainerResetBypass &&
     (await prepareVoiceClosureCustomerReplyWake(conversationId, turnSummary).catch(() => false))
 
-  if (
-    replyEnabled &&
-    !trainerResetBypass &&
-    !voiceClosureWake &&
-    (await isHumanThreadActive(conversationId, options?.assignedAgentId ?? null))
-  ) {
+  const humanAssist = await resolveHumanThreadAssist(
+    conversationId,
+    options?.assignedAgentId ?? null
+  )
+
+  if (replyEnabled && !trainerResetBypass && !voiceClosureWake && humanAssist.mode === "fresh") {
     const history = await getHistory(conversationId)
+    if (isThanksAcknowledgment(turnSummary) && (await isLiveHumanLastOutbound(conversationId))) {
+      await closeCrmConversation({
+        conversationId,
+        reason: "human_thread_thanks",
+      }).catch(() => {})
+      return {
+        ok: true,
+        agent: "master",
+        action: "end",
+        reply: "",
+        duplicateSuppressed: true,
+        mode,
+        skipped: "human_thread_thanks_close",
+      }
+    }
     if (!shouldBypassHumanThreadSilence(turnSummary, history)) {
       return {
         ok: true,
@@ -462,6 +482,10 @@ export async function handleLandbotInbound(
       phone: options?.phone?.trim() || undefined,
       priorityApiEnabled: replyEnabled,
       persistTurn: !replyEnabled,
+      humanThreadAssist:
+        humanAssist.mode === "bridge" || humanAssist.mode === "stale"
+          ? humanAssist.mode
+          : undefined,
       onPriorityApiCall: replyEnabled
         ? async () => {
             await sendCustomerText(customerId, PRIORITY_API_PREMESSAGE)
@@ -493,6 +517,10 @@ export async function handleLandbotInbound(
         priorityApiEnabled: replyEnabled,
         persistTurn: false,
         onPriorityApiCall: undefined,
+        humanThreadAssist:
+          humanAssist.mode === "bridge" || humanAssist.mode === "stale"
+            ? humanAssist.mode
+            : undefined,
       })
     }
 

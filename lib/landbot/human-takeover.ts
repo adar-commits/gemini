@@ -1,7 +1,12 @@
 import {
+  classifyHumanThreadAge,
+  type HumanThreadAgeTier,
+} from "@/lib/agents/human-thread-age"
+import {
   clearHumanAgentActivity,
   getHistory,
   getHumanTakeoverState,
+  getLastLiveHumanOutboundAt,
   isLiveHumanLastOutbound,
   markHumanAgentActivity,
 } from "@/lib/agents/memory"
@@ -75,19 +80,50 @@ export function isAssignedToHumanAgent(assignedAgentId: number | null | undefine
   return false
 }
 
+export type HumanThreadAssist = {
+  owned: boolean
+  mode: HumanThreadAgeTier | null
+}
+
+function laterIso(a?: string | null, b?: string | null) {
+  const left = a?.trim() || ""
+  const right = b?.trim() || ""
+  if (!left) return right || null
+  if (!right) return left
+  return Date.parse(left) >= Date.parse(right) ? left : right
+}
+
 /**
- * Bot must stay silent when a human owns the thread:
- * - customer is assigned to a configured human agent, or
- * - a human agent has participated since the last bot reclaim/unassign.
+ * Human owns the thread. Fresh → bot stays silent. After 4 staff hours
+ * (bridge) or 2 staff days (stale) the bot may answer; the rep stays assigned.
+ */
+export function resolveHumanThreadAssistMode(input: {
+  assignedAgentId?: number | null
+  humanAgentLastAt?: string | null
+  lastUserAt?: string | null
+  now?: Date
+}): HumanThreadAssist {
+  void input.lastUserAt
+  const owned =
+    isAssignedToHumanAgent(input.assignedAgentId ?? null) ||
+    Boolean(input.humanAgentLastAt?.trim())
+  if (!owned) return { owned: false, mode: null }
+  const last = input.humanAgentLastAt?.trim()
+  if (!last) return { owned: true, mode: "fresh" }
+  return { owned: true, mode: classifyHumanThreadAge(last, input.now) }
+}
+
+/**
+ * Bot must stay silent only while a human still owns a *fresh* thread.
+ * Bridge/stale threads stay assigned to the rep but the bot may speak.
  */
 export function shouldDeferToHumanAgent(input: {
   assignedAgentId?: number | null
   humanAgentLastAt?: string | null
   lastUserAt?: string | null
+  now?: Date
 }) {
-  void input.lastUserAt
-  if (isAssignedToHumanAgent(input.assignedAgentId ?? null)) return true
-  return Boolean(input.humanAgentLastAt?.trim())
+  return resolveHumanThreadAssistMode(input).mode === "fresh"
 }
 
 export async function resolveEffectiveAssignedAgentId(
@@ -101,23 +137,28 @@ export async function resolveEffectiveAssignedAgentId(
   return assignedAgentId ?? null
 }
 
-export async function isHumanThreadActive(
+export async function resolveHumanThreadAssist(
   conversationId: string,
-  assignedAgentId?: number | null
-) {
+  assignedAgentId?: number | null,
+  now = new Date()
+): Promise<HumanThreadAssist> {
   const effectiveAssignedAgentId = await resolveEffectiveAssignedAgentId(
     conversationId,
     assignedAgentId
   )
   const state = await getHumanTakeoverState(conversationId)
-  let defer = shouldDeferToHumanAgent({
+  const lastOutboundAt = await getLastLiveHumanOutboundAt(conversationId).catch(() => null)
+  const humanAgentLastAt = laterIso(state?.human_agent_last_at ?? null, lastOutboundAt)
+
+  let assist = resolveHumanThreadAssistMode({
     assignedAgentId: effectiveAssignedAgentId,
-    humanAgentLastAt: state?.human_agent_last_at ?? null,
+    humanAgentLastAt,
     lastUserAt: state?.last_user_at ?? null,
+    now,
   })
 
   if (
-    defer &&
+    assist.mode === "fresh" &&
     state?.human_agent_last_at &&
     !isAssignedToHumanAgent(effectiveAssignedAgentId ?? null) &&
     effectiveAssignedAgentId != null &&
@@ -127,22 +168,28 @@ export async function isHumanThreadActive(
     const history = await getHistory(conversationId).catch(() => [])
     if (!isPostHumanHandoff(null, history)) {
       await releaseHumanThread(conversationId)
-      defer = false
+      assist = { owned: false, mode: null }
     }
   }
 
-  if (defer) return true
-
-  if (await isLiveHumanLastOutbound(conversationId)) {
+  if (assist.mode === "fresh" && (await isLiveHumanLastOutbound(conversationId))) {
     try {
       await recordHumanAgentActivity(conversationId)
     } catch {
       // CRM fallback still silences the bot even if session upsert fails.
     }
-    return true
+    return { owned: true, mode: "fresh" }
   }
 
-  return false
+  return assist
+}
+
+export async function isHumanThreadActive(
+  conversationId: string,
+  assignedAgentId?: number | null
+) {
+  const assist = await resolveHumanThreadAssist(conversationId, assignedAgentId)
+  return assist.mode === "fresh"
 }
 
 export async function recordHumanAgentActivity(conversationId: string) {

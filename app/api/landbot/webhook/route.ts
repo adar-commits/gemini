@@ -28,8 +28,8 @@ import {
   parseLandbotHookMessage,
 } from "@/lib/landbot/parse-webhook"
 import {
-  isHumanThreadActive,
   isLandbotApiAgent,
+  resolveHumanThreadAssist,
   recordHumanAgentActivity,
   releaseHumanThread,
   shouldRecordHumanAgentActivity,
@@ -38,6 +38,7 @@ import { getHistory } from "@/lib/agents/memory"
 import { shouldIgnoreLandbotAssignmentEvent } from "@/lib/crm/conversation-assign"
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
+import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { shouldBypassHumanThreadSilence, shouldClearHumanThreadOnBypass } from "@/lib/agents/off-topic"
 import { summarizeTurn } from "@/lib/agents/user-turn"
 import { isTrainerResetRequest } from "@/lib/landbot/trainer-reset"
@@ -170,10 +171,14 @@ export async function POST(request: Request) {
   if (
     !trainerResetBypass &&
     !voiceClosureWake &&
-    (await isHumanThreadActive(inbound.conversationId, inbound.assignedAgentId))
+    (await resolveHumanThreadAssist(inbound.conversationId, inbound.assignedAgentId)).mode ===
+      "fresh"
   ) {
     const history = await getHistory(inbound.conversationId)
-    if (!shouldBypassHumanThreadSilence(inboundBody, history)) {
+    if (
+      !shouldBypassHumanThreadSilence(inboundBody, history) &&
+      !isThanksAcknowledgment(inboundBody)
+    ) {
       return NextResponse.json({ ok: true, skipped: "human_thread_active" })
     }
     if (shouldClearHumanThreadOnBypass(inboundBody, history)) {
@@ -227,13 +232,16 @@ export async function POST(request: Request) {
           if (
             !trainerResetBypass &&
             !turnVoiceClosureWake &&
-            (await isHumanThreadActive(
+            (await resolveHumanThreadAssist(
               inbound.conversationId,
               inbound.assignedAgentId
-            ))
+            )).mode === "fresh"
           ) {
             const history = await getHistory(inbound.conversationId)
-            if (!shouldBypassHumanThreadSilence(turnBody, history)) {
+            if (
+              !shouldBypassHumanThreadSilence(turnBody, history) &&
+              !isThanksAcknowledgment(turnBody)
+            ) {
               lastResult = {
                 ok: true,
                 agent: "master",

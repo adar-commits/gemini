@@ -146,6 +146,7 @@ export async function runHomAgentTurn(
     onPriorityApiCall?: () => void | Promise<void>
     /** When false, compute reply but do not persist — used while coalescing rapid messages. */
     persistTurn?: boolean
+    humanThreadAssist?: "bridge" | "stale"
   }
 ): Promise<AgentResponse> {
   bindPriorityApiBeforeCall(options?.onPriorityApiCall ?? null)
@@ -443,6 +444,7 @@ export async function runHomAgentTurn(
       modelTier: modelPick.tier,
       llmOwnsIntent: deferStructuredToLlm,
       lastAgent,
+      humanThreadAssist: options?.humanThreadAssist,
       modelOverride: modelOverride ?? (modelPick.escalated ? modelPick.model : undefined),
     })
 
