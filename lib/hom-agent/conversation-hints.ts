@@ -1560,7 +1560,7 @@ export function buildConversationHints(input: {
     )
   } else if (isExchangeSkuPending(history)) {
     lines.push(
-      "EXCHANGE SKU PENDING (A/B): ask target SKU once gently — no consulting, no inventory lookup. If customer cannot find SKU, acknowledge and proceed without pushing."
+      "EXCHANGE SKU PENDING (533511440 / A/B): paraphrased מק״ט ask counts — target SKU is optional. Short hello/ping only (הי/היי) → **`action: reply`**: acknowledge you're here, re-ask מק״ט once OR call `create_switch_request` with null `targetSku` when they cannot supply it. **Never** `human_sales` with «לא הצלחתי לפתוח בקשת החלפה» before switch intake completes."
     )
   } else if (isExchangeReasonPending(history)) {
     lines.push(

@@ -1,9 +1,11 @@
+import { isCasualSmallTalk } from "@/lib/agents/greeting"
 import { isActiveSalesConsultation } from "@/lib/agents/sales-intake"
 import {
   exchangeIntakeOrderConfirmed,
   extractExchangeIntake,
   isExchangeIntakeActive,
   isExchangeReadyForSwitchRequest,
+  isExchangeSkuPending,
   type ExchangeKind,
   type ExchangeReasonCode,
 } from "@/lib/agents/exchange-intake"
@@ -74,6 +76,14 @@ export async function executeCreateSwitchRequest(input: {
       ok: false as const,
       error:
         "Order not confirmed yet — call lookup_order_status first and wait for customer to confirm the order card.",
+    }
+  }
+
+  if (isExchangeSkuPending(history) && isCasualSmallTalk(body)) {
+    return {
+      ok: false as const,
+      error:
+        "Exchange SKU step pending — customer sent only a greeting/ping. Reply warmly, re-ask מק״ט once or call create_switch_request with null targetSku; do not human_sales yet.",
     }
   }
 

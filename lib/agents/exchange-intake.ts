@@ -40,6 +40,14 @@ const KIND_QUESTION_RE = /איזה\s+סוג\s+החלפה\s+מתאים/i
 const SKU_QUESTION_RE = /מה\s+המק(?:״|"|')?ט\s+של\s+הפריט/i
 const REASON_QUESTION_RE = /מה\s+לא\s+אהבתם\s+במוצר/i
 
+function isExchangeSkuQuestionContent(content: string) {
+  return (
+    SKU_QUESTION_RE.test(content) ||
+    content.includes(EXCHANGE_SKU_QUESTION_MARKER) ||
+    /יש\s+ל(?:ך|כם)\s+(?:את\s+)?(?:ה)?מק(?:״|"|')?ט/i.test(content)
+  )
+}
+
 function lastNonInactivityAssistantText(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
@@ -58,8 +66,10 @@ function assistantMessages(history: HistoryMessage[]) {
 }
 
 export function isExchangeIntakeStartedInThread(history: HistoryMessage[]) {
-  return assistantMessages(history).some((message) =>
-    message.content.includes(EXCHANGE_INTAKE_STARTED_MARKER)
+  return assistantMessages(history).some(
+    (message) =>
+      message.content.includes(EXCHANGE_INTAKE_STARTED_MARKER) ||
+      KIND_QUESTION_RE.test(message.content)
   )
 }
 
@@ -107,7 +117,7 @@ export function isExchangeSkuPending(history: HistoryMessage[]) {
   const intake = extractExchangeIntake(history, "")
   if (!intake.exchangeKind || intake.exchangeKind === "different_model") return false
   if (intake.targetSku || intake.skuDeclined) return false
-  return lastAssistantMatches(history, SKU_QUESTION_RE)
+  return isExchangeSkuQuestionContent(lastNonInactivityAssistantText(history))
 }
 
 const ORIGINAL_PACKAGING_POLICY_RE =
@@ -238,6 +248,29 @@ function userReplyAfterAssistantQuestion(
   return null
 }
 
+function userReplyAfterAssistantQuestionMatch(
+  history: HistoryMessage[],
+  matchesQuestion: (content: string) => boolean
+) {
+  let questionIndex = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (matchesQuestion(message.content)) {
+      questionIndex = index
+      break
+    }
+  }
+  if (questionIndex === -1) return null
+
+  for (let index = questionIndex + 1; index < history.length; index += 1) {
+    const message = history[index]
+    if (message.role === "user") return message.content.trim()
+  }
+  return null
+}
+
 export function extractExchangeIntake(history: HistoryMessage[], body: string): ExchangeIntake {
   const intake: ExchangeIntake = {
     exchangeKind: null,
@@ -247,7 +280,7 @@ export function extractExchangeIntake(history: HistoryMessage[], body: string): 
     orderNumber: identifiedOrderNumberFromThread(history),
     switchRequestId: null,
     skuQuestionSent: assistantMessages(history).some((message) =>
-      SKU_QUESTION_RE.test(message.content)
+      isExchangeSkuQuestionContent(message.content)
     ),
     skuDeclined: false,
   }
@@ -261,7 +294,14 @@ export function extractExchangeIntake(history: HistoryMessage[], body: string): 
     userReplyAfterAssistantQuestion(history, KIND_QUESTION_RE) ??
     (KIND_QUESTION_RE.test(lastNonInactivityAssistantText(history)) ? body.trim() : null)
   if (kindReply) {
-    if (/(?:צבע|גוון)/i.test(kindReply) && !/(?:מידה|גודל|סייז)/i.test(kindReply)) {
+    const trimmedKind = kindReply.trim()
+    if (/^1(?:[\s,.!?]|$)/.test(trimmedKind)) {
+      intake.exchangeKind = "same_model_color"
+    } else if (/^2(?:[\s,.!?]|$)/.test(trimmedKind)) {
+      intake.exchangeKind = "same_model_size"
+    } else if (/^3(?:[\s,.!?]|$)/.test(trimmedKind)) {
+      intake.exchangeKind = "different_model"
+    } else if (/(?:צבע|גוון)/i.test(kindReply) && !/(?:מידה|גודל|סייז)/i.test(kindReply)) {
       intake.exchangeKind = "same_model_color"
     } else if (/(?:מידה|גודל|סייז|shape|להגדיל|להקטין)/i.test(kindReply)) {
       intake.exchangeKind = "same_model_size"
@@ -275,8 +315,10 @@ export function extractExchangeIntake(history: HistoryMessage[], body: string): 
   }
 
   const skuReply =
-    userReplyAfterAssistantQuestion(history, SKU_QUESTION_RE) ??
-    (SKU_QUESTION_RE.test(lastNonInactivityAssistantText(history)) ? body.trim() : null)
+    userReplyAfterAssistantQuestionMatch(history, isExchangeSkuQuestionContent) ??
+    (isExchangeSkuQuestionContent(lastNonInactivityAssistantText(history))
+      ? body.trim()
+      : null)
   if (skuReply) {
     if (isSkuDeclineReply(skuReply)) {
       intake.skuDeclined = true
