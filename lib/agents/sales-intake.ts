@@ -1758,7 +1758,6 @@ function nextIntakeQuestion(
   }
   if (!intake.product) return PRODUCT_Q
   if (!intake.targetSpace) return spaceQuestion(intake)
-  if (intake.targetSpace === "חדר שינה" && !intake.bedroomUse) return BEDROOM_USE_Q
   if (
     (intake.household?.includes("ילד") || isChildrenRoomSpace(intake.targetSpace)) &&
     !intake.childrenAge

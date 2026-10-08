@@ -2002,6 +2002,16 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    salesIntake.targetSpace === "חדר שינה" &&
+    /(?:^|\s)(?:ל)?חדר\s+שינה(?:\s|$)/i.test(body) &&
+    hasOngoingSalesIntake(history)
+  ) {
+    lines.push(
+      'BEDROOM SPACE COMPLETE (501830806): "חדר שינה"/"לחדר שינה" completes the space step — advance to bed/sofa size, pets, or optional room photo. **Never** ask nursery/children/couples sub-type (תינוקות/ילדים/זוגי). If they also sent a room photo, ack once and continue intake — do not re-ask space.'
+    )
+  }
+
   return lines.length > 0 ? lines.map((line) => `- ${line}`).join("\n") : null
 }
 

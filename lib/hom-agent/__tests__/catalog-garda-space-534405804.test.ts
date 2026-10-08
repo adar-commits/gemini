@@ -63,7 +63,7 @@ describe("catalog garda space answer 534405804", () => {
     assert.equal(result.kind, "handled")
     if (result.kind !== "handled") return
     assert.equal(result.action, "reply")
-    assert.match(result.reply, /החדר משמש ביום/i)
-    assert.doesNotMatch(result.reply, /מעביר|העברתי/i)
+    assert.match(result.reply, /מיטה|רהיט/i)
+    assert.doesNotMatch(result.reply, /החדר משמש|תינוקות|מעביר|העברתי/i)
   })
 })
