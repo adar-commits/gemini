@@ -471,7 +471,7 @@ function intakeHasProgress(intake: SalesIntake) {
   )
 }
 
-function petsQuestionWasAsked(history: HistoryMessage[]) {
+export function petsQuestionWasAsked(history: HistoryMessage[]) {
   return history.some(
     (message) => message.role === "assistant" && /בעלי חיים/.test(message.content)
   )
@@ -1116,9 +1116,15 @@ function hasExplicitNoPetsAnswer(text: string) {
   )
 }
 
+/** Strip catalog phrasing that false-positives PET_ANIMAL_RE (e.g. «פרטים נוספים» → «פרט»). */
+function scrubCatalogPetFalsePositives(text: string) {
+  return text.replace(/פרטים(?:\s+נוספ(?:ים|ות)?)?/gi, " ")
+}
+
 function mentionsRealPet(combined: string) {
-  if (PET_ANIMAL_RE.test(combined)) return true
-  return /רק\s+(?:כלב|חתול|תוכי|ציפור|[א-ת]{2,12})/i.test(combined)
+  const scrubbed = scrubCatalogPetFalsePositives(combined)
+  if (PET_ANIMAL_RE.test(scrubbed)) return true
+  return /רק\s+(?:כלב|חתול|תוכי|ציפור|[א-ת]{2,12})/i.test(scrubbed)
 }
 
 function extractQualitativeSize(text: string): string | null {

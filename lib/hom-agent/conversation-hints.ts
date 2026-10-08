@@ -191,6 +191,7 @@ import {
   isSalesPhotoDeclineAnswer,
   isSalesPhotoRequestPending,
   pendingSalesIntakeQuestionKind,
+  petsQuestionWasAsked,
   isSalesSizingPhotoSubstitutePending,
   isServiceEvidencePhotoRequestPending,
   isServicePhotoAnalysisContext,
@@ -2098,7 +2099,11 @@ export function buildConversationHints(input: {
   }
 
   const salesIntake = extractSalesIntake(history, body)
-  if (salesIntake.pets != null && hasOngoingSalesIntake(history)) {
+  if (
+    salesIntake.pets != null &&
+    hasOngoingSalesIntake(history) &&
+    petsQuestionWasAsked(history)
+  ) {
     lines.push(
       "PETS ALREADY ANSWERED (533966352): customer already answered the pets question in this thread — never ask about בעלי חיים again. Continue to דרישות מיוחדות or handoff summary+human_sales."
     )
@@ -2129,6 +2134,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'BEDROOM SPACE COMPLETE (501830806): "חדר שינה"/"לחדר שינה" completes the space step — advance to bed/sofa size, pets, or optional room photo. **Never** ask nursery/children/couples sub-type (תינוקות/ילדים/זוגי). If they also sent a room photo, ack once and continue intake — do not re-ask space.'
+    )
+  }
+
+  if (
+    pendingSalesIntakeQuestionKind(history) === "space" &&
+    /^(?:ל)?סלון(?:\s|$|[,.!?])/i.test(body.trim()) &&
+    hasOngoingSalesIntake(history)
+  ) {
+    lines.push(
+      'LIVING ROOM SPACE COMPLETE (350490796): "סלון"/"לסלון" completes the space step — advance to sofa size (מידת הספה/גודל הסלון), pets, or optional room photo. **`action: reply`** — never `human_sales` until intake quiz is complete.'
     )
   }
 
