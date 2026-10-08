@@ -300,14 +300,16 @@ function userTurnFromBody(body: string): UserTurn {
   return { text, media }
 }
 
+function isDeliveryDateQuestion(text: string) {
+  return /(?:ל)?גבי\s+(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))|(?:מה|מתי)\s+(?:ה)?(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))|(?:מועד|תאריך)\s+(?:ה)?אספק(?:ה|ת)/i.test(
+    text
+  )
+}
+
 /** Delivery-date / ETA thread — user wording or bot's pending confirm question (533856219). */
 function isDeliveryDateQuestionInHistory(history: HistoryMessage[]) {
   return history.some(
-    (message) =>
-      message.role === "user" &&
-      /(?:ל)?גבי\s+(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))|(?:מועד|תאריך)\s+(?:ה)?אספק(?:ה|ת)/i.test(
-        message.content
-      )
+    (message) => message.role === "user" && isDeliveryDateQuestion(message.content)
   )
 }
 
@@ -315,6 +317,18 @@ function isDeliveryTimingConfirmOfferedByBot(history: HistoryMessage[]) {
   const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
   if (!lastAssistant) return false
   return /(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))/i.test(lastAssistant.content)
+}
+
+/** Bot answered with generic warehouse/ETA FAQ — lookup never ran (534111673). */
+function hasGenericEtaFaqWithoutLookupInThread(history: HistoryMessage[]) {
+  if (isOrderLookupCompletedInThread(history)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:אין(?:\s+לי|\s+במערכת)?\s+.*(?:תאריך|מועד)\s+אספקה\s+מדויק|כרגע\s+אין\s+במערכת\s+תאריך\s+אספקה|עדיין\s+נארז(?:ה|ת)?\s+במחסן)/i.test(
+        message.content
+      )
+  )
 }
 
 function isShippingStatusCheckOfferedInThread(history: HistoryMessage[]) {
@@ -1017,6 +1031,22 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `REPEAT ETA KNOWN ORDER (531872131): delivery thread already names order ${threadKnownOrder} — customer repeats מתי/מועד הגעה (e.g. after receipt ref RC…, automated invoice, or stale service summary). Call lookup_order_status with ${threadKnownOrder} now — answer status + ETA policy. Never "אין לי צפi מדויק" + human_service without running the tool first. Receipt/RC numbers are order refs on this thread — not fetch_digital_document. action reply unless they explicitly ask for a rep after status.`
+    )
+  }
+
+  if (
+    !isOrderLookupCompletedInThread(history) &&
+    isDeliveryEtaThread(history) &&
+    hasGenericEtaFaqWithoutLookupInThread(history) &&
+    (isDeliveryEstimateQuestion(body) ||
+      isOrderDeliveryStatusQuestion(body) ||
+      isShippingStatusQuestion(body) ||
+      isDeliveryDateQuestion(body)) &&
+    !isKnownOrderConfirmPending(history) &&
+    !isServiceOrderIdentificationFlow(history, body)
+  ) {
+    lines.push(
+      "REPEAT ETA AFTER FAQ (534111673): you already answered with generic warehouse/ETA policy without lookup_order_status. Customer repeats מתי/מועד/צפi אספקה — call lookup_order_status now (channel phone first if no order id in thread). Share live status + ETA policy; never repeat the same FAQ paragraph or offer handoff before lookup. action reply unless lookup fails or they explicitly ask for a rep."
     )
   }
 
