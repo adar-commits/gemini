@@ -212,12 +212,14 @@ import {
   isPostHumanHandoff,
   postHandoffKind,
 } from "@/lib/agents/post-handoff"
+import { messageAwaits } from "@/lib/agents/bot-awaiting"
 import {
   customerRespondedToHandoffWithoutConfirm,
   hasDeclarativeHandoffTransfer,
   inferHumanHandoffAction,
   isHumanHandoffAffirmation,
   isHumanHandoffDecline,
+  isHumanHandoffOfferText,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
 import { isConfirmationPending, isSalesFinalSummaryPending } from "@/lib/agents/sales-intake"
@@ -322,15 +324,47 @@ function isDeliveryTimingConfirmOfferedByBot(history: HistoryMessage[]) {
   return /(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))/i.test(lastAssistant.content)
 }
 
+/** Customer asks bot to check live delivery/ETA — not bare handoff confirm (534443123). */
+function isShippingCheckRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return (
+    /(?:לבדוק|תבדוק|בדוק|יכול\s+(?:ל)?בדוק|אפשר\s+(?:ל)?בדוק)/i.test(text) &&
+    /(?:יגיע|הגיע|הגעה|אספק|משלוח|היום|מגיע)/i.test(text)
+  )
+}
+
+/** Promised delivery window already passed — shipping thread follow-up (534443123). */
+function isOverduePromisedDeliveryMention(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return (
+    /(?:עבר(?:ו)?\s+(?:כבר)?|כבר\s+עבר)/i.test(text) &&
+    /(?:שבוע|ימ(?:ים|י)|זמן|אמר(?:ו|ת)|הובטח|הוצג|נאמר)/i.test(text)
+  )
+}
+
 /** Bot answered with generic warehouse/ETA FAQ — lookup never ran (534111673). */
 function hasGenericEtaFaqWithoutLookupInThread(history: HistoryMessage[]) {
   if (isOrderLookupCompletedInThread(history)) return false
   return history.some(
     (message) =>
       message.role === "assistant" &&
-      /(?:אין(?:\s+לי|\s+במערכת)?\s+.*(?:תאריך|מועד)\s+אספקה\s+מדויק|כרגע\s+אין\s+במערכת\s+תאריך\s+אספקה|עדיין\s+נארז(?:ה|ת)?\s+במחסן)/i.test(
+      /(?:אין(?:\s+לי|\s+במערכת)?\s+.*(?:תאריך|מועד)\s+אספקה\s+מדויק|כרגע\s+אין\s+במערכת\s+תאריך\s+אספקה|עדיין\s+נארז(?:ה|ת)?\s+במחסן|(?:ב)?תהליכי\s+אריזה\s+במחסן|אריזה\s+במחסן)/i.test(
         message.content
       )
+  )
+}
+
+/** Rep-transfer question — includes «להעביר אליו?» not caught by isHumanHandoffOfferText (534443123). */
+function hasRepHandoffOfferQuestionInThread(history: HistoryMessage[]) {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  if (!lastAssistant) return false
+  const text = lastAssistant.content
+  return (
+    isHumanHandoffOfferText(text) ||
+    /להעביר\s+אל(?:יו|יה|יהם)\?\s*$/i.test(text) ||
+    messageAwaits(lastAssistant, "handoff_confirm")
   )
 }
 
@@ -736,6 +770,20 @@ export function buildConversationHints(input: {
   }
 
   if (
+    hasRepHandoffOfferQuestionInThread(history) &&
+    !isHumanHandoffAffirmation(body) &&
+    !isHumanHandoffDecline(body) &&
+    isDeliveryEtaThread(history) &&
+    !isOrderLookupCompletedInThread(history) &&
+    (isShippingCheckRequest(body) ||
+      isOverduePromisedDeliveryMention(body) ||
+      isOrderDeliveryStatusQuestion(body) ||
+      isDeliveryEstimateQuestion(body))
+  ) {
+    lines.push(
+      "HANDOFF OFFER — SHIPPING CHECK (534443123): customer did not confirm «להעביר?» — they asked to check delivery/ETA (עבר הזמן / יכול להגיע היום / לבדוק). Call lookup_order_status now (channel phone first if no order id). Answer status + whether today is possible from live data — action reply. human_service only if lookup fails AND they explicitly ask for a rep this turn. Never human_service without lookup."
+    )
+  } else if (
     isHumanHandoffPending(history) &&
     customerRespondedToHandoffWithoutConfirm(history) &&
     !isHumanHandoffAffirmation(body) &&
@@ -1044,7 +1092,9 @@ export function buildConversationHints(input: {
     (isDeliveryEstimateQuestion(body) ||
       isOrderDeliveryStatusQuestion(body) ||
       isShippingStatusQuestion(body) ||
-      isDeliveryDateQuestion(body)) &&
+      isDeliveryDateQuestion(body) ||
+      isShippingCheckRequest(body) ||
+      isOverduePromisedDeliveryMention(body)) &&
     !isKnownOrderConfirmPending(history) &&
     !isServiceOrderIdentificationFlow(history, body)
   ) {
