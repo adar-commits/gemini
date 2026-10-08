@@ -1029,8 +1029,11 @@ export function buildConversationHints(input: {
       )
     } else if (isServiceHandoffSummaryConfirmed(body, history)) {
       const intake = extractServiceIntake(history, body)
+      const repNote = intake.customerGoal?.trim()
+        ? ` and include this compact rep note: ${buildServiceRepGoalNote(intake)}`
+        : " — no rep note line, no policy add-ons (533844316)"
       lines.push(
-        `Service summary confirm (533773292): customer approved — including confirm+addition (כן ו… / כן, להוסיף…). Set action \`human_service\` NOW — never warm-close or action end. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence and include this compact rep note: ${buildServiceRepGoalNote(intake)}`
+        `Service summary confirm (533773292): customer approved — including confirm+addition (כן ו… / כן, להוסיף…). Set action \`human_service\` NOW — never warm-close or action end. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence${repNote}.`
       )
     } else if (
       /נקוד/u.test(body) &&
