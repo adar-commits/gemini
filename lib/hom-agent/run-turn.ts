@@ -23,7 +23,7 @@ import {
 } from "@/lib/agent-core/turn-metrics"
 import { appendTurn, getConversationContext } from "@/lib/agents/memory"
 import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
-import { maybeRefreshConversationSummary } from "@/lib/agents/session-summary"
+import { maybeRefreshConversationSummary, summaryForPrompt } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { coerceKbSelfServiceFaqAction } from "@/lib/agents/kb-self-service-faq"
 import {
@@ -164,7 +164,8 @@ export async function runHomAgentTurn(
   const preview = options?.preview
   const persistTurn = options?.persistTurn !== false && !preview
   const phone = options?.phone?.trim() || ""
-  const { history, conversationSummary, lastAgent } = await getConversationContext(conversationId)
+  const { history, conversationSummary, lastAgent, visit } =
+    await getConversationContext(conversationId)
 
   bindPriorityApiPreMessageGuard(() =>
     history.some(
@@ -199,7 +200,13 @@ export async function runHomAgentTurn(
     }
 
     const metrics = finishTurnMetrics(conversationId)
-    await maybeRefreshConversationSummary({ conversationId, history }).catch(() => {})
+    await maybeRefreshConversationSummary({
+      conversationId,
+      history,
+      body,
+      reply: enriched.reply,
+      visit,
+    }).catch(() => {})
     if (metrics) return { ...enriched, metrics }
     return enriched
   }
@@ -439,12 +446,13 @@ export async function runHomAgentTurn(
       history,
       body,
       phone: phone || undefined,
-      sessionSummary: conversationSummary,
+      sessionSummary: summaryForPrompt(conversationSummary, visit),
       customerName: options?.customerName,
       modelTier: modelPick.tier,
       llmOwnsIntent: deferStructuredToLlm,
       lastAgent,
       humanThreadAssist: options?.humanThreadAssist,
+      visit,
       modelOverride: modelOverride ?? (modelPick.escalated ? modelPick.model : undefined),
     })
 

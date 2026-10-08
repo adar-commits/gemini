@@ -74,6 +74,7 @@ import {
   buildSalesPhotoReceivedTurnResult,
   hasOngoingSalesIntake,
   isAwaitingSalesIntakeAnswer,
+  isSalesIntakeQuestionLatest,
   isConfirmationPending,
   shouldAckSalesRoomPhotoWithoutVision,
   shouldUseSalesIntakeFastPath,
@@ -509,6 +510,9 @@ export function runStructuredSalesIntakePreTurn(input: {
     hasOngoingSalesIntake(input.history) &&
     !isAwaitingSalesIntakeAnswer(input.history)
   ) {
+    return { kind: "skip", response: null }
+  }
+  if (isAwaitingSalesIntakeAnswer(input.history) && !isSalesIntakeQuestionLatest(input.history)) {
     return { kind: "skip", response: null }
   }
 

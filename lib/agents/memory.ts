@@ -12,6 +12,7 @@ import {
 } from "@/lib/landbot/voice-closure-template"
 
 import { getRuntimeConfig } from "@/lib/agent-core/runtime-config"
+import { resolveConversationVisit, type ConversationVisit } from "@/lib/agents/conversation-visit"
 
 const DEFAULT_HISTORY_LIMIT = 15
 
@@ -49,6 +50,8 @@ export type ConversationContext = {
   resetAt: string | null
   inactivityClosedAt: string | null
   conversationSummary: string | null
+  /** Set when the thread has a multi-day silence — earlier messages belong to a past visit. */
+  visit: ConversationVisit | null
 }
 
 function asAgentId(value: unknown): AgentId | null {
@@ -93,7 +96,7 @@ export async function getConversationContext(
         : { role: item.role, content: item.content }
     )
 
-  if (resetAt) {
+  if (resetAt || storedHistory.length >= 2 || (lastAgent && isSpecialistId(lastAgent))) {
     return {
       history: dedupeHistory(storedHistory).slice(-limit),
       lastAgent,
@@ -101,17 +104,7 @@ export async function getConversationContext(
       resetAt,
       inactivityClosedAt,
       conversationSummary,
-    }
-  }
-
-  if (storedHistory.length >= 2 || (lastAgent && isSpecialistId(lastAgent))) {
-    return {
-      history: dedupeHistory(storedHistory).slice(-limit),
-      lastAgent,
-      lastAction,
-      resetAt,
-      inactivityClosedAt,
-      conversationSummary,
+      visit: resolveConversationVisit(stored),
     }
   }
 
@@ -123,6 +116,7 @@ export async function getConversationContext(
     resetAt,
     inactivityClosedAt,
     conversationSummary,
+    visit: resolveConversationVisit([...landbot, ...stored]),
   }
 }
 
@@ -193,6 +187,7 @@ async function loadStoredMessages(
       agent: asText(row.agent),
       action: asText(row.action),
       awaiting: row.role === "assistant" ? normalizeBotAwaiting(row.awaiting) : null,
+      at: asText(row.created_at) || null,
     }))
 }
 
@@ -315,6 +310,7 @@ async function loadLandbotMessages(
     return {
       role: incoming ? ("user" as const) : ("assistant" as const),
       content: asText(row.body),
+      at: asText(row.sent_at) || null,
     }
   })
 }

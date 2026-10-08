@@ -1,6 +1,6 @@
 import { generateText } from "ai"
 import { getConversationContext } from "@/lib/agents/memory"
-import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
+import { HAIKU_GATEWAY_MODEL, NO_THINKING_PROVIDER_OPTIONS } from "@/lib/agent-core/model-profiles"
 
 const TRAINER_CHAT_SYSTEM = `
 You are the internal AI assistant behind the HoM GROUP WhatsApp bot (הום בוט).
@@ -50,6 +50,7 @@ export async function answerTrainerQuestion(input: {
       },
     ],
     maxOutputTokens: 800,
+    providerOptions: NO_THINKING_PROVIDER_OPTIONS,
   })
 
   return result.text.trim() || "לא הצלחתי לנסח תשובה. נסה לנסח מחדש."

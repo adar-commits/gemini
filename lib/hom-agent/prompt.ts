@@ -8,6 +8,7 @@ import type { ModelTier } from "@/lib/agent-core/model-orchestra"
 import { buildHomBotPrompt, buildHomBotPromptParts } from "@/lib/hom-agent/hom-bot-prompt"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import type { HistoryMessage } from "@/lib/agents/types"
+import type { ConversationVisit } from "@/lib/agents/conversation-visit"
 
 /** Static JSON contract — kept adjacent to hom-bot core for prompt-cache prefix stability. */
 const FINAL_OUTPUT_BLOCK = `
@@ -34,6 +35,7 @@ export type HomAgentPromptInput = {
   now?: Date
   /** Human still owns the inbox; bot is allowed to speak after a wait. */
   humanThreadAssist?: "bridge" | "stale"
+  visit?: ConversationVisit | null
 }
 
 const ISRAEL_NOW_FORMAT = new Intl.DateTimeFormat("he-IL", {
@@ -90,6 +92,7 @@ function appendDynamicSections(parts: string[], input?: HomAgentPromptInput) {
           body: input.userText,
           whatsappPhone: input.whatsappPhone ?? undefined,
           humanThreadAssist: input.humanThreadAssist,
+          visit: input.visit,
         })
       : null
   if (hints) {

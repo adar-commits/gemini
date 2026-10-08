@@ -6,7 +6,7 @@ import {
   isReviewFailureReason,
   kbExcerptForLog,
 } from "@/lib/landbot/shadow-deterministic"
-import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
+import { HAIKU_GATEWAY_MODEL, NO_THINKING_PROVIDER_OPTIONS } from "@/lib/agent-core/model-profiles"
 
 export const SHADOW_ISSUE_TYPES = [
   "route_wrong",
@@ -138,6 +138,7 @@ export async function reviewShadowLog(
           },
         ],
         maxOutputTokens: 300,
+        providerOptions: NO_THINKING_PROVIDER_OPTIONS,
         output: Output.object({
           name: "shadow_log_review",
           schema: jsonSchema<ShadowReviewVerdict>({

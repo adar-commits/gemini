@@ -1,4 +1,6 @@
 import { salesIntakeMode } from "@/lib/agent-core/config"
+import type { ConversationVisit } from "@/lib/agents/conversation-visit"
+import { formatHebrewCustomerDate } from "@/lib/agents/hebrew-date-format"
 import {
   channelPhone,
   extractOrderNumber,
@@ -539,6 +541,7 @@ export function buildConversationHints(input: {
   body: string
   whatsappPhone?: string
   humanThreadAssist?: "bridge" | "stale"
+  visit?: ConversationVisit | null
 }): string | null {
   const { history, body } = input
   const lines: string[] = []
@@ -546,6 +549,15 @@ export function buildConversationHints(input: {
     history,
     body
   )
+
+  if (input.visit) {
+    const previous = formatHebrewCustomerDate(input.visit.previousVisitAt) ?? "earlier"
+    lines.push(
+      !input.visit.fresh && input.visit.anchor
+        ? `CURRENT VISIT (228989877): this visit started with the customer message «${input.visit.anchor}» after ${input.visit.gapDays} days of silence (previous visit ended ${previous}). Messages before it are background from a past visit — answer what they ask in this visit. Never continue an old product inquiry, sales quiz, order or complaint from the earlier visit unless the customer brings it up again.`
+        : `NEW VISIT (228989877): the previous message in this thread was ${input.visit.gapDays} days ago (${previous}). Treat this message as a fresh inquiry — earlier messages are background from a past visit. Do not assume they still mean that older product, order, quiz or complaint unless they say so; if their message is only a greeting or unclear, ask how you can help.`
+    )
+  }
 
   if (input.humanThreadAssist === "stale") {
     lines.push(

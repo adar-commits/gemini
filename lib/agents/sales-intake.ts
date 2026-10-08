@@ -30,6 +30,7 @@ import {
   isInactivityAssistantMessage,
   lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
+import { isPriorityApiWaitMessage } from "@/lib/agents/priority-webhook"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
 export type SalesIntake = {
@@ -507,6 +508,21 @@ function allowsLlmModeStructuredIntake(history: HistoryMessage[]) {
 
 export function isAwaitingSalesIntakeAnswer(history: HistoryMessage[]) {
   return pendingSalesIntakeQuestionKind(history) != null
+}
+
+/**
+ * The quiz question is the bot's latest real message. False when the thread moved on
+ * (order lookup, order-number ask) after an older quiz question (228989877).
+ */
+export function isSalesIntakeQuestionLatest(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isPriorityApiWaitMessage(message.content)) continue
+    return questionKindForText(message.content) != null
+  }
+  return false
 }
 
 export function isLikelyBudgetIntakeAnswer(body: string) {

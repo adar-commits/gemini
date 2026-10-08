@@ -20,6 +20,11 @@ export type ModelProfile = {
 const SONNET = "anthropic/claude-sonnet-5"
 /** Vercel AI Gateway id — summaries, router role, trainer/shadow helpers */
 export const HAIKU_GATEWAY_MODEL = "anthropic/claude-haiku-5.5"
+/**
+ * Haiku 5.5 thinks by default on harder prompts; the hidden reasoning can eat the whole
+ * maxOutputTokens budget and return empty text. Pass to every short-budget helper call.
+ */
+export const NO_THINKING_PROVIDER_OPTIONS = { anthropic: { thinking: { type: "disabled" as const } } }
 const HAIKU = HAIKU_GATEWAY_MODEL
 const GPT_55 = "openai/gpt-5.5"
 const FLASH = "google/gemini-2.5-flash"

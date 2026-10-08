@@ -10,7 +10,7 @@ import { isReviewFailureReason } from "@/lib/landbot/shadow-deterministic"
 import { proposeDeterministicFixes } from "@/lib/landbot/shadow-autofix-deterministic"
 import type { ShadowIssueType } from "@/lib/landbot/shadow-review"
 import type { ShadowLogRow } from "@/lib/landbot/shadow-review"
-import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
+import { HAIKU_GATEWAY_MODEL, NO_THINKING_PROVIDER_OPTIONS } from "@/lib/agent-core/model-profiles"
 
 type IssueRow = {
   review_id: string
@@ -218,6 +218,7 @@ export async function proposeLearnedFixes(issue: IssueRow) {
       },
     ],
     maxOutputTokens: 600,
+    providerOptions: NO_THINKING_PROVIDER_OPTIONS,
     output: Output.object({
       name: "learned_fixes",
       schema: jsonSchema<{ fixes: ProposedFix[] }>({

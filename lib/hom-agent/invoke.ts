@@ -14,6 +14,7 @@ import {
   type HomAgentSystemPromptParts,
 } from "@/lib/hom-agent/prompt"
 import type { ModelTier } from "@/lib/agent-core/model-orchestra"
+import type { ConversationVisit } from "@/lib/agents/conversation-visit"
 import {
   homAgentOutputSchema,
   normalizeHomAgentAction,
@@ -85,6 +86,7 @@ type InvokeContext = {
   llmOwnsIntent: boolean
   lastAgent: AgentId | null
   humanThreadAssist?: "bridge" | "stale"
+  visit?: ConversationVisit | null
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }
 
@@ -121,6 +123,7 @@ function buildInvokeContext(input: {
   llmOwnsIntent?: boolean
   lastAgent?: AgentId | null
   humanThreadAssist?: "bridge" | "stale"
+  visit?: ConversationVisit | null
   runtime: Awaited<ReturnType<typeof bindRuntimeConfig>>
 }): InvokeContext {
   return {
@@ -138,6 +141,7 @@ function buildInvokeContext(input: {
     llmOwnsIntent: input.llmOwnsIntent ?? false,
     lastAgent: input.lastAgent ?? null,
     humanThreadAssist: input.humanThreadAssist,
+    visit: input.visit,
     runtime: input.runtime,
   }
 }
@@ -154,6 +158,7 @@ export async function invokeHomAgent(input: {
   llmOwnsIntent?: boolean
   lastAgent?: AgentId | null
   humanThreadAssist?: "bridge" | "stale"
+  visit?: ConversationVisit | null
   /** Retry path — use a lighter model when the primary call failed instantly. */
   modelOverride?: string
 }): Promise<{ output: HomAgentOutput; llmCalls: number; model: string }> {
@@ -194,6 +199,7 @@ async function invokeWithTools(ctx: InvokeContext) {
     modelTier: ctx.modelTier,
     llmOwnsIntent: ctx.llmOwnsIntent,
     humanThreadAssist: ctx.humanThreadAssist,
+    visit: ctx.visit,
   })
   const tools = createHomAgentTools({
     body: ctx.body,
@@ -355,6 +361,7 @@ async function invokeKbOnly(ctx: InvokeContext) {
     modelTier: ctx.modelTier,
     llmOwnsIntent: ctx.llmOwnsIntent,
     humanThreadAssist: ctx.humanThreadAssist,
+    visit: ctx.visit,
   })
   const visionPolicy = resolveVisionPolicy({
     history: ctx.history,

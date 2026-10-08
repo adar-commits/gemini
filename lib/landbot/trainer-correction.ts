@@ -14,7 +14,7 @@ import {
   TRAINER_CORRECTION_PREFIX,
   TRAINER_QUESTION_PREFIX,
 } from "@/lib/landbot/training-guards"
-import { HAIKU_GATEWAY_MODEL } from "@/lib/agent-core/model-profiles"
+import { HAIKU_GATEWAY_MODEL, NO_THINKING_PROVIDER_OPTIONS } from "@/lib/agent-core/model-profiles"
 
 export const TRAINER_CORRECTION_ACK = "קיבלתי מאמן, מייד אבצע תיקונים..."
 export const TRAINER_CORRECTION_DONE =
@@ -101,6 +101,7 @@ async function proposeTrainerFix(input: {
       },
     ],
     maxOutputTokens: 400,
+    providerOptions: NO_THINKING_PROVIDER_OPTIONS,
     output: Output.object({
       name: "trainer_fix",
       schema: jsonSchema<ProposedTrainerFix>({
