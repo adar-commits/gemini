@@ -1237,7 +1237,7 @@ export function buildConversationHints(input: {
       )
     } else {
       lines.push(
-        "ORDER ID BINDING: customer answered your order-number ask with SO/IN/OV (even if labeled חשבונית/הזמנה) — call lookup_order_status with that reference now. NOT fetch_digital_document, NOT 'איזה סוג חשבונית'."
+        `ORDER ID BINDING (228989877): customer answered your order-number ask (including bare digits like #77871) — call lookup_order_status with ${orderId ?? "that id"} now. NOT fetch_digital_document, NOT sales-intake summary, NOT human_sales — even if an older sales quiz is still open in the thread. NOT 'איזה סוג חשבונית'.`
       )
     }
   }

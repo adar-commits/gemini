@@ -1063,7 +1063,7 @@ export function supplementalOrderReferencesForLookup(
 /** Order reference from customer reply — prefixed (SO/IN/OV), Shopify #, or bare digits (not a phone). */
 export function extractOrderReference(rawText: string, history: HistoryMessage[] = []) {
   const text = stripMediaAndUrls(rawText)
-  if (isAwaitingSalesIntakeAnswer(history)) {
+  if (isAwaitingSalesIntakeAnswer(history) && !isOrderNumberRequestPending(history)) {
     const kind = pendingSalesIntakeQuestionKind(history)
     if (kind === "budget" && isLikelyBudgetIntakeAnswer(text)) return null
     if (isSalesIntakeAnswer(text, history)) return null
