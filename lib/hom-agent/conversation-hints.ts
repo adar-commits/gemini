@@ -387,6 +387,16 @@ function isOrderStatusProgressOpener(content: string) {
   )
 }
 
+/** Bare «צפי לקבל/להגיע» + order — not caught by isDeliveryEstimateQuestion alone (534257487). */
+function isExpectReceiveDeliveryAsk(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return (
+    isDeliveryEstimateQuestion(text) ||
+    /(?:צפי|צפוי(?:ה|ים|ות)?)\s+ל(?:קבל|הגיע)/i.test(text)
+  )
+}
+
 /** Customer described a service/shipping issue before order confirm — not phone-only lookup (534367153). */
 function threadHasStatedCustomerIssue(history: HistoryMessage[], body: string) {
   const userText = history
@@ -616,7 +626,7 @@ export function buildConversationHints(input: {
         ? "If they still need a rep, or you cannot resolve it, set action human_sales + crm_department sales in the same JSON — the prior handoff was to sales (441678247); ignore the template's 'שירות' wording."
         : "If they still need a rep, or you cannot resolve it, set action human_service in the same JSON."
     lines.push(
-      `VOICE CALLBACK TEMPLATE (532661685 / 533657825): the last outbound is an automatic voice-closure template ("כאן נציג/ה ... בהמשך לבקשתך לדבר עם נציג" or "מחלקת שירות ... בהמשך לשיחתך הטלפונית") sent after the customer chose, on a phone call, to keep waiting for a rep on WhatsApp — no rep has written yet. Answer their request normally this turn with tools (e.g. shipping status → lookup_order_status). Never stay silent and never ask a "זה מדויק?" summary confirmation. ${departmentLine}`
+      `VOICE CALLBACK TEMPLATE (532661685 / 533657825 / 534257487): the last outbound is an automatic voice-closure template ("כאן נציג/ה ... בהמשך לבקשתך לדבר עם נציג" or "מחלקת שירות ... בהמשך לשיחתך הטלפונית") sent after the customer chose, on a phone call, to keep waiting for a rep on WhatsApp — no rep has written yet. Answer their request normally this turn with tools (e.g. «צפי לקבל הזמנה» + order # → lookup_order_status, not human_service for «צפi מדויק»). Never stay silent and never ask a "זה מדויק?" summary confirmation. ${departmentLine}`
     )
   }
 
@@ -1029,7 +1039,9 @@ export function buildConversationHints(input: {
   }
 
   if (
-    (isShippingStatusQuestion(body) || isOrderStatusProgressOpener(body)) &&
+    (isShippingStatusQuestion(body) ||
+      isOrderStatusProgressOpener(body) ||
+      isExpectReceiveDeliveryAsk(body)) &&
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
@@ -1046,10 +1058,11 @@ export function buildConversationHints(input: {
     !isOrderNumberRequestPending(history) &&
     (isShippingStatusQuestion(body) ||
       isOrderDeliveryStatusQuestion(body) ||
-      isOrderStatusProgressOpener(body))
+      isOrderStatusProgressOpener(body) ||
+      isExpectReceiveDeliveryAsk(body))
   ) {
     lines.push(
-      `ETA OPENER + ORDER ID (533428072 / 533710142 / 532250107): customer asks when the order will arrive (including «מה קורה עם השטיח») and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
+      `ETA OPENER + ORDER ID (533428072 / 533710142 / 532250107 / 534257487): customer asks when the order will arrive (including «מה קורה עם השטיח» / «צפי לקבל הזמנה») and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
     )
   }
 
