@@ -123,6 +123,7 @@ import {
   isKnownOrderConfirmPending,
   isOrderDeliveryStatusQuestion,
   isOrderLookupCompletedInThread,
+  isOrderModificationInThread,
   isShippingThreadFromHistory,
   isShippingAddressUpdateThread,
   isOrderLookupPhoneReplyPending,
@@ -310,6 +311,7 @@ export function runPreTurnGuards(input: {
   if (
     lastAssistantBeforeThanks &&
     salesHandoffOnThanks &&
+    isOrderModificationInThread(input.history, body) &&
     isThanksAcknowledgment(body) &&
     explicitThanks &&
     !isPureHandoffAffirmation(body)
