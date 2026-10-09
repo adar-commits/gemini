@@ -1109,7 +1109,29 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isInactivityPingPending(history) && inactivityStillHere && !bindInactivityToPrior) {
+  const postHandoffInactivityStillHere =
+    isInactivityPingPending(history) &&
+    inactivityAffirmation &&
+    !bindInactivityToPrior &&
+    isPostHumanHandoff(null, history)
+
+  if (postHandoffInactivityStillHere) {
+    const handoffKind = postHandoffKind(null, history) ?? "human_service"
+    const department =
+      handoffKind === "human_sales"
+        ? "human_sales + crm_department sales"
+        : "human_service + crm_department service"
+    lines.push(
+      `POST-HANDOFF INACTIVITY (533540551): after transfer/thanks-close, "עדיין כאן?" + short כן/יכן is **not** a fresh chat opener — never "איך אוכל להמשיך לעזור?" / generic intake. Acknowledge they are still waiting for the rep, restate the open service topics from this thread (credit invoice/refund timing, wrong carpet, no human callback), and set action ${department} in the same JSON if they still need human follow-up.`
+    )
+  }
+
+  if (
+    isInactivityPingPending(history) &&
+    inactivityStillHere &&
+    !bindInactivityToPrior &&
+    !postHandoffInactivityStillHere
+  ) {
     lines.push(
       'INACTIVITY STILL-HERE ACK: "עדיין כאן?" with no open handoff/summary/order question — short "כן"/"יכן" means the customer is still here. Reply "אני כאן. איך אוכל להמשיך לעזור?", action reply. Never human_service/human_sales or rep-callback promises unless they ask again.'
     )

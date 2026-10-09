@@ -90,14 +90,38 @@ function lastMeaningfulAssistantText(history: HistoryMessage[]) {
   return ""
 }
 
+function assistantBodyWithoutHeader(content: string) {
+  return content.replace(/\*הום בוט\s:\)\*/gi, "").trim()
+}
+
+function isBotHandoffCommitmentContent(content: string) {
+  const body = assistantBodyWithoutHeader(content)
+  if (!body) return false
+  return (
+    HANDOFF_CONFIRMED_RE.test(body) ||
+    hasDeclarativeHandoffTransferInText(body) ||
+    isBotHandoffAssistantMessage(content)
+  )
+}
+
+/** Prior transfer prose/commit in thread — still post-handoff after thanks-close (533540551). */
+function hasBotHandoffCommitmentInHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      !isInactivityAssistantMessage(message.content) &&
+      !isVoiceClosureTemplateMessage({ body: message.content }) &&
+      isBotHandoffCommitmentContent(message.content)
+  )
+}
+
 export function isPostHumanHandoff(lastAction: string | null, history: HistoryMessage[]) {
   if (lastAction === "human_sales" || lastAction === "human_service") return true
   if (hasLiveRepPendingCallbackCommitment(history)) return true
+  if (hasBotHandoffCommitmentInHistory(history)) return true
   const last = lastMeaningfulAssistantText(history)
   if (!last) return false
-  if (HANDOFF_CONFIRMED_RE.test(last)) return true
-  if (hasDeclarativeHandoffTransferInText(last)) return true
-  return isBotHandoffAssistantMessage(last)
+  return isBotHandoffCommitmentContent(last)
 }
 
 export function postHandoffKind(
@@ -106,9 +130,16 @@ export function postHandoffKind(
 ): "human_sales" | "human_service" | null {
   if (lastAction === "human_sales") return "human_sales"
   if (lastAction === "human_service") return "human_service"
-  const last = lastMeaningfulAssistantText(history)
-  if (/יועץ\s+מכירות|מחלקת\s+מכירות/i.test(last)) return "human_sales"
-  if (/נציג\s+שירות|שירות\s+לקוחות/i.test(last)) return "human_service"
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isVoiceClosureTemplateMessage({ body: message.content })) continue
+    const body = assistantBodyWithoutHeader(message.content)
+    if (/יועץ\s+מכירות|מחלקת\s+מכירות/i.test(body)) return "human_sales"
+    if (/נציג\s+שירות|שירות\s+לקוחות/i.test(body)) return "human_service"
+    if (isBotHandoffCommitmentContent(message.content)) break
+  }
   if (hasLiveRepPendingCallbackCommitment(history)) return "human_service"
   return null
 }
