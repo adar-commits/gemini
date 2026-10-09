@@ -20,6 +20,10 @@ const SALES_HANDOFF_COMMITTED_RE =
 const PROACTIVE_RECEIPT_OR_TRACKING_RE =
   /תודה על רכישתך בשטיח האדום|documents\.carpetshop\.co\.il|tracking\.carpetshop\.co\.il/i
 
+/** Live rep promised callback / manager assign — thread stays open (530313226). */
+const LIVE_REP_PENDING_CALLBACK_RE =
+  /שייכ(?:תי|ו)[^\n]{0,64}(?:מנהל|נציג)|נעדכן\s+(?:אות(?:ך|כם)|בהקדם)|(?:ניצור|יצר[uw]|נחזור)\s+(?:אית(?:ך|כם)\s+)?(?:קשר|אליך)/i
+
 export function isHomBotAssistantMessage(content: string) {
   const trimmed = content.trim()
   if (!trimmed) return false
@@ -48,6 +52,15 @@ export function isLiveRepAssistantMessage(content: string) {
 }
 
 /** Bot handoff executed, then a human rep answered — thanks must warm-close (534366103). */
+export function hasLiveRepPendingCallbackCommitment(history: HistoryMessage[]) {
+  return history.some(
+    (m) =>
+      m.role === "assistant" &&
+      isLiveRepAssistantMessage(m.content) &&
+      LIVE_REP_PENDING_CALLBACK_RE.test(m.content)
+  )
+}
+
 export function hasLiveRepReplyAfterBotHandoff(history: HistoryMessage[]) {
   let lastHandoffIdx = -1
   for (let index = 0; index < history.length; index += 1) {
@@ -79,6 +92,7 @@ function lastMeaningfulAssistantText(history: HistoryMessage[]) {
 
 export function isPostHumanHandoff(lastAction: string | null, history: HistoryMessage[]) {
   if (lastAction === "human_sales" || lastAction === "human_service") return true
+  if (hasLiveRepPendingCallbackCommitment(history)) return true
   const last = lastMeaningfulAssistantText(history)
   if (!last) return false
   if (HANDOFF_CONFIRMED_RE.test(last)) return true
@@ -95,6 +109,7 @@ export function postHandoffKind(
   const last = lastMeaningfulAssistantText(history)
   if (/יועץ\s+מכירות|מחלקת\s+מכירות/i.test(last)) return "human_sales"
   if (/נציג\s+שירות|שירות\s+לקוחות/i.test(last)) return "human_service"
+  if (hasLiveRepPendingCallbackCommitment(history)) return "human_service"
   return null
 }
 

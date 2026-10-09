@@ -355,7 +355,10 @@ function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: 
 }
 
 const NO_RESPONSE_COMPLAINT_RE =
-  /(?:אין\s+מענה|לא\s+(?:חוזר(?:ים|ה)?|עונ(?:ים|ה)?)(?:\s+אלי(?:י|ך))?|לא\s+ה(?:בנת|בין)(?:י|תי)\s+למה|עדיין\s+לא\s+חזר(?:ו|ה)?|אף\s+אחד\s+לא(?:\s+חזר)?|עבר\s+(?:יותר\s+מ?)?(?:זמן|מדי\s+זמן)|לא\s+רוצ(?:ה|ים|ות)\s+.*(?:עובר|יגיע))/i
+  /(?:אין\s+מענה|לא\s+(?:חוזר(?:ים|ה)?|חזר(?:ת|תם|תי|ו)?|עונ(?:ים|ה)?)(?:\s+אלי(?:י|ך))?|לא\s+ה(?:בנת|בין)(?:י|תי)\s+למה|עדיין\s+לא\s+חזר(?:ו|ה)?|אף\s+אחד\s+לא(?:\s+חזר)?|עבר\s+(?:יותר\s+מ?)?(?:זמן|מדי\s+זמן)|לא\s+רוצ(?:ה|ים|ות)\s+.*(?:עובר|יגיע)|מחכ(?:ה|ים)[^\n]{0,32}(?:קשר|עדכון|(?:ש)?(?:ת)?צר(?:ו|ה|ים|ת)?))/i
+
+const PRIOR_HANDOFF_OR_REP_COMMIT_RE =
+  /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|ניצור\s+קשר\s+בהקדם|מ(?:עביר|חבר)(?:ים|ה|א)?[^\n]{0,48}יועץ\s+מכירות|נציג\s+שירות|שייכ(?:תי|ו)[^\n]{0,64}(?:מנהל|נציג)|נעדכן\s+(?:אות(?:ך|כם)|בהקדם))/i
 
 /** Past-tense handoff commit — future "אני מעביר" alone is not an executed assign (533540551). */
 function assistantTextIndicatesHandoffExecuted(text: string) {
@@ -380,13 +383,8 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
   if (!text || text.length > 320) return false
   if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
   if (!isPostHumanHandoff(null, history)) return false
-  if (hasLiveRepReplyAfterBotHandoff(history)) return false
   return history.some(
-    (m) =>
-      m.role === "assistant" &&
-      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|ניצור\s+קשר\s+בהקדם|מ(?:עביר|חבר)(?:ים|ה|א)?[^\n]{0,48}יועץ\s+מכירות|נציג\s+שירות)/i.test(
-        m.content
-      )
+    (m) => m.role === "assistant" && PRIOR_HANDOFF_OR_REP_COMMIT_RE.test(m.content)
   )
 }
 
@@ -1789,7 +1787,7 @@ export function buildConversationHints(input: {
         ? "human_sales + crm_department sales"
         : "human_service + crm_department service"
     lines.push(
-      `POST-HANDOFF NO-RESPONSE RE-ESCALATION (306743535): customer returned after a prior handoff complaining nobody responded (אין מענה / לא חוזרים / עבר זמן). Empathize briefly for the delay. Recap the **full open case** from thread history (exchange, return, product choice — not a fresh sales intake). Re-mark urgent and set action ${department} in the **same** JSON when you write סימנתי/העברתי/מעלה בעדיפות. **Never** restart sales intake quiz or summarize as a new "שטיח לסלון" request. **Never** say מעביר עכשיו as if first transfer — they already waited. No second service_summary_confirm if already confirmed.`
+      `POST-HANDOFF NO-RESPONSE RE-ESCALATION (306743535 / 530313226): customer returned after a prior handoff or live rep/manager promise (שייכתי למנהל / נעדכן) complaining nobody responded or still waiting for contact (אין מענה / לא חוזרים / מחכה שתצרו קשר). Empathize briefly for the delay. Recap the **full open case** from thread history (cancel undelivered line, exchange, return — not a fresh sales intake). **Never** open with generic «איך אוכל לעזור?» or ask SKU confirm on a case already explained. Re-mark urgent and set action ${department} in the **same** JSON when you write סימנתי/העברתי/מעלה בעדיפות. **Never** restart sales intake quiz. **Never** say מעביר עכשיו as if first transfer — they already waited. No second service_summary_confirm if already confirmed.`
     )
   }
 
