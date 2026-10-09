@@ -992,16 +992,24 @@ export function buildConversationHints(input: {
     )
   }
 
+  const homBotAcknowledgedWrongPhoneInThread = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /\*הום בוט\s:\)*/i.test(message.content) &&
+      /(לא נועדו לך|התעלם|טעות במספר)/i.test(message.content)
+  )
+
   const wrongPhoneAfterProactiveSms =
-    lastAssistantWasOutboundDocumentDelivery(history) &&
-    history.filter((message) => message.role === "user").length === 1 &&
+    outboundDocumentDeliveryInThread(history) &&
+    history.filter((message) => message.role === "user").length <= 2 &&
+    !homBotAcknowledgedWrongPhoneInThread &&
     !greetingAfterDocumentDelivery &&
     !isThanksAcknowledgment(body) &&
     !hasImmediateBusinessAsk(body)
 
   if (wrongPhoneAfterProactiveSms) {
     lines.push(
-      'WRONG PHONE / MISTaken proactive SMS (534285929): first reply to automated receipt+tracking template reporting wrong phone / not their order / «טעות במספר» — apologize briefly, say they can ignore it, note you logged for ops to fix the phone on the order. **`action: reply`** — **never** `human_service` unless they explicitly ask for נציג. No lookup_order_status.'
+      'WRONG PHONE / mistaken proactive SMS (534285929 / 533894412): customer reports automated receipt/invoice sent by mistake (wrong number / not their order) while outbound document template is in thread — apologize briefly, they can ignore messages. **`action: human_service`** + crm_department service when you write מעביר/העברתי to the team to fix phone on the order — **same JSON**, never `action: reply` with העברתי/העברתי. Log-only without rep → **`action: reply`** with סימנתי/רשמתי לצוות only — never transfer verbs. No lookup_order_status.'
     )
   }
 

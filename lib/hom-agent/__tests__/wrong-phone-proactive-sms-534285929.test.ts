@@ -19,7 +19,7 @@ function historyAfterWrongNumberReport(): HistoryMessage[] {
 
 /** Replay 534285929 — wrong-number reply to proactive receipt SMS must not hand off. */
 describe("wrong phone proactive sms (534285929)", () => {
-  it("teaches reply-only handling without human_service handoff", () => {
+  it("binds human_service when writing העברתי to fix wrong phone on order", () => {
     const openingRule = prompt
       .split("\n")
       .find((line) => line.includes("534285929") && line.includes("Wrong phone"))
@@ -29,10 +29,10 @@ describe("wrong phone proactive sms (534285929)", () => {
 
     assert.ok(openingRule, "missing opening greeting rule for 534285929")
     assert.ok(routingRule, "missing routing table rule for 534285929")
-    assert.match(openingRule!, /action: reply/i)
-    assert.match(openingRule!, /never.*human_service/i)
-    assert.match(routingRule!, /action: reply/i)
-    assert.match(routingRule!, /never.*human_service/i)
+    assert.match(openingRule!, /human_service/i)
+    assert.match(openingRule!, /never.*reply.*העברתי/i)
+    assert.match(routingRule!, /human_service/i)
+    assert.match(routingRule!, /never.*reply.*העברתי/i)
   })
 
   it("hints reply-only on first non-business reply after proactive sms", () => {
@@ -46,8 +46,8 @@ describe("wrong phone proactive sms (534285929)", () => {
 
     assert.match(hints, /534285929/)
     assert.match(hints, /WRONG PHONE/i)
-    assert.match(hints, /action: reply/i)
-    assert.match(hints, /never.*human_service/i)
+    assert.match(hints, /action: human_service/i)
+    assert.match(hints, /never.*action: reply.*העברתי/i)
   })
 
   it("does not emit wrong-phone hint when customer asks about delivery", () => {
