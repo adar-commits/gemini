@@ -100,6 +100,8 @@ function laterIso(a?: string | null, b?: string | null) {
 export function resolveHumanThreadAssistMode(input: {
   assignedAgentId?: number | null
   humanAgentLastAt?: string | null
+  /** CRM assignment time — ages a thread whose rep never replied (508272038). */
+  assignedAt?: string | null
   lastUserAt?: string | null
   now?: Date
 }): HumanThreadAssist {
@@ -108,7 +110,7 @@ export function resolveHumanThreadAssistMode(input: {
     isAssignedToHumanAgent(input.assignedAgentId ?? null) ||
     Boolean(input.humanAgentLastAt?.trim())
   if (!owned) return { owned: false, mode: null }
-  const last = input.humanAgentLastAt?.trim()
+  const last = input.humanAgentLastAt?.trim() || input.assignedAt?.trim()
   if (!last) return { owned: true, mode: "fresh" }
   return { owned: true, mode: classifyHumanThreadAge(last, input.now) }
 }
@@ -127,23 +129,35 @@ export function shouldDeferToHumanAgent(input: {
 }
 
 /**
- * Inactivity ping + close stays off while a rep may still be working the case.
- * A stale thread (rep silent 2+ staff days, bot answering — e.g. sticky reopen) gets the
- * normal routine so it does not sit open in the rep's queue (532876329).
+ * Inactivity ping + close stays off only while the rep is actively on the thread (fresh).
+ * Bridge/stale threads where the bot is answering get the normal routine so they do not
+ * sit open in the rep's queue (532876329 / 534098184). Cases a rep must act on end in
+ * `human_service`, which skips the routine on its own.
  */
 export function blocksInactivityRoutine(assist: HumanThreadAssist) {
-  return assist.owned && assist.mode !== "stale"
+  return assist.owned && assist.mode === "fresh"
+}
+
+async function resolveEffectiveAssignment(
+  conversationId: string,
+  assignedAgentId?: number | null
+): Promise<{ agentId: number | null; assignedAt: string | null }> {
+  if (isAssignedToHumanAgent(assignedAgentId ?? null)) {
+    return { agentId: assignedAgentId ?? null, assignedAt: null }
+  }
+  const row = await findCrmConversation(conversationId).catch(() => null)
+  const crmAgentId = Number(row?.assigned_agent_code)
+  if (isAssignedToHumanAgent(crmAgentId)) {
+    return { agentId: crmAgentId, assignedAt: row?.assigned_at ?? null }
+  }
+  return { agentId: assignedAgentId ?? null, assignedAt: null }
 }
 
 export async function resolveEffectiveAssignedAgentId(
   conversationId: string,
   assignedAgentId?: number | null
 ) {
-  if (isAssignedToHumanAgent(assignedAgentId ?? null)) return assignedAgentId ?? null
-  const row = await findCrmConversation(conversationId).catch(() => null)
-  const crmAgentId = Number(row?.assigned_agent_code)
-  if (isAssignedToHumanAgent(crmAgentId)) return crmAgentId
-  return assignedAgentId ?? null
+  return (await resolveEffectiveAssignment(conversationId, assignedAgentId)).agentId
 }
 
 export async function resolveHumanThreadAssist(
@@ -151,7 +165,7 @@ export async function resolveHumanThreadAssist(
   assignedAgentId?: number | null,
   now = new Date()
 ): Promise<HumanThreadAssist> {
-  const effectiveAssignedAgentId = await resolveEffectiveAssignedAgentId(
+  const { agentId: effectiveAssignedAgentId, assignedAt } = await resolveEffectiveAssignment(
     conversationId,
     assignedAgentId
   )
@@ -162,6 +176,7 @@ export async function resolveHumanThreadAssist(
   let assist = resolveHumanThreadAssistMode({
     assignedAgentId: effectiveAssignedAgentId,
     humanAgentLastAt,
+    assignedAt,
     lastUserAt: state?.last_user_at ?? null,
     now,
   })

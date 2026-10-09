@@ -209,4 +209,17 @@ describe("buildConversationHints", () => {
     assert.match(hints, /HUMAN THREAD BRIDGE/)
     assert.match(hints, /Do not start a new sales or service intake/)
   })
+
+  it("hands a chased open hard case back to the rep instead of holding lines (534379659)", () => {
+    for (const mode of ["stale", "bridge"] as const) {
+      const hints = buildConversationHints({
+        history: [],
+        body: "מה עם הביטול? עדיין לא קיבלתי החזר",
+        humanThreadAssist: mode,
+      })
+      assert.ok(hints)
+      assert.match(hints, /534379659/)
+      assert.match(hints, /`action: human_service` \(keeps the same rep/)
+    }
+  })
 })

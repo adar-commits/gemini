@@ -44,6 +44,16 @@ export async function closeCrmConversation(input: {
 
   if (updateError) throw updateError
 
+  const { error: eventError } = await supabase.from("events").insert({
+    session_id: row.session_id,
+    event_type: "closed",
+    event_at: now,
+    payload: { source: "hom_bot", reason },
+  })
+  if (eventError && eventError.code !== "23505") {
+    console.warn("[crm-close] closed event failed", row.session_id, eventError.message)
+  }
+
   const { error: logError } = await supabase.from("conversation_status_log").insert({
     session_id: row.session_id,
     action_type: "status_closed",

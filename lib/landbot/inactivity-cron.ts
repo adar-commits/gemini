@@ -134,7 +134,7 @@ async function isBotWaitingForUser(row: IdleSessionRow) {
   return isBotWaitingForCustomerReply(row.conversation_id, row)
 }
 
-async function backfillSessionActivityTimestamps(limit = 50) {
+async function backfillSessionActivityTimestamps(deadline: number, limit = 50) {
   const supabase = getAgentSupabase()
   const { data: sessions, error } = await supabase
     .from("hom_agent_sessions")
@@ -147,9 +147,9 @@ async function backfillSessionActivityTimestamps(limit = 50) {
   if (!sessions?.length) return 0
 
   let updated = 0
-  for (const session of sessions) {
+  await runWithinBudget(sessions, deadline, async (session) => {
     const conversationId = asText(session.conversation_id)
-    if (!conversationId) continue
+    if (!conversationId) return
 
     const [{ data: lastUser }, { data: lastAssistant }] = await Promise.all([
       supabase
@@ -170,7 +170,7 @@ async function backfillSessionActivityTimestamps(limit = 50) {
         .maybeSingle(),
     ])
 
-    if (!lastUser?.created_at && !lastAssistant?.created_at) continue
+    if (!lastUser?.created_at && !lastAssistant?.created_at) return
 
     const assistantAt = lastAssistant?.created_at
       ? new Date(String(lastAssistant.created_at)).toISOString()
@@ -193,7 +193,7 @@ async function backfillSessionActivityTimestamps(limit = 50) {
       .eq("conversation_id", conversationId)
 
     if (!updateError) updated += 1
-  }
+  })
 
   return updated
 }
@@ -409,6 +409,7 @@ async function loadSessionsDueForClose(limit = CLOSE_SCAN_LIMIT): Promise<CloseC
     .is("inactivity_closed_at", null)
     .not("inactivity_ping_sent_at", "is", null)
     .lt("inactivity_ping_sent_at", cutoff)
+    .order("inactivity_ping_sent_at", { ascending: false })
     .limit(limit)
 
   if (sessionError) throw sessionError
@@ -620,8 +621,39 @@ async function attemptInactivityClose(row: CloseCandidate) {
   return "closed" as const
 }
 
+/** Cron runs every minute with maxDuration 60s — stop starting rows well before that. */
+export const INACTIVITY_CRON_BUDGET_MS = 40_000
+const INACTIVITY_CRON_CONCURRENCY = 6
+
+/** Runs `worker` over `rows` with bounded concurrency; rows not started before `deadline` are left for the next tick. */
+export async function runWithinBudget<T>(
+  rows: T[],
+  deadline: number,
+  worker: (row: T) => Promise<void>,
+  concurrency = INACTIVITY_CRON_CONCURRENCY
+) {
+  let next = 0
+  let started = 0
+  const lane = async () => {
+    while (next < rows.length && Date.now() < deadline) {
+      const row = rows[next]
+      next += 1
+      started += 1
+      await worker(row)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, rows.length) }, lane))
+  return rows.length - started
+}
+
 export async function processInactivityTimeouts() {
-  const backfilled = await backfillSessionActivityTimestamps()
+  const startedAt = Date.now()
+  const closeDeadline = startedAt + INACTIVITY_CRON_BUDGET_MS * 0.4
+  const silentHandoffDeadline = startedAt + INACTIVITY_CRON_BUDGET_MS * 0.6
+  const pingDeadline = startedAt + INACTIVITY_CRON_BUDGET_MS
+  const backfilled = await backfillSessionActivityTimestamps(
+    startedAt + INACTIVITY_CRON_BUDGET_MS * 0.2
+  )
   const expired = await expireStaleIdleSessions().catch(() => 0)
   const dueForClose = await loadSessionsDueForClose()
   const dueForSilentHandoff = await loadSessionsDueForSilentHandoff()
@@ -637,10 +669,11 @@ export async function processInactivityTimeouts() {
     salesRecovery: 0,
     silentHandoff: 0,
     skipped: 0,
+    deferred: 0,
     errors: [] as string[],
   }
 
-  for (const row of dueForClose) {
+  results.deferred += await runWithinBudget(dueForClose, closeDeadline, async (row) => {
     try {
       const outcome = await attemptInactivityClose(row)
       if (outcome === "closed") results.closed += 1
@@ -650,9 +683,9 @@ export async function processInactivityTimeouts() {
       const message = error instanceof Error ? error.message : "Inactivity close failed"
       results.errors.push(`${row.conversation_id}: ${message}`)
     }
-  }
+  })
 
-  for (const row of dueForSilentHandoff) {
+  results.deferred += await runWithinBudget(dueForSilentHandoff, silentHandoffDeadline, async (row) => {
     try {
       const outcome = await attemptSilentHandoffAssign(row)
       if (outcome === "silent_handoff") results.silentHandoff += 1
@@ -662,9 +695,9 @@ export async function processInactivityTimeouts() {
         error instanceof Error ? error.message : "Silent handoff assign failed"
       results.errors.push(`${row.conversation_id}: ${message}`)
     }
-  }
+  })
 
-  for (const row of dueForPing) {
+  results.deferred += await runWithinBudget(dueForPing, pingDeadline, async (row) => {
     try {
       const outcome = await attemptInactivityPing(row)
       if (outcome === "pinged") results.pinged += 1
@@ -675,7 +708,14 @@ export async function processInactivityTimeouts() {
       const message = error instanceof Error ? error.message : "Inactivity ping failed"
       results.errors.push(`${row.conversation_id}: ${message}`)
     }
-  }
+  })
 
+  if (results.deferred > 0) {
+    console.log("[conversation-idle] budget reached", {
+      deferred: results.deferred,
+      closed: results.closed,
+      pinged: results.pinged,
+    })
+  }
   return results
 }

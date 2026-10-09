@@ -52,6 +52,44 @@ export type ConversationContext = {
   conversationSummary: string | null
   /** Set when the thread has a multi-day silence — earlier messages belong to a past visit. */
   visit: ConversationVisit | null
+  /**
+   * Current-visit slice of `history` (messages after `visit.previousVisitAt`), null when the
+   * thread has no visit boundary. Structured pre-turns bind on this so a past visit's flow
+   * cannot hijack today's question (528892655); the LLM still gets full `history`.
+   */
+  visitHistory: HistoryMessage[] | null
+}
+
+type TimedStoredMessage = {
+  role: "user" | "assistant"
+  content: string
+  at: string | null
+  awaiting?: BotAwaiting | null
+}
+
+function toHistory(items: TimedStoredMessage[]): HistoryMessage[] {
+  return items
+    .filter((item) => item.content)
+    .map((item) =>
+      item.awaiting
+        ? { role: item.role, content: item.content, awaiting: item.awaiting }
+        : { role: item.role, content: item.content }
+    )
+}
+
+export function resolveVisitHistory(
+  messages: TimedStoredMessage[],
+  visit: ConversationVisit | null,
+  limit: number
+): HistoryMessage[] | null {
+  if (!visit) return null
+  const boundary = Date.parse(visit.previousVisitAt)
+  if (!Number.isFinite(boundary)) return null
+  const current = messages.filter((item) => {
+    const at = item.at ? Date.parse(item.at) : NaN
+    return Number.isFinite(at) && at > boundary
+  })
+  return dedupeHistory(toHistory(current)).slice(-limit)
 }
 
 function asAgentId(value: unknown): AgentId | null {
@@ -88,15 +126,10 @@ export async function getConversationContext(
     asAgentId(lastStored?.agent) ?? asAgentId(session?.last_agent)
   const lastAction = asText(lastStored?.action) || null
 
-  const storedHistory: HistoryMessage[] = stored
-    .filter((item) => item.content)
-    .map((item) =>
-      item.awaiting
-        ? { role: item.role, content: item.content, awaiting: item.awaiting }
-        : { role: item.role, content: item.content }
-    )
+  const storedHistory = toHistory(stored)
 
   if (resetAt || storedHistory.length >= 2 || (lastAgent && isSpecialistId(lastAgent))) {
+    const visit = resolveConversationVisit(stored)
     return {
       history: dedupeHistory(storedHistory).slice(-limit),
       lastAgent,
@@ -104,11 +137,13 @@ export async function getConversationContext(
       resetAt,
       inactivityClosedAt,
       conversationSummary,
-      visit: resolveConversationVisit(stored),
+      visit,
+      visitHistory: resolveVisitHistory(stored, visit, limit),
     }
   }
 
   const landbot = await loadLandbotMessages(conversationId, resetAt, limit)
+  const visit = resolveConversationVisit([...landbot, ...stored])
   return {
     history: dedupeHistory([...landbot, ...storedHistory]).slice(-limit),
     lastAgent,
@@ -116,7 +151,8 @@ export async function getConversationContext(
     resetAt,
     inactivityClosedAt,
     conversationSummary,
-    visit: resolveConversationVisit([...landbot, ...stored]),
+    visit,
+    visitHistory: resolveVisitHistory([...landbot, ...stored], visit, limit),
   }
 }
 

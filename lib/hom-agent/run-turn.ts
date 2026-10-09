@@ -164,7 +164,7 @@ export async function runHomAgentTurn(
   const preview = options?.preview
   const persistTurn = options?.persistTurn !== false && !preview
   const phone = options?.phone?.trim() || ""
-  const { history, conversationSummary, lastAgent, visit } =
+  const { history, conversationSummary, lastAgent, visit, visitHistory } =
     await getConversationContext(conversationId)
 
   bindPriorityApiPreMessageGuard(() =>
@@ -256,9 +256,12 @@ export async function runHomAgentTurn(
     })
   }
 
+  // Structured pre-turns bind on the current visit only; the LLM keeps full history.
+  const structuredHistory = visitHistory ?? history
+
   const preTurn = runPreTurnGuards({
     turn,
-    history,
+    history: structuredHistory,
     customerName: options?.customerName,
   })
 
@@ -267,7 +270,7 @@ export async function runHomAgentTurn(
     return completeStructuredTurn(preTurn, { agent: "faq" })
   }
 
-  const deferStructuredToLlm = shouldDeferStructuredPreTurnToLlm(history, turn)
+  const deferStructuredToLlm = shouldDeferStructuredPreTurnToLlm(structuredHistory, turn)
   if (deferStructuredToLlm) {
     setRoutingPath(conversationId, "v3_llm_only")
   }
@@ -275,7 +278,7 @@ export async function runHomAgentTurn(
   if (!deferStructuredToLlm) {
     const structuredOpeningAfterDocument = runStructuredOpeningAfterDocumentDeliveryPreTurn({
       turn,
-      history,
+      history: structuredHistory,
     })
 
     if (structuredOpeningAfterDocument.kind === "handled") {
@@ -287,7 +290,7 @@ export async function runHomAgentTurn(
 
     const structuredPostPurchaseAltSize = runStructuredPostPurchaseAltSizePreTurn({
       turn,
-      history,
+      history: structuredHistory,
     })
 
     if (structuredPostPurchaseAltSize.kind === "handled") {
@@ -300,7 +303,7 @@ export async function runHomAgentTurn(
 
     const structuredSalesPhoto = runStructuredSalesPhotoPreTurn({
       turn,
-      history,
+      history: structuredHistory,
       lastAgent,
     })
 
@@ -314,7 +317,7 @@ export async function runHomAgentTurn(
 
     const structuredSalesIntake = runStructuredSalesIntakePreTurn({
       turn,
-      history,
+      history: structuredHistory,
       lastAgent,
     })
 
@@ -328,7 +331,7 @@ export async function runHomAgentTurn(
 
     const structuredExchangeExecution = runStructuredExchangeExecutionPreTurn({
       turn,
-      history,
+      history: structuredHistory,
     })
 
     if (structuredExchangeExecution.kind === "handled") {
@@ -341,7 +344,7 @@ export async function runHomAgentTurn(
 
     const structuredOrder = await runStructuredOrderLookupPreTurn({
       turn,
-      history,
+      history: structuredHistory,
       phone: phone || undefined,
     })
 
@@ -354,7 +357,7 @@ export async function runHomAgentTurn(
 
     const structuredReturnOptions = runStructuredReturnOptionsPreTurn({
       turn,
-      history,
+      history: structuredHistory,
       phone: phone || undefined,
     })
 
@@ -367,7 +370,7 @@ export async function runHomAgentTurn(
 
     const structuredKbFaq = runStructuredKbSelfServiceFaqPreTurn({
       turn,
-      history,
+      history: structuredHistory,
       phone: phone || undefined,
     })
 
@@ -381,7 +384,7 @@ export async function runHomAgentTurn(
 
     const structuredInventory = await runStructuredInventoryPreTurn({
       turn,
-      history,
+      history: structuredHistory,
     })
 
     if (structuredInventory.kind === "handled") {
@@ -393,7 +396,7 @@ export async function runHomAgentTurn(
 
     const structuredPostOrderExchange = runStructuredPostOrderExchangePreTurn({
       turn,
-      history,
+      history: structuredHistory,
       phone: phone || undefined,
     })
 
@@ -407,7 +410,7 @@ export async function runHomAgentTurn(
 
     const structuredPostOrderCompleted = await runStructuredPostOrderCompletedPreTurn({
       turn,
-      history,
+      history: structuredHistory,
       phone: phone || undefined,
     })
 
@@ -421,7 +424,7 @@ export async function runHomAgentTurn(
 
     const structuredDocument = await runStructuredDocumentPreTurn({
       turn,
-      history,
+      history: structuredHistory,
       phone: phone || undefined,
     })
 

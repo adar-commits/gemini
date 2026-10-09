@@ -635,11 +635,11 @@ export function buildConversationHints(input: {
 
   if (input.humanThreadAssist === "stale") {
     lines.push(
-      "STALE HUMAN THREAD (412809595): a rep last wrote more than 2 staff days ago and the customer wrote again. Decide from the full thread — do not restart a hard case. NEW question (status, stock, product, invoice, a different order) → answer with tools as a new inquiry. OPEN HARD CASE (defect, missing items, refund dispute, pickup/repair in progress) → do not start intake over; acknowledge the case stays with the team, add only what a lookup can add, `action: reply` unless they explicitly ask for a transfer. Never claim a rep already has the case on `action: reply`."
+      "STALE HUMAN THREAD (412809595): a rep last wrote more than 2 staff days ago and the customer wrote again. Decide from the full thread — do not restart a hard case. NEW question (status, stock, product, invoice, a different order) → answer with tools as a new inquiry. OPEN HARD CASE still waiting on the team (cancel/refund, defect, missing items, pickup/repair) and the customer is chasing it (534379659) → do not start intake over and do not repeat links or policy you already sent; one short ack + a compact rep note of what they want now, `action: human_service` (keeps the same rep and flags it). Never answer a chase with `action: reply` twice in a row. Never claim a rep already has the case on `action: reply`."
     )
   } else if (input.humanThreadAssist === "bridge") {
     lines.push(
-      "HUMAN THREAD BRIDGE: a rep still owns this chat and has not answered for several staff hours. Answer delivery status / stock / product / invoice from tools. Anything else → one short holding line that the team continues, then stop. Do not start a new sales or service intake, do not recap for handoff, do not take the case. `action: reply` unless they explicitly ask for a different transfer. Never claim a rep already has the case on `action: reply`."
+      "HUMAN THREAD BRIDGE: a rep still owns this chat and has not answered for several staff hours. Answer delivery status / stock / product / invoice / branch questions from tools and KB, then close when fully answered (`action: end`). Open hard case the customer is chasing (cancel/refund, defect, missing items, pickup/repair — 534379659) → one short ack + compact rep note, `action: human_service` (keeps the same rep and flags it). Do not start a new sales or service intake. Never claim a rep already has the case on `action: reply`."
     )
   }
 
@@ -2141,7 +2141,7 @@ export function buildConversationHints(input: {
       )
     } else {
       lines.push(
-        `KNOWN ORDER CONFIRM (404732305 / 508272038 / 530810101 / 532581645 / 532767659 / 533760226 / 534269217): you already asked if they mean order ${known ?? "from the receipt"}. כן OR כנראה/כניראה OR כן תבדוק/תבדקו OR phone ownership (המס/טלפון הזה שלי) OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע, מה קורה עם ההזמנה, לא מגיעה, לא חזרו, קישור למעקב ללא שינוי, היה במלאi/יום למחרת, לא קרה) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון on an expedite/status-check thread. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date; never repeat their in-stock/next-day site wording as HoM fact. action reply — never human_service before lookup. Never "לא הצלחתי להבין".`
+        `KNOWN ORDER CONFIRM (404732305 / 508272038 / 530810101 / 532581645 / 532767659 / 533760226 / 534269217): you already asked if they mean order ${known ?? "from the receipt"}. כן OR כנראה/כניראה OR כן תבדוק/תבדקו OR phone ownership (המס/טלפון הזה שלי) OR a shipping/packaging timeline follow-up (כמה זמן עד אריזה, מתי יגיע, מה קורה עם ההזמנה, לא מגיעה, לא חזרו, קישור למעקב ללא שינוי, היה במלאי/יום למחרת, לא קרה) means call lookup_order_status with that id now — never re-ask for מספר הזמנה or phone. Never service rep summary or אי-שביעות רצון on an expedite/status-check thread. Never claim you cannot see status. A Pre Order line IS the status — explain הזמנה מוקדמת and the expected date; never repeat their in-stock/next-day site wording as HoM fact. action reply — never human_service before lookup. Never "לא הצלחתי להבין".`
       )
     }
   }

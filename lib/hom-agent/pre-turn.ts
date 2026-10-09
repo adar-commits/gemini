@@ -437,7 +437,9 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
   const body = summarizeTurn(input.turn)
   if (
     isOrderConfirmationPending(input.history) ||
-    isOrderLookupPhoneReplyPending(input.history)
+    isOrderLookupPhoneReplyPending(input.history) ||
+    // Offer already sent — confirm binds in runPreTurnGuards, anything else goes to the LLM (528892655).
+    isHumanHandoffOfferPending(input.history)
   ) {
     return { kind: "skip", response: null }
   }
@@ -450,6 +452,7 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
       kind: "handled",
       reply: buildPostPurchaseAlternateSizeAdvisorReply({ photoAck: true }),
       action: "reply",
+      awaiting: "handoff_confirm",
     }
   }
 
@@ -458,6 +461,7 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
       kind: "handled",
       reply: buildPostPurchaseAlternateSizeAdvisorReply(),
       action: "reply",
+      awaiting: "handoff_confirm",
     }
   }
 
@@ -466,6 +470,7 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
       kind: "handled",
       reply: buildPostPurchaseAlternateSizeAdvisorReply(),
       action: "reply",
+      awaiting: "handoff_confirm",
     }
   }
 
@@ -477,6 +482,7 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
       kind: "handled",
       reply: buildPostPurchaseAlternateSizeAdvisorReply(),
       action: "reply",
+      awaiting: "handoff_confirm",
     }
   }
 
