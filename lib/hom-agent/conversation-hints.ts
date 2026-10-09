@@ -73,6 +73,7 @@ import {
   isCatalogProductInquiry,
   isColorVariantRealPhotoRequest,
   isAffiliateCommissionInquiry,
+  isBuyMeSalesOrderCallbackInquiry,
   isDesignerPartnershipInquiry,
   isHomStorefrontUrl,
   extractRequestedModel,
@@ -626,6 +627,12 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isBuyMeSalesOrderCallbackInquiry(body, history) && !hasOngoingSalesIntake(history)) {
+    lines.push(
+      'BUYME ORDER + CALLBACK (534528968): customer wants to order a rug, pay with BUYME, and get a sales call — answer BUYME basics from KB briefly, then bullet recap (order intent, BUYME, callback phone) + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone. You may ask optional model/size in the same message; optional info must **not** block handoff. On the handoff turn use **one** transfer line — never both «אני מעביר…» and «העברתי את השיחה» in the same reply.'
+    )
+  }
+
   const pastOrderSizeRecallPending =
     !isOrderLookupCompletedInThread(history) &&
     !isOrderConfirmationPending(history) &&
@@ -648,7 +655,7 @@ export function buildConversationHints(input: {
 
   if (isSalesTransferPromisedInLastAssistant(history) && !blockSalesTransferForPastOrderSize) {
     lines.push(
-      'SALES TRANSFER PROMISED (533891498): you already wrote מעביר ליועץ מכירות — customer may add rooms, quantities, or photos. Update the advisor recap + set `action: human_sales` in the **same** JSON now. Never stay on reply/faq while they wait for the rep.'
+      'SALES TRANSFER PROMISED (533891498 / 534528968): you already wrote מעביר ליועץ מכירות — customer may add model, rooms, quantities, or photos. Update the advisor recap + set `action: human_sales` in the **same** JSON now. Never stay on reply/faq while they wait for the rep. Use **one** transfer sentence on the handoff turn — never both «אני מעביר…» and «העברתי את השיחה» in the same message.'
     )
   }
 

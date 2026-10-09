@@ -138,6 +138,14 @@ const DESIGNER_PARTNERSHIP_ASK_RE =
 
 const DESIGNER_CODE_ORDER_RE = /קוד\s*(?:ה)?מעצב(?:ת)?/i
 
+const BUYME_PAYMENT_RE = /(?:buy\s*me|buyme|ב(?:י)?ימי|בי\s*מי)/i
+
+const NEW_RUG_ORDER_INTENT_RE =
+  /(?:רוצ(?:ה|ים|ות)\s+(?:ל)?(?:הזמין|קנ(?:ות|ייה))|(?:להזמין|להזמנה)\s+(?:שטיח|פוף)|(?:שטיח|פוף).*(?:להזמין|לקנ(?:ות|ייה)))/i
+
+const SALES_PHONE_CALLBACK_ASK_RE =
+  /(?:נציג\s+)?(?:יתקשר|יחז(?:ור|יר)\s+(?:אלי(?:ך|)?|טלפונית)|שיחזר(?:ו|ו)\s+אלי|חזרה\s+טלפונית)/i
+
 const AFFILIATE_CODE_CONTEXT_RE =
   /(?:ה)?קוד\s*(?:ה)?(?:אישי|שלי|שלך|הפנ(?:י|)י)|(?:שמ(?:י|)ים|ש(?:ם|)ים)\s+(?:א(?:ת|)|)?(?:ה)?קוד/i
 
@@ -286,6 +294,22 @@ export function isDesignerPartnershipInquiry(
     DESIGNER_IDENTITY_RE.test(userCorpus) &&
     DESIGNER_PARTNERSHIP_ASK_RE.test(userCorpus)
   )
+}
+
+/** New rug order + BUYME payment + phone callback — sales advisor closes the sale (534528968). */
+export function isBuyMeSalesOrderCallbackInquiry(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const userCorpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  ].join("\n")
+  if (!BUYME_PAYMENT_RE.test(userCorpus)) return false
+  if (!SALES_PHONE_CALLBACK_ASK_RE.test(userCorpus)) return false
+  return NEW_RUG_ORDER_INTENT_RE.test(userCorpus)
 }
 
 /** Bot's last real reply promised sales transfer — bind follow-up turns to human_sales. */
