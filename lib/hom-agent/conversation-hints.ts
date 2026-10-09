@@ -84,6 +84,7 @@ import {
   isProductDetailsRequest,
   isProductInventoryQuestion,
   isProductSpecDeferredToAdvisorInThread,
+  isPrePurchaseModelDeliveryReturnInquiry,
   isSalesTransferPromisedInLastAssistant,
   isSpecificProductMention,
   isCheckoutPriceDiscrepancyThread,
@@ -684,6 +685,15 @@ export function buildConversationHints(input: {
   if (isBuyMeSalesOrderCallbackInquiry(body, history) && !hasOngoingSalesIntake(history)) {
     lines.push(
       'BUYME ORDER + CALLBACK (534528968): customer wants to order a rug, pay with BUYME, and get a sales call — answer BUYME basics from KB briefly, then bullet recap (order intent, BUYME, callback phone) + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone. You may ask optional model/size in the same message; optional info must **not** block handoff. On the handoff turn use **one** transfer line — never both «אני מעביר…» and «העברתי את השיחה» in the same reply.'
+    )
+  }
+
+  if (
+    isPrePurchaseModelDeliveryReturnInquiry(body, history) &&
+    !hasOngoingSalesIntake(history)
+  ) {
+    lines.push(
+      'PRE-PURCHASE MODEL ETA + RETURN (534459893): named model before purchase — answer general return/exchange window from KB (החלפה/ביטול ~14 days, unused packaging). For model-specific stock ETA you lack → bullet recap (model, delivery ask, return concern) + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone (Action ↔ transfer wording).'
     )
   }
 

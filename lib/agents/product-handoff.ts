@@ -312,6 +312,37 @@ export function isBuyMeSalesOrderCallbackInquiry(
   return NEW_RUG_ORDER_INTENT_RE.test(userCorpus)
 }
 
+const PRE_PURCHASE_ORDER_CONTEXT_RE =
+  /(?:הזמנ(?:תי|ה)|קניתי|רכש(?:תי|ה)|מס(?:'|׳|')?\s*הזמנה|#\d{4,}|SO\d|IN\d|OV\d)/i
+
+const PRE_PURCHASE_DELIVERY_ASK_RE =
+  /זמ(?:ן|ני)\s+אספקה|כמה\s+זמן\s+אספקה|מתי\s+(?:יגיע|אקבל)/i
+
+const PRE_PURCHASE_RETURN_FIT_ASK_RE =
+  /מדיניות\s+החזר|(?:^|\s)החזר(?:ה|ות)?(?:\s|$|[?.!,])|מתיישב|לא\s+מתאים\s+(?:ל(?:נו|הם)|טוב)/i
+
+/** Named model before purchase — delivery ETA + return/fit policy in same thread (534459893). */
+export function isPrePurchaseModelDeliveryReturnInquiry(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const userCorpus = [
+    body,
+    ...history
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  ].join("\n")
+  if (PRE_PURCHASE_ORDER_CONTEXT_RE.test(userCorpus)) return false
+  if (isPostPurchaseDissatisfaction(userCorpus)) return false
+  if (!isSpecificProductMention(body, history) && !hasNamedModel(userCorpus)) {
+    return false
+  }
+  return (
+    PRE_PURCHASE_DELIVERY_ASK_RE.test(userCorpus) &&
+    PRE_PURCHASE_RETURN_FIT_ASK_RE.test(userCorpus)
+  )
+}
+
 /** Bot's last real reply promised sales transfer — bind follow-up turns to human_sales. */
 export function isSalesTransferPromisedInLastAssistant(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
