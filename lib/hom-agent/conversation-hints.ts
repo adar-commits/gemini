@@ -867,11 +867,20 @@ export function buildConversationHints(input: {
     )
   }
 
+  const wrongItemReplacementServiceContext =
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        /נציג\s+השירות/i.test(message.content) &&
+        /החלפ/i.test(message.content)
+    ) || isWrongItemDeliveryPhotoTurn(body)
+
   if (
     !shippingServiceThanksClose &&
-    isOrderModificationRequest(body) ||
-    isOrderModificationInThread(history, body) ||
-    isBareModelChangeRequestInThread(history, body)
+    !wrongItemReplacementServiceContext &&
+    (isOrderModificationRequest(body) ||
+      isOrderModificationInThread(history, body) ||
+      isBareModelChangeRequestInThread(history, body))
   ) {
     lines.push(
       'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166 / 531256545): customer wants to change color/size/model on an existing order — including bare "להחליף דגם" / "דגם אחר". Empathize → call lookup_order_status (phone confirm is OK). **Never** post-receipt exchange policy (14 days / unused packaging / "מה לא התאים?") on the opening turn before status. After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging / not yet delivered → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
@@ -914,6 +923,14 @@ export function buildConversationHints(input: {
   if (serviceFlowActive && !salesIntakeActive) {
     lines.push(
       'SERVICE THREAD (שירות לקוחות): include `"crm_department": "service"` in JSON this turn when continuing service intake or rep summary — not מכירות.'
+    )
+  }
+
+  const wrongItemReplacementServiceThread =
+    serviceFlowActive && wrongItemReplacementServiceContext
+  if (wrongItemReplacementServiceThread) {
+    lines.push(
+      'WRONG ORDER ITEM REPLACEMENT (508272038): wrong color/pattern/item shipped — finish service intake → rep summary → **`action: human_service`** + `crm_department: service`. **Never** `human_sales` / יועץ מכירות (not sales exchange menu, not pre-delivery model change). Transfer wording: נציג שירות only.'
     )
   }
 

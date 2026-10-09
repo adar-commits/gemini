@@ -2161,6 +2161,12 @@ export function isWrongItemDeliveryPhotoTurn(body: string) {
   ) {
     return true
   }
+  if (
+    /(?:טעות\s+ב(?:ה)?זמנה|לא\s+מה\s+ש(?:ה)?זמנ)/i.test(text) &&
+    /(?:לא\s+תואם|להחליף|החלפ)/i.test(text)
+  ) {
+    return true
+  }
   const kind = classifyPostPurchaseCase(text)
   return kind === "defect" || kind === "dissatisfaction"
 }
