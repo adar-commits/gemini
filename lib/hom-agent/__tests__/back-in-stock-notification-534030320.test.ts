@@ -43,12 +43,14 @@ describe("back-in-stock notification opening 534030320", () => {
     assert.equal(result.kind, "skip")
   })
 
-  it("hints human_sales opening — not SKU ask", () => {
+  it("hints similar-item offer on opening — not SKU ask, not handoff yet", () => {
     const hints = buildConversationHints({ history: [], body: OPENING })
     assert.notEqual(hints, null)
     assert.match(hints!, /BACK-IN-STOCK NOTIFICATION OPENING \(534030320/)
-    assert.match(hints!, /action human_sales/)
+    assert.match(hints!, /קיבלנו את הבקשה/)
+    assert.match(hints!, /not human_sales yet/)
     assert.match(hints!, /never ask for מק״ט/)
+    assert.doesNotMatch(hints!, /SIMILAR-ITEM FLOW/)
   })
 
   it("does not treat ETA restock question as notification subscription", () => {

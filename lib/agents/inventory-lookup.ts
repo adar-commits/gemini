@@ -56,6 +56,14 @@ export function isBackInStockSalesHandoffThread(history: HistoryMessage[]) {
   )
 }
 
+/** Opening was a restock-alert ask and the similar-item offer flow has not handed off yet. */
+export function isBackInStockOfferThread(history: HistoryMessage[]) {
+  const openingUser = history.find((message) => message.role === "user")
+  if (!openingUser || !isBackInStockNotificationRequest(openingUser.content)) return false
+  if (!history.some((message) => message.role === "assistant")) return false
+  return !isBackInStockSalesHandoffThread(history)
+}
+
 /** Customer adds another color/variant after back-in-stock sales handoff — not a fresh alert ask. */
 export function isBackInStockVariantFollowUp(body: string, history: HistoryMessage[]) {
   if (!isBackInStockSalesHandoffThread(history)) return false

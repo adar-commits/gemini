@@ -151,6 +151,7 @@ import {
   isBranchStoreAvailabilityThanksClose,
   isActiveInventoryThread,
   isBackInStockNotificationRequest,
+  isBackInStockOfferThread,
   isBackInStockSalesHandoffThread,
   isBackInStockVariantFollowUp,
   isBranchInventoryQuestion,
@@ -1839,9 +1840,15 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isBackInStockNotificationRequest(body)) {
+  if (isBackInStockNotificationRequest(body) && !isBackInStockOfferThread(history)) {
     lines.push(
-      "BACK-IN-STOCK NOTIFICATION OPENING (534030320 / 441678247): customer wants an alert when a size comes back — you cannot register stock alerts from chat. Echo product + size, say a sales advisor will check ETA and update them, write מעביר + action human_sales in the same JSON. Never lookup_inventory, never ask for מק״ט, never conditional 'if no stock then sales'."
+      'BACK-IN-STOCK NOTIFICATION OPENING (534030320 / operator policy 2026-10-09): customer asked to be updated when a product size comes back. Step 1 of 3 this turn: warmly say we received their request for that product + size («קיבלנו את הבקשה שלך לעדכון על…»), then offer once to find something similar now («אולי אוכל לעניין אותך בשטיח דומה?» — פוף דומה for a pouf). `"crm_department": "sales"`, action reply — not human_sales yet. Never promise a restock date, never lookup_inventory, never ask for מק״ט.'
+    )
+  }
+
+  if (isBackInStockOfferThread(history)) {
+    lines.push(
+      'BACK-IN-STOCK SIMILAR-ITEM FLOW (operator policy 2026-10-09): this chat opened with a restock request and you offered something similar. Bind their reply to your last question. (a) They want a similar item → verify size and shape in one question, naming the requested product + size as the reference («רק לוודא — שטיח בל קרם 160*230 הוא הרפרנס הנכון למידה ולצורה?»), action reply. (b) They confirm the reference, or give the size/shape they want → a sales advisor will send similar options and is on the way («מעביר אותך ליועץ מכירות שיציע לך…»), action human_sales, `"crm_department": "sales"`. (c) Not interested / just thanks → short warm close that we have their request, action end. A sales lead that wants options always reaches a rep.'
     )
   }
 
