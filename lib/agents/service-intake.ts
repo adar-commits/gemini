@@ -451,6 +451,48 @@ export function isServiceHandoffSummaryPending(history: HistoryMessage[]) {
   return false
 }
 
+function lastNonInactivityAssistantContent(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    return message.content
+  }
+  return null
+}
+
+export function countServiceHandoffSummariesInThread(history: HistoryMessage[]) {
+  let count = 0
+  for (const message of history) {
+    if (message.role === "assistant" && isServiceHandoffSummaryText(message.content)) {
+      count += 1
+    }
+  }
+  return count
+}
+
+/** Customer refined the case again after an updated recap — do not loop another «מדויק?». */
+export function isServiceHandoffSummaryRepeatRefinement(
+  body: string,
+  history: HistoryMessage[]
+) {
+  if (!isServiceHandoffSummaryPending(history)) return false
+  if (isServiceHandoffSummaryConfirmed(body, history)) return false
+  if (isServiceSummaryOrderReferenceClarification(body, history)) return false
+  if (
+    /נקוד/u.test(body) &&
+    /(?:^|\s)לא\s*(?:קשור|קשורות|קשיר)/u.test(body)
+  ) {
+    return false
+  }
+  if (countServiceHandoffSummariesInThread(history) >= 2) return true
+  const lastAssistant = lastNonInactivityAssistantContent(history)
+  if (!lastAssistant) return false
+  return /(?:עדכנתי|עדכנת\.|הפנייה המעודכנת|עכשיו\s+זה\s+מדויק)/iu.test(
+    lastAssistant
+  )
+}
+
 /** Confirm+question about SO vs # mismatch after service summary — not handoff confirm. */
 export function isServiceSummaryOrderReferenceClarification(
   body: string,

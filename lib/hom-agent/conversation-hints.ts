@@ -176,6 +176,7 @@ import {
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
+  isServiceHandoffSummaryRepeatRefinement,
   isServiceSummaryOrderReferenceClarification,
   isServiceHandoffSummaryPending,
   isServiceHandoffSummaryText,
@@ -1177,6 +1178,10 @@ export function buildConversationHints(input: {
     ) {
       lines.push(
         "SERVICE SUMMARY DOTS CORRECTION (533667546): customer corrected dots vs threads (נקודות + לא קשור/לא קשורות). Replace «בעיה לפי הלקוח» with their exact wording — e.g. «שתי נקודות באמצע השטיח, לא קשירות» — never «קשורות». Set action human_service NOW with one short transfer line; do NOT ask another summary-check question after they fixed a misread."
+      )
+    } else if (isServiceHandoffSummaryRepeatRefinement(body, history)) {
+      lines.push(
+        "SERVICE SUMMARY REPEAT REFINEMENT (533801731): customer already got one service recap and you sent an updated recap (עדכנתי / עכשיו זה מדויק?) — their latest message refines the defect again in their own words. Set action human_service NOW with one short transfer line; fold their latest defect wording into the rep note mentally — do NOT send another bullet recap or ask «מדויק?» again."
       )
     } else {
       lines.push(
