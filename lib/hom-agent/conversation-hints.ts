@@ -443,6 +443,20 @@ function isOverduePromisedDeliveryMention(body: string) {
   )
 }
 
+/** Opening ETA ask citing stale «הועמס לשליח» — lookup required before FAQ close (532005744). */
+function isStaleCourierLoadedEtaOpener(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  const asksEta =
+    isDeliveryEstimateQuestion(text) ||
+    /(?:מתי|ממתי)\s+(?:אמור\s+)?(?:ל)?(?:הגיע|יגיע)/i.test(text)
+  if (!asksEta) return false
+  return (
+    /(?:הועמס|ע(?:ל|״)?(?:י)?\s+(?:ידי\s+)?(?:ה)?שליח|(?:ל)?שליח)/i.test(text) &&
+    /(?:יומ(?:יים|ים)|לפני\s+(?:יומ|שבוע)|(?:כבר|עדיין))/i.test(text)
+  )
+}
+
 /** Bot answered with generic warehouse/ETA FAQ — lookup never ran (534111673). */
 function hasGenericEtaFaqWithoutLookupInThread(history: HistoryMessage[]) {
   if (isOrderLookupCompletedInThread(history)) return false
@@ -1325,6 +1339,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `REPEAT ETA KNOWN ORDER (531872131): delivery thread already names order ${threadKnownOrder} — customer repeats מתי/מועד הגעה (e.g. after receipt ref RC…, automated invoice, or stale service summary). Call lookup_order_status with ${threadKnownOrder} now — answer status + ETA policy. Never "אין לי צפi מדויק" + human_service without running the tool first. Receipt/RC numbers are order refs on this thread — not fetch_digital_document. action reply unless they explicitly ask for a rep after status.`
+    )
+  }
+
+  if (
+    isStaleCourierLoadedEtaOpener(body) &&
+    !isOrderLookupCompletedInThread(history) &&
+    !hasGenericEtaFaqWithoutLookupInThread(history)
+  ) {
+    lines.push(
+      "STALE COURIER LOADED ETA (532005744): opening asks מתי/צפi and cites הועמס לשליח/על ידי שליח already יומיים+ — call lookup_order_status on channel phone first (534048082). Answer live status + ETA policy; acknowledge courier-stage delays when status matches. action reply — never generic FAQ-only + action end without running the tool."
     )
   }
 
