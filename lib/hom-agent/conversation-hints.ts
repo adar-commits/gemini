@@ -64,6 +64,8 @@ import {
   isOrderModificationRequest,
   mentionsExchangeIntent,
   isRefundTimelineQuestion,
+  isRefundStatusInquiry,
+  isActiveReturnExchangePickupCase,
   isReturnEligibilityQuestion,
   isReturnShippingFeeQuestion,
   isTradeInQuestion,
@@ -214,6 +216,7 @@ import { isHumanAgentTeamOnline } from "@/lib/agents/human-agent-hours"
 import { isSalesHandoffCommittedInAssistantText } from "@/lib/agents/human-waiting"
 import {
   hasLiveRepReplyAfterBotHandoff,
+  isLiveRepAssistantMessage,
   isPostHumanHandoff,
   postHandoffKind,
 } from "@/lib/agents/post-handoff"
@@ -245,6 +248,57 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
     (message) =>
       message.role === "assistant" && /returns\.carpetshop\.co\.il/.test(message.content)
   )
+}
+
+function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
+  if (
+    history.some(
+      (message) => message.role === "user" && isRefundStatusInquiry(message.content)
+    )
+  ) {
+    return true
+  }
+  if (
+    history.some(
+      (message) =>
+        message.role === "user" && isActiveReturnExchangePickupCase(message.content)
+    )
+  ) {
+    return true
+  }
+  if (
+    history.some(
+      (message) =>
+        message.role === "user" &&
+        classifyPostPurchaseCase(message.content) === "return_pickup_pending"
+    )
+  ) {
+    return true
+  }
+  if (
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        isLiveRepAssistantMessage(message.content) &&
+        /זיכוי/i.test(message.content)
+    )
+  ) {
+    return true
+  }
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:דואג(?:ת|ים)?\s+(?:ל)?(?:איסוף|זיכוי)|נוצרה בקשת איסוף)/i.test(message.content)
+  )
+}
+
+/** Follow-up on refund status when return/pickup context is earlier in the thread (295276261). */
+function isRefundStatusFollowUpTurn(history: HistoryMessage[], body: string) {
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 160) return false
+  if (!hasPriorRefundOrReturnExecutionInThread(history)) return false
+  if (isRefundStatusInquiry(trimmed) || isRefundTimelineQuestion(trimmed)) return true
+  return /זיכוי/i.test(trimmed) && trimmed.length <= 80
 }
 
 const CALLBACK_ASK_RE =
@@ -1786,6 +1840,20 @@ export function buildConversationHints(input: {
   if (isRefundTimelineQuestion(body)) {
     lines.push(
       "Refund timeline: up to 7 business days from cancellation date — not from warehouse/branch receipt."
+    )
+  }
+
+  if (isRefundStatusFollowUpTurn(history, body)) {
+    const liveRepOnRefund = history.some(
+      (message) =>
+        message.role === "assistant" &&
+        isLiveRepAssistantMessage(message.content) &&
+        /זיכוי/i.test(message.content)
+    )
+    lines.push(
+      liveRepOnRefund
+        ? "REFUND STATUS FOLLOW-UP (295276261): return/pickup already happened and a live rep was handling the refund — customer asks for an update (e.g. «יש חדש לגבי הזיכוי?»). Empathize for the wait; recap briefly that the case stays open with service; **do not** reopen generic «7 ימי עסקים מביטול העסקה» as if nothing was done and **do not** pretend you cannot see status without acknowledging the rep’s prior work. Set `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/סימנתי/מעלה בעדיפות — urgent re-escalation, not a fresh policy lecture."
+        : "REFUND STATUS FOLLOW-UP (295276261): return/pickup already in thread — customer asks refund **status** (not how to return). Empathize; `action: human_service` + `crm_department: service` in the **same** JSON when you offer/check status with the team. Never only generic cancellation SLA with `action: reply`."
     )
   }
 
