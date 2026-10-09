@@ -65,4 +65,28 @@ describe("duplicate extra carpet (533672658)", () => {
     assert.equal(isServiceLookupContext(history), true)
     assert.equal(classifyPostPurchaseCase(body), "missing_item")
   })
+
+  it("gift follow-up after extra-rug pickup reply binds human_service not human_sales", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "לא חזרו אלי" },
+      { role: "user", content: "אני אשמח לדבר עם מישהו טלפונית" },
+      { role: "user", content: "מה קורה?" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nסליחה על ההמתנה, עדי. הצוות ימשיך איתך ביום ראשון לגבי האיסוף של השטיח הנוסף ולגבי ההמלצה לשטיח עבה לסלון.",
+      },
+      { role: "user", content: "אני מבינה שהשטיח נשאר אצלי כמתנה?" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nלא, את זה אני לא יכול לאשר. השטיח הנוסף לא נשאר אצלך כמתנה. צוות השירות ימשיך איתך ביום ראשון לגבי השטיח הנוסף ותיאום האיסוף.",
+      },
+    ]
+    const body = "אני מבינה שהשטיח נשאר אצלי כמתנה?"
+    const hints = buildConversationHints({ history, body }) ?? ""
+    assert.match(hints, /EXTRA RUG PICKUP \/ GIFT \(533672658\)/)
+    assert.match(hints, /human_service/)
+    assert.match(hints, /never.*human_sales/i)
+  })
 })

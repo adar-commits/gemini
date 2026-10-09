@@ -534,6 +534,37 @@ function isReturnWithSalesAdvisoryInThread(history: HistoryMessage[], body: stri
   return hasReturnContext && hasSalesAdvisory
 }
 
+/** Extra rug pickup / gift-policy — service owns handoff even if sales advisory was mentioned (533672658). */
+function isExtraRugPickupServiceThread(history: HistoryMessage[], body: string): boolean {
+  if (
+    isDuplicateOrExtraItemComplaint(body) ||
+    history.some(
+      (message) => message.role === "user" && isDuplicateOrExtraItemComplaint(message.content)
+    )
+  ) {
+    return true
+  }
+  const botHandledExtraRug = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /שטיח\s*(?:ה)?נוסף/i.test(message.content) &&
+      /(?:איסוף|מתנה|לא\s+נשאר)/i.test(message.content)
+  )
+  if (!botHandledExtraRug) return false
+  if (
+    /(?:נשאר|נשארה).{0,50}(?:מתנה|אצלי)/i.test(body) ||
+    (/(?:מתנה)/i.test(body) && /(?:שטיח)/i.test(body))
+  ) {
+    return true
+  }
+  if (customerExplicitlyRequestsHuman(body)) return true
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      /(?:לא\s+חזר(?:ו|ה)|(?:ל)?דבר\s+.*טלפונ|מה\s+קור(?:ה|ים))/i.test(message.content)
+  )
+}
+
 /** Customer described a service/shipping issue before order confirm — not phone-only lookup (534367153). */
 function threadHasStatedCustomerIssue(history: HistoryMessage[], body: string) {
   const userText = history
@@ -700,7 +731,12 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isCatalogProductInquiry(body, history) || isHomStorefrontUrl(body) || isProductDetailsRequest(body)) {
+  if (
+    !isExtraRugPickupServiceThread(history, body) &&
+    (isCatalogProductInquiry(body, history) ||
+      isHomStorefrontUrl(body) ||
+      isProductDetailsRequest(body))
+  ) {
     lines.push(
       'CATALOG PRODUCT (534348772 / מכירות): carpetshop.co.il / pozitiveshop.co.il link or Landbot "פרטים נוספים לגבי …" is a product they saw on the site — not an order. Never lookup_order_status / phone-confirm. Set `"crm_department": "sales"`, answer from KB or continue sales intake (room / photo / advisor). A photo asking about the model shape belongs here too. **Never `human_service`** — handoff only as `human_sales` after intake or when customer asks for a sales advisor.'
     )
@@ -2032,6 +2068,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'DUPLICATE / EXTRA ITEM (533672658): same product twice / extra unit not ordered — **service**, `"crm_department": "service"`. lookup_order_status only to identify מס׳ הזמנה → rep summary (פריט נוסף/כפול לא מוזמן, תיאום איסוף) → human_service. **Never** reply with delivery status alone (נמסר/שמחתי לעזור/action end). If they also ask for a **new purchase** (בנוסף + המלצה/שטיח לסלון) — finish service summary first, note the sales ask for the rep; do not pivot to sales intake before handoff.'
+    )
+  }
+
+  if (isExtraRugPickupServiceThread(history, body)) {
+    lines.push(
+      'EXTRA RUG PICKUP / GIFT (533672658): un-ordered extra rug — איסוף, «נשאר כמתנה?», or no callback / wants a phone call. **`action: human_service`** + `"crm_department": "service"` in the **same** JSON when you hand off — **never** `human_sales` / יועצי מכירות, even if a salon recommendation was mentioned in the thread. Service owns pickup and gift policy; note any separate sales ask in the rep summary only.'
     )
   }
 
