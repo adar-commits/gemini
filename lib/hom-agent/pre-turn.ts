@@ -100,6 +100,7 @@ import {
   isDesignerCodeRequestPending,
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryPending,
+  isServiceHandoffSummaryRepeatRefinement,
 } from "@/lib/agents/service-intake"
 import {
   lastAssistantWasOutboundDocumentDelivery,
@@ -205,6 +206,24 @@ export function runPreTurnGuards(input: {
   if (
     isServiceHandoffSummaryPending(input.history) &&
     isServiceHandoffSummaryConfirmed(body, input.history)
+  ) {
+    const intake = extractServiceIntake(input.history, body)
+    const repNote = buildServiceRepGoalNote(intake)
+    const handoffLine = buildHumanHandoffConfirmedReply("human_service")
+    const reply =
+      repNote && intake.customerGoal?.trim()
+        ? `${CUSTOMER_HEADER}\n${handoffLine}\n\n${repNote}`
+        : `${CUSTOMER_HEADER}\n${handoffLine}`
+    return {
+      kind: "handled",
+      reply,
+      action: "human_service",
+    }
+  }
+
+  if (
+    isServiceHandoffSummaryPending(input.history) &&
+    isServiceHandoffSummaryRepeatRefinement(body, input.history)
   ) {
     const intake = extractServiceIntake(input.history, body)
     const repNote = buildServiceRepGoalNote(intake)
