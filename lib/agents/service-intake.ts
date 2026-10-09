@@ -147,7 +147,7 @@ export function isOrderCancellationSummaryLabel(corpus: string) {
   if (!text) return false
   const missingReceiptOnly = /לא\s+קיבל(?:נו|תי)?/i.test(text)
   if (!missingReceiptOnly && /(?:קיבל|הגיע|קיבלתי|התקבל)/i.test(text)) return false
-  return /ביטול\s+הזמנה|לבטל\s+(?:את\s+)?(?:ה)?הזמנה|רוצ(?:ה|ים)\s+(?:ל)?בטל|(?:אפשר|מותר)\s+(?:ל)?בטל(?:\s+(?:לי|אות[הו]|אותה))?/i.test(
+  return /ביטול\s+(?:ה)?(?:הזמנה|עסקה)|לבטל\s+(?:את\s+)?(?:ה)?(?:הזמנה|עסקה)|רוצ(?:ה|ים)\s+(?:ל)?בטל|(?:אפשר|מותר)\s+(?:ל)?בטל(?:\s+(?:לי|אות[הו]|אותה))?/i.test(
     text
   )
 }

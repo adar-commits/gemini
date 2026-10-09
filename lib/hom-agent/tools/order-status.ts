@@ -37,6 +37,7 @@ import {
   isServiceHandoffOrderLookupReply,
   isShippingLookupContext,
   isShippingThreadFromHistory,
+  mentionsCancellationDesire,
   resolveOrderShippingReply,
   shouldAllowOrderLookupRestart,
 } from "@/lib/agents/order-lookup"
@@ -257,6 +258,17 @@ async function deliverOrderLookupReply(input: {
       }
     }
     const history = input.history ?? []
+    if (
+      isPreDeliveryCancelWithoutPortalYet(input.body, history) &&
+      isResolvedStatusCloseReply(trimmed)
+    ) {
+      return {
+        ok: false as const,
+        errorCode: "lookup_misroute",
+        error:
+          "PRE-DELIVERY CANCEL (464488405 / 534579658 / 534406245): customer asked to cancel — never send lookup packaging/shipping status + warm-close (שמחתי לעזור) as the full answer. Same turn: returns portal link with phone prefill + transfer to stop delivery → action human_service + crm_department service. Rebuy with BUYME is for the rep after cancel.",
+      }
+    }
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
       ? shouldDeferUnknownDeliveryStatusHandoff(history)
         ? ("reply" as const)
@@ -282,4 +294,17 @@ async function deliverOrderLookupReply(input: {
 
 function isNonDefinitiveLookupReply(reply: string) {
   return /לא הבנתי/i.test(reply)
+}
+
+function isPreDeliveryCancelWithoutPortalYet(body: string, history: HistoryMessage[]) {
+  const hasCancel =
+    mentionsCancellationDesire(body) ||
+    history.some(
+      (message) => message.role === "user" && mentionsCancellationDesire(message.content)
+    )
+  if (!hasCancel) return false
+  return !history.some(
+    (message) =>
+      message.role === "assistant" && /returns\.carpetshop\.co\.il/.test(message.content)
+  )
 }
