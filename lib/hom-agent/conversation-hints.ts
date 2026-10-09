@@ -1753,13 +1753,9 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (
-    isOrderCancellationSummaryLabel(body) &&
-    !isOrderLookupCompletedInThread(history) &&
-    !isReturnPortalSelfServiceThread(history)
-  ) {
+  if (isPreDeliveryCancelWithoutPortalYet(body, history) && !isReturnPortalSelfServiceThread(history)) {
     lines.push(
-      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 530313226 / 534295968 / 534268241): customer wants to cancel (may also mention missing receipt/invoice — that is NOT post-receipt received; may name an undelivered line — עדיין לא סופק / אין במלאי). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). Never open with order-level משלוח נמסר/נמסר בשליח when they cancel a line they say never arrived — per-line Pre Order status only if lookup already ran. A new order afterward is for the rep — service owns cancel + callback first."
+      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 530313226 / 534295968 / 534268241 / 534406245): customer wants to cancel (may also ask איך/כיצד; may mention missing receipt/invoice — that is NOT post-receipt received; may name an undelivered line — עדיין לא סופק / אין במלאי). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. If lookup_order_status already ran, you may mention הזמנה מוקדמת/status briefly — **never** end at preorder ETA + warm-close without the portal link (534406245). Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). Never open with order-level משלוח נמסר/נמסר בשליח when they cancel a line they say never arrived — per-line Pre Order status only if lookup already ran. A new order afterward is for the rep — service owns cancel + callback first."
     )
   } else if (isReturnEligibilityQuestion(body, history)) {
     lines.push(
@@ -2491,4 +2487,18 @@ function lastNonInactivityAssistant(history: HistoryMessage[]) {
     return message.content
   }
   return ""
+}
+
+/** Cancel intent in thread but returns portal not sent yet — keep pre-delivery cancel hint even after lookup (534406245). */
+function isPreDeliveryCancelWithoutPortalYet(body: string, history: HistoryMessage[]) {
+  const hasCancel =
+    isOrderCancellationSummaryLabel(body) ||
+    history.some(
+      (message) => message.role === "user" && isOrderCancellationSummaryLabel(message.content)
+    )
+  if (!hasCancel) return false
+  return !history.some(
+    (message) =>
+      message.role === "assistant" && /returns\.carpetshop\.co\.il/.test(message.content)
+  )
 }
