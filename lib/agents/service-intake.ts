@@ -562,6 +562,21 @@ export function isPostPurchaseServiceFlow(history: HistoryMessage[]) {
   return (
     isPostPurchaseIntentConfirmPending(history) ||
     isServiceHandoffSummaryPending(history) ||
-    Boolean(activeIntentConfirmKind(history))
+    Boolean(activeIntentConfirmKind(history)) ||
+    isOpenServiceDefectFollowUpThread(history)
   )
+}
+
+const SERVICE_DEFECT_THREAD_RE =
+  /(?:פג(?:ם|ום)|שטיח\s+פגום|בעקבות\s+(?:שטיח\s+)?פג(?:ם|ום))/i
+
+const SERVICE_DEFECT_IN_PROGRESS_RE =
+  /(?:ב(?:דיק(?:ה|ת)|ממתינ(?:ה|ים))[^\n]{0,48}בקרת\s+איכות|אשמח\s+להבין\s+איפה\s+השטיח|נמשיך\s+לטפל|פונה\s+אל(?:יך|כם)\s+בעקבות)/i
+
+/** Open defect/quality case — intake or QC wait, not closed (507829534). */
+export function isOpenServiceDefectFollowUpThread(history: HistoryMessage[]) {
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!SERVICE_DEFECT_THREAD_RE.test(corpus)) return false
+  if (isServiceHandoffSummaryPending(history)) return true
+  return SERVICE_DEFECT_IN_PROGRESS_RE.test(corpus)
 }

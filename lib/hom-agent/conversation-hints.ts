@@ -178,6 +178,7 @@ import {
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryRepeatRefinement,
   isServiceSummaryOrderReferenceClarification,
+  isOpenServiceDefectFollowUpThread,
   isServiceHandoffSummaryPending,
   isServiceHandoffSummaryText,
 } from "@/lib/agents/service-intake"
@@ -384,7 +385,9 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
   const text = body.trim()
   if (!text || text.length > 320) return false
   if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
-  if (!isPostHumanHandoff(null, history)) return false
+  const openServiceDefectWait = isOpenServiceDefectFollowUpThread(history)
+  if (!isPostHumanHandoff(null, history) && !openServiceDefectWait) return false
+  if (openServiceDefectWait) return true
   return history.some(
     (m) => m.role === "assistant" && PRIOR_HANDOFF_OR_REP_COMMIT_RE.test(m.content)
   )
@@ -1847,12 +1850,15 @@ export function buildConversationHints(input: {
 
   if (postHandoffNoResponseReEscalation) {
     const handoffKind = postHandoffKind(null, history) ?? "human_service"
+    const openDefectWait = isOpenServiceDefectFollowUpThread(history)
     const department =
-      handoffKind === "human_sales"
-        ? "human_sales + crm_department sales"
-        : "human_service + crm_department service"
+      openDefectWait || handoffKind !== "human_sales"
+        ? "human_service + crm_department service"
+        : "human_sales + crm_department sales"
     lines.push(
-      `POST-HANDOFF NO-RESPONSE RE-ESCALATION (306743535 / 530313226): customer returned after a prior handoff or live rep/manager promise (שייכתי למנהל / נעדכן) complaining nobody responded or still waiting for contact (אין מענה / לא חוזרים / מחכה שתצרו קשר). Empathize briefly for the delay. Recap the **full open case** from thread history (cancel undelivered line, exchange, return — not a fresh sales intake). **Never** open with generic «איך אוכל לעזור?» or ask SKU confirm on a case already explained. Re-mark urgent and set action ${department} in the **same** JSON when you write סימנתי/העברתי/מעלה בעדיפות. **Never** restart sales intake quiz. **Never** say מעביר עכשיו as if first transfer — they already waited. No second service_summary_confirm if already confirmed.`
+      openDefectWait
+        ? `SERVICE DEFECT QC NO-RESPONSE (507829534): open defect/quality case (בקרת איכות / intake already collected) — customer complains nobody came back (לא חזרת / אין מענה / מחכה לטיפול). Brief empathize for the delay, recap the defect case from thread history, re-mark urgent for נציג שירות. **Never** sales intake (מידת מיטה / חלל / יועץ מכירות). Set action ${department} in the **same** JSON when you write סימנתי/מעלה בעדיפות/העברתי — not action reply alone.`
+        : `POST-HANDOFF NO-RESPONSE RE-ESCALATION (306743535 / 530313226): customer returned after a prior handoff or live rep/manager promise (שייכתי למנהל / נעדכן) complaining nobody responded or still waiting for contact (אין מענה / לא חוזרים / מחכה שתצרו קשר). Empathize briefly for the delay. Recap the **full open case** from thread history (cancel undelivered line, exchange, return — not a fresh sales intake). **Never** open with generic «איך אוכל לעזור?» or ask SKU confirm on a case already explained. Re-mark urgent and set action ${department} in the **same** JSON when you write סימנתי/העברתי/מעלה בעדיפות. **Never** restart sales intake quiz. **Never** say מעביר עכשיו as if first transfer — they already waited. No second service_summary_confirm if already confirmed.`
     )
   }
 

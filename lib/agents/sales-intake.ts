@@ -25,7 +25,10 @@ import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/co
 import { isConfirmationAffirmationWithExtra } from "@/lib/agents/compound-reply"
 import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
-import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
+import {
+  isOpenServiceDefectFollowUpThread,
+  isServiceHandoffSummaryPending,
+} from "@/lib/agents/service-intake"
 import {
   isInactivityAssistantMessage,
   lastNonInactivityAssistantText,
@@ -423,6 +426,7 @@ export function isActiveSalesConsultation(
   lastAgent: AgentId | null
 ) {
   if (isPostPurchaseIntentConfirmPending(history)) return false
+  if (isOpenServiceDefectFollowUpThread(history)) return false
   return (
     hasOngoingSalesIntake(history) ||
     isAwaitingSalesIntakeAnswer(history) ||
