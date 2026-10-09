@@ -151,6 +151,7 @@ import {
   isBranchStoreAvailabilityThanksClose,
   isActiveInventoryThread,
   isBackInStockNotificationRequest,
+  isBackInStockSalesHandoffThread,
   isBackInStockVariantFollowUp,
   isBranchInventoryQuestion,
   isInventoryQuestion,
@@ -355,6 +356,23 @@ function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: 
 
 const NO_RESPONSE_COMPLAINT_RE =
   /(?:אין\s+מענה|לא\s+(?:חוזר(?:ים|ה)?|עונ(?:ים|ה)?)(?:\s+אלי(?:י|ך))?|לא\s+ה(?:בנת|בין)(?:י|תי)\s+למה|עדיין\s+לא\s+חזר(?:ו|ה)?|אף\s+אחד\s+לא(?:\s+חזר)?|עבר\s+(?:יותר\s+מ?)?(?:זמן|מדי\s+זמן)|לא\s+רוצ(?:ה|ים|ות)\s+.*(?:עובר|יגיע))/i
+
+/** Past-tense handoff commit — future "אני מעביר" alone is not an executed assign (533540551). */
+function assistantTextIndicatesHandoffExecuted(text: string) {
+  const body = text.replace(/\*הום בוט\s:\)\*/gi, "").trim()
+  return (
+    /העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|הפנייה\s+הועברה|מעולה,\s+העברתi/i.test(
+      body
+    ) || isSalesHandoffCommittedInAssistantText(body)
+  )
+}
+
+function isNoResponseCreditInvoiceEscalation(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 520) return false
+  if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
+  return /(?:חשבונית\s+זיכוי|זיכוי|החזר)/i.test(text)
+}
 
 /** Customer returns after a logged handoff complaining nobody responded (306743535). */
 function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: string) {
@@ -627,13 +645,20 @@ export function buildConversationHints(input: {
 
   const kbSelfServiceFaqThisTurn = isKbSelfServiceFaqThisTurn(body, history)
   const lastAssistantText = lastNonInactivityAssistant(history)
+  const thanksAfterHandoffProseOnly =
+    isThanksAcknowledgment(body) &&
+    lastAssistantText != null &&
+    hasDeclarativeHandoffTransfer(lastAssistantText) &&
+    !assistantTextIndicatesHandoffExecuted(lastAssistantText) &&
+    !hasLiveRepReplyAfterBotHandoff(history)
   const postHandoffThanksClose =
     isThanksAcknowledgment(body) &&
     !isOrderModificationInThread(history, body) &&
+    !thanksAfterHandoffProseOnly &&
     (hasLiveRepReplyAfterBotHandoff(history) ||
+      isBackInStockSalesHandoffThread(history) ||
       (lastAssistantText != null &&
-        (hasDeclarativeHandoffTransfer(lastAssistantText) ||
-          isSalesHandoffCommittedInAssistantText(lastAssistantText))))
+        assistantTextIndicatesHandoffExecuted(lastAssistantText)))
   const shippingServiceThanksClose =
     postHandoffThanksClose && isShippingThreadFromHistory(history)
   const branchStoreThanksClose = isBranchStoreAvailabilityThanksClose(body, history)
@@ -802,6 +827,17 @@ export function buildConversationHints(input: {
   if (salesOutreachTemplateInThread(history)) {
     lines.push(
       'SALES OUTREACH (533322535): rep already sent abandoned-cart outreach (מאיר / לא השלמת את הרכישה). This is מכירות — answer product/promotion/color hesitation directly or hand off with action human_sales + crm_department sales. Never never-stuck / לא הצלחתי להבין. Never human_service / נציג שירות — the assigned rep owns this lead.'
+    )
+  }
+
+  if (thanksAfterHandoffProseOnly) {
+    const handoffKind = postHandoffKind(null, history) ?? "human_service"
+    const department =
+      handoffKind === "human_sales"
+        ? "human_sales + crm_department sales"
+        : "human_service + crm_department service"
+    lines.push(
+      `TRANSFER PROSE BIND NOW (533540551): your prior bot turn promised מעביר לנציג but CRM assign runs only with action ${department} in **this** JSON — brief thanks ack paired with handoff execute. Never claim הנציג כבר קיבל / הפנייה כבר אצל נציג on action reply alone.`
     )
   }
 
@@ -1754,6 +1790,15 @@ export function buildConversationHints(input: {
         : "human_service + crm_department service"
     lines.push(
       `POST-HANDOFF NO-RESPONSE RE-ESCALATION (306743535): customer returned after a prior handoff complaining nobody responded (אין מענה / לא חוזרים / עבר זמן). Empathize briefly for the delay. Recap the **full open case** from thread history (exchange, return, product choice — not a fresh sales intake). Re-mark urgent and set action ${department} in the **same** JSON when you write סימנתי/העברתי/מעלה בעדיפות. **Never** restart sales intake quiz or summarize as a new "שטיח לסלון" request. **Never** say מעביר עכשיו as if first transfer — they already waited. No second service_summary_confirm if already confirmed.`
+    )
+  }
+
+  if (
+    !postHandoffNoResponseReEscalation &&
+    isNoResponseCreditInvoiceEscalation(body)
+  ) {
+    lines.push(
+      "NO RESPONSE + CREDIT INVOICE (533540551): customer waited days with no human answer — credit invoice / refund timing confusion (e.g. Haver loaded card). Brief empathize + policy if helpful, then service bullet recap (credit invoice, payment method, stock/restock if mentioned) + action human_service + crm_department service in the **same** JSON when you write מעביר/העברתי — never action reply alone."
     )
   }
 
