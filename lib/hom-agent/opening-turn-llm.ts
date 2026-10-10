@@ -14,6 +14,8 @@ import {
   isNumberedReturnPolicyChoicePending,
   isOrderConfirmationPending,
   isOrderLookupPhoneReplyPending,
+  isOrderNumberNotFoundReplyPending,
+  isOrderNumberRequestPending,
 } from "@/lib/agents/order-lookup"
 import {
   isAwaitingSalesIntakeAnswer,
@@ -48,6 +50,8 @@ export function hasStructuredPendingStateBinding(
 ): boolean {
   if (isOrderConfirmationPending(history)) return true
   if (isOrderLookupPhoneReplyPending(history)) return true
+  if (isOrderNumberRequestPending(history)) return true
+  if (isOrderNumberNotFoundReplyPending(history)) return true
   if (isConfirmationPending(history)) return true
   if (isAwaitingSalesIntakeAnswer(history)) return true
   if (isExchangeIntakeActive(history) || isExchangeIntakeStartedInThread(history)) {
