@@ -419,9 +419,28 @@ function userTurnFromBody(body: string): UserTurn {
 
 function isDeliveryDateQuestion(text: string) {
   return (
-    /(?:ל)?גבי\s+(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))|(?:מה|מתי)\s+(?:ה)?(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))|(?:מועד|תאריך)\s+(?:ה)?אספק(?:ה|ת)/i.test(
+    /(?:ל)?גבי\s+(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))|(?:מה|מהו|מתי)\s+(?:ה)?(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))|(?:מועד|תאריך)\s+(?:ה)?אספק(?:ה|ת)/i.test(
       text
     ) || /(?:מתי|ממתי)\s+אקבל/i.test(text)
+  )
+}
+
+/** Rapid ETA ask + trailing כן merged into one turn (529935551). */
+function isMergedDeliveryAskWithTrailingOrderConfirm(body: string) {
+  const lines = body
+    .trim()
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length < 2) return false
+  const lastLine = lines[lines.length - 1] ?? ""
+  if (!/^(?:כן|נכון|אוקיי|אוקי)(?:[\s,.!?]|$)/i.test(lastLine)) return false
+  const prior = lines.slice(0, -1).join("\n")
+  return (
+    isDeliveryDateQuestion(prior) ||
+    isOrderDeliveryStatusQuestion(prior) ||
+    isShippingStatusQuestion(prior) ||
+    isDeliveryEstimateQuestion(prior)
   )
 }
 
@@ -1587,13 +1606,15 @@ export function buildConversationHints(input: {
         !isReturnWithSalesAdvisoryInThread(history, body) &&
         (isOrderConfirmationYes(body) ||
           isPoliteOrderConfirmYes(body) ||
-          isSoftKnownOrderConfirm(body)) &&
+          isSoftKnownOrderConfirm(body) ||
+          isMergedDeliveryAskWithTrailingOrderConfirm(body)) &&
         (isShippingStatusQuestion(body) ||
           isOrderDeliveryStatusQuestion(body) ||
-          isDeliveryEtaThread(history))
+          isDeliveryEtaThread(history) ||
+          isMergedDeliveryAskWithTrailingOrderConfirm(body))
       ) {
         lines.push(
-          "SHIPPING ORDER CONFIRM YES (532732459 / 532742549 / 532864454 / 533011641 / 533856219 / 534429742): כן / כן בבקשה / כן מ 20.09.26 (confirm + order date from the card) / כן. זו/זאת ההזמנה confirms the order card when the thread has a delivery-timing ask (מתי/מועד/תאריך אספקה/מתי אקבל — even mid-thread after FAQ) — call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Even when status is partial, share what the tool returned — never \"לא ניתן להציג סטטוס\" / \"אין תאריך מדויק\" + human_service on this turn. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
+          "SHIPPING ORDER CONFIRM YES (529935551 / 532732459 / 532742549 / 532864454 / 533011641 / 533856219 / 534429742): כן / כן בבקשה / כן מ 20.09.26 (confirm + order date from the card) / כן. זו/זאת ההזמנה confirms the order card when the thread has a delivery-timing ask (מתי/מועד/תאריך אספקה/מהו תאריך האספקה/מתי אקבל — even mid-thread after FAQ). Rapid messages may merge as «שאלת תאריך» + שורת «כן» — still bind to the pending order card. Call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Even when status is partial, share what the tool returned — never \"לא ניתן להציג סטטוס\" / \"אין תאריך מדויק\" + human_service on this turn. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
         )
       } else if (
         isDeliveryEtaThread(history) &&
