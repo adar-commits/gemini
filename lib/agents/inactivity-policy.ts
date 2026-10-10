@@ -23,7 +23,9 @@ import {
 } from "@/lib/agents/off-topic"
 import {
   isActiveSalesConsultation,
+  isAwaitingSalesIntakeAnswer,
   isSalesFinalSummaryPending,
+  isSalesIntakeQuestionLatest,
 } from "@/lib/agents/sales-intake"
 import {
   isDesignerCodeRequestPending,
@@ -99,6 +101,16 @@ export function shouldSkipInactivityPingForCompleteReply(
  * Bot asked a substantive FAQ follow-up — silence must not trigger silent handoff
  * on sales CRM threads (534469923: rug cleaning tips + model question).
  */
+/** Scripted sales quiz waiting on customer — no 60s silent handoff (534644289). */
+export function hasOpenSalesIntakeQuestion(
+  history: HistoryMessage[],
+  _lastAgent: AgentId | null = null
+) {
+  return (
+    isAwaitingSalesIntakeAnswer(history) && isSalesIntakeQuestionLatest(history)
+  )
+}
+
 export function hasOpenFaqFollowUpQuestion(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
@@ -123,6 +135,7 @@ export function shouldSilentAutoAssignOnQuietWindow(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (hasOpenSalesIntakeQuestion(history, lastAgent)) return false
   if (shouldSkipInactivityPingForSalesHandoff(history, lastAgent)) return true
   if (isHumanHandoffPending(history)) {
     if (customerRespondedToHandoffWithoutConfirm(history)) return false

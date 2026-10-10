@@ -26,6 +26,7 @@ import { executeInactivityServiceClose } from "@/lib/landbot/inactivity-service-
 import { isOrderConfirmationPending } from "@/lib/agents/order-lookup"
 import {
   hasOpenFaqFollowUpQuestion,
+  hasOpenSalesIntakeQuestion,
   resolveInactivityPingDelayMs,
   shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
@@ -221,6 +222,10 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
 
   if (hasOpenFaqFollowUpQuestion(context.history, context.lastAgent)) {
     return "open_faq_question" as const
+  }
+
+  if (hasOpenSalesIntakeQuestion(context.history, context.lastAgent)) {
+    return "open_sales_intake_question" as const
   }
 
   if (!(await crmConversationAllowsServiceInactivity(payload.conversationId))) {
@@ -488,7 +493,11 @@ async function runPingPhase(payload: InactivityWatchPayload) {
       customerId: payload.customerId,
     })
   }
-  if (skip === "optional_follow_up" || skip === "open_faq_question") {
+  if (
+    skip === "optional_follow_up" ||
+    skip === "open_faq_question" ||
+    skip === "open_sales_intake_question"
+  ) {
     await clearInactivityWatchState(payload.conversationId)
     return { ok: true, skipped: skip }
   }
