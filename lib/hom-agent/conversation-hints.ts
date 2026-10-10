@@ -643,6 +643,18 @@ function isProductPhotoAsk(body: string) {
   return /(?:יש\s+(?:לך\s+)?תמונה|תמונ[הות]\s+של|צילום\s+של)/i.test(body)
 }
 
+/** Customer wants a photo sent from store/branch — not optional room photo intake (534619969). */
+function isStoreBranchPhotoRequest(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (/(?:תמונ[הות]|צילום)\s*(?:מהחנות|מהסניף|מ(?:ה)?(?:סניף|חנות))/i.test(text)) {
+    return true
+  }
+  return /(?:אפשר\s+ל(?:קבל|שלוח)|יש\s+(?:אפשרות|אפשר)).{0,40}(?:תמונ[הות]|צילום).{0,40}(?:חנות|סניף)/i.test(
+    text
+  )
+}
+
 /** "להחליף דגם" — isOrderModificationRequest misses דגם alone (531256545). */
 function isBareModelChangeRequest(text: string) {
   const trimmed = text.trim()
@@ -2520,6 +2532,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'LIVING ROOM SPACE COMPLETE (350490796): "סלון"/"לסלון" completes the space step — advance to sofa size (מידת הספה/גודל הסלון), pets, or optional room photo. **`action: reply`** — never `human_sales` until intake quiz is complete.'
+    )
+  }
+
+  if (
+    hasOngoingSalesIntake(history) &&
+    isStoreBranchPhotoRequest(body) &&
+    !postHandoffNoResponseReEscalation
+  ) {
+    lines.push(
+      'STORE PHOTO REQUEST (534619969): customer asked for a photo **from the store/branch** (color/shade worry) — you cannot send it from chat. Ack + bullet recap (product, room, concern) + **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON (מעביר ליועץ מכירות). **Never** answer by asking them to send an optional **room** photo of the salon instead.'
     )
   }
 
