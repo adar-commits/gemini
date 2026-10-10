@@ -257,6 +257,16 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   )
 }
 
+function hasAutomatedPaymentOutreachInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:payplus\.co\.il|hever-[^\s]+herokuapp|טרם\s+שולמה|לינק(?:ים)?\s+(?:מאובטח(?:ים)?\s+)?לתשלום|תשלום\s+מפוצל)/i.test(
+        message.content
+      )
+  )
+}
+
 function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
   if (
     history.some(
@@ -1585,9 +1595,15 @@ export function buildConversationHints(input: {
     !isHumanHandoffPending(history) &&
     !isPostHumanHandoff(null, history)
   ) {
-    lines.push(
-      "EXPLICIT REP REQUEST: customer asks for a human (נציג / מענה אנושי / לא בוט) — set action human_service or human_sales NOW in the same JSON. Never never-stuck fallback on this turn."
-    )
+    if (hasAutomatedPaymentOutreachInThread(history)) {
+      lines.push(
+        "REP REQUEST AFTER PAYMENT OUTREACH (512798146): recent bot/system messages sent checkout or split-payment links (PayPlus / חבר / unpaid order). Customer asks for a rep — bullet recap must cover **that** payment/order thread (links, split cards, completing checkout), **not** an older back-in-stock alert or first sales-intake topic unless they mention it again this turn. Set action human_sales or human_service NOW in the same JSON. Never never-stuck fallback on this turn."
+      )
+    } else {
+      lines.push(
+        "EXPLICIT REP REQUEST: customer asks for a human (נציג / מענה אנושי / לא בוט) — set action human_service or human_sales NOW in the same JSON. Never never-stuck fallback on this turn."
+      )
+    }
   }
 
   if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
