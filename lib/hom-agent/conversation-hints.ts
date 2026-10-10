@@ -686,6 +686,21 @@ function isProductPhotoAsk(body: string) {
   return /(?:יש\s+(?:לך\s+)?תמונה|תמונ[הות]\s+של|צילום\s+של)/i.test(body)
 }
 
+/** Showroom / physical visit to feel the product — not immediate handoff (534657587). */
+function isShowroomVisitQuestion(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (/אולם\s*תצוגה|מרכז(?:י)?\s*עיצוב/i.test(text)) return true
+  if (/להרגיש\s+את\s+המוצר/i.test(text)) return true
+  if (
+    /מקום\s+פיזי/i.test(text) &&
+    /(?:להרגיש|לנסות|לגעת|לבקר|אולם)/i.test(text)
+  ) {
+    return true
+  }
+  return false
+}
+
 /** Customer wants a photo sent from store/branch — not optional room photo intake (534619969). */
 function isStoreBranchPhotoRequest(body: string) {
   const text = body.trim()
@@ -1003,7 +1018,7 @@ export function buildConversationHints(input: {
     !branchStoreThanksClose
   ) {
     lines.push(
-      'SALES RECAP + OPTIONAL PHOTO (533759845): intake quiz is done — you already sent recap + optional room photo. Customer photo, "שלחתי תמונה", thanks, or waiting → `action: human_sales` NOW (מעביר ליועץ מכירות) with brief ack. Optional photo never blocks handoff; never stay on reply/faq. Quote sofa/room sizes exactly as the customer wrote — never invent (e.g. 2 מ׳ רוחב ≠ 2.5 מ׳).'
+      'SALES RECAP + OPTIONAL PHOTO (533759845): intake quiz is done — you already sent recap + optional room photo. Customer photo, "שלחתי תמונה", thanks, or waiting → `action: human_sales` NOW (מעביר ליועץ מכירות) with brief ack. **Showroom / branch visit to feel the product (534657587)** is **not** this — answer locations first (`get_branch_info`), stay `action: reply`. Optional photo never blocks handoff; never stay on reply/faq. Quote sofa/room sizes exactly as the customer wrote — never invent (e.g. 2 מ׳ רוחב ≠ 2.5 מ׳). Recap product type from thread (פוף vs שטיח) — never swap category or invent pets.'
     )
   }
 
@@ -2639,6 +2654,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'STORE PHOTO REQUEST (534619969): customer asked for a photo **from the store/branch** (color/shade worry) — you cannot send it from chat. Ack + bullet recap (product, room, concern) + **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON (מעביר ליועץ מכירות). **Never** answer by asking them to send an optional **room** photo of the salon instead.'
+    )
+  }
+
+  if (
+    hasOngoingSalesIntake(history) &&
+    isShowroomVisitQuestion(body) &&
+    !postHandoffNoResponseReEscalation
+  ) {
+    lines.push(
+      'SHOWROOM VISIT (534657587): customer asks about a **physical store / showroom** to feel or try the product mid sales intake — call `get_branch_info` and answer briefly where they can visit (design centers / branches). **`action: reply`** — continue optional room photo or remaining intake; **never** `human_sales` on this question alone with a fresh invented recap. Handoff bullets must match thread product (e.g. **פוף לונגי** לסלון, תמיכה קשיחה) — **never** rewrite as **שטיח** or add **בעלי חיים** unless they answered the pets step.'
     )
   }
 
