@@ -64,6 +64,27 @@ export function isBackInStockOfferThread(history: HistoryMessage[]) {
   return !isBackInStockSalesHandoffThread(history)
 }
 
+const BACK_IN_STOCK_STEP1_ACK_RE =
+  /(?:קיבל(?:נ|)ו|רשמתי)\s+(?:א(?:ת\s+)?)?(?:ה)?בקש(?:ה|ות)/i
+const BACK_IN_STOCK_SIMILAR_OFFER_RE = /(?:שטיח\s+)?דומה|לעניין\s+א(?:ות)?(?:ך|כם)/i
+
+/** Step 1 ack + similar offer already sent; customer has not answered yet (534372455). */
+export function isBackInStockAwaitingSimilarReply(body: string, history: HistoryMessage[]) {
+  if (!isBackInStockOfferThread(history)) return false
+  const text = body.trim()
+  if (!text || !isBackInStockNotificationRequest(text)) return false
+  const lastUser = [...history].reverse().find((message) => message.role === "user")
+  if (!lastUser || lastUser.content.trim() !== text) return false
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  if (!lastAssistant) return false
+  const assistantText = lastAssistant.content
+  return (
+    BACK_IN_STOCK_STEP1_ACK_RE.test(assistantText) &&
+    BACK_IN_STOCK_SIMILAR_OFFER_RE.test(assistantText) &&
+    !BACK_IN_STOCK_SALES_HANDOFF_RE.test(assistantText)
+  )
+}
+
 /** Customer adds another color/variant after back-in-stock sales handoff — not a fresh alert ask. */
 export function isBackInStockVariantFollowUp(body: string, history: HistoryMessage[]) {
   if (!isBackInStockSalesHandoffThread(history)) return false

@@ -150,6 +150,7 @@ import {
   hasPendingBranchDisplayQuestion,
   isBranchStoreAvailabilityThanksClose,
   isActiveInventoryThread,
+  isBackInStockAwaitingSimilarReply,
   isBackInStockNotificationRequest,
   isBackInStockOfferThread,
   isBackInStockSalesHandoffThread,
@@ -1997,7 +1998,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isBackInStockOfferThread(history)) {
+  if (isBackInStockAwaitingSimilarReply(body, history)) {
+    lines.push(
+      'BACK-IN-STOCK STEP1 ALREADY SENT (534372455): FAQ or your prior message already acknowledged the restock request and offered something similar — the customer has **not** replied yet. **`action: end`** — do not send human_sales, off-hours advisor text, or a second bot message. Wait for their answer on the similar-item question; handoff only after they want options and confirm size/shape (operator policy 2026-10-09).'
+    )
+  } else if (isBackInStockOfferThread(history)) {
     lines.push(
       'BACK-IN-STOCK SIMILAR-ITEM FLOW (operator policy 2026-10-09): this chat opened with a restock request and you offered something similar. Bind their reply to your last question. (a) They want a similar item → verify size and shape in one question, naming the requested product + size as the reference («רק לוודא — שטיח בל קרם 160*230 הוא הרפרנס הנכון למידה ולצורה?»), action reply. (b) They confirm the reference, or give the size/shape they want → a sales advisor will send similar options and is on the way («מעביר אותך ליועץ מכירות שיציע לך…»), action human_sales, `"crm_department": "sales"`. (c) Not interested / just thanks → short warm close that we have their request, action end. A sales lead that wants options always reaches a rep.'
     )
