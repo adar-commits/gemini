@@ -157,6 +157,7 @@ import {
   isBackInStockVariantFollowUp,
   isBranchInventoryQuestion,
   isInventoryQuestion,
+  isPostHandoffStockFollowUp,
   isInventoryRecheckRequest,
   isSkuCorrectionAfterStockAnswer,
   isSkuRequestPending,
@@ -1954,6 +1955,15 @@ export function buildConversationHints(input: {
   if (isExpiredCreditNoCallbackReEscalation(history, body)) {
     lines.push(
       "EXPIRED CREDIT NO-CALLBACK RE-ESCALATION (392297515): customer returned after prior human_service on expired-credit approval — empathize briefly, recap case + phone, write העברתי/מעביר לנציג שירות **now** with action human_service + crm_department service in the **same** JSON. No second 'זה מדויק?' summary — assign immediately. Never action reply with העברתי/העברתי."
+    )
+  }
+
+  if (
+    isPostHandoffStockFollowUp(history, body) &&
+    !postHandoffNoResponseReEscalation
+  ) {
+    lines.push(
+      'POST-HANDOFF STOCK RECHECK (533554450): after prior sales handoff and/or live rep stock talk, customer asks which sizes are in stock now for the product already in thread («השטיח שדיברנו», named model). **`action: reply`** — ask once for **מק״ט** from the product page (31503138-200290) for that model, then **`lookup_inventory`** when provided. **Never** restart sales intake bullets or **`human_sales`** only because you cannot list every size without מק״ט. **`human_sales`** only if they refuse SKU or explicitly ask for an advisor.'
     )
   }
 

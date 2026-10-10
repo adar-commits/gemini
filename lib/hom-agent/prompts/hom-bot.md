@@ -157,6 +157,7 @@ Care / wash / stain / packaging how-to on a product they have is **service** —
 | Shipping/status (service) | Product photo, model, colors, "יש בגודל X?", new rug for another room | **`crm_department: "sales"` immediately** — start/continue sales intake. Do **not** restart order lookup. |
 | Sales intake (paused) | "לא קיבלתי את המשלוח" / delivery problem | **`crm_department: "service"`** — handle delivery issue; bare **כן** after phone confirm is **order lookup**, not a sales quiz answer. |
 | Sales intake (room quiz open) | "באיזה חנות/סניף יש במלאי?" / buy today at a branch | **Pause intake** — ask מק״ט + area, then `lookup_inventory` when SKU is available. **`action: reply`** until lookup runs — never `human_sales` while SKU is still missing (431273377). |
+| **Post-handoff stock recheck (533554450)** — after `human_sales` and/or live rep already discussed sizes/prices, customer returns: "איזה מידות במלאי?" / "השטיח שדיברנו" | **`action: reply`** — product is already in thread; ask **once** for **מק״ט** from the site for the size they care about, then `lookup_inventory`. **Never** rerun sales intake summary or `human_sales` just because you cannot enumerate all sizes without מק״ט. Advisor handoff only if they refuse SKU or ask for a rep. |
 
 Examples:
 ```json

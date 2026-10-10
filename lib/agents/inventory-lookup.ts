@@ -14,6 +14,10 @@ import {
   isOtherBranchesInventoryRequest,
   normalizeBranchCityHint,
 } from "@/lib/agents/branches"
+import {
+  hasLiveRepReplyAfterBotHandoff,
+  isPostHumanHandoff,
+} from "@/lib/agents/post-handoff"
 
 const STORE_RE =
   /סניפ|סניף|חנות|חנויות|רשת(?:\s+הסניפ|\s+הסניף)?|stores?|branches/i
@@ -94,6 +98,22 @@ export function isBackInStockVariantFollowUp(body: string, history: HistoryMessa
     /גם/i.test(text) &&
     /(?:שטיח|קרם|בז|גוון|צבע|מידה|סיטאר|sitar|pearl|אשמח\s+לדעת)/i.test(text)
   )
+}
+
+const SIZE_STOCK_LIST_RE =
+  /(?:איזה|מה)\s*(?:ה)?(?:מידות?|גדלים?).*?(?:ב)?מלאי|(?:ב)?מלאי.*?(?:מידות?|גדלים?)/i
+
+/** Customer returns after sales handoff / live rep and asks stock or size list (533554450). */
+export function isPostHandoffStockFollowUp(history: HistoryMessage[], body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (isBackInStockNotificationRequest(text)) return false
+  if (isBackInStockSalesHandoffThread(history)) return false
+  if (!(isInventoryQuestion(text) || SIZE_STOCK_LIST_RE.test(text))) return false
+  if (!isPostHumanHandoff(null, history) && !hasLiveRepReplyAfterBotHandoff(history)) {
+    return false
+  }
+  return true
 }
 
 const HOM_SKU_RE = /\b(\d{8}-\d{6})\b/
