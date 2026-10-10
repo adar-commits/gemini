@@ -18,6 +18,7 @@ import {
   requiresOrderIdentification,
 } from "@/lib/agents/order-lookup"
 import { buildReturnsPortalUrl } from "@/lib/agents/policy-subjects"
+import { hasOngoingSalesIntake } from "@/lib/agents/sales-intake"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 
 /** Customer unhappy after delivery without defect wording — FAQ return/exchange policy first. */
@@ -47,6 +48,7 @@ export function shouldOfferReturnOptionsFirst(
   history: HistoryMessage[] = []
 ) {
   if (shouldBlockReturnOptionsForShippingStatus(body, history)) return false
+  if (hasOngoingSalesIntake(history)) return false
   if (isDissatisfactionRescuePending(history)) return false
   if (isServiceLookupContext(history)) return false
   if (isPostPurchaseIntentConfirmPending(history)) return false
