@@ -1086,6 +1086,33 @@ export function buildConversationHints(input: {
     )
   }
 
+  const branchInvoiceInBody = classifyDocumentNumber(body)
+  if (
+    branchInvoiceInBody?.kind === "invoice" &&
+    (isServiceHandoffSummaryPending(history) || serviceSummarySent) &&
+    (isPostPurchaseServiceFlow(history) ||
+      isServiceOrderIdentificationFlow(history, body))
+  ) {
+    lines.push(
+      "BRANCH INVOICE ON SERVICE RECAP (532711282): customer added IN/OV branch invoice to an open defect/service recap. Store-branch sales often are not on the WhatsApp phone in ERP — **never** «לא מצאתי את ההזמנה … על הטלפון» or ask for another phone before handoff. Add חשבונית to rep bullets → **`action: human_service`** + `crm_department: service` in the **same** JSON. Do not block on lookup_order_status phone miss."
+    )
+  }
+
+  const threadBranchInvoice = documentReferenceGivenInThread(history)
+  if (
+    serviceSummarySent &&
+    threadBranchInvoice &&
+    /^OV/i.test(threadBranchInvoice) &&
+    userProvidedPhone(body) &&
+    input.whatsappPhone &&
+    channelPhone(input.whatsappPhone) === userProvidedPhone(body) &&
+    (isAlternatePhoneRequestPending(history) || isOrderLookupPhoneReplyPending(history))
+  ) {
+    lines.push(
+      "SERVICE + SAME PHONE AFTER OV (532711282): they repeated the WhatsApp channel phone after a failed lookup — not a new search. **`action: human_service`** with the full recap including the OV invoice — never «לא מצאתי» or another phone question."
+    )
+  }
+
   if (
     hasRepHandoffOfferQuestionInThread(history) &&
     !isHumanHandoffAffirmation(body) &&
