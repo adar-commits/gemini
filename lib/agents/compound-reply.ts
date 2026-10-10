@@ -28,7 +28,11 @@ const PURE_AFFIRMATION_PART =
   /^(?:תודה(?:\s+רבה)?|בבקשה|pls|please|אשמח|מעולה|בסדר|סבבה|יופי)(?:[\s,.!?]*(?:,\s*)?)/iu
 
 function isOnlyPureAffirmationTail(remainder: string) {
-  let rest = remainder.trim()
+  let rest = remainder
+    .trim()
+    .replace(/^זה\s+/iu, "")
+    .replace(/[\s🙏👍]+$/gu, "")
+    .trim()
   if (!rest) return true
   while (rest) {
     const match = rest.match(PURE_AFFIRMATION_PART)

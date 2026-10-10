@@ -1312,7 +1312,7 @@ export function buildConversationHints(input: {
         ? ` and include this compact rep note: ${buildServiceRepGoalNote(intake)}`
         : " — no rep note line, no policy add-ons (533844316)"
       lines.push(
-        `Service summary confirm (533773292): customer approved — including confirm+addition (כן ו… / כן, להוסיף…). Set action \`human_service\` NOW — never warm-close or action end. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence${repNote}.`
+        `Service summary confirm (533773292 / 534083795): customer approved — including confirm+addition (כן ו… / כן, להוסיף…). Praise-only after confirm (כן זה מעולה תודה) is NOT the rep «מבקשים» line — use buildServiceRepGoalNote / prior case bullets, never the customer's thanks. Set action \`human_service\` NOW — never warm-close or action end. Do NOT repeat the previous recap/bullets. Reply with one short transfer sentence${repNote}.`
       )
     } else if (
       /נקוד/u.test(body) &&

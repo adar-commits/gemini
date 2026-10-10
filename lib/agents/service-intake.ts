@@ -1,5 +1,7 @@
 import { DEFECT_ISSUE_REPORT_LABEL } from "@/lib/agents/service-defect-wording"
 import {
+  hasEmbeddedBusinessAsk,
+  isPureHandoffAffirmation,
   remainderAfterLeadingAffirmation,
   startsWithHandoffAffirmation,
 } from "@/lib/agents/compound-reply"
@@ -235,16 +237,26 @@ export function extractServiceIntake(
   body: string
 ): ServiceIntake {
   const corpus = recentUserText(history, body)
+  const summaryConfirmTurn =
+    isServiceHandoffSummaryPending(history) &&
+    isServiceHandoffSummaryConfirmed(body, history)
+  const goalCorpus = summaryConfirmTurn ? recentUserText(history, "") : corpus
   const issueKind = resolveIssueKind(history, body)
   const orderNumber =
     extractOrderNumber(body) ??
     extractOrderNumber(corpus) ??
     undefined
 
-  let customerGoal = extractCustomerGoal(corpus, issueKind)
-  if (startsWithHandoffAffirmation(body.trim())) {
+  let customerGoal = extractCustomerGoal(goalCorpus, issueKind)
+  if (
+    startsWithHandoffAffirmation(body.trim()) &&
+    !isPureHandoffAffirmation(body.trim())
+  ) {
     const addition = remainderAfterLeadingAffirmation(body).trim()
-    if (addition.length >= 3) {
+    const confirmWithAddition = /^(?:ו|,\s*(?:ו|להוסיף|גם))/u.test(addition)
+    const businessAddition =
+      addition.length >= 3 && hasEmbeddedBusinessAsk(addition)
+    if (confirmWithAddition || businessAddition) {
       customerGoal = addition.slice(0, 120)
     }
   }
