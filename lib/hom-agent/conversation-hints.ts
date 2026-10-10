@@ -393,6 +393,18 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
   )
 }
 
+function customerTextAfterMediaMarkers(body: string): string {
+  return body
+    .replace(/\[media:image:[^\]]+\]/gi, "")
+    .replace(/\[תמונה[^\]]*\]/gi, "")
+    .trim()
+}
+
+function isImageOnlyCustomerTurn(body: string): boolean {
+  if (!/\[media:image:/i.test(body)) return false
+  return customerTextAfterMediaMarkers(body).length === 0
+}
+
 function userTurnFromBody(body: string): UserTurn {
   const media: UserTurn["media"] = []
   for (const match of body.matchAll(/\[media:image:([^\]]+)\]/gi)) {
@@ -401,7 +413,7 @@ function userTurnFromBody(body: string): UserTurn {
       media.push({ kind: "image", url })
     }
   }
-  const text = body.replace(/\[media:image:[^\]]+\]/gi, "").trim()
+  const text = customerTextAfterMediaMarkers(body)
   return { text, media }
 }
 
@@ -2299,6 +2311,12 @@ export function buildConversationHints(input: {
       displayOpen
         ? "Inventory + DISPLAY OPEN (533798193): customer also asked if the SKU is on **showroom display** at a branch — `lookup_inventory` answers stock/preorder only, not floor display. After stock results: **never** warm-close (שמחתי לעזור); remind display is not visible in the system and offer `human_sales` to check with the branch. Re-check another item → ask for a **new** מק״ט."
         : "Inventory thread (sales flow): re-check another item → ask for a **new** מק״ט; after results offer human_sales if they want to buy. **Color variants at a branch** → human_sales only, never list colors. When requested branch shows no stock but another branch/warehouse has qty, name where they can order from."
+    )
+  }
+
+  if (/\[media:image:/i.test(body) && isImageOnlyCustomerTurn(body)) {
+    lines.push(
+      'IMAGE ONLY TURN (533163432): customer sent one or more photos with **no caption** — `[media:image:…]` / `[תמונה]` means the images **already arrived**. **Never** write that the message had no text, that you could not see what they sent, or ask them to resend. Ack once (קיבלתי את התמונות), continue the open topic from the thread (sales intake, פופים לסלון, etc.), then the next intake step or `human_sales` per the sales playbook.'
     )
   }
 
