@@ -312,25 +312,30 @@ function isPriorServiceHandoffForShippingDelay(history: HistoryMessage[]) {
   )
 }
 
-/** human_service logged so rep checks shipping status — customer may ping while waiting (274323208). */
+function hasCustomerIdentifierForRepOrderCheck(history: HistoryMessage[]) {
+  if (isOrderLookupCompletedInThread(history)) return true
+  if (identifiedOrderNumberFromThread(history) != null) return true
+  if (orderIdGivenInThread(history) != null) return true
+  return history.some(
+    (message) => message.role === "user" && /\b0\d{8,9}\b/.test(message.content)
+  )
+}
+
+/** human_service logged so rep checks shipping status — customer may ping while waiting (274323208 / 424571373). */
 function isRepShippingStatusHandoffAwaitingCallback(history: HistoryMessage[]) {
   if (!isPostHumanHandoff(null, history)) return false
   const offeredRepForShippingStatus = history.some(
     (message) =>
       message.role === "assistant" &&
-      /(?:לא\s+(?:הצלחתי|מצליח|יכול)[^\n]{0,56}הציג[^\n]{0,40}סטטוס|עדיין\s+לא\s+הצלחתי[^\n]{0,48}סטטוס\s+משלוח)/i.test(
+      /(?:לא\s+(?:הצלחתי|מצליח|יכול)[^\n]{0,72}(?:הציג|למשוך)[^\n]{0,48}סטטוס\s+(?:ההזמנה|משלוח)|עדיין\s+לא\s+הצלחתי[^\n]{0,48}סטטוס\s+משלוח)/i.test(
         message.content
       ) &&
-      /(?:נציג\s+שירות|להעביר[^\n]{0,40}נציג|יבדוק[^\n]{0,40}סטטוס\s+משלוח)/i.test(
+      /(?:נציג\s+שירות|להעביר[^\n]{0,40}נציג|יבדוק[^\n]{0,56}(?:סטטוס\s+משלוח|א(?:ת)?\s+ההזמנה))/i.test(
         message.content
       )
   )
   if (!offeredRepForShippingStatus) return false
-  return (
-    isOrderLookupCompletedInThread(history) ||
-    identifiedOrderNumberFromThread(history) != null ||
-    orderIdGivenInThread(history) != null
-  )
+  return hasCustomerIdentifierForRepOrderCheck(history)
 }
 
 function isRepShippingStatusWaitChase(body: string) {
