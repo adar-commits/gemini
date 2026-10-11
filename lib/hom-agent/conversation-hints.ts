@@ -807,6 +807,28 @@ function isExpectReceiveDeliveryAsk(body: string) {
   )
 }
 
+/** Rating/review email while the purchased item has not arrived (534100267). */
+function isRatingEmailNonReceiptOpener(content: string) {
+  const text = content.trim()
+  if (!text) return false
+  return (
+    /(?:מייל|מיילים|דירוג).*(?:ל)?(?:דרג|דירוג)|(?:ל)?(?:דרג|דירוג).*(?:מייל|שטיח)/i.test(
+      text
+    ) &&
+    /עדיין\s+לא\s+הגיע/i.test(text) &&
+    /(?:שטיח|פוף|הזמנה|משלוח)/i.test(text)
+  )
+}
+
+/** «עדיין לא הגיע» + purchased item without explicit לא קיבלתי/הזמנתי (534100267). */
+function isPurchasedItemNotArrivedOpener(content: string) {
+  const text = content.trim()
+  if (!text) return false
+  if (/(?:הזמנתי|קניתי)/i.test(text)) return false
+  if (/(?:לא\s+קיבל)/i.test(text)) return false
+  return /עדיין\s+לא\s+הגיע/i.test(text) && /(?:שטיח|פוף|הזמנה)/i.test(text)
+}
+
 /** Return/pickup in progress plus waiting for carpet matching / design advisor — sales owns the advisory (533663665). */
 function isReturnWithSalesAdvisoryInThread(history: HistoryMessage[], body: string) {
   const userText = history
@@ -1801,11 +1823,13 @@ export function buildConversationHints(input: {
   if (
     (isShippingStatusQuestion(body) ||
       isOrderStatusProgressOpener(body) ||
-      isExpectReceiveDeliveryAsk(body)) &&
+      isExpectReceiveDeliveryAsk(body) ||
+      isRatingEmailNonReceiptOpener(body) ||
+      isPurchasedItemNotArrivedOpener(body)) &&
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332 / 532250107 / 534036639): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את המשלוח\" / \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item and NOT a FAQ warm-close — never ORDSTATUSDES הושלם + שמחתי לעזור on the opening turn (534036639). After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
+      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332 / 532250107 / 534036639 / 534100267): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את המשלוח\" / \"לא קיבלתי את השטיח\" / מייל לדרג + «עדיין לא הגיע» (534100267) without רק/חסר/חלק is NOT missing_item and NOT a FAQ warm-close — never ORDSTATUSDES הושלם + שמחתי לעזור on the opening turn (534036639). After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
     )
   }
 
