@@ -310,6 +310,33 @@ function isPriorServiceHandoffForShippingDelay(history: HistoryMessage[]) {
   )
 }
 
+/** human_service logged so rep checks shipping status — customer may ping while waiting (274323208). */
+function isRepShippingStatusHandoffAwaitingCallback(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history)) return false
+  const offeredRepForShippingStatus = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:לא\s+(?:הצלחתי|מצליח|יכול)[^\n]{0,56}הציג[^\n]{0,40}סטטוס|עדיין\s+לא\s+הצלחתי[^\n]{0,48}סטטוס\s+משלוח)/i.test(
+        message.content
+      ) &&
+      /(?:נציג\s+שירות|להעביר[^\n]{0,40}נציג|יבדוק[^\n]{0,40}סטטוס\s+משלוח)/i.test(
+        message.content
+      )
+  )
+  if (!offeredRepForShippingStatus) return false
+  return (
+    isOrderLookupCompletedInThread(history) ||
+    identifiedOrderNumberFromThread(history) != null ||
+    orderIdGivenInThread(history) != null
+  )
+}
+
+function isRepShippingStatusWaitChase(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 48) return false
+  return /^(?:יש\s+תשובה|הי\s*\??)$/i.test(text)
+}
+
 function hasAutomatedPaymentOutreachInThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
@@ -1491,9 +1518,20 @@ export function buildConversationHints(input: {
 
   if (
     !greetingAfterDocumentDelivery &&
-    (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body))
+    (isNonSubstantiveFollowUp(body) ||
+      isCasualSmallTalk(body) ||
+      (isRepShippingStatusWaitChase(body) &&
+        isRepShippingStatusHandoffAwaitingCallback(history)))
   ) {
-    if (
+    if (isRepShippingStatusHandoffAwaitingCallback(history)) {
+      const orderRef =
+        orderReferenceKnownFromShippingContext(history) ??
+        identifiedOrderNumberFromThread(history) ??
+        orderIdGivenInThread(history)
+      lines.push(
+        `SERVICE SHIPPING STATUS WAIT PING (274323208): human_service already logged so נציג שירות checks shipping status${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
+      )
+    } else if (
       isShippingThreadFromHistory(history) &&
       hasOpenExchangeShippingDelayInThread(history)
     ) {
