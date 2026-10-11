@@ -2031,6 +2031,19 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    isOrderLookupCompletedInThread(history) &&
+    isShippingThreadFromHistory(history) &&
+    isShippingStatusQuestion(body) &&
+    !isHumanHandoffPending(history) &&
+    !isServiceHandoffSummaryPending(history)
+  ) {
+    const known = orderIdGivenInThread(history)
+    lines.push(
+      `SHIPPING TRACKING REOPEN (534107243): bare מעקב משלוח / סטטוס משלוח after lookup already ran on order ${known ?? "SO from thread"} — even if days ago there was courier-company handoff, a color/defect complaint, or an automated invoice between messages. This turn is shipping status only: call lookup_order_status to refresh OR answer from last status + tracking link. action reply or end — NEVER human_service and never «סימנתי לנציג» / «העברתי» from stale context unless THIS message explicitly asks for a rep. Prior-day handoff does not auto-repeat.`
+    )
+  }
+
   if (isOrderStatusDeliveredInThread(history) && isPostOrderShippingFollowUp(body, history)) {
     lines.push(
       "POST-ORDER SHIPPING THREAD (529503176 / 531893004 / 533482593): customer still on delivery timing/status — continue that thread. Do NOT pivot to cancel/return/exchange menus. A complete status answer (בדרך, נארז, השליח יתאם, מוכן לאיסוף) is the whole reply — action reply, never append האם להעביר לנציג. human_service only when they ask for a rep, status is unknown, or the system says נמסר and they say it did not arrive."
