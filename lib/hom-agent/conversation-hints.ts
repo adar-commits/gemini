@@ -52,6 +52,7 @@ import {
 } from "@/lib/agents/branches"
 import { customerExplicitlyRequestsHuman } from "@/lib/agents/kb-self-service-faq"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
+import { isDeliverySupplyInquiry } from "@/lib/hom-agent/delivery-supply-inquiry"
 import {
   isTrackingLinkLocationQuestion,
   trackingUrlFromThread,
@@ -1004,6 +1005,26 @@ function hasPrematureHandoffWithoutLookupInThread(history: HistoryMessage[]) {
   )
 }
 
+function isDeliveryThreadFromHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      (isDeliverySupplyInquiry(message.content) ||
+        isOrderDeliveryStatusQuestion(message.content) ||
+        isShippingStatusQuestion(message.content))
+  )
+}
+
+/** Delivery/אספקה thread — bot transferred before lookup_order_status ran (534252170). */
+function hasDeliveryHandoffWithoutLookupInThread(history: HistoryMessage[]) {
+  if (isOrderLookupCompletedInThread(history)) return false
+  if (!isDeliveryThreadFromHistory(history)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" && hasDeclarativeHandoffTransfer(message.content)
+  )
+}
+
 function isPoliteOrderConfirmYes(body: string) {
   return /^כן\s+בבקשה(?:[\s,.!?]|$)/i.test(body.trim())
 }
@@ -1073,6 +1094,7 @@ export function buildConversationHints(input: {
 }): string | null {
   const { history, body } = input
   const lines: string[] = []
+  const deliveryLookupOrderRef = extractOrderReference(body, history)
   const postHandoffNoResponseReEscalation = isPostHandoffNoResponseReEscalation(
     history,
     body
@@ -1527,6 +1549,10 @@ export function buildConversationHints(input: {
   if (
     isHumanHandoffPending(history) &&
     !kbSelfServiceFaqThisTurn &&
+    !(
+      hasDeliveryHandoffWithoutLookupInThread(history) &&
+      (deliveryLookupOrderRef || userProvidedPhone(body))
+    ) &&
     (!customerRespondedToHandoffWithoutConfirm(history) || isPoliteHandoffConfirm(body))
   ) {
     const handoffAction = inferHumanHandoffAction(history, null)
@@ -1879,11 +1905,21 @@ export function buildConversationHints(input: {
       isOrderStatusProgressOpener(body) ||
       isExpectReceiveDeliveryAsk(body) ||
       isRatingEmailNonReceiptOpener(body) ||
-      isPurchasedItemNotArrivedOpener(body)) &&
+      isPurchasedItemNotArrivedOpener(body) ||
+      isDeliverySupplyInquiry(body)) &&
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332 / 532250107 / 534036639 / 534100267): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את המשלוח\" / \"לא קיבלתי את השטיח\" / מייל לדרג + «עדיין לא הגיע» (534100267) without רק/חסר/חלק is NOT missing_item and NOT a FAQ warm-close — never ORDSTATUSDES הושלם + שמחתי לעזור on the opening turn (534036639). After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
+      "ORDER STATUS OPENING (532163951 / 532360395 / 533691332 / 532250107 / 534036639 / 534100267 / 534252170): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את המשלוח\" / \"לא קיבלתי את השטיח\" / מייל לדרג + «עדיין לא הגיע» (534100267) without רק/חסר/חלק is NOT missing_item and NOT a FAQ warm-close — never ORDSTATUSDES הושלם + שמחתי לעזור on the opening turn (534036639). **534252170:** complaint about slow CS (מעל שבוע / ללא מענה) **plus** לברר לגבי אספקת/אספקה or phone-callback ask — still **lookup first** on channel phone; brief empathize for CS delay; answer status + ETA policy; try action end when resolved — **never** human_service on turn 1 just because they waited for humans. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
+    )
+  }
+
+  if (
+    hasDeliveryHandoffWithoutLookupInThread(history) &&
+    (deliveryLookupOrderRef || userProvidedPhone(body))
+  ) {
+    lines.push(
+      `DELIVERY LOOKUP AFTER PREMATURE HANDOFF (534252170): you transferred on a delivery/אספקה thread without lookup_order_status. Customer sent order/phone details${deliveryLookupOrderRef ? ` (${deliveryLookupOrderRef})` : ""} — call lookup_order_status now (use their order # and alternate phone if given). Answer status + ETA policy; try action end when the delivery question is fully answered. **Never** treat order # + phone as handoff confirm (כן). human_service only if lookup fails or they still insist on a callback after status — not a duplicate «מעביר עכשיו».`
     )
   }
 

@@ -54,6 +54,7 @@ import {
   isOrderLineItemVerificationRequest,
 } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
+import { isDeliverySupplyInquiry } from "@/lib/hom-agent/delivery-supply-inquiry"
 import {
   buildCantVisitBranchReturnReply,
   buildReturnsPortalUrl,
@@ -1319,6 +1320,7 @@ export function isOrderDeliveryStatusQuestion(body: string) {
   const text = body.trim()
   if (!text) return false
   if (isOrderOutOfScopeMetadataQuestion(text)) return false
+  if (isDeliverySupplyInquiry(text)) return true
   if (isDeliveryEstimateQuestion(text)) return true
   return (
     /(?:מתי|מצופה|צפוי|הגיע|הגעה|סטטוס|איפה\s+ההזמנה|(?:^|\s)משלוח(?:\s|$)|מתעכב|עדיין\s+לא\s+הגיע|מתי\s+.*(?:הגיע|מגיע|מגיעה|יגיע|יסופק|תסופק))/i.test(
