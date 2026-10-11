@@ -22,6 +22,7 @@ import {
 import type { HistoryMessage } from "@/lib/agents/types"
 import { messageAwaits } from "@/lib/agents/bot-awaiting"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { VIDEO_MESSAGE_UNSUPPORTED_MARKER } from "@/lib/agents/user-turn"
 import {
   isReturnFlowCorrection,
   isReturnPolicyQuestion,
@@ -1541,10 +1542,15 @@ function isPriorityApiWaitAssistantMessage(content: string) {
 }
 
 /** Non-terminal assistant bubbles between a prompt and the customer's reply. */
+function isVideoDeclineAssistantMessage(content: string) {
+  return content.includes(VIDEO_MESSAGE_UNSUPPORTED_MARKER)
+}
+
 function shouldContinueReplyScanPastAssistant(content: string) {
   return (
     isPriorityApiWaitAssistantMessage(content) ||
-    isVoiceClosureTemplateMessage({ body: content })
+    isVoiceClosureTemplateMessage({ body: content }) ||
+    isVideoDeclineAssistantMessage(content)
   )
 }
 

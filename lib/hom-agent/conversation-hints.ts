@@ -929,6 +929,15 @@ function threadHasStatedCustomerIssue(history: HistoryMessage[], body: string) {
   if (isShippingStatusQuestion(userText)) return true
   if (isShippingThreadFromHistory(history)) return true
   if (/\[media:image:/i.test(userText)) return true
+  if (
+    /\[media:video:/i.test(userText) &&
+    history.some(
+      (message) =>
+        message.role === "user" && Boolean(classifyPostPurchaseCase(message.content))
+    )
+  ) {
+    return true
+  }
   if (isDuplicateOrExtraItemComplaint(userText)) return true
   if (isMissingOrPartialDeliveryComplaint(userText)) return true
   return false
@@ -1354,9 +1363,15 @@ export function buildConversationHints(input: {
         /החלפ/i.test(message.content)
     ) || isWrongItemDeliveryPhotoTurn(body)
 
+  const threadHasDefectCase = history.some(
+    (message) =>
+      message.role === "user" && classifyPostPurchaseCase(message.content) === "defect"
+  )
+
   if (
     !shippingServiceThanksClose &&
     !wrongItemReplacementServiceContext &&
+    !threadHasDefectCase &&
     !isServiceDefectOrderIdentificationThread(history, body) &&
     (isOrderModificationRequest(body) ||
       isOrderModificationInThread(history, body) ||
@@ -2090,6 +2105,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `Customer confirmed the WhatsApp channel phone (${input.whatsappPhone}). Call lookup_order_status now — do not re-ask the same phone question. Never claim you cannot see status without running the tool (533526188). If status shows packaging and you write מעביר ליועץ מכירות for an order change → action human_sales in the **same** JSON — never action reply alone (530164166).`
+    )
+  }
+
+  if (
+    isPhoneLookupConfirmPending(history) &&
+    isServiceLookupContext(history) &&
+    threadHasStatedCustomerIssue(history, body)
+  ) {
+    lines.push(
+      "SERVICE PHONE CONFIRM (475968017): defect/quality service thread — phone confirm still pending. Customer כן / channel phone / defect detail (e.g. מתחיל להיפרם) after videos → call lookup_order_status with channel phone now. Never repeat «האם העסקה רשומה על המספר». After order card → rep summary with the defect + note videos — then מדויק? → human_service. Never shipping ETA as the main answer."
     )
   }
 
@@ -3162,6 +3187,14 @@ export function buildConversationHints(input: {
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
       'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
+    )
+  } else if (
+    /\[media:video:/i.test(body) &&
+    isPhoneLookupConfirmPending(history) &&
+    isServiceLookupContext(history)
+  ) {
+    lines.push(
+      "SERVICE DEFECT VIDEO + PHONE PENDING (475968017): cannot watch video — ack briefly and count videos in thread. Phone confirm is still open: if they already answered כן, call lookup_order_status now; do not re-send the phone template. Continue toward service rep summary — never repeat phone confirm twice."
     )
   } else if (
     /\[media:video:/i.test(body) &&
