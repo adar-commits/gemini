@@ -338,6 +338,25 @@ function isRepShippingStatusWaitChase(body: string) {
   return /^(?:יש\s+תשובה|הי\s*\??)$/i.test(text)
 }
 
+/** human_sales logged after post-delivery exchange summary — customer may ping while waiting (532191753). */
+function isSalesExchangeHandoffAwaitingCallback(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:סוג\s+החלפה|דגם\s+אחר\s+לגמרי)/i.test(message.content) &&
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|קיבלנו\s+את\s+הפנייה|יועצ(?:י|)\s+מכירות|ניצור\s+[^\n]{0,32}קשר)/i.test(
+        message.content
+      )
+  )
+}
+
+function isSalesHandoffWaitChase(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  if (isNonSubstantiveFollowUp(text)) return true
+  return /^מה\s+עם\s+הפנייה(?:\s+של(?:י|נו))?/i.test(text)
+}
+
 function hasLogisticsCoordinationMentionInThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
@@ -1530,7 +1549,9 @@ export function buildConversationHints(input: {
     (isNonSubstantiveFollowUp(body) ||
       isCasualSmallTalk(body) ||
       (isRepShippingStatusWaitChase(body) &&
-        isRepShippingStatusHandoffAwaitingCallback(history)))
+        isRepShippingStatusHandoffAwaitingCallback(history)) ||
+      (isSalesHandoffWaitChase(body) &&
+        isSalesExchangeHandoffAwaitingCallback(history)))
   ) {
     if (isRepShippingStatusHandoffAwaitingCallback(history)) {
       const orderRef =
@@ -1539,6 +1560,15 @@ export function buildConversationHints(input: {
         orderIdGivenInThread(history)
       lines.push(
         `SERVICE SHIPPING STATUS WAIT PING (274323208): human_service already logged so נציג שירות checks shipping status${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
+      )
+    } else if (
+      isSalesHandoffWaitChase(body) &&
+      isSalesExchangeHandoffAwaitingCallback(history)
+    ) {
+      const orderRef =
+        identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
+      lines.push(
+        `SALES EXCHANGE WAIT PING (532191753): human_sales already logged for post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} (different model / סוג החלפה) — ? / ?? / מה עם הפנייה means waiting for sales callback, not a fresh transfer. Brief empathy + confirm the case is already with יועץ מכירות; if they named a target model earlier, note it for the advisor. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate.`
       )
     } else if (
       isShippingThreadFromHistory(history) &&
