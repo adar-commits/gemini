@@ -54,7 +54,7 @@ describe("duplicate charge timeline follow-up 505729214", () => {
   })
 
   it("prompt teaches duplicate charge timeline after handoff", () => {
-    const line = prompt.split("\n").find((l) => l.includes("505729214"))
+    const line = prompt.split("\n").find((l) => l.includes("Duplicate charge timeline after handoff (505729214)"))
     assert.ok(line)
     assert.match(line!, /action: reply/)
     assert.match(line!, /Never.*human_service/i)

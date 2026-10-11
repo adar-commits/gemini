@@ -1,4 +1,9 @@
 import {
+  isIdentificationOnlyOrderLookup,
+  isOrderLookupPromptReply,
+  shouldReleaseResolvedOrderToLlm,
+} from "@/lib/agents/order-identify-lookup"
+import {
   buildThanksAckReply,
   endsWithOptionalFollowUpOffer,
   isResolvedStatusCloseReply,
@@ -914,6 +919,15 @@ export async function runStructuredOrderLookupPreTurn(input: {
   // model parses colloquial Hebrew and knows the pending-question binding rules.
   if (/לא הבנתי/.test(reply)) {
     return { kind: "skip", response: null }
+  }
+
+  // Identification-only chain (505729214): keep the lookup steps, but once the order is
+  // resolved the LLM continues the original request instead of a shipment-status card.
+  if (shouldReleaseResolvedOrderToLlm(input.history, reply)) {
+    return { kind: "skip", response: null }
+  }
+  if (isIdentificationOnlyOrderLookup(input.history) && isOrderLookupPromptReply(input.history, reply)) {
+    return { kind: "handled", reply, action: "reply", awaiting: "order_identify" }
   }
 
   const action: HomAgentAction = /לא ניתן להציג כרגע סטטוס משלוח/i.test(reply)

@@ -10,6 +10,7 @@ export const BOT_AWAITING_KINDS = [
   "order_phone_confirm",
   "handoff_confirm",
   "service_summary_confirm",
+  "order_identify",
 ] as const
 
 export type BotAwaiting = (typeof BOT_AWAITING_KINDS)[number]

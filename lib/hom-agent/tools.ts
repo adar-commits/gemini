@@ -19,7 +19,7 @@ export function createHomAgentTools(context: HomAgentToolContext) {
   return {
     lookup_order_status: tool({
       description:
-        "Live shipment/order status via Priority API. Call when customer asks where THEIR order/shipment is, mid-service order confirm, or rejects a shown/identified order (אז זה לא זה) so the next unused order on that phone can be offered. Do NOT call for return-policy FAQ or hypothetical return eligibility (14 days, can I return on Sunday?) — answer those from KB.",
+        "Live order lookup via Priority API (by the chat phone first). Call when customer asks where THEIR order/shipment is, when you must identify which order a non-delivery request is about (purpose identify_order), mid-service order confirm, or rejects a shown/identified order (אז זה לא זה) so the next unused order on that phone can be offered. Do NOT call for return-policy FAQ or hypothetical return eligibility (14 days, can I return on Sunday?) — answer those from KB.",
       inputSchema: z.object({
         lookupHint: z
           .string()
@@ -27,13 +27,20 @@ export function createHomAgentTools(context: HomAgentToolContext) {
           .describe(
             "Order number, or the mobile from a payment image / the phone the customer wants searched. When they agree to look up by a phone you already named, pass that phone here."
           ),
+        purpose: z
+          .enum(["delivery_status", "identify_order"])
+          .optional()
+          .describe(
+            "delivery_status = they ask where the order is / when it arrives. identify_order = you only need to know WHICH order for another request (billing, charge, exchange, return, cancel, product question) — the tool returns order data, not a shipment-status card."
+          ),
       }),
-      execute: async ({ lookupHint }) =>
+      execute: async ({ lookupHint, purpose }) =>
         executeLookupOrderStatus({
           body: context.body,
           phone: context.phone,
           history: context.history,
           lookupHint: lookupHint?.trim() || undefined,
+          purpose,
         }),
     }),
     lookup_inventory: tool({

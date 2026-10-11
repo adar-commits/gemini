@@ -67,7 +67,7 @@ describe("status answer without handoff 531893004", () => {
     assert.doesNotMatch(result.reply, /לא הצלחתי להבין/)
   })
 
-  it("still hands off when the system says delivered and they dispute it", () => {
+  it("delivered status closes with a passive note, not a handoff offer", () => {
     const delivered: HistoryMessage[] = [
       {
         role: "assistant",
@@ -76,7 +76,8 @@ describe("status answer without handoff 531893004", () => {
       },
     ]
     const reply = buildOrderStatusClarificationReply(delivered)
-    assert.match(reply, /האם להעביר לנציג שירות/)
+    assert.doesNotMatch(reply, /האם להעביר/)
+    assert.match(reply, /אם משהו לא תואם למציאות/)
   })
 
   it("hints that a complete status answer is not a handoff", () => {

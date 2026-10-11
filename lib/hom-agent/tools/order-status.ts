@@ -35,6 +35,9 @@ import {
   isServiceOrderIdentificationFlow,
   requiresOrderIdentification,
   isServiceHandoffOrderLookupReply,
+  identifiedOrderNumberFromThread,
+  isPurePhoneLookupConfirmYes,
+  resolveIdentifiedOrderFromThread,
   isShippingLookupContext,
   isShippingThreadFromHistory,
   mentionsCancellationDesire,
@@ -42,6 +45,13 @@ import {
   shouldAllowOrderLookupRestart,
 } from "@/lib/agents/order-lookup"
 import { isResolvedStatusCloseReply } from "@/lib/agents/conversation-close"
+import {
+  buildIdentifiedOrderToolResult,
+  isIdentificationOnlyOrderLookup,
+  isOrderIdentificationForRequest,
+  isOrderLookupPromptReply,
+  shouldReleaseResolvedOrderToLlm,
+} from "@/lib/agents/order-identify-lookup"
 import type { HistoryMessage } from "@/lib/agents/types"
 import {
   buildTrackingLinkReply,
@@ -66,12 +76,17 @@ function returnPickupContextInThread(
   return explicitReturnPickup
 }
 
-export async function executeLookupOrderStatus(input: {
+export type OrderLookupPurpose = "delivery_status" | "identify_order"
+
+type OrderLookupInput = {
   body: string
   phone?: string
   history?: HistoryMessage[]
   lookupHint?: string
-}) {
+  purpose?: OrderLookupPurpose
+}
+
+export async function executeLookupOrderStatus(input: OrderLookupInput) {
   const history = input.history ?? []
   const body = input.body.trim()
 
@@ -114,8 +129,11 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
+  const identifyOnly =
+    input.purpose === "identify_order" || isIdentificationOnlyOrderLookup(history)
   const needsOrderLookup = requiresOrderIdentification(body, history)
   const lookupAllowed =
+    identifyOnly ||
     needsOrderLookup ||
     shouldConfirmKnownOrderWithCard(body, history) ||
     isOrderModificationRequest(body) ||
@@ -130,6 +148,19 @@ export async function executeLookupOrderStatus(input: {
       error:
         "No live order/shipping ask this turn. Do NOT start getOrders or phone-confirm. Product page / פרטים נוספים / catalog photo (carpetshop.co.il or pozitiveshop.co.il) is sales — answer from KB or continue sales intake with crm_department sales.",
     }
+  }
+
+  if (
+    (identifyOnly || isOrderIdentificationForRequest(history)) &&
+    isOrderConfirmationPending(history) &&
+    isPurePhoneLookupConfirmYes(body)
+  ) {
+    const order = await resolveIdentifiedOrderFromThread({
+      history,
+      whatsappPhone: input.phone,
+      body,
+    })
+    if (order) return buildIdentifiedOrderToolResult(order, identifiedPlaybook(body, history))
   }
 
   if (
@@ -228,15 +259,10 @@ export async function executeLookupOrderStatus(input: {
     }
   }
 
-  return deliverOrderLookupReply(input)
+  return deliverOrderLookupReply(input, identifyOnly)
 }
 
-async function deliverOrderLookupReply(input: {
-  body: string
-  phone?: string
-  history?: HistoryMessage[]
-  lookupHint?: string
-}) {
+async function deliverOrderLookupReply(input: OrderLookupInput, identifyOnly = false) {
   try {
     const reply = await resolveOrderShippingReply({
       body: input.body,
@@ -258,15 +284,45 @@ async function deliverOrderLookupReply(input: {
       }
     }
     const history = input.history ?? []
+    const identifyChain = identifyOnly || isOrderIdentificationForRequest(history)
+    if (identifyChain && isOrderLookupPromptReply(history, trimmed)) {
+      return {
+        ok: true as const,
+        reply: trimmed,
+        action: "reply" as const,
+        awaiting: "order_identify" as const,
+      }
+    }
+    if (
+      (identifyOnly && !isServiceHandoffOrderLookupReply(trimmed)) ||
+      shouldReleaseResolvedOrderToLlm(history, trimmed)
+    ) {
+      const withReply: HistoryMessage[] = [...history, { role: "assistant", content: trimmed }]
+      if (identifiedOrderNumberFromThread(withReply)) {
+        const order = await resolveIdentifiedOrderFromThread({
+          history: withReply,
+          whatsappPhone: input.phone,
+          body: input.body,
+        })
+        if (order) {
+          return buildIdentifiedOrderToolResult(order, identifiedPlaybook(input.body, history))
+        }
+      }
+    }
     if (
       isPreDeliveryCancelWithoutPortalYet(input.body, history) &&
       isResolvedStatusCloseReply(trimmed)
     ) {
+      const order = await resolveIdentifiedOrderFromThread({
+        history: [...history, { role: "assistant", content: trimmed }],
+        whatsappPhone: input.phone,
+        body: input.body,
+      })
+      if (order) return buildIdentifiedOrderToolResult(order, CANCEL_BY_SHIPPING_CODE)
       return {
         ok: false as const,
         errorCode: "lookup_misroute",
-        error:
-          "PRE-DELIVERY CANCEL (464488405 / 534579658 / 534406245): customer asked to cancel — never send lookup packaging/shipping status + warm-close (שמחתי לעזור) as the full answer. Same turn: returns portal link with phone prefill + transfer to stop delivery → action human_service + crm_department service. Rebuy with BUYME is for the rep after cancel.",
+        error: `PRE-DELIVERY CANCEL (464488405 / 534579658): never send a shipping status + warm-close (שמחתי לעזור) as the full answer to a cancel ask. ${CANCEL_BY_SHIPPING_CODE}`,
       }
     }
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
@@ -290,6 +346,13 @@ async function deliverOrderLookupReply(input: {
       error: error instanceof Error ? error.message : "Order lookup failed",
     }
   }
+}
+
+const CANCEL_BY_SHIPPING_CODE =
+  "CANCEL BY SHIPPING CODE (532899816): code 6 (delivered) → return/cancel policy + returns portal link, then action end (no rep — the portal request reaches a human). Code empty or 1 (still in our warehouse) → cancel may still be possible → human_service + crm_department service. Any other code (with the courier) → explain kindly the shipment already left our warehouse and is with the courier, so cancelling now may carry extra fees; once it is delivered, message us again and we will send the returns portal link → action end. If the customer gets upset about this → human_service."
+
+function identifiedPlaybook(body: string, history: HistoryMessage[]) {
+  return isPreDeliveryCancelWithoutPortalYet(body, history) ? CANCEL_BY_SHIPPING_CODE : undefined
 }
 
 function isNonDefinitiveLookupReply(reply: string) {

@@ -53,7 +53,7 @@ describe("exchange after return opener (532899816)", () => {
     })
 
     assert.match(hints ?? "", /EXCHANGE ORDER CONFIRM YES \(530876768 \/ 532899816\)/i)
-    assert.match(hints ?? "", /A\/B\/C exchange-kind question/i)
+    assert.match(hints ?? "", /what do they want to switch \(model \/ color \/ size\)/i)
     assert.doesNotMatch(hints ?? "", /RETURN PICKUP WAIT/i)
     assert.doesNotMatch(hints ?? "", /SERVICE ORDER ID \(505886895/i)
   })

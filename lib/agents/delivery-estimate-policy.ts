@@ -1,4 +1,4 @@
-import { CUSTOMER_HEADER } from "@/lib/agents/types"
+import { CUSTOMER_HEADER, ORDER_STATUS_HELP_OFFER } from "@/lib/agents/types"
 import { formatHebrewCustomerDateTime } from "@/lib/agents/hebrew-date-format"
 import {
   isMappedDeliveryStatusId,
@@ -34,7 +34,7 @@ export function buildDeliveryEstimatePolicyReply(order: OrderShipmentStatus) {
   if (statusId === "6") {
     return `${CUSTOMER_HEADER}
 לפי הסטטוס במערכת — המשלוח כבר סומן כנמסר.
-אם משהו לא תואם למציאות — האם להעביר לנציג שירות?`
+אם משהו לא תואם למציאות, אפשר לכתוב לי כאן ואבדוק.`
   }
 
   if (statusId === "23") {
@@ -63,7 +63,7 @@ export function buildDeliveryEstimatePolicyReply(order: OrderShipmentStatus) {
 לפי הסטטוס — המשלוח מתואם לאספקה בתאריך ${coordinateDate}.
 השליח ייצור קשר לפני ההגעה.
 
-אם צריך שינוי — האם להעביר לנציג שירות?`
+${ORDER_STATUS_HELP_OFFER}`
     }
     return `${CUSTOMER_HEADER}
 לפי הסטטוס — המשלוח מתואם לאספקה אצל חברת השליחויות.

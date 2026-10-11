@@ -31,7 +31,7 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   )
 }
 
-/** Pre-delivery order cancel = portal + human_service (464488405), also on the follow-up turn (532732671). */
+/** Order cancel is routed by shipping code (532899816), also on the follow-up turn (532732671) — not a KB one-liner. */
 function isOrderCancellationTurn(body: string, history: HistoryMessage[]) {
   const recentCustomerTurns = history
     .filter((message) => message.role === "user")

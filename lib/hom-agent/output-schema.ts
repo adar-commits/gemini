@@ -61,7 +61,7 @@ export function homAgentOutputSchema() {
           type: "string",
           enum: [...BOT_AWAITING_KINDS],
           description:
-            "Set when your reply ends with a yes/no question the next turn must bind to: order_confirm (is this the order you meant?), order_phone_confirm (is the order on this phone?), handoff_confirm (should I transfer you to a rep?), service_summary_confirm (did I summarize the case correctly before a rep?). Omit otherwise.",
+            "Set when your reply ends with a yes/no question the next turn must bind to: order_confirm (is this the order you meant?), order_phone_confirm (is the order on this phone?), handoff_confirm (should I transfer you to a rep?), service_summary_confirm (did I summarize the case correctly before a rep?), order_identify (you ask for the order / phone only to identify the order for a non-delivery request — billing, exchange, return, cancel, product question). Omit otherwise.",
         },
       },
     }),

@@ -2630,7 +2630,7 @@ ${portalUrl}
   return null
 }
 
-async function resolveIdentifiedOrderFromThread(input: {
+export async function resolveIdentifiedOrderFromThread(input: {
   history: HistoryMessage[]
   whatsappPhone?: string
   body?: string
@@ -2751,9 +2751,7 @@ ${CUSTOMER_NATURAL_CLOSE}`
   if (/נמסר באמצעות שליח/i.test(statusText)) {
     return `${CUSTOMER_HEADER}
 לפי הסטטוס במערכת — המשלוח סומן כנמסר.
-אם משהו לא תואם למציאות, אפשר להעביר לנציג שירות שיבדוק.
-
-האם להעביר לנציג שירות?`
+אם משהו לא תואם למציאות, אפשר לכתוב לי כאן ואבדוק.`
   }
 
   if (/מוכנה לאיסוף/i.test(statusText)) {
@@ -2843,7 +2841,8 @@ export function formatDisplayPhone(phone: string) {
 /** Last valid phone wins — merged bursts often end with a corrected number. */
 export function extractPhoneFromText(rawText: string) {
   const text = stripMediaAndUrls(rawText)
-  const patterns = text.match(/(?:\+?972|0)[\d\s-]{8,14}/g) ?? []
+  // Same line only, and not the digits of an order id (S026023873 → SO26023873).
+  const patterns = text.match(/(?<![A-Za-z\d])(?:\+?972|0)[\d \t-]{8,14}/g) ?? []
   for (const raw of [...patterns].reverse()) {
     const digits = phoneForOrderApi(raw)
     if (/^0\d{9}$/.test(digits)) return digits
@@ -3548,10 +3547,13 @@ async function lookupOrderByReference(input: {
   const orders = await lookupOrdersForPhone(input.lookupPhone)
   if (orders == null) return buildOrderLookupApiFailureReply()
 
+  const typedDocument = classifyDocumentNumber(input.orderReference)
+  // A typed order number outranks an older receipt/invoice id elsewhere in the thread (435213398).
+  const typedOrderNumber = typedDocument ? null : extractOrderNumber(input.orderReference)
   const documentId =
-    classifyDocumentNumber(input.orderReference)?.id ??
+    typedDocument?.id ??
     classifyDocumentNumber(input.body)?.id ??
-    documentReferenceGivenInThread(input.history)
+    (typedOrderNumber ? null : documentReferenceGivenInThread(input.history))
   if (documentId) {
     const byDocument = findOrderByDocumentReference(orders, documentId)
     if (byDocument) {

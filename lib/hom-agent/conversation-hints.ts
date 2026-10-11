@@ -246,6 +246,7 @@ import {
   postHandoffKind,
 } from "@/lib/agents/post-handoff"
 import { messageAwaits } from "@/lib/agents/bot-awaiting"
+import { isOrderIdentificationForRequest } from "@/lib/agents/order-identify-lookup"
 import {
   customerRespondedToHandoffWithoutConfirm,
   hasDeclarativeHandoffTransfer,
@@ -1115,11 +1116,11 @@ export function buildConversationHints(input: {
 
   if (input.humanThreadAssist === "stale") {
     lines.push(
-      "STALE HUMAN THREAD (412809595): a rep last wrote more than 2 staff days ago and the customer wrote again. Decide from the full thread — do not restart a hard case. NEW question (status, stock, product, invoice, a different order) → answer with tools as a new inquiry. OPEN HARD CASE still waiting on the team (cancel/refund, defect, missing items, pickup/repair) and the customer is chasing it (534379659) → do not start intake over and do not repeat links or policy you already sent; one short ack + a compact rep note of what they want now, `action: human_service` (keeps the same rep and flags it). Never answer a chase with `action: reply` twice in a row. Never claim a rep already has the case on `action: reply`."
+      "STALE HUMAN THREAD (412809595): a rep last wrote more than 2 staff days ago and the customer wrote again. Decide from the full thread — do not restart a hard case. NEW question (status, stock, product, invoice, a different order) → answer with tools as a new inquiry. OPEN HARD CASE still waiting on the team (cancel/refund, defect, missing items, pickup/repair) and the customer is chasing it (534379659) → do not start intake over and do not repeat links or policy you already sent; one short ack + a compact rep note of what they want now, `action: human_service` (keeps the same rep and flags it). Never answer a chase with `action: reply` twice in a row. A bare greeting or ping (שלום / ?? / אשמח להתייחסות) is not a chase by itself — ask what it is about or answer the open question; never hand off on a greeting alone. Never claim a rep already has the case on `action: reply`."
     )
   } else if (input.humanThreadAssist === "bridge") {
     lines.push(
-      "HUMAN THREAD BRIDGE: a rep still owns this chat and has not answered for several staff hours. Answer delivery status / stock / product / invoice / branch questions from tools and KB, then close when fully answered (`action: end`). Open hard case the customer is chasing (cancel/refund, defect, missing items, pickup/repair — 534379659) → one short ack + compact rep note, `action: human_service` (keeps the same rep and flags it). Do not start a new sales or service intake. Never claim a rep already has the case on `action: reply`."
+      "HUMAN THREAD BRIDGE: a rep still owns this chat and has not answered for several staff hours. Answer delivery status / stock / product / invoice / branch questions from tools and KB, then close when fully answered (`action: end`). Open hard case the customer is chasing (cancel/refund, defect, missing items, pickup/repair — 534379659) → one short ack + compact rep note, `action: human_service` (keeps the same rep and flags it). Do not start a new sales or service intake. A bare greeting or ping alone is not a chase — ask what it is about; never hand off on a greeting alone. Never claim a rep already has the case on `action: reply`."
     )
   }
 
@@ -2165,7 +2166,7 @@ export function buildConversationHints(input: {
     if (isExchangeIntakeActive(history)) {
       if (isOrderConfirmationYes(body)) {
         lines.push(
-          "EXCHANGE ORDER CONFIRM YES (530876768 / 532899816): order card confirmed during exchange intake — ask ONE A/B/C exchange-kind question now (action reply). Do NOT call lookup_order_status again. Do NOT service rep summary or human_service — stay on החלפה → create_switch_request → human_sales. Opening «להחזיר» before they chose option 1 does NOT make this a return — never label the case «בקשת החזרה» in any summary."
+          "EXCHANGE ORDER CONFIRM YES (530876768 / 532899816): order card confirmed during a courier exchange — ask ONE question: what do they want to switch (model / color / size) and do they already know which item they want? (action reply). Do NOT call lookup_order_status again and never send a shipment status. Opening «להחזיר» before they chose option 1 does NOT make this a return — never label the case «בקשת החזרה» in any summary."
         )
       } else {
         lines.push(
@@ -2311,6 +2312,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'PHONE-FIRST LOOKUP (534048082): shipment/ETA ask and the chat phone is already known. Call lookup_order_status now — the tool searches that phone itself and returns the order card if it finds one. Do NOT ask for מספר הזמנה and do NOT tell them to write "לפי הטלפון" before the tool has searched. Ask for an order number only after the tool reports nothing on that phone. If they cannot give a number, ask whether the order was registered on that phone; if not, ask for the other phone (unless they already sent one) and look that up.'
+    )
+  }
+
+  if (isOrderIdentificationForRequest(history)) {
+    lines.push(
+      "ORDER IDENTIFIED FOR REQUEST (505729214): this order lookup only identifies WHICH order the customer's request is about — it is not a shipment-status check. Bind short replies to the pending lookup step (card confirm / phone confirm / order number) and call lookup_order_status with purpose identify_order. The tool returns identifiedOrder data — never send «בדקתי, סטטוס ההזמנה» or delivery status unless they asked where the order is. Continue the original request (billing / charge / exchange / return / cancel / product) with that data. If they reject the card, call lookup_order_status again — it offers the next order on that phone."
     )
   }
 
@@ -2487,7 +2494,7 @@ export function buildConversationHints(input: {
     )
   } else if (isExchangeOrderRequired(history)) {
     lines.push(
-      "EXCHANGE ORDER REQUIRED: customer chose החלפה — call lookup_order_status until order card is confirmed. No create_switch_request yet."
+      "EXCHANGE ORDER REQUIRED (532899816): customer chose החלפה. If you have not asked yet, ask ONE question: exchange in a branch or with a courier? Branch → get_branch_info + exchange policy (unused, original packaging, 14 days) → action end, no order lookup, no rep. Courier → lookup_order_status with purpose identify_order until the order card is confirmed (awaiting order_identify). No create_switch_request yet."
     )
   } else if (isExchangeOriginalPackagingPolicyPending(history)) {
     lines.push(
@@ -2495,7 +2502,7 @@ export function buildConversationHints(input: {
     )
   } else if (needsExchangeKindQuestion(history)) {
     lines.push(
-      "EXCHANGE KIND PENDING: order confirmed — ask ONE question to classify A (same model, new color) / B (same model+color, new size) / C (different model). Accept paraphrases."
+      "EXCHANGE KIND PENDING: order confirmed — ask ONE question to classify A (same model, new color) / B (same model+color, new size) / C (different model). Accept paraphrases. If they do not know what to switch to → short recap + action human_sales (advisor helps choose)."
     )
   } else if (isExchangeKindPending(history)) {
     lines.push(
@@ -2511,7 +2518,7 @@ export function buildConversationHints(input: {
     )
   } else if (isExchangeReadyForSwitchRequest(history, body)) {
     lines.push(
-      "EXCHANGE READY FOR API: call create_switch_request now with exchangeKind + optional targetSku (A/B) or reasonCode + customerReasonText (C). On success reply with AB- id and action human_sales in same JSON."
+      "EXCHANGE READY FOR API: call create_switch_request now with exchangeKind + optional targetSku (A/B) or reasonCode + customerReasonText (C). On success reply with AB- id and action human_service in same JSON (they know what they want — a service rep executes the switch). If they do not know which item to switch to → human_sales instead (advisor helps choose)."
     )
   } else if (isExchangeIntakeActive(history)) {
     lines.push(
@@ -2519,7 +2526,7 @@ export function buildConversationHints(input: {
     )
   } else if (isDissatisfactionRescuePending(history)) {
     lines.push(
-      "Dissatisfaction rescue pending: return choice → portal self-service (link + steps + fees/timeline); exchange → order confirm + A/B/C quiz + create_switch_request. Never proactively offer human_service to open the portal — passive 'אם נתקעים…' only; human_service when they explicitly ask for נציג or are stuck."
+      "Dissatisfaction rescue pending: return choice → portal self-service (link + steps + fees/timeline); exchange → branch or courier first (branch → branch info + policy → end; courier → order confirm + A/B/C quiz + create_switch_request). Never proactively offer human_service to open the portal — passive 'אם נתקעים…' only; human_service when they explicitly ask for נציג or are stuck."
     )
   } else if (isDissatisfactionWithoutDefect(body)) {
     lines.push(
@@ -2551,7 +2558,8 @@ export function buildConversationHints(input: {
     !isCheckoutPaymentSplitCancelThread(history, body)
   ) {
     lines.push(
-      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 530313226 / 534295968 / 534268241 / 534406245 / 534579658): customer wants to cancel (may also ask איך/כיצד; may mention missing receipt/invoice — that is NOT post-receipt received; may name an undelivered line — עדיין לא סופק / אין במלאי). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. If lookup_order_status already ran, you may mention הזמנה מוקדמת/status briefly — **never** end at preorder ETA + warm-close without the portal link (534406245). Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). Never open with order-level משלוח נמסר/נמסר בשליח when they cancel a line they say never arrived — per-line Pre Order status only if lookup already ran. A new order afterward is for the rep — service owns cancel + callback first."
+      "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 530313226 / 534295968 / 534268241 / 534406245 / 534579658; routing per 532899816 operator policy): customer wants to cancel (may also ask איך/כיצד; may name an undelivered line). Route by the SHIPPING CODE of the order — call lookup_order_status with purpose identify_order if the order is not identified yet (the tool returns identifiedOrder.shippingStatusCode; never send a status card + warm-close as the answer). Code 6 (delivered) → return/cancel policy + returns portal link with phone prefill → action end, no rep (the portal request reaches a human). Code empty or 1 (still in our warehouse — cancel may still be possible) → portal link + transfer to stop delivery → action human_service + crm_department service in the same JSON. Any other code (with the courier) → explain kindly that the shipment already left our warehouse and is with the courier, so cancelling now may carry extra fees; once it is delivered they message us again and we send the returns portal link → action end. If they get upset about this → human_service. Never action reply when you write מעביר/העברתי. Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור); never end at preorder ETA + warm-close without the routed cancel answer (534406245). Per-line Pre Order status only if lookup already ran; Never open with order-level משלוח נמסר/נמסר בשליח when they cancel a line they say never arrived."
+
     )
   } else if (isReturnEligibilityQuestion(body, history)) {
     lines.push(
@@ -2559,7 +2567,8 @@ export function buildConversationHints(input: {
     )
   } else if (isCancelShipmentConfirmPending(history)) {
     lines.push(
-      "PRE-DELIVERY CANCEL SHIPMENT CONFIRM (533868148 / 464488405): bot asked whether the order shipped — if customer confirms it has NOT shipped yet, execute pre-delivery cancel in THIS turn: returns portal link with phone prefill + say you are transferring to a service rep to stop delivery → action human_service. Do NOT reply with only after-hours / no-reps template without portal + transfer wording."
+      "PRE-DELIVERY CANCEL SHIPMENT CONFIRM (533868148 / 464488405; routing per 532899816): bot asked whether the order shipped — route by the order's shipping code (lookup_order_status purpose identify_order if not identified): empty or 1 → portal link + transfer to stop delivery → action human_service; with the courier (other codes) → explain kindly it already left our warehouse, cancelling may carry extra fees, message us after delivery for the portal link → action end; 6 → policy + portal → action end. Do NOT reply with only an after-hours / no-reps template."
+
     )
   } else if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
     lines.push(

@@ -37,7 +37,9 @@ Extract `<id>` from the URL. Run:
 npx tsx scripts/read-hom-conversation.ts <id>
 ```
 
-If that reports missing credentials, query Landbot Supabase project `walklyxhkhrdzbkfhtez` with `execute_sql` (same three reads: `conversations`, `messages`, `hom_agent_messages`, `hom_agent_shadow_logs`). Match `session_id`, `landbot_customer_id`, and `conversation_ref` to `<id>`. Read every customer and bot line, not a sample.
+If that reports missing credentials, query Landbot Supabase project `walklyxhkhrdzbkfhtez` with `execute_sql` (same three reads: `conversations`, `messages`, `hom_agent_messages`, `hom_agent_shadow_logs`). Match `session_id`, `landbot_customer_id`, and `conversation_ref` to `<id>`. Read every customer and bot line, not a sample. The URL id is `conversations.session_id`; the bot rows are `hom_agent_messages` where `conversation_id` = that row's `landbot_customer_id`.
+
+To see which order-lookup branch produced a bad sentence, replay it offline: seed `rememberOrdersLookup(phone, [mapPriorityOrderRow({...})])` and call `resolveOrderShippingReply({ body, phone, history })` — no Priority call is made.
 
 Then grep the exact bot sentence that matters and name the function that emitted it (tool reply vs model prose). If that sentence shows up only on a later turn that repeats a good answer, also check `replaceRepeatedReply` in `lib/hom-agent/validate-reply.ts` — it rewrites an identical reply into a handoff offer. A complete status answer may repeat; that rewrite must not open a human ticket. ERP receipt/tracking templates (`documents.carpetshop.co.il`, `orderID=`) are often **assistant** messages, not customer pastes — read those for an order id the bot already has. A short later reply (`כן`) can be classified from the **whole** user corpus, so a structured pre-turn may fire on an earlier line; check that classifier before blaming the latest message. `buildNeverStuckReply` ("לא הצלחתי להבין") is not a handoff offer — the next כן must stay with the LLM. If that sentence is the first reply and a receipt `orderID` is already in the thread, the model returned empty text. A known-order tool error that says "ask once, do not call lookup" is correct for a bare "when will it arrive?" and wrong when they already asked to cancel that order — look the receipt id up instead of sending the confusion line. A bot line that only reports "I tried the number we're chatting from" is not a phone-confirm question — that false pending state runs structured lookup and skips the model.
 
@@ -72,10 +74,11 @@ Do not add a new Hebrew regex on the customer message, a reply sanitizer, or a o
 
 1. Edit that layer only — stay in preferred paths (`hom-bot.md`, `conversation-hints.ts`, tool/thread guards, existing pre-turn helpers, tests).
 2. Add one fixture named after the scenario and conversation id (`lib/hom-agent/__tests__/` or `lib/agents/__tests__/`). Replay the timeline. Assert **action** and that the wrong sentence or pivot is absent.
-3. `npm run guard:qa-fix` — if it fails, revert the forbidden lines and re-plan using an allowed layer.
-4. `npm run verify:deploy` from the workspace root. Do not push on failure.
-5. Commit and push `main`.
-6. Confirm the Vercel production deployment for that commit is READY, not Error.
+3. Run the full `lib/hom-agent`, `lib/agents`, `lib/agent-core` test globs before (`git stash -u`) and after the change and diff the failing-test names — `main` carries known failures, so only new names count. A changed policy can make old fixtures fail on purpose; update those to the new policy instead of bending the prompt to old phrasing.
+4. `npm run guard:qa-fix` — if it fails, revert the forbidden lines and re-plan using an allowed layer.
+5. `npm run verify:deploy` from the workspace root. Do not push on failure.
+6. Commit and push `main`.
+7. Confirm the Vercel production deployment for that commit is READY, not Error.
 
 Reply with the cause (which layer, which sentence), the teaching in one or two sentences, and that it is live. Do not recap the whole thread.
 
