@@ -3,7 +3,10 @@ import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
-import { isProductDefectComplaint } from "@/lib/agents/inquiry-intent"
+import {
+  classifyPostPurchaseCase,
+  isProductDefectComplaint,
+} from "@/lib/agents/inquiry-intent"
 import { isPostPurchaseAlternateSizeAvailabilityQuestion } from "@/lib/agents/post-purchase-alt-size"
 import { isServiceTopicSwitch } from "@/lib/agents/topic-switch"
 import { isValidInventorySku, INVENTORY_SKU_EXAMPLE_HINT } from "@/lib/agents/phone-for-api"
@@ -47,13 +50,22 @@ export function isBackInStockNotificationRequest(body: string) {
 const BACK_IN_STOCK_SALES_HANDOFF_RE =
   /מעביר(?:ים|ה|\s+אות(?:ך|כם))?(?:\s+[^\n]{0,40})?(?:ל)?(?:יועץ\s+)?מכירות|העבר(?:תי|ה)\s+(?:את\s+)?(?:ה)?(?:שיחה|בקשה)/i
 
+/** Latest restock-alert ask in thread — not the first user line (533765464 multi-topic). */
+function latestBackInStockSegment(history: HistoryMessage[]): HistoryMessage[] {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    if (!isBackInStockNotificationRequest(message.content)) continue
+    return history.slice(index)
+  }
+  return []
+}
+
 /** Opening was restock-alert ask and sales handoff already happened (534357895). */
 export function isBackInStockSalesHandoffThread(history: HistoryMessage[]) {
-  const openingUser = history.find((message) => message.role === "user")
-  if (!openingUser || !isBackInStockNotificationRequest(openingUser.content)) {
-    return false
-  }
-  return history.some(
+  const segment = latestBackInStockSegment(history)
+  if (segment.length === 0) return false
+  return segment.some(
     (message) =>
       message.role === "assistant" &&
       BACK_IN_STOCK_SALES_HANDOFF_RE.test(message.content)
@@ -62,10 +74,10 @@ export function isBackInStockSalesHandoffThread(history: HistoryMessage[]) {
 
 /** Opening was a restock-alert ask and the similar-item offer flow has not handed off yet. */
 export function isBackInStockOfferThread(history: HistoryMessage[]) {
-  const openingUser = history.find((message) => message.role === "user")
-  if (!openingUser || !isBackInStockNotificationRequest(openingUser.content)) return false
-  if (!history.some((message) => message.role === "assistant")) return false
-  return !isBackInStockSalesHandoffThread(history)
+  const segment = latestBackInStockSegment(history)
+  if (segment.length === 0) return false
+  if (!segment.some((message) => message.role === "assistant")) return false
+  return !isBackInStockSalesHandoffThread(segment)
 }
 
 const BACK_IN_STOCK_STEP1_ACK_RE =
@@ -87,6 +99,50 @@ export function isBackInStockAwaitingSimilarReply(body: string, history: History
     BACK_IN_STOCK_SIMILAR_OFFER_RE.test(assistantText) &&
     !BACK_IN_STOCK_SALES_HANDOFF_RE.test(assistantText)
   )
+}
+
+const BACK_IN_STOCK_WAIT_FOR_ALERT_RE =
+  /^(?:אמת(?:ין|ני)|נמת(?:ין|ני)|רק\s+(?:עדכון|ה(?:ת)?ראה)|לא\s+(?:תודה|מעניין(?:\s+אות(?:י|נ[יו]))?)|בלי(?:\s+תודה)?)(?:[\s,.!?]*)$/i
+
+/** Customer declines similar item and will wait for the restock alert (533765464). */
+export function isBackInStockWaitForAlertOnlyReply(body: string, history: HistoryMessage[]) {
+  if (!isBackInStockOfferThread(history)) return false
+  const text = body.trim()
+  if (!text) return false
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  if (!lastAssistant) return false
+  const assistantText = lastAssistant.content
+  if (
+    !BACK_IN_STOCK_STEP1_ACK_RE.test(assistantText) ||
+    !BACK_IN_STOCK_SIMILAR_OFFER_RE.test(assistantText)
+  ) {
+    return false
+  }
+  return BACK_IN_STOCK_WAIT_FOR_ALERT_RE.test(text)
+}
+
+/** Earlier in the same thread: cancel/refund/credit still unresolved (533765464). */
+export function threadHasOpenCancelOrCreditChase(history: HistoryMessage[]) {
+  for (const message of history) {
+    if (message.role !== "user") continue
+    const content = message.content.trim()
+    if (!content) continue
+    const kind = classifyPostPurchaseCase(content)
+    if (
+      (kind === "return_request" || kind === "dissatisfaction") &&
+      /(?:זיכוי|ביטול|החזר|ביטל)/i.test(content) &&
+      /(?:עדיין|לא|טרם|מגיע|לא\s+נעשה|חזר(?:ו|ה))/i.test(content)
+    ) {
+      return true
+    }
+    if (
+      /(?:מגיע\s+לי\s+)?זיכוי|ביטל(?:תי)?\s+(?:קנ(?:יה|ייה)|הזמנה)/i.test(content) &&
+      /(?:עדיין|לא|טרם|לא\s+נעשה|חזר(?:ו|ה)|הרבה\s+זמן)/i.test(content)
+    ) {
+      return true
+    }
+  }
+  return false
 }
 
 /** Customer adds another color/variant after back-in-stock sales handoff — not a fresh alert ask. */

@@ -157,6 +157,8 @@ import {
   isBackInStockOfferThread,
   isBackInStockSalesHandoffThread,
   isBackInStockVariantFollowUp,
+  isBackInStockWaitForAlertOnlyReply,
+  threadHasOpenCancelOrCreditChase,
   isBranchInventoryQuestion,
   isInventoryQuestion,
   isPostHandoffStockFollowUp,
@@ -2252,6 +2254,15 @@ export function buildConversationHints(input: {
   } else if (isBackInStockOfferThread(history)) {
     lines.push(
       'BACK-IN-STOCK SIMILAR-ITEM FLOW (operator policy 2026-10-09): this chat opened with a restock request and you offered something similar. Bind their reply to your last question. (a) They want a similar item → verify size and shape in one question, naming the requested product + size as the reference («רק לוודא — שטיח בל קרם 160*230 הוא הרפרנס הנכון למידה ולצורה?»), action reply. (b) They confirm the reference, or give the size/shape they want → a sales advisor will send similar options and is on the way («מעביר אותך ליועץ מכירות שיציע לך…»), action human_sales, `"crm_department": "sales"`. **Recap bullets (534115284):** list **only** models/products the customer explicitly named in this thread — restock alert = the opening product + size; similar search = that reference only — **never** add other SKUs/models they did not say (e.g. do not invent JOY when they only said BUNNY). (c) Not interested / just thanks → short warm close that we have their request, action end. A sales lead that wants options always reaches a rep.'
+    )
+  }
+
+  if (
+    isBackInStockWaitForAlertOnlyReply(body, history) &&
+    threadHasOpenCancelOrCreditChase(history)
+  ) {
+    lines.push(
+      'BACK-IN-STOCK WAIT + OPEN CREDIT (533765464): they will wait for the restock alert only, but this same thread still has an open ביטול/זיכוי chase from earlier messages. **Never** `action: end` with goodbye-only («המשך יום נעים»). Confirm the restock request is registered, acknowledge the open credit/cancel topic (order # if known from the thread), and use **`action: reply`** with `"crm_department": "service"` — ask if they still need a rep on the credit or set **`human_service`** if they express urgency / long wait again. Do not ignore the service topic because of the stock alert side-trip.'
     )
   }
 
