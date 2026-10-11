@@ -146,6 +146,8 @@ describe("exchange by courier keeps the exchange (532899816)", () => {
     assert.match(prompt, /User knows .*action human_service/)
     assert.match(prompt, /User does not know .*action human_sales/)
     assert.match(prompt, /cancel routing by shipping code \(464488405 \/ 532899816/)
+    assert.match(prompt, /\*\*Code empty \(not handled by logistics yet\)\*\*/)
+    assert.match(prompt, /Any other code, including 1/)
   })
 })
 

@@ -349,7 +349,7 @@ async function deliverOrderLookupReply(input: OrderLookupInput, identifyOnly = f
 }
 
 const CANCEL_BY_SHIPPING_CODE =
-  "CANCEL BY SHIPPING CODE (532899816): code 6 (delivered) → return/cancel policy + returns portal link, then action end (no rep — the portal request reaches a human). Code empty or 1 (still in our warehouse) → cancel may still be possible → human_service + crm_department service. Any other code (with the courier) → explain kindly the shipment already left our warehouse and is with the courier, so cancelling now may carry extra fees; once it is delivered, message us again and we will send the returns portal link → action end. If the customer gets upset about this → human_service."
+  "CANCEL BY SHIPPING CODE (532899816): code 6 (delivered) → return/cancel policy + returns portal link, then action end (no rep — the portal request reaches a human). Code empty (not handled by logistics yet) → cancel may still be possible → human_service + crm_department service. Any other code, including 1 (packed / with the courier) → explain kindly the order is already packed for shipping or with the courier, so cancelling now may carry extra fees; once it is delivered, message us again and we will send the returns portal link → action end. If the customer gets upset about this → human_service."
 
 function identifiedPlaybook(body: string, history: HistoryMessage[]) {
   return isPreDeliveryCancelWithoutPortalYet(body, history) ? CANCEL_BY_SHIPPING_CODE : undefined
