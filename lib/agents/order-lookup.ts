@@ -1599,6 +1599,25 @@ export function isOrderConfirmationYes(body: string) {
   ) {
     return true
   }
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length >= 2) {
+    const lastLine = lines[lines.length - 1] ?? ""
+    if (/^(?:כן|נכון|אוקיי|אוקי)(?:[\s,.!?]|$)/i.test(lastLine) && lastLine.length <= 24) {
+      const prior = lines.slice(0, -1).join("\n")
+      if (
+        isShippingStatusQuestion(prior) ||
+        isOrderDeliveryStatusQuestion(prior) ||
+        /(?:מעל|יותר\s+מ)\s*(?:חודש|שבוע)|כבר\s+(?:מ)?(?:על\s+)?\d*\s*(?:חודש|שבוע|ימ)/i.test(
+          prior
+        )
+      ) {
+        return true
+      }
+    }
+  }
   return false
 }
 
