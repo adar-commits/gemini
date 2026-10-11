@@ -216,9 +216,12 @@ async function shouldSkipIdleForHumanWait(row: IdleSessionRow) {
   if (shouldSkipIdle(row)) return true
   if (blocksInactivityRoutine(await resolveHumanThreadAssist(row.conversation_id))) return true
   const meaningful = await getLastMeaningfulAssistantMessage(row.conversation_id)
+  const { getHistory } = await import("@/lib/agents/memory")
+  const history = await getHistory(row.conversation_id)
   return shouldSkipInactivityForHumanWait({
     lastAction: asText(row.last_action) || asText(meaningful?.action),
     lastAssistantText: meaningful?.content ? String(meaningful.content) : null,
+    history,
   })
 }
 

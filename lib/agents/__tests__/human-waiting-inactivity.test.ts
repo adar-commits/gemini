@@ -55,4 +55,15 @@ describe("shouldSkipInactivityForHumanWait", () => {
       true
     )
   })
+
+  it("skips inactivity after rep-waiting thanks ack (534683087)", () => {
+    assert.equal(
+      shouldSkipInactivityForHumanWait({
+        lastAction: "reply",
+        lastAssistantText:
+          "*הום בוט :)*\nLia, בשמחה! הנציג כבר קיבל את הפנייה ויצור קשר בהקדם.",
+      }),
+      true
+    )
+  })
 })

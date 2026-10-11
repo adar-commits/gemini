@@ -107,13 +107,16 @@ async function lastMeaningfulAssistantMessage(conversationId: string) {
 
 async function isHumanWaitingConversation(conversationId: string) {
   if (blocksInactivityRoutine(await resolveHumanThreadAssist(conversationId))) return true
-  const [lastAction, meaningful] = await Promise.all([
+  const { getHistory } = await import("@/lib/agents/memory")
+  const [lastAction, meaningful, history] = await Promise.all([
     lastMessageAction(conversationId),
     lastMeaningfulAssistantMessage(conversationId),
+    getHistory(conversationId),
   ])
   return shouldSkipInactivityForHumanWait({
     lastAction: lastAction || meaningful?.action,
     lastAssistantText: meaningful?.content,
+    history,
   })
 }
 

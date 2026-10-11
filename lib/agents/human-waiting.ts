@@ -9,7 +9,15 @@ export function isTransferPromisedInAssistantText(text: string) {
   if (/(?:תועבר\s+להמשך\s+טיפול|הפנייה\s+תועבר\s+להמשך)/i.test(trimmed)) {
     return true
   }
+  if (isRepWaitingAckInAssistantText(trimmed)) return true
   return isSalesHandoffCommittedInAssistantText(trimmed)
+}
+
+/** Thanks-close after transfer prose — customer is waiting for callback (534683087). */
+export function isRepWaitingAckInAssistantText(text: string) {
+  const body = text.replace(/\*הום בוט\s:\)\*/gi, "").trim()
+  if (!body) return false
+  return /הנציג\s+כבר\s+קיבל\s+א(?:ת\s+)?(?:ה)?פנייה/i.test(body)
 }
 
 /** Declarative sales transfer (530164166) — "מעביר אותך ליועץ מכירות" without "אני מעביר את". */

@@ -556,6 +556,23 @@ function isPackagingWarehouseDelayFrustration(body: string) {
   return packagingContext && longWait
 }
 
+function isPolicySlaBreachedShippingFrustration(text: string) {
+  const body = text.trim()
+  if (!body) return false
+  if (/לא\s+עמד(?:תם|ו)?\s+ב(?:מ)?דינ(?:יות)?/i.test(body)) return true
+  return (
+    /(?:עבר(?:ו)?|יותר\s+מ|מעבר\s+ל|הרבה\s+מעבר)/i.test(body) &&
+    /(?:ימ(?:י|)(?:\s+)?עסקים|מדינ(?:יות)?\s+האספקה)/i.test(body)
+  )
+}
+
+function threadHasPolicySlaBreachComplaint(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "user" && isPolicySlaBreachedShippingFrustration(message.content)
+  )
+}
+
 /** Opening ETA ask citing stale «הועמס לשליח» — lookup required before FAQ close (532005744). */
 function isStaleCourierLoadedEtaOpener(body: string) {
   const text = body.trim()
@@ -1395,11 +1412,12 @@ export function buildConversationHints(input: {
   const inactivityStillHere = isInactivityStillHereReply(body)
   const inactivityAffirmation =
     inactivityStillHere || /^(?:בטח|אשמח|yes)/i.test(body.trim())
+  const postHandoffThread = isPostHumanHandoff(null, history)
   const bindInactivityToPrior =
     isHumanHandoffPending(history) ||
     isConfirmationPending(history) ||
     isAwaitingSalesIntakeAnswer(history) ||
-    isOrderConfirmationPending(history) ||
+    (isOrderConfirmationPending(history) && !postHandoffThread) ||
     isServiceHandoffSummaryPending(history) ||
     isOrderLookupPhoneReplyPending(history)
 
@@ -1672,6 +1690,18 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "PACKAGING DELAY ESCALATION (364984057): customer reports the order stuck in packaging/warehouse already a week+ (may include an order screenshot). Run lookup_order_status when you can; if status is still packaging with no exact ship date and you decide a service rep must check — **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי **now** — never `action: reply` with declarative מעביר. Do not use service_summary_confirm when you already commit to immediate transfer."
+    )
+  }
+
+  if (
+    isOrderLookupCompletedInThread(history) &&
+    (isPolicySlaBreachedShippingFrustration(body) ||
+      threadHasPolicySlaBreachComplaint(history)) &&
+    !isHumanHandoffPending(history) &&
+    !isServiceHandoffSummaryPending(history)
+  ) {
+    lines.push(
+      "SLA BREACH SHIPPING ESCALATION (534683087): confirmed order + delivery delay beyond stated business-day policy (בביצוע/מוקפא/הזמנה מוקדמת, no ETA in ERP). When you decide a service rep must check — **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי **now** — never `action: reply` with declarative מעביר. Never «הנציג כבר קיבל» on action reply without assigning."
     )
   }
 
