@@ -1168,6 +1168,15 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    isFirstSubstantiveCustomerTurn(history) &&
+    isExplicitExchangeExecutionTurn(body, history)
+  ) {
+    lines.push(
+      'EXCHANGE OPENING (533511440): post-purchase החלפה on the first line (e.g. «אני רוצה להחליף את השטיח») — **`crm_department: service`**, open «נמשיך עם החלפה» + branch or courier. **Never** `lookup_inventory`, never branch-stock / מק״ט, never invent a model name (Sunny etc.) they did not say. **Never** sales intake or `"crm_department": "sales"`.'
+    )
+  }
+
   if (isDesignCenterLocationQuestion(body)) {
     lines.push(
       'DESIGN-CENTER LOCATION FAQ (533900683): "inside design center" / מרכז עיצוב = yes/no — are our stores inside design-center complexes? Answer yes with examples from get_branch_info (e.g. Kiryat Ata in Redesign). If no city named, ask which branch/city they plan to visit — never "Which design center did you mean?" and never assume one branch from CRM name alone. Match customer language (Hebrew/English). action: reply.'
@@ -1368,11 +1377,17 @@ export function buildConversationHints(input: {
       message.role === "user" && classifyPostPurchaseCase(message.content) === "defect"
   )
 
+  const genericExchangeOpenerNotOrderMod =
+    classifyPostPurchaseCase(body) === "exchange_request" &&
+    isOrderModificationRequest(body) &&
+    !/(?:צבע|מידה|גודל|דגם|הזמנה)/i.test(body.trim())
+
   if (
     !shippingServiceThanksClose &&
     !wrongItemReplacementServiceContext &&
     !threadHasDefectCase &&
     !isServiceDefectOrderIdentificationThread(history, body) &&
+    !genericExchangeOpenerNotOrderMod &&
     (isOrderModificationRequest(body) ||
       isOrderModificationInThread(history, body) ||
       isBareModelChangeRequestInThread(history, body))
@@ -2507,7 +2522,7 @@ export function buildConversationHints(input: {
 
   if (isExplicitExchangeExecutionTurn(body, history)) {
     lines.push(
-      "EXPLICIT EXCHANGE EXECUTION: customer chose/wants החלפה — stay on exchange intake only (lookup_order_status → A/B/C quiz → create_switch_request). **Never** returns.carpetshop.co.il portal, **never** החזרה וביטול paths, **never** combined return+exchange policy in the same reply."
+      "EXPLICIT EXCHANGE EXECUTION: customer chose/wants החלפה — stay on exchange intake only (lookup_order_status → A/B/C quiz → create_switch_request). **Never** returns.carpetshop.co.il portal, **never** החזרה וביטול paths, **never** combined return+exchange policy in the same reply. **Never** `lookup_inventory` or branch-stock / מק״ט unless they already gave a מק״ט for a **pre-purchase** stock ask — exchange of a purchased rug is service, not sales catalog."
     )
   } else if (shouldOfferReturnOptionsFirst(body, history)) {
     lines.push(
