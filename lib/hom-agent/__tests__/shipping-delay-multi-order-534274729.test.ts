@@ -45,4 +45,40 @@ describe("shipping delay multi-order 534274729", () => {
     assert.match(BAD_RETURN_SUMMARY, /בקשת ההחזרה/)
     assert.match(BAD_RETURN_SUMMARY, /יאסוף/)
   })
+
+  it("hints dual lookup on follow-up when two SO already in thread (Oct 11)", () => {
+    const longHistory: HistoryMessage[] = [
+      ...historyThroughTwoOrders(),
+      { role: "user", content: TWO_ORDERS_BODY },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nאין כאן שום החזרה: הזמנת 2 שטיחים בשתי הזמנות SO26023885 ו-SO26023971.",
+      },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nבוקר טוב. אם זה בקשר לשני השטיחים מההזמנות SO26023885 ו-SO26023971, אני יכול לבדוק עכשיו מה מצב שתיהן.",
+      },
+    ]
+    const body = "רצוי מאוד כבר עברו שבועיים והשטיחים טרם הגיעו"
+    const hints = buildConversationHints({ body, history: longHistory }) ?? ""
+    assert.match(hints, /MULTI-ORDER STATUS CHECK \(534274729\)/)
+    assert.match(hints, /once per SO/)
+  })
+
+  it("hints dual lookup when customer asks about the second carpet", () => {
+    const longHistory: HistoryMessage[] = [
+      ...historyThroughTwoOrders(),
+      { role: "user", content: TWO_ORDERS_BODY },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)*\nבדקתי — הזמנה מוקדמת פורמולה 1 SO26023971, צפי 29/10/2026.",
+      },
+    ]
+    const body = "יש 2 שטיחים זה אמרת לי על השטיח הראשון מה עם השטיח השני?"
+    const hints = buildConversationHints({ body, history: longHistory }) ?? ""
+    assert.match(hints, /MULTI-ORDER STATUS CHECK \(534274729\)/)
+  })
 })

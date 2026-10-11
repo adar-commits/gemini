@@ -1129,6 +1129,9 @@ export function buildConversationHints(input: {
   const distinctSoInBody = new Set(
     (body.match(/\bSO\d+\b/gi) ?? []).map((id) => id.toUpperCase())
   )
+  const distinctSoInThread = new Set(
+    (multiOrderShippingCorpus.match(/\bSO\d+\b/gi) ?? []).map((id) => id.toUpperCase())
+  )
   const shippingDelayMultiOrderClarification =
     isShippingThreadFromHistory(history) &&
     (distinctSoInBody.size >= 2 ||
@@ -1137,6 +1140,18 @@ export function buildConversationHints(input: {
   if (shippingDelayMultiOrderClarification) {
     lines.push(
       "MULTI-ORDER SHIPPING DELAY (534274729): customer clarifies two+ SO numbers in a delivery-delay thread — call lookup_order_status for each and answer **outbound delivery** status/ETA. **Never** return-pickup / בקשת החזרה / איסוף שליח rep summary — ERP return flags on one order do NOT override their stated לא הגיע / תביאו את השטיחים. If you cannot show ETA for all → multi-order delivery ETA summary (532828502), not return service."
+    )
+  }
+
+  const multiOrderShippingStatusFollowUp =
+    isShippingThreadFromHistory(history) &&
+    distinctSoInThread.size >= 2 &&
+    !shippingDelayMultiOrderClarification &&
+    (isShippingStatusQuestion(body) ||
+      /(?:טרם\s+הגיע|עדיין\s+לא\s+הגיע|שבועיים|2\s*שטיח|מה\s+עם\s+השטיח\s+השנ)/i.test(body))
+  if (multiOrderShippingStatusFollowUp) {
+    lines.push(
+      "MULTI-ORDER STATUS CHECK (534274729): this thread already established two+ SO numbers for separate carpets — before any delivery/preorder status reply, call lookup_order_status **once per SO** and answer **both** in one message (clear bullet per order). Never reply with status for only one carpet when they are waiting on two."
     )
   }
 
