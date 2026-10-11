@@ -633,6 +633,29 @@ function threadHasPolicySlaBreachComplaint(history: HistoryMessage[]) {
   )
 }
 
+/** New-order delivery coordination / charge with no callback — recent thread before bare hello (533875414). */
+function isNewOrderDeliveryCoordinationComplaint(content: string) {
+  const text = content.trim()
+  if (!text) return false
+  const deliveryCoord =
+    /(?:תיאום\s+(?:ה)?(?:ה)?ובלה|(?:לא|טרם)\s+יצר(?:ו|ה)?\s+(?:אית(?:י|ך)|קשר))/i.test(text) &&
+    /(?:משלוח|הובלה|הזמנ(?:ה|תי)|שטיח)/i.test(text)
+  const chargeNoCallback =
+    /(?:ה)?(?:כסף|חיוב).{0,40}(?:אשראי|ירד)/i.test(text) &&
+    /(?:לא|אין).{0,80}(?:יצר(?:ו|ה)?|קשר|תגובה)/i.test(text)
+  const serviceOutrage = /שירות\s+בלתי\s+נסבל/i.test(text)
+  return deliveryCoord || chargeNoCallback || serviceOutrage
+}
+
+function hasRecentNewOrderDeliveryServiceComplaint(history: HistoryMessage[]) {
+  const userMessages = history
+    .filter((message) => message.role === "user")
+    .slice(-10)
+  return userMessages.some((message) =>
+    isNewOrderDeliveryCoordinationComplaint(message.content)
+  )
+}
+
 /** Opening ETA ask citing stale «הועמס לשליח» — lookup required before FAQ close (532005744). */
 function isStaleCourierLoadedEtaOpener(body: string) {
   const text = body.trim()
@@ -1432,6 +1455,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "RESOLVED SALES REOPEN GREETING (533146618): they already closed this sales chat (bought elsewhere / declined rep). Bare hello after a long gap = fresh start — mirror greeting and ask how to help (`action: reply`). **Never** belatedly answer an old unanswered question from weeks ago and **never** `human_sales` unless they ask for a rep or a new purchase request this turn."
+    )
+  }
+
+  if (
+    (isCasualGreeting(body) || isCasualSmallTalk(body)) &&
+    !hasImmediateBusinessAsk(body) &&
+    hasRecentNewOrderDeliveryServiceComplaint(history)
+  ) {
+    lines.push(
+      "SERVICE DELIVERY REOPEN (533875414): bare hello after a **recent** complaint about new-order delivery coordination / charge with no callback (תיאום הובלה, חיוב באשראי, שירות בלתי נסבל, בקשות נציג). **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי — bullet recap must cover **that** open service ask, **not** an older resolved exchange/החלפה or stale sales-intake topic from weeks ago. **Never** `human_sales` or «יועץ מכירות» / «החלפה» unless they explicitly ask for sales or a new purchase this turn."
     )
   }
 
