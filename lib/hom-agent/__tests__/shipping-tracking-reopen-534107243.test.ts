@@ -51,7 +51,7 @@ describe("shipping tracking reopen 534107243", () => {
 
   it("hints status-only reopen — not stale human_service", () => {
     const hints = buildConversationHints({ body: REOPEN, history }) ?? ""
-    assert.match(hints, /SHIPPING TRACKING REOPEN \(534107243\)/)
+    assert.match(hints, /SHIPPING STATUS REOPEN \(534107243/)
     assert.match(hints, /NEVER human_service/)
     assert.match(hints, /Prior-day handoff does not auto-repeat/)
     assert.match(hints, /lookup_order_status/)

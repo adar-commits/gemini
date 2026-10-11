@@ -268,6 +268,48 @@ function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   )
 }
 
+function orderReferenceKnownFromShippingContext(history: HistoryMessage[]) {
+  const identified = identifiedOrderNumberFromThread(history)
+  if (identified) return identified
+  const given = orderIdGivenInThread(history)
+  if (given) return given
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (
+      !/(?:אריזה|מחסן|משלוח|סטטוס|בדקתי|בבדיקה האחרונה|לפי המערכת)/i.test(
+        message.content
+      )
+    ) {
+      continue
+    }
+    const ref = extractOrderReference(message.content, history)
+    if (ref) return ref
+  }
+  return orderReferenceFromCustomerHistory(history)
+}
+
+function hasShippingStatusAnswerInThread(history: HistoryMessage[]) {
+  if (isOrderLookupCompletedInThread(history)) return true
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      !isInactivityAssistantMessage(message.content) &&
+      /(?:אריזה\s+(?:ב)?מחסן|בבדיקה האחרונה|לפי המערכת)/i.test(message.content) &&
+      Boolean(extractOrderReference(message.content, history))
+  )
+}
+
+function isPriorServiceHandoffForShippingDelay(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /\[שירות\]/i.test(message.content) &&
+      /(?:אין נציג|קיבלנו את הפנייה|ניצור)/i.test(message.content)
+  )
+}
+
 function hasAutomatedPaymentOutreachInThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
@@ -2089,16 +2131,20 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (
-    isOrderLookupCompletedInThread(history) &&
+  const knownOrderForShippingReopen = orderReferenceKnownFromShippingContext(history)
+  const shippingStatusReopenTurn =
+    Boolean(knownOrderForShippingReopen) &&
     isShippingThreadFromHistory(history) &&
     isShippingStatusQuestion(body) &&
     !isHumanHandoffPending(history) &&
-    !isServiceHandoffSummaryPending(history)
-  ) {
-    const known = orderIdGivenInThread(history)
+    !isServiceHandoffSummaryPending(history) &&
+    (isOrderLookupCompletedInThread(history) ||
+      (hasShippingStatusAnswerInThread(history) &&
+        isPriorServiceHandoffForShippingDelay(history)))
+
+  if (shippingStatusReopenTurn) {
     lines.push(
-      `SHIPPING TRACKING REOPEN (534107243): bare מעקב משלוח / סטטוס משלוח after lookup already ran on order ${known ?? "SO from thread"} — even if days ago there was courier-company handoff, a color/defect complaint, or an automated invoice between messages. This turn is shipping status only: call lookup_order_status to refresh OR answer from last status + tracking link. action reply or end — NEVER human_service and never «סימנתי לנציג» / «העברתי» from stale context unless THIS message explicitly asks for a rep. Prior-day handoff does not auto-repeat.`
+      `SHIPPING STATUS REOPEN (534107243 / 534083795): customer asks again for delivery news (e.g. «יש חדש עם ההזמנה?» / מעקב משלוח) on order ${knownOrderForShippingReopen} after lookup or a shipping-delay service handoff already ran — even if days ago there was courier handoff, OOO «אין נציגים», or an automated invoice between messages. Call lookup_order_status now for fresh ERP status — do not recycle stale «אריזה במחסן» without lookup. Brief empathy; if service already logged the delay case, say the team is on it — do not mark דחוף again. action reply or end — NEVER human_service and never «סימנתי לנציג» / «העברתי» unless THIS message explicitly asks for a rep. Prior-day handoff does not auto-repeat.`
     )
   }
 
