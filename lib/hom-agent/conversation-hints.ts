@@ -109,6 +109,7 @@ import {
 } from "@/lib/agents/digital-document-flow"
 import {
   isCheckoutPaymentSplitCancelThread,
+  isDuplicateChargeRefundTimelineFollowUp,
   isMembershipClubCheckoutQuestion,
 } from "@/lib/agents/payment-intent"
 import { salesOutreachTemplateInThread } from "@/lib/agents/sales-outreach"
@@ -2676,6 +2677,12 @@ export function buildConversationHints(input: {
       liveRepOnRefund
         ? "REFUND STATUS FOLLOW-UP (295276261): return/pickup already happened and a live rep was handling the refund — customer asks for an update (e.g. «יש חדש לגבי הזיכוי?»). Empathize for the wait; recap briefly that the case stays open with service; **do not** reopen generic «7 ימי עסקים מביטול העסקה» as if nothing was done and **do not** pretend you cannot see status without acknowledging the rep’s prior work. Set `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/סימנתי/מעלה בעדיפות — urgent re-escalation, not a fresh policy lecture."
         : "REFUND STATUS FOLLOW-UP (295276261): return/pickup already in thread — customer asks refund **status** (not how to return). Empathize; `action: human_service` + `crm_department: service` in the **same** JSON when you offer/check status with the team. Never only generic cancellation SLA with `action: reply`."
+    )
+  }
+
+  if (isDuplicateChargeRefundTimelineFollowUp(history, body)) {
+    lines.push(
+      "DUPLICATE CHARGE TIMELINE FOLLOW-UP (505729214): duplicate/extra card charge on the order is already with service after a prior handoff — customer asks **when** the money returns / to cancel one charge. Empathize for the wait; explain you cannot give an exact refund date from here (rep checks actual charges). Confirm the open case stays with service; you may say סימנתי שוב לצוות. **`action: reply`** — **never** «העברתי עכשיו» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
