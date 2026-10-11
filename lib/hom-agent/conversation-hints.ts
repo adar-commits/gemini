@@ -506,6 +506,20 @@ function isOverduePromisedDeliveryMention(body: string) {
   )
 }
 
+/** Order stuck in packaging/warehouse while customer waits a week+ (364984057). */
+function isPackagingWarehouseDelayFrustration(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  const packagingContext =
+    /(?:ארוז(?:ה|ים|ת)?|נארז(?:ה|ים|ת)?|אריז(?:ה|ת)?|(?:ב)?תהליכי\s+אריזה|(?:ב)?מחסן)/i.test(
+      text
+    )
+  const longWait =
+    /(?:כבר\s+)?(?:שבוע(?:יים)?|יותר\s+מ(?:ש)?בוע|ימ(?:ים|י)\s+ו)/i.test(text) ||
+    isOverduePromisedDeliveryMention(text)
+  return packagingContext && longWait
+}
+
 /** Opening ETA ask citing stale «הועמס לשליח» — lookup required before FAQ close (532005744). */
 function isStaleCourierLoadedEtaOpener(body: string) {
   const text = body.trim()
@@ -1580,6 +1594,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "STALE COURIER LOADED ETA (532005744): opening asks מתי/צפi and cites הועמס לשליח/על ידי שליח already יומיים+ — call lookup_order_status on channel phone first (534048082). Answer live status + ETA policy; acknowledge courier-stage delays when status matches. action reply — never generic FAQ-only + action end without running the tool."
+    )
+  }
+
+  if (
+    isPackagingWarehouseDelayFrustration(body) &&
+    !isHumanHandoffPending(history) &&
+    !isServiceHandoffSummaryPending(history)
+  ) {
+    lines.push(
+      "PACKAGING DELAY ESCALATION (364984057): customer reports the order stuck in packaging/warehouse already a week+ (may include an order screenshot). Run lookup_order_status when you can; if status is still packaging with no exact ship date and you decide a service rep must check — **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי **now** — never `action: reply` with declarative מעביר. Do not use service_summary_confirm when you already commit to immediate transfer."
     )
   }
 
