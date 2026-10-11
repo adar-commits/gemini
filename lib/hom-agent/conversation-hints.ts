@@ -183,6 +183,7 @@ import {
   isServiceHandoffSummaryRepeatRefinement,
   isServiceSummaryOrderReferenceClarification,
   isOpenServiceDefectFollowUpThread,
+  isOpenRefundCreditFollowUpThread,
   isServiceHandoffSummaryPending,
   isServiceHandoffSummaryText,
 } from "@/lib/agents/service-intake"
@@ -286,6 +287,7 @@ function hasOpenExchangeShippingDelayInThread(history: HistoryMessage[]) {
 }
 
 function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
+  if (isOpenRefundCreditFollowUpThread(history)) return true
   if (
     history.some(
       (message) => message.role === "user" && isRefundStatusInquiry(message.content)
@@ -333,6 +335,7 @@ function isRefundStatusFollowUpTurn(history: HistoryMessage[], body: string) {
   if (!trimmed || trimmed.length > 160) return false
   if (!hasPriorRefundOrReturnExecutionInThread(history)) return false
   if (isRefundStatusInquiry(trimmed) || isRefundTimelineQuestion(trimmed)) return true
+  if (isNonSubstantiveFollowUp(trimmed)) return true
   return /זיכוי/i.test(trimmed) && trimmed.length <= 80
 }
 
@@ -1349,6 +1352,10 @@ export function buildConversationHints(input: {
     ) {
       lines.push(
         "SHIPPING DELAY WAIT PING (360217272): customer pings (? / ??) while exchange/replacement delivery is still overdue — recap the **latest** open ask: delayed replacement shipment, tracking/SO from thread, weeks waiting and need an update. Run lookup_order_status on the exchange SO when status is stale. **Never** replay the original defect/receipt service-intake bullets (פגום/דהוי/שתי קבלות) unless they raised it again this turn. If you set human_service, bullets must match the shipping delay — not September's defect summary."
+      )
+    } else if (isOpenRefundCreditFollowUpThread(history)) {
+      lines.push(
+        "REFUND CREDIT WAIT PING (533700177): customer already returned and asked about credit/refund (זיכוי) — a ? / ?? ping is chasing that open service case, **not** a fresh sales chat. Brief empathy + confirm you are here; recap the return + credit question from the thread. **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי לנציג שירות — **never** resume stale sales intake (סידני / גודל סלון / יועץ מכירות) or **`human_sales`** on this thread."
       )
     } else {
       lines.push(

@@ -592,3 +592,21 @@ export function isOpenServiceDefectFollowUpThread(history: HistoryMessage[]) {
   if (isServiceHandoffSummaryPending(history)) return true
   return SERVICE_DEFECT_IN_PROGRESS_RE.test(corpus)
 }
+
+/** Return done + credit/refund question still open — not sales intake (533700177). */
+export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
+  const userTexts = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+  if (userTexts.length === 0) return false
+  const hasCreditAsk = userTexts.some(
+    (text) =>
+      /זיכוי/i.test(text) &&
+      /(?:עושים|(?:מ)?(?:קבל|ראה)|מתי|אפשר|מה\s+(?:קורה|המצב))/i.test(text)
+  )
+  const hasReturnDone = userTexts.some((text) =>
+    /(?:החזר(?:תי|נו|ה)|מסר(?:תי|נו).{0,40}(?:סניף|חנות))/i.test(text)
+  )
+  return hasCreditAsk && hasReturnDone
+}
