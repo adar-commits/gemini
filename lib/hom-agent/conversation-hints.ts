@@ -33,6 +33,7 @@ import {
   isPreorderEtaSharedInThread,
   isPostOrderShippingFollowUp,
   isShippingThreadFromHistory,
+  hadOrderNumberLookupMissOnChannelPhoneInThread,
   isNonReceiptShippingOpenerFromHistory,
   isOrderStatusDeliveredInThread,
   historyHasOrderPickExhaustedRecheck,
@@ -1737,6 +1738,17 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "SLA BREACH SHIPPING ESCALATION (534683087): confirmed order + delivery delay beyond stated business-day policy (בביצוע/מוקפא/הזמנה מוקדמת, no ETA in ERP). When you decide a service rep must check — **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי **now** — never `action: reply` with declarative מעביר. Never «הנציג כבר קיבל» on action reply without assigning."
+    )
+  }
+
+  if (
+    isShippingThreadFromHistory(history) &&
+    hadOrderNumberLookupMissOnChannelPhoneInThread(history) &&
+    !hasPriorRefundOrReturnExecutionInThread(history) &&
+    !isServiceOrderIdentificationFlow(history, body)
+  ) {
+    lines.push(
+      "SHIPPING ETA + LOOKUP MISS + REORDER CONTEXT (533871542): delivery/ETA thread — order card was confirmed but lookup missed on channel phone. Customer explaining wrong charge, זיכוי, or a newer order is **which order to track**, not dissatisfaction/return. **Never** the two-option exchange+return menu or returns portal. Empathize, ask for invoice / new SO / SMS order #, or service rep summary for צפי הגעה → **`action: human_service`** when you write מעביר. If they restate «רק רוצה לדעת מתי השטיח מגיע» — stay on shipping, not return FAQ."
     )
   }
 

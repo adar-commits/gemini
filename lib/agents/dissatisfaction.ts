@@ -12,9 +12,11 @@ import {
 } from "@/lib/agents/inquiry-intent"
 import { isExplicitExchangeExecutionTurn } from "@/lib/agents/exchange-intake"
 import {
+  hadOrderNumberLookupMissOnChannelPhoneInThread,
   isOrderDeliveryStatusQuestion,
   isServiceLookupContext,
   isShippingLookupContext,
+  isShippingThreadFromHistory,
   requiresOrderIdentification,
 } from "@/lib/agents/order-lookup"
 import { buildReturnsPortalUrl } from "@/lib/agents/policy-subjects"
@@ -36,6 +38,12 @@ export function shouldBlockReturnOptionsForShippingStatus(
   if (
     requiresOrderIdentification(body, history) &&
     isShippingLookupContext(body, history)
+  ) {
+    return true
+  }
+  if (
+    isShippingThreadFromHistory(history) &&
+    hadOrderNumberLookupMissOnChannelPhoneInThread(history)
   ) {
     return true
   }

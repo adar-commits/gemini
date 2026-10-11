@@ -1409,6 +1409,16 @@ export function isShippingThreadFromHistory(history: HistoryMessage[]) {
   )
 }
 
+/** Confirmed order id was not found on channel phone after lookup (533871542). Bot copy marker only. */
+export function hadOrderNumberLookupMissOnChannelPhoneInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      message.content.includes("לא מצאתי") &&
+      message.content.includes("על המספר שבדקתי")
+  )
+}
+
 /** ETA/shipping confirm thread — unknown delivery status stays action reply, not auto-handoff (532716685). */
 export function shouldDeferUnknownDeliveryStatusHandoff(history: HistoryMessage[]) {
   if (!isShippingThreadFromHistory(history)) return false
