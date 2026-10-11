@@ -722,6 +722,17 @@ function isDeliveryEtaThread(history: HistoryMessage[]) {
   )
 }
 
+/** Customer returned after inactivity close on an open shipping/ETA thread (404732305). */
+function isReopenedShippingEtaAfterInactivityClose(history: HistoryMessage[]) {
+  if (!orderIdGivenInThread(history)) return false
+  if (!isDeliveryEtaThread(history)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /נסגרה עקב (?:אי מענה|חוסר פעילות)/i.test(message.content)
+  )
+}
+
 /** Bot handed off claiming it cannot show status — lookup never ran (534269217). */
 function hasPrematureHandoffWithoutLookupInThread(history: HistoryMessage[]) {
   if (isOrderLookupCompletedInThread(history)) return false
@@ -1583,7 +1594,20 @@ export function buildConversationHints(input: {
     !shippingOpenerOrderId
   ) {
     lines.push(
-      `REPEAT ETA KNOWN ORDER (531872131): delivery thread already names order ${threadKnownOrder} — customer repeats מתי/מועד הגעה (e.g. after receipt ref RC…, automated invoice, or stale service summary). Call lookup_order_status with ${threadKnownOrder} now — answer status + ETA policy. Never "אין לי צפi מדויק" + human_service without running the tool first. Receipt/RC numbers are order refs on this thread — not fetch_digital_document. action reply unless they explicitly ask for a rep after status.`
+      `REPEAT ETA KNOWN ORDER (531872131 / 404732305): delivery thread already names order ${threadKnownOrder} — customer repeats מתי/מועד הגעה (e.g. after receipt ref RC…, automated invoice, stale service summary, or חוסר פעילות close). Call lookup_order_status with ${threadKnownOrder} now — answer status + ETA policy. Never "אין לי צפi מדויק" or human_service to "check actual status" without running the tool first. Receipt/RC numbers are order refs on this thread — not fetch_digital_document. action reply unless they explicitly ask for a rep after status.`
+    )
+  }
+
+  if (
+    isReopenedShippingEtaAfterInactivityClose(history) &&
+    (isShippingStatusQuestion(body) ||
+      isDeliveryEstimateQuestion(body) ||
+      isExpectReceiveDeliveryAsk(body)) &&
+    !isServiceOrderIdentificationFlow(history, body)
+  ) {
+    const known = orderIdGivenInThread(history)
+    lines.push(
+      `SHIPPING ETA REOPEN AFTER INACTIVITY (404732305): customer returned after חוסר פעילות close on the same delivery thread (order ${known ?? "from tracking"}) and asks מתי/מתיי יגיע המשלוח again. Prior bot confusion, a tracking-link-only FAQ, or an old pre-order ETA message does NOT justify human_service — call lookup_order_status with ${known} now and answer live status + ETA policy. Never apologize and transfer claiming a rep must check «סטטוס בפועל» or «צpי מדויק» before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
     )
   }
 
