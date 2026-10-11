@@ -552,7 +552,8 @@ export function isLikelyBudgetIntakeAnswer(body: string) {
 function questionKindForText(question: string): string | null {
   if (/אוקיי,\s+אני\s+מבין/i.test(question) && /אני\s+צודק/i.test(question)) return null
   if (/לגבי איסוף להחלפה\/החזרה|מצטער על הפגם|לגבי פריט חסר/i.test(question)) return null
-  if (/לאיזה חדר|לאיזה חלל|לאן השטיח/.test(question)) return "space"
+  if (/לאיזה חדר|לאיזה חלל|לאן (?:ה)?(?:שטיח|ראנר)|(?:^|\s)לאן .{0,24}מיועד/i.test(question))
+    return "space"
   if (/באיזה מוצר/.test(question)) return "product"
   if (/החדר משמש|איך חדר השינה/.test(question)) return "bedroom"
   if (/ילדים קטנים/.test(question)) return "children"
