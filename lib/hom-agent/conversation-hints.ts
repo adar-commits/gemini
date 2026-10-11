@@ -46,7 +46,10 @@ import {
   requiresOrderIdentification,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
-import { isDesignCenterLocationQuestion } from "@/lib/agents/branches"
+import {
+  isBranchOpeningHoursOfferPending,
+  isDesignCenterLocationQuestion,
+} from "@/lib/agents/branches"
 import { customerExplicitlyRequestsHuman } from "@/lib/agents/kb-self-service-faq"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
@@ -1113,6 +1116,7 @@ export function buildConversationHints(input: {
   const shippingServiceThanksClose =
     postHandoffThanksClose && isShippingThreadFromHistory(history)
   const branchStoreThanksClose = isBranchStoreAvailabilityThanksClose(body, history)
+  const branchOpeningHoursOfferPending = isBranchOpeningHoursOfferPending(history)
   const poufAssemblyFaqThread =
     isPoufAssemblyFaqThread(history) && !hasOngoingSalesIntake(history)
 
@@ -1306,6 +1310,12 @@ export function buildConversationHints(input: {
   if (branchStoreThanksClose) {
     lines.push(
       'BRANCH STORE AVAILABILITY THANKS CLOSE (534200437): customer asked if a product is in a branch/store to view — you answered yes/no briefly. Their thanks closes the thread — warm close (`action: end`, e.g. בכיף / שמחתי לעזור). **Never** `human_sales` / «העברתי ליועץ מכירות» — even if earlier in the thread there was a stock-alert handoff or product links. No rep needed.'
+    )
+  }
+
+  if (branchOpeningHoursOfferPending && !branchStoreThanksClose) {
+    lines.push(
+      "BRANCH HOURS CONFIRM (262402539): you offered to send branch opening hours — customer confirmed (כן) and may also ask address, branch phone, or branch manager contact. Answer from get_branch_info/KB in one reply (no follow-up question). Warm close (המשך יום נעים / מחכים לראות אותך) + **`action: end`** + `expects_reply: false` — CRM closes only on action end, never action reply after the FAQ is fully answered."
     )
   }
 

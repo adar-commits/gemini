@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { isRefundTimelineQuestion, isCantVisitBranchReturnHelp } from "@/lib/agents/inquiry-intent"
 import { isBranchReviewLinkRequest } from "@/lib/agents/branch-google-reviews"
+import { CUSTOMER_HEADER, type HistoryMessage } from "@/lib/agents/types"
 
 const kbPath = join(process.cwd(), "lib/agents/kb/faq.md")
 
@@ -88,6 +89,22 @@ export function isDesignCenterLocationQuestion(text: string) {
     /(?:inside|in|at)\s+(?:the\s+)?(?:design\s*cent(?:er|re)|redesign)/i.test(normalized) ||
     /(?:ב|בתוך|נמצא(?:ים|ות|ה)?\s+ב?)(?:מרכז\s+)?(?:ה)?עיצוב/i.test(normalized)
   )
+}
+
+/** Bot offered to send branch opening hours — next customer line is the hours/contact answer turn. */
+export function isBranchOpeningHoursOfferPending(history: readonly HistoryMessage[]) {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i]
+    if (msg?.role !== "assistant") continue
+    const body = msg.content.replace(CUSTOMER_HEADER, "").trim()
+    if (/עדיין כאן/i.test(body)) continue
+    return (
+      /\?/.test(body) &&
+      /(?:לשלוח|לשלוח\s+לך)/i.test(body) &&
+      /שעות(?:\s+(?:ה)?פתיחה|\s+פעילות)/i.test(body)
+    )
+  }
+  return false
 }
 
 export function isBranchListQuestion(text: string) {
