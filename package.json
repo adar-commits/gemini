@@ -22,7 +22,10 @@
     "contracts:import": "npx tsx scripts/contracts-import.ts",
     "contracts:scan": "npx tsx scripts/run-violation-scanner.ts",
     "verify:deploy": "npm run build",
-    "test:predeploy": "npm run test:gold && npm run test:contracts && npx tsx --test lib/hom-agent/__tests__/*.test.ts lib/agents/__tests__/*.test.ts lib/agent-core/__tests__/*.test.ts && npm run build"
+    "test:address-fixer": "npx tsx --test lib/address-fixer/__tests__/*.test.ts",
+    "address-fixer:snapshot": "npx tsx scripts/address-fixer-snapshot.ts",
+    "address-fixer:replay": "npx tsx scripts/address-fixer-replay.ts",
+    "test:predeploy": "npm run test:gold && npm run test:contracts && npx tsx --test lib/hom-agent/__tests__/*.test.ts lib/agents/__tests__/*.test.ts lib/agent-core/__tests__/*.test.ts && npm run test:address-fixer && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
