@@ -377,6 +377,19 @@ function isStoreCreditValidityExtensionRequest(body: string) {
   return true
 }
 
+function isInstitutionalPurchaseThread(corpus: string) {
+  return /בית\s*ספר|ביה["']?ס|מוסד|רכיש(?:ה|ה)\s+(?:ל|עבור\s+)?(?:בית\s*ספר|מוסד)/i.test(
+    corpus
+  )
+}
+
+function isCheckPaymentFollowUp(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  if (!/(?:צ['']?ק|צק)/i.test(text)) return false
+  return /(?:תשלום|לשלם|סניף|מוסד|העביר)/i.test(text)
+}
+
 function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: string) {
   const text = body.trim()
   if (!text || text.length > 280) return false
@@ -2891,6 +2904,17 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'SALES PHOTO DECLINE (534274234): optional room photo was offered — לא/אין/לא נוח/דילוג means **skip photo**, not handoff. Ack (אין בעיה, נדלג), continue intake → דרישות מיוחדות, then summary+human_sales. **`action: reply`** on this turn — **never** `human_sales` on photo decline alone.'
+    )
+  }
+
+  const institutionalCheckPaymentThread =
+    isInstitutionalPurchaseThread(
+      [...history.map((m) => m.content), body].join("\n")
+    ) && isCheckPaymentFollowUp(body)
+
+  if (institutionalCheckPaymentThread) {
+    lines.push(
+      'INSTITUTIONAL CHECK PAYMENT (534689164): בית ספר/מוסד thread — customer asks or repeats צ\'ק / תשלום / בסניף. Answer KB payment policy first (no checks; bank transfer in branches; credit card). Continue institutional intake (school space + approximate size) — **never** חדר שינה / מידת מיטה quiz. Check-only constraint → bullet recap + **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON when you write מעביר ליועץ מכירות.'
     )
   }
 
