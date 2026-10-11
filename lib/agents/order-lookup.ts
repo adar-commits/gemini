@@ -45,6 +45,7 @@ import {
 } from "@/lib/agents/service-intake"
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
 import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-template"
+import { customerTurnIncludedImage } from "@/lib/hom-agent/truncated-output"
 import type { AgentId } from "@/lib/agents/types"
 import {
   activeOrderLineItemVerificationRequest,
@@ -3320,6 +3321,12 @@ export function buildAlternatePhoneOrderResendPrompt(
 יש לי את מספר ההזמנה ${display}. כדי לבדוק את הסטטוס צריך את מספר הטלפון שעליו בוצעה ההזמנה — שלחו אותו (למשל 050-1234567).`
 }
 
+/** Customer sent a defect photo while we still need the order's phone — ack image, re-ask phone. */
+export function buildAlternatePhoneImageReceivedPrompt() {
+  return `${CUSTOMER_HEADER}
+קיבלתי את התמונה. כדי לחבר את ההזמנה — מה מספר הטלפון שבוצעה עליו ההזמנה?`
+}
+
 async function deliverOrderVerificationDocumentReply(phone: string) {
   const tried: string[] = []
   for (const documentType of ["קבלה", "חשבונית מס", "חשבונית מס קבלה"]) {
@@ -4056,6 +4063,9 @@ export async function resolveOrderShippingReply(input: {
     const resentOrder = extractOrderReference(body, history)
     if (resentOrder) {
       return buildAlternatePhoneOrderResendPrompt(resentOrder, history, body)
+    }
+    if (customerTurnIncludedImage(body) && !userProvidedPhone(body)) {
+      return buildAlternatePhoneImageReceivedPrompt()
     }
     return `${CUSTOMER_HEADER}
 לא זיהיתי מספר טלפון — שלחו את המספר (למשל 050-1234567).`

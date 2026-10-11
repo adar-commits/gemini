@@ -1987,6 +1987,16 @@ export function buildConversationHints(input: {
   }
 
   if (
+    isAlternatePhoneRequestPending(history) &&
+    /\[media:image:/i.test(body) &&
+    !userProvidedPhone(body)
+  ) {
+    lines.push(
+      "PHOTO DURING ALTERNATE PHONE ASK (512987123): customer sent `[media:image:…]` while you asked for the order phone — ack «קיבלתי את התמונה» and ask again for phone digits. Never «לא זיהיתי מספר טלפון» when the turn is only a photo."
+    )
+  }
+
+  if (
     input.whatsappPhone &&
     channelPhone(input.whatsappPhone) &&
     !isOrderLookupCompletedInThread(history) &&

@@ -4,6 +4,7 @@ import {
   isResolvedStatusCloseReply,
   isThanksAcknowledgment,
 } from "@/lib/agents/conversation-close"
+import { customerTurnIncludedImage } from "@/lib/hom-agent/truncated-output"
 import { isWhatsappAutoresponder } from "@/lib/agents/autoresponder"
 import type { BotAwaiting } from "@/lib/agents/bot-awaiting"
 import {
@@ -129,6 +130,7 @@ import {
   isShippingThreadFromHistory,
   isShippingAddressUpdateThread,
   isOrderLookupPhoneReplyPending,
+  isAlternatePhoneRequestPending,
   isOrderNumberRequestPending,
   isOrderNumberUnknownAnswer,
   isPhoneLookupConfirmNo,
@@ -434,13 +436,18 @@ function isExplicitThanks(body: string) {
 }
 
 function orderLookupStructuredBinding(body: string, history: HistoryMessage[] = []) {
+  const imageOnlyWhileAlternatePhoneAsk =
+    isAlternatePhoneRequestPending(history) &&
+    customerTurnIncludedImage(body) &&
+    userProvidedPhone(body) == null
   return (
     userProvidedPhone(body) != null ||
     isChannelPhoneSelfReference(body) ||
     extractOrderNumber(body) != null ||
     extractOrderReference(body, history) != null ||
     classifyDocumentNumber(body) != null ||
-    extractShippingOrderDocumentReference(body, history) != null
+    extractShippingOrderDocumentReference(body, history) != null ||
+    imageOnlyWhileAlternatePhoneAsk
   )
 }
 
