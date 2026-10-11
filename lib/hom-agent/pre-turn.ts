@@ -418,6 +418,7 @@ function shouldBindInactivityReplyToPriorQuestion(history: HistoryMessage[]) {
     isDesignerCodeRequestPending(history) ||
     isPostPurchaseIntentConfirmPending(history) ||
     isOrderLookupPhoneReplyPending(history) ||
+    isOrderNumberRequestPending(history) ||
     isTransferPromisedInThread(history)
   ) {
     return true

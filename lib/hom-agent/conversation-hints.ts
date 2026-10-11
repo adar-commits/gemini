@@ -1649,11 +1649,12 @@ export function buildConversationHints(input: {
     isAwaitingSalesIntakeAnswer(history) ||
     (isOrderConfirmationPending(history) && !postHandoffThread) ||
     isServiceHandoffSummaryPending(history) ||
-    isOrderLookupPhoneReplyPending(history)
+    isOrderLookupPhoneReplyPending(history) ||
+    isOrderNumberRequestPending(history)
 
   if (isInactivityPingPending(history) && inactivityAffirmation && bindInactivityToPrior) {
     lines.push(
-      'INACTIVITY PING BINDING: the last bot message was "עדיין כאן?" — treat short affirmations (כן/יכן/בטח/אשמח) as answering the **prior** substantive question (handoff confirm, intake summary, order confirm), NOT as a fresh "still here" ack. On handoff confirm → set action human_sales or human_service immediately.'
+      'INACTIVITY PING BINDING: the last bot message was "עדיין כאן?" — treat short affirmations (כן/יכן/בטח/אשמח) as answering the **prior** substantive question (handoff confirm, intake summary, order confirm, order-number / alternate-phone ask for lookup), NOT as a fresh "still here" ack. On handoff confirm → set action human_sales or human_service immediately. On open order-id ask → brief empathy + repeat the order-number / phone ask (375364836) — never generic "איך אוכל להמשיך לעזור?".'
     )
   }
 
