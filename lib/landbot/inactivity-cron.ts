@@ -202,7 +202,13 @@ async function backfillSessionActivityTimestamps(deadline: number, limit = 50) {
 function shouldSkipIdle(row: IdleSessionRow) {
   if (asText(row.inactivity_closed_at)) return true
   const lastAction = asText(row.last_action)
-  if (lastAction === "human_service" || lastAction === "human_sales") return true
+  if (
+    lastAction === "human_service" ||
+    lastAction === "human_sales" ||
+    lastAction === "end"
+  ) {
+    return true
+  }
   return false
 }
 

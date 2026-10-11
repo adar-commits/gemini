@@ -184,6 +184,41 @@ export function customerRespondedToHandoffWithoutConfirm(history: HistoryMessage
   return false
 }
 
+/**
+ * Customer pivoted to another ask after a handoff offer and the bot answered — the offer
+ * must not silent-assign later (534087362).
+ */
+export function isHandoffOfferAbandonedInThread(history: HistoryMessage[]) {
+  let offerIndex = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (
+      isHumanHandoffOfferText(message.content) ||
+      messageAwaits(message, "handoff_confirm")
+    ) {
+      offerIndex = index
+      break
+    }
+  }
+  if (offerIndex === -1) return false
+
+  for (let index = offerIndex + 1; index < history.length; index += 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    const text = message.content ?? ""
+    if (isHumanHandoffAffirmation(text) || isHumanHandoffDecline(text)) continue
+    for (let j = index + 1; j < history.length; j += 1) {
+      const follow = history[j]
+      if (follow.role !== "assistant") continue
+      if (isInactivityAssistantMessage(follow.content)) continue
+      return true
+    }
+  }
+  return false
+}
+
 /** Meta / unrelated messages that are not HoM business. */
 export function isOffTopicQuestion(body: string) {
   const text = body.trim()

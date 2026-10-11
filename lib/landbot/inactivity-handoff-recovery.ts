@@ -6,7 +6,10 @@ import {
   clearInactivityWatchState,
   recordProactiveAssistantMessage,
 } from "@/lib/agents/memory"
-import { inferHumanHandoffAction } from "@/lib/agents/off-topic"
+import {
+  inferHumanHandoffAction,
+  isHandoffOfferAbandonedInThread,
+} from "@/lib/agents/off-topic"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   isActiveSalesConsultation,
@@ -49,6 +52,15 @@ export async function executeInactivityHandoffRecovery(input: {
   /** @deprecated Always notifies the customer — kept for call-site compatibility. */
   silent?: boolean
 }) {
+  if (isHandoffOfferAbandonedInThread(input.history)) {
+    await clearInactivityWatchState(input.conversationId)
+    return {
+      ok: true as const,
+      sent: "skipped_abandoned_handoff" as const,
+      action: "human_service" as const,
+    }
+  }
+
   const action = resolveInactivityHandoffAction(
     input.history,
     input.lastAgent ?? null

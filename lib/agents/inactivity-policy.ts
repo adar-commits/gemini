@@ -18,6 +18,7 @@ import {
 } from "@/lib/agents/product-handoff"
 import {
   customerRespondedToHandoffWithoutConfirm,
+  isHandoffOfferAbandonedInThread,
   isHumanHandoffOfferPending,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
@@ -135,6 +136,7 @@ export function shouldSilentAutoAssignOnQuietWindow(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (isHandoffOfferAbandonedInThread(history)) return false
   if (hasOpenSalesIntakeQuestion(history, lastAgent)) return false
   if (shouldSkipInactivityPingForSalesHandoff(history, lastAgent)) return true
   if (isHumanHandoffPending(history)) {
