@@ -370,11 +370,7 @@ export function runPreTurnGuards(input: {
     }
   }
 
-  if (
-    isThanksAcknowledgment(body) &&
-    explicitThanks &&
-    isPostHumanHandoff(null, input.history)
-  ) {
+  if (isThanksAcknowledgment(body) && isPostHumanHandoff(null, input.history)) {
     return {
       kind: "handled",
       reply: buildThanksAckReply(input.customerName, { postHandoff: true }),
