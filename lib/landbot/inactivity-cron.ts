@@ -557,14 +557,15 @@ async function attemptInactivityPing(row: IdleSessionRow) {
     return "skipped" as const
   }
 
+  if (
+    hasOpenFaqFollowUpQuestion(context.history, context.lastAgent) ||
+    hasOpenSalesIntakeQuestion(context.history, context.lastAgent)
+  ) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
+
   if (!(await crmConversationAllowsServiceInactivity(row.conversation_id))) {
-    if (
-      hasOpenFaqFollowUpQuestion(context.history, context.lastAgent) ||
-      hasOpenSalesIntakeQuestion(context.history, context.lastAgent)
-    ) {
-      await clearInactivityWatchState(row.conversation_id)
-      return "skipped" as const
-    }
     await executeInactivitySilentQueueRecovery({
       conversationId: row.conversation_id,
       customerId,
@@ -615,6 +616,17 @@ async function attemptInactivityClose(row: CloseCandidate) {
     return "skipped" as const
   }
   if (msSince(pingAt) < INACTIVITY_CLOSE_AFTER_PING_MS) return "skipped" as const
+
+  if (
+    hasOpenFaqFollowUpQuestion(context.history, context.lastAgent) ||
+    hasOpenSalesIntakeQuestion(context.history, context.lastAgent)
+  ) {
+    await executeInactivityServiceClose({
+      conversationId: row.conversation_id,
+      customerId,
+    })
+    return "closed" as const
+  }
 
   if (salesRecovery) {
     await executeInactivitySalesRecovery({

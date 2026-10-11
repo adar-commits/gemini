@@ -2,6 +2,7 @@ import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
 import {
   INACTIVITY_HANDOFF_AUTO_ASSIGN_MS,
   INACTIVITY_PING_MS,
+  isInactivityAssistantMessage,
   lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
 import { isActiveInventoryThread, isSkuRequestPending } from "@/lib/agents/inventory-lookup"
@@ -112,19 +113,45 @@ export function hasOpenSalesIntakeQuestion(
   )
 }
 
+function isProceduralAssistantInterruption(text: string) {
+  const body = text.replace(CUSTOMER_HEADER, "").trim()
+  if (!body) return true
+  if (/קוד האימות/.test(body)) return true
+  return body.length < 20
+}
+
+/** Last user turn index — used to detect unanswered bot questions. */
+function lastUserMessageIndex(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index].role === "user") return index
+  }
+  return -1
+}
+
 export function hasOpenFaqFollowUpQuestion(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
   if (hasPendingCustomerInputThreadState(history, lastAgent)) return false
   if (isHumanHandoffPending(history)) return false
-  const lastText = lastNonInactivityAssistantText(history)
-  if (!lastText) return false
-  if (endsWithOptionalFollowUpOffer(lastText)) return false
-  const assistantBody = lastText.replace(CUSTOMER_HEADER, "").trim()
-  if (!assistantBody || assistantBody.length < 20) return false
-  if (!/[?؟]/.test(assistantBody)) return false
-  return true
+
+  const lastUserIndex = lastUserMessageIndex(history)
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isProceduralAssistantInterruption(message.content)) continue
+
+    const text = message.content
+    if (endsWithOptionalFollowUpOffer(text)) continue
+    const assistantBody = text.replace(CUSTOMER_HEADER, "").trim()
+    if (!assistantBody || assistantBody.length < 20) continue
+    if (!/[?؟]/.test(assistantBody)) continue
+    return index > lastUserIndex
+  }
+
+  return false
 }
 
 /**
