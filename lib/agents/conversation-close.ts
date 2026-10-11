@@ -71,8 +71,13 @@ export function isSkippableClosingAssistantMessage(content: string) {
 /** Punctuation-only follow-ups ("?", "???") — not a new business ask. */
 export function isNonSubstantiveFollowUp(body: string) {
   const text = body.trim()
-  if (!text || text.length > 12) return false
-  return /^[?!.,\s🙏👍]+$/u.test(text)
+  if (!text) return false
+  if (text.length <= 12 && /^[?!.,\s🙏👍]+$/u.test(text)) return true
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean)
+  if (lines.length >= 1 && lines.length <= 3 && text.length <= 80 && /^[?\s]+$/u.test(lines[0]!)) {
+    return true
+  }
+  return false
 }
 
 /** Common misspellings of תודה — not a quiz answer or new request. */

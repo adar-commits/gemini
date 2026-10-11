@@ -192,6 +192,7 @@ import {
   isServiceSummaryOrderReferenceClarification,
   isOpenServiceDefectFollowUpThread,
   isOpenRefundCreditFollowUpThread,
+  isOpenPreorderDelayCompensationFollowUpThread,
   isServiceHandoffSummaryPending,
   isServiceHandoffSummaryText,
 } from "@/lib/agents/service-intake"
@@ -1545,6 +1546,10 @@ export function buildConversationHints(input: {
     ) {
       lines.push(
         "SHIPPING DELAY WAIT PING (360217272): customer pings (? / ??) while exchange/replacement delivery is still overdue — recap the **latest** open ask: delayed replacement shipment, tracking/SO from thread, weeks waiting and need an update. Run lookup_order_status on the exchange SO when status is stale. **Never** replay the original defect/receipt service-intake bullets (פגום/דהוי/שתי קבלות) unless they raised it again this turn. If you set human_service, bullets must match the shipping delay — not September's defect summary."
+      )
+    } else if (isOpenPreorderDelayCompensationFollowUpThread(history)) {
+      lines.push(
+        "PREORDER DELAY WAIT PING (528931762): customer is waiting for answers after pre-order delay — they asked about a promised arrival date, delay, lower price now vs what they paid, and/or compensation (פיצוי). Brief empathy + confirm you are here. On human_service, recap **all** open asks from the thread (מועד 10/10 vs ERP pre-order date, price difference, compensation policy check) — **never** only repeat stock ETA from lookup while ignoring פיצוי/מחיר. Do not promise compensation (Voice rule 13); the rep checks policy. **`crm_department: service`**, **`action: human_service`** in the same JSON when you write מעביר/העברתי."
       )
     } else if (isOpenRefundCreditFollowUpThread(history)) {
       lines.push(

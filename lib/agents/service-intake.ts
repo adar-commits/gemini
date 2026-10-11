@@ -615,6 +615,30 @@ export function isOpenServiceDefectFollowUpThread(history: HistoryMessage[]) {
   return SERVICE_DEFECT_IN_PROGRESS_RE.test(corpus)
 }
 
+/** Pre-order delay thread with open compensation / price / promised-date asks (528931762). */
+export function isOpenPreorderDelayCompensationFollowUpThread(history: HistoryMessage[]) {
+  const userTexts = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+  if (userTexts.length === 0) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  const hasPreorderContext =
+    /(?:הזמנה\s+מוקדמת|Pre Order|חידוש\s+מלאי)/i.test(corpus) ||
+    userTexts.some((text) =>
+      /(?:יגיע|הגיע|מועד|אמר(?:ו|ה)\s+ל)/i.test(text)
+    )
+  if (!hasPreorderContext) return false
+  return userTexts.some(
+    (text) =>
+      /פיצוי/i.test(text) ||
+      (/(?:עיכוב|מאחר)/i.test(text) &&
+        /(?:זול|מחיר|יקר)/i.test(text)) ||
+      (/(?:עיכוב|מאחר)/i.test(text) &&
+        /(?:יגיע|הגיע|מועד|10\/10)/i.test(text))
+  )
+}
+
 /** Return done + credit/refund question still open — not sales intake (533700177). */
 export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
   const userTexts = history
