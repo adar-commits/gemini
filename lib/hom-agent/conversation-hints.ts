@@ -2796,7 +2796,7 @@ export function buildConversationHints(input: {
       hasRoomPhotoInHistory(history))
   ) {
     lines.push(
-      "SALES ROOM PHOTO: reference for the human advisor only — **one** ack line (תודה, קיבלתי את התמונה) without אעביר/מעביר until `action: human_sales`, then next intake step (usually pets or דרישות מיוחדות). Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. **Never re-ask pets or any other intake step already answered in the thread.** Do NOT describe/analyze the image."
+      "SALES ROOM PHOTO (489989676): reference for **יועץ המכירות** only — **one** ack line (תודה, קיבלתי את התמונה) without אעביר/מעביר until `action: human_sales`, then next intake step (usually pets or דרישות מיוחדות). **Never** יועץ העיצוב / יועץ עיצוב — sales sizing/פוף intake is always יועץ מכירות at handoff. Never stack a second קיבלתי/אוקיי קיבלתי and never re-ask for a photo they just sent. **Never re-ask pets or any other intake step already answered in the thread.** Do NOT describe/analyze the image."
     )
   } else if (/\[media:image:/i.test(body) && poufAssemblyFaqThread) {
     lines.push(

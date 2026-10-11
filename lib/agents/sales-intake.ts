@@ -344,11 +344,12 @@ export function countCustomerImagesInTurn(turn: UserTurn) {
 
 /** Customer-stated rug dimensions (80*150, 80×150, 200/290) — format extraction only. */
 export function hasExplicitRugDimensionsInText(text: string): boolean {
-  if (!text.trim()) return false
+  const stripped = text.replace(/\[media:image:[^\]]+\]/gi, "").trim()
+  if (!stripped) return false
   return (
-    /\d\s*[*×xX]\s*\d/.test(text) ||
-    /\d\s*\/\s*\d/.test(text) ||
-    /\d\s*[-–]\s*\d\s*מ(?:['']|׳|טר)?/i.test(text)
+    /\d\s*[*×xX]\s*\d/.test(stripped) ||
+    /\d\s*\/\s*\d/.test(stripped) ||
+    /\d\s*[-–]\s*\d\s*מ(?:['']|׳|טר)?/i.test(stripped)
   )
 }
 
