@@ -471,6 +471,23 @@ function isCallbackRepeatAfterHandoff(history: HistoryMessage[], body: string) {
   )
 }
 
+/** Shipping/delivery thread with logged callback — video-only follow-up stays service (528910185). */
+function isShippingCallbackFollowUpThread(history: HistoryMessage[]) {
+  if (!isShippingThreadFromHistory(history)) return false
+  const userAskedCallback = history.some(
+    (message) => message.role === "user" && CALLBACK_ASK_RE.test(message.content)
+  )
+  if (!userAskedCallback) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      (PRIOR_CALLBACK_HANDOFF_RE.test(message.content) ||
+        /(?:לגבי\s+)?(?:ה)?משלוח|שיח(?:ה|זר) חוזר(?:ת)?|שיחזר(?:ו|ה)\s+אלי/i.test(
+          message.content
+        ))
+  )
+}
+
 function isStoreCreditValidityExtensionRequest(body: string) {
   const text = body.trim()
   if (!text || text.length > 400) return false
@@ -3062,6 +3079,15 @@ export function buildConversationHints(input: {
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
       'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
+    )
+  } else if (
+    /\[media:video:/i.test(body) &&
+    (isShippingCallbackFollowUpThread(history) ||
+      isServicePhotoAnalysisContext(history, body) ||
+      isServiceOrderIdentificationFlow(history, body))
+  ) {
+    lines.push(
+      'SERVICE SHIPPING VIDEO (528910185): open shipping/delivery or service callback thread — customer sent a video you **cannot watch**. Brief ack; bullet recap (order/shipment, callback urgency, prior asks). **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי — **never** `human_sales` / יועץ מכירות. You may ask one short text line what the video shows — must not block handoff. Never ask them to resend the video.'
     )
   } else if (/\[media:video:/i.test(body)) {
     lines.push(
