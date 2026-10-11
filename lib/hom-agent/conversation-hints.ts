@@ -24,6 +24,7 @@ import {
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
   isOrderLookupCompletedInThread,
+  identifiedOrderNumberFromThread,
   isOrderModificationInThread,
   documentReferenceGivenInThread,
   mentionsCancellationDesire,
@@ -597,6 +598,20 @@ function isWebsitePromisedDeliveryStatusOpener(body: string) {
     /(?:ב)?(?:א?)תר/i.test(text) &&
     /(?:משלוח|אספקה|צפוי)/i.test(text)
   )
+}
+
+/** Customer cites prior WhatsApp/rep delivery window — not a bare handoff confirm (530178411). */
+function isPriorChannelDeliveryPromiseDispute(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  const citesPriorMessage =
+    /(?:הודע(?:תם|ו)|אמר(?:ו|ת)|נ(?:אמר|כתב)|הבטח(?:ו|ת)|דיבר(?:ו|ת))/i.test(text) &&
+    /(?:ווצאפ|whatsapp|נציג|שירות)/i.test(text)
+  const citesWindow =
+    /(?:ה)?שבוע(?:(?: ה)?זה)?|(?:ב)?מהלך\s+שבוע|ימ(?:ים|י)/i.test(text) ||
+    isDeliveryEstimateQuestion(text) ||
+    isOrderDeliveryStatusQuestion(text)
+  return citesPriorMessage && citesWindow
 }
 
 /** Bot answered with generic warehouse/ETA FAQ — lookup never ran (534111673). */
@@ -1999,6 +2014,20 @@ export function buildConversationHints(input: {
   if (isOrderLookupCompletedInThread(history)) {
     lines.push(
       "ORDER LOOKUP COMPLETED: order card already confirmed — NEVER call lookup_order_status or re-ask phone unless refreshing status for a new shipping question. Never say 'כבר מצאנו את ההזמנה' — customer does not care. Never offer unsolicited ביטול/החזרה/העברה menus — let them state intent. Shipping follow-ups (מתי יגיע/יסופק/יבוצע ההספקה, עבר שבוע, מי חברת השליחויות) → answer from last status + policy; courier name unavailable in ERP → say so + optional rep. Rep request (העברה לנציג / נציג שירות) → human_service immediately. Return menu 1/2 after policy → portal/courier instructions from KB, not lookup."
+    )
+  }
+
+  const promiseDisputeOrder =
+    orderIdGivenInThread(history) ?? identifiedOrderNumberFromThread(history)
+  if (
+    promiseDisputeOrder &&
+    isDeliveryEtaThread(history) &&
+    isPriorChannelDeliveryPromiseDispute(body) &&
+    !isKnownOrderConfirmPending(history) &&
+    !isServiceOrderIdentificationFlow(history, body)
+  ) {
+    lines.push(
+      `PRIOR WHATSAPP/REP DELIVERY PROMISE (530178411): order ${promiseDisputeOrder} on this shipping thread — customer cites rep/WhatsApp timing (e.g. «השבוע») vs still waiting. **Refresh:** call lookup_order_status with ${promiseDisputeOrder} now (overrides stale «בביצוע» from weeks ago). Empathize briefly, answer live status + ETA policy from the tool. Never «מכאן אני לא רואה מועד מדויק» or human_service before lookup — human_service only if lookup fails AND they explicitly ask for a rep this turn. action reply.`
     )
   }
 
