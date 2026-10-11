@@ -503,6 +503,18 @@ function isStaleCourierLoadedEtaOpener(body: string) {
   )
 }
 
+/** Opening cites website promised delivery + asks live order/shipping status (533793181). */
+function isWebsitePromisedDeliveryStatusOpener(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (!isOrderDeliveryStatusQuestion(text) && !isShippingStatusQuestion(text)) return false
+  return (
+    /(?:רשום|הופיע|כתוב|זוכר(?:ת|ים)?)/i.test(text) &&
+    /(?:ב)?(?:א?)תר/i.test(text) &&
+    /(?:משלוח|אספקה|צפוי)/i.test(text)
+  )
+}
+
 /** Bot answered with generic warehouse/ETA FAQ — lookup never ran (534111673). */
 function hasGenericEtaFaqWithoutLookupInThread(history: HistoryMessage[]) {
   if (isOrderLookupCompletedInThread(history)) return false
@@ -1457,6 +1469,16 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "ORDER STATUS OPENING (532163951 / 532360395 / 533691332 / 532250107): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את השטיח\" without רק/חסר/חלק is NOT missing_item. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
+    )
+  }
+
+  if (
+    isWebsitePromisedDeliveryStatusOpener(body) &&
+    !isOrderLookupCompletedInThread(history) &&
+    !isServiceOrderIdentificationFlow(history, body)
+  ) {
+    lines.push(
+      "WEBSITE PROMISED DELIVERY + STATUS (533793181): customer cites what the site showed (משלוח צפוי / עד תאריך) and asks live order/shipping status — call lookup_order_status on channel phone first. Answer from tool output + ETA policy. Never open with a meta FAQ defining what «סטטוס» means or «האם להעביר לנציג» before lookup. action reply — human_service only after lookup fails or they explicitly ask for a rep."
     )
   }
 
