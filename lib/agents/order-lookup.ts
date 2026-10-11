@@ -259,6 +259,18 @@ export function isOrderCardText(content: string) {
   return ORDER_CARD_RE.test(content)
 }
 
+/** SO/IN/OV named on the order confirmation card — skipped by orderIdOfferedByAssistant. */
+export function orderIdFromOrderConfirmationCard(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (!isOrderCardText(message.content)) continue
+    const id = extractOrderNumberFromConfirmationPrompt(message.content)
+    if (id) return id
+  }
+  return null
+}
+
 export function countOrderConfirmationPrompts(history: HistoryMessage[]) {
   let count = 0
   for (const message of history) {
@@ -1084,6 +1096,7 @@ export function supplementalOrderReferencesForLookup(
 /** Order reference from customer reply — prefixed (SO/IN/OV), Shopify #, or bare digits (not a phone). */
 export function extractOrderReference(rawText: string, history: HistoryMessage[] = []) {
   const text = stripMediaAndUrls(rawText)
+  if (classifyDocumentNumber(text)) return null
   if (isAwaitingSalesIntakeAnswer(history) && !isOrderNumberRequestPending(history)) {
     const kind = pendingSalesIntakeQuestionKind(history)
     if (kind === "budget" && isLikelyBudgetIntakeAnswer(text)) return null
@@ -3507,6 +3520,18 @@ async function lookupOrderByReference(input: {
       return replyAfterOrderIdentified(
         byDocument,
         input.lookupPhone,
+        input.history,
+        input.body
+      )
+    }
+    const sorted = sortOrdersNewestFirst(orders)
+    const cardOrderId = orderIdFromOrderConfirmationCard(input.history)
+    const knownMatch =
+      matchedKnownOrderOnPhone(sorted, input.history) ??
+      (cardOrderId ? findOrderByNumber(sorted, cardOrderId) : null)
+    if (knownMatch) {
+      return buildOrderConfirmationPrompt(
+        knownMatch,
         input.history,
         input.body
       )
