@@ -268,6 +268,22 @@ function hasAutomatedPaymentOutreachInThread(history: HistoryMessage[]) {
   )
 }
 
+/** Exchange/replacement tracking sent but customer keeps asking when it arrives (360217272). */
+function hasOpenExchangeShippingDelayInThread(history: HistoryMessage[]) {
+  const hasTrackingOrSo = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:tracking\.carpetshop\.co\.il|\bSO\d{8,}\b)/i.test(message.content)
+  )
+  if (!hasTrackingOrSo) return false
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      /(?:משלוח|הגיע|יגיע|מחכה|עדכון|מה\s+נסגר)/i.test(message.content) &&
+      /(?:עבר(?:ו)?|שבוע|שלושה|כמעט|היום|דחוף|\?\?)/i.test(message.content)
+  )
+}
+
 function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
   if (
     history.some(
@@ -1257,9 +1273,18 @@ export function buildConversationHints(input: {
     !greetingAfterDocumentDelivery &&
     (isNonSubstantiveFollowUp(body) || isCasualSmallTalk(body))
   ) {
-    lines.push(
-      'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
-    )
+    if (
+      isShippingThreadFromHistory(history) &&
+      hasOpenExchangeShippingDelayInThread(history)
+    ) {
+      lines.push(
+        "SHIPPING DELAY WAIT PING (360217272): customer pings (? / ??) while exchange/replacement delivery is still overdue — recap the **latest** open ask: delayed replacement shipment, tracking/SO from thread, weeks waiting and need an update. Run lookup_order_status on the exchange SO when status is stale. **Never** replay the original defect/receipt service-intake bullets (פגום/דהוי/שתי קבלות) unless they raised it again this turn. If you set human_service, bullets must match the shipping delay — not September's defect summary."
+      )
+    } else {
+      lines.push(
+        'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
+      )
+    }
   }
 
   if (lastAssistant && endsWithOptionalFollowUpOffer(lastAssistant)) {
