@@ -450,6 +450,13 @@ function isRefundStatusFollowUpTurn(history: HistoryMessage[], body: string) {
   return /זיכוי/i.test(trimmed) && trimmed.length <= 80
 }
 
+/** Polite confirm after rep offer — not a pivot to a new ask (534415948). */
+function isPoliteHandoffConfirm(body: string) {
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 48) return false
+  return /^אין\s+בעיה(?:[\s,.!?💕❤️🩷]*)$/u.test(trimmed)
+}
+
 const CALLBACK_ASK_RE =
   /(?:ת(?:ת|)קשר(?:ו|י)?|(?:ל)?(?:ה)?תקשר(?:ו|י)?|אנא\s+התקשר|בבקשה\s+ת(?:ת|)קשר|חז(?:ור|ר(?:ו|ה))\s+אלי(?:י|ך))/i
 
@@ -1499,7 +1506,8 @@ export function buildConversationHints(input: {
     isHumanHandoffPending(history) &&
     customerRespondedToHandoffWithoutConfirm(history) &&
     !isHumanHandoffAffirmation(body) &&
-    !isHumanHandoffDecline(body)
+    !isHumanHandoffDecline(body) &&
+    !isPoliteHandoffConfirm(body)
   ) {
     lines.push(
       "HANDOFF OFFER — NON-CONFIRM REPLY (533962351): customer answered the rep offer with a different message (not כן/לא) — fulfill their ask or warm-close. Visit intent + thanks (אגיע לשם / נגיע / אבוא) → `action: end` with בכיף/תתחדשi — **never** `human_sales`, never re-offer יועץ מכירות on the closing turn."
@@ -1509,14 +1517,16 @@ export function buildConversationHints(input: {
   if (
     isHumanHandoffPending(history) &&
     !kbSelfServiceFaqThisTurn &&
-    !customerRespondedToHandoffWithoutConfirm(history)
+    (!customerRespondedToHandoffWithoutConfirm(history) || isPoliteHandoffConfirm(body))
   ) {
     const handoffAction = inferHumanHandoffAction(history, null)
-    const documentHandoff = documentLookupFailureOfferedInThread(history)
+    const documentHandoff =
+      documentLookupFailureOfferedInThread(history) && !isDeliveryEtaThread(history)
+    const handoffPendingLine = `HANDOFF OFFER PENDING: any confirm (כן / כן אני אשמח / כן, תודה / בסדר / אוקיי / אין בעיה / bare כן alone) → set action ${handoffAction} NOW in the same JSON — short transfer line paired with action. After lookup-failure rep offer on shipping/ETA — **never** answer generic «הזמנה בדרך» FAQ in the same turn; offline queue text is appended by the system. Never re-ask phone or restart document intake. Never write מעביר/העברתי with action reply only. Thanks alone (no confirm) → remind they can write כן.`
     lines.push(
       documentHandoff
         ? `DOCUMENT HANDOFF PENDING: getDocument already ran for this phone — customer confirms rep transfer (כן / כן אני אשמח / כן, תודה / bare כן). Set action ${handoffAction} NOW — never re-ask "האם העסקה רשומה על המספר", never call fetch_digital_document or lookup_order_status again.`
-        : `HANDOFF OFFER PENDING: any confirm (כן / כן אני אשמח / כן, תודה / בסדר / אוקיי / bare כן alone) → set action ${handoffAction} NOW in the same JSON — short transfer line paired with action. Never re-ask phone or restart document intake. Never write מעביר/העברתי with action reply only. Thanks alone (no confirm) → remind they can write כן.`
+        : handoffPendingLine
     )
   }
 
@@ -1718,9 +1728,19 @@ export function buildConversationHints(input: {
   ) {
     const handoffAction = inferHumanHandoffAction(history, null)
     if (!isHumanAgentTeamOnline(handoffAction)) {
-      lines.push(
-        "AFTER-HOURS HANDOFF: reps are offline. If the customer confirms the transfer, set action human_sales or human_service; the system appends one offline notice at the end. In reply keep only what still helps (answer / recap) — do NOT write transfer lines (מעביר ליועץ / יחזור אליכם / ניצור קשר), they duplicate the notice. Nothing to add → empty reply."
-      )
+      if (
+        isDeliveryEtaThread(history) &&
+        isHumanHandoffPending(history) &&
+        (isHumanHandoffAffirmation(body) || isPoliteHandoffConfirm(body))
+      ) {
+        lines.push(
+          "AFTER-HOURS SHIPPING HANDOFF CONFIRM (534415948): customer confirmed rep transfer after lookup failure on delivery/ETA — set action human_service; **empty reply** (system adds offline queue). Never generic «הזמנה בדרך» / courier-calls-today FAQ in the handoff turn."
+        )
+      } else {
+        lines.push(
+          "AFTER-HOURS HANDOFF: reps are offline. If the customer confirms the transfer, set action human_sales or human_service; the system appends one offline notice at the end. In reply keep only what still helps (answer / recap) — do NOT write transfer lines (מעביר ליועץ / יחזור אליכם / ניצור קשר), they duplicate the notice. Nothing to add → empty reply."
+        )
+      }
     }
   }
 
