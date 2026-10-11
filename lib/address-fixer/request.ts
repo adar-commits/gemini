@@ -104,6 +104,21 @@ export async function readAddressFixerInput(request: Request): Promise<{
     raw = ""
   }
   const trimmed = raw.trim()
+  const contentType = request.headers.get("content-type") ?? ""
+
+  if (trimmed && contentType.toLowerCase().includes("multipart/form-data")) {
+    try {
+      const formData = await new Response(raw, { headers: { "content-type": contentType } }).formData()
+      const fields: Record<string, unknown> = {}
+      formData.forEach((value, key) => {
+        if (typeof value === "string" && fields[key] === undefined) fields[key] = value
+      })
+      const form = pick(fields)
+      if (hasAnyField(form)) return { input: form, parse: "form" }
+    } catch {
+      // fall through to the other formats
+    }
+  }
 
   if (trimmed) {
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {

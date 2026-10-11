@@ -58,6 +58,18 @@ describe("address fixer request parsing", () => {
     assert.deepEqual(query.input, { city: "a", full_street: "b" })
   })
 
+  it("accepts multipart form-data (Postman / n8n form-data body)", async () => {
+    const formData = new FormData()
+    formData.append("city", 'ראשל"צ')
+    formData.append("full_street", "בר יוחאי 19")
+    formData.append("apartment_floor", "0")
+    const { input, parse } = await readAddressFixerInput(
+      new Request("https://example.test/api/address-fixer", { method: "POST", body: formData })
+    )
+    assert.equal(parse, "form")
+    assert.deepEqual(input, { city: 'ראשל"צ', full_street: "בר יוחאי 19", apartment_floor: "0" })
+  })
+
   it("returns empty input instead of throwing on garbage", async () => {
     const { input, parse } = await readAddressFixerInput(post("{{{not json"))
     assert.equal(parse, "empty")
