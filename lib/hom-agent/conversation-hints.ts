@@ -1386,6 +1386,7 @@ export function buildConversationHints(input: {
 
   if (
     isReturnPickupAwaitingThread(history, body) &&
+    !isExchangeIntakeActive(history) &&
     !shippingDelayMultiOrderClarification &&
     !isServiceHandoffSummaryPending(history) &&
     !isPostPurchaseIntentConfirmPending(history)
@@ -1658,11 +1659,14 @@ export function buildConversationHints(input: {
     }
   }
 
-  if (isOrderConfirmationPending(history) && !isReturnPickupAwaitingThread(history, body)) {
+  if (
+    isOrderConfirmationPending(history) &&
+    (!isReturnPickupAwaitingThread(history, body) || isExchangeIntakeActive(history))
+  ) {
     if (isExchangeIntakeActive(history)) {
       if (isOrderConfirmationYes(body)) {
         lines.push(
-          "EXCHANGE ORDER CONFIRM YES (530876768): order card confirmed during exchange intake — ask ONE A/B/C exchange-kind question now (action reply). Do NOT call lookup_order_status again. Do NOT service rep summary or human_service — stay on החלפה → create_switch_request → human_sales."
+          "EXCHANGE ORDER CONFIRM YES (530876768 / 532899816): order card confirmed during exchange intake — ask ONE A/B/C exchange-kind question now (action reply). Do NOT call lookup_order_status again. Do NOT service rep summary or human_service — stay on החלפה → create_switch_request → human_sales. Opening «להחזיר» before they chose option 1 does NOT make this a return — never label the case «בקשת החזרה» in any summary."
         )
       } else {
         lines.push(
