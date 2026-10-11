@@ -337,6 +337,14 @@ function isRepShippingStatusWaitChase(body: string) {
   return /^(?:יש\s+תשובה|הי\s*\??)$/i.test(text)
 }
 
+function hasLogisticsCoordinationMentionInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /ת(?:אום|ואמה).*(?:אספקה|משלוח|סלע|לוגיסט)/i.test(message.content)
+  )
+}
+
 function hasAutomatedPaymentOutreachInThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
@@ -2206,12 +2214,28 @@ export function buildConversationHints(input: {
   const shippingStatusReopenTurn =
     Boolean(knownOrderForShippingReopen) &&
     isShippingThreadFromHistory(history) &&
-    isShippingStatusQuestion(body) &&
+    (isShippingStatusQuestion(body) ||
+      isOrderDeliveryStatusQuestion(body) ||
+      isDeliveryEstimateQuestion(body)) &&
     !isHumanHandoffPending(history) &&
     !isServiceHandoffSummaryPending(history) &&
     (isOrderLookupCompletedInThread(history) ||
       (hasShippingStatusAnswerInThread(history) &&
-        isPriorServiceHandoffForShippingDelay(history)))
+        (isPriorServiceHandoffForShippingDelay(history) ||
+          hasLogisticsCoordinationMentionInThread(history))))
+
+  if (
+    knownOrderForShippingReopen &&
+    isShippingThreadFromHistory(history) &&
+    isOrderDeliveryStatusQuestion(body) &&
+    hasLogisticsCoordinationMentionInThread(history) &&
+    !isHumanHandoffPending(history) &&
+    !isServiceHandoffSummaryPending(history)
+  ) {
+    lines.push(
+      `LOGISTICS APPOINTMENT DATE (493329252): order ${knownOrderForShippingReopen} — customer asks when delivery was scheduled after logistics coordination was mentioned in this thread. Call lookup_order_status now for live status/appointment fields. If ERP shows a date, state it; if coordinated but no calendar date, say so — never «כרגע לא תואם מועד» when you or the thread already said תואמה אספקה/סלע. Prior delay human_service does not auto-repeat — action reply unless they explicitly ask for a rep this turn.`
+    )
+  }
 
   if (shippingStatusReopenTurn) {
     lines.push(
