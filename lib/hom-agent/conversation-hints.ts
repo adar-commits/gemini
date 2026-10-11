@@ -107,7 +107,10 @@ import {
   shouldDeferDocumentFlowToOrderLookup,
   shouldReleaseStructuredDocumentFlow,
 } from "@/lib/agents/digital-document-flow"
-import { isMembershipClubCheckoutQuestion } from "@/lib/agents/payment-intent"
+import {
+  isCheckoutPaymentSplitCancelThread,
+  isMembershipClubCheckoutQuestion,
+} from "@/lib/agents/payment-intent"
 import { salesOutreachTemplateInThread } from "@/lib/agents/sales-outreach"
 import {
   isDissatisfactionRescuePending,
@@ -2235,7 +2238,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isPreDeliveryCancelWithoutPortalYet(body, history) && !isReturnPortalSelfServiceThread(history)) {
+  if (
+    isPreDeliveryCancelWithoutPortalYet(body, history) &&
+    !isReturnPortalSelfServiceThread(history) &&
+    !isCheckoutPaymentSplitCancelThread(history, body)
+  ) {
     lines.push(
       "PRE-DELIVERY CANCEL OPENING (348040437 / 464488405 / 530313226 / 534295968 / 534268241 / 534406245 / 534579658): customer wants to cancel (may also ask איך/כיצד; may mention missing receipt/invoice — that is NOT post-receipt received; may name an undelivered line — עדיין לא סופק / אין במלאי). Same turn: returns portal link with phone prefill + say you are transferring to stop delivery → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. If lookup_order_status already ran, you may mention הזמנה מוקדמת/status briefly — **never** end at preorder ETA + warm-close without the portal link (534406245). Never lookup_order_status only for packaging/shipping status + warm-close (שמחתי לעזור). Never open with order-level משלוח נמסר/נמסר בשליח when they cancel a line they say never arrived — per-line Pre Order status only if lookup already ran. A new order afterward is for the rep — service owns cancel + callback first."
     )
@@ -2458,9 +2465,12 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isMembershipClubCheckoutQuestion(body) && isOrderCancellationSummaryLabel(body)) {
+  if (
+    (isMembershipClubCheckoutQuestion(body) && isOrderCancellationSummaryLabel(body)) ||
+    isCheckoutPaymentSplitCancelThread(history, body)
+  ) {
     lines.push(
-      "CHECKOUT PAYMENT SPLIT CANCEL (534268241): BUYME/voucher/מועדון + credit balance checkout charged wrong and customer wants to cancel — you cannot reverse charges from here. Same turn: empathize, say transferring to service rep to cancel and verify charges → action human_service + crm_department service in the **same** JSON. Never action reply when you write מעביר/העברתי. Rep owns cancel + charge verification; optional portal link if pre-delivery."
+      "CHECKOUT PAYMENT SPLIT CANCEL (534268241 / 534579658): BUYME/voucher/מועדון + credit balance checkout charged wrong and customer wants to cancel/recharge — you cannot reverse charges from here. Same turn: empathize, say transferring to service rep to void/recharge correctly → action human_service + crm_department service in the **same** JSON. Handoff bullets: תיקון חיוב / ביטול עסקה — **never** «ביטול ההזמנה» unless they asked to cancel the order. Never action reply when you write מעביר/העברתי. Rep owns charge verification; optional portal link if pre-delivery."
     )
   } else if (isMembershipClubCheckoutQuestion(body)) {
     lines.push(
@@ -3051,6 +3061,7 @@ function lastNonInactivityAssistant(history: HistoryMessage[]) {
 
 /** Cancel intent in thread but returns portal not sent yet — keep pre-delivery cancel hint even after lookup (534406245). */
 function isPreDeliveryCancelWithoutPortalYet(body: string, history: HistoryMessage[]) {
+  if (isCheckoutPaymentSplitCancelThread(history, body)) return false
   const hasCancel =
     isOrderCancellationSummaryLabel(body) ||
     history.some(

@@ -1,3 +1,25 @@
+import type { HistoryMessage } from "@/lib/agents/types"
+import { isOrderCancellationSummaryLabel } from "@/lib/agents/service-intake"
+
+/** BUYME/voucher + credit charged wrong; customer asked ביטול עסקה / redo (534268241 / 534579658). */
+export function isCheckoutPaymentSplitCancelThread(
+  history: HistoryMessage[],
+  body = ""
+) {
+  const userLines = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+  const corpus = [body, ...userLines].join("\n")
+  if (!/buyme|buy\s*me|ביימי/i.test(corpus)) return false
+  if (
+    !isOrderCancellationSummaryLabel(corpus) &&
+    !/ביטול\s+עסקה|עסקה\s+מחדש/i.test(corpus)
+  ) {
+    return false
+  }
+  return /(?:אשראי|חייב|חיוב|הפרש|כרטיס|מסטר|יתרה)/i.test(corpus)
+}
+
 /** Checkout / payment with membership, gift card, or reloadable benefit card. */
 export function isMembershipClubCheckoutQuestion(body: string) {
   const text = body.trim()
