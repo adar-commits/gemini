@@ -203,6 +203,7 @@ import {
 } from "@/lib/agents/service-intake"
 import {
   isPostPurchaseAlternateSizeThread,
+  isPostPurchaseDifferentModelOrPackagingExchange,
   isShippingAddressChangeAsk,
 } from "@/lib/agents/post-purchase-alt-size"
 import {
@@ -3031,7 +3032,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (
+  if (isPostPurchaseDifferentModelOrPackagingExchange(body, history)) {
+    lines.push(
+      "EXCHANGE DIFFERENT MODEL / PACKAGING (534041229): thread is post-purchase **החלפה** because the rug does not match or packaging was opened for inspection — **not** same-model alt-size. Ack packaging policy honestly; answer branch/fees if asked; bullet recap for יועץ מכירות when they want a rep. **Never** «מבין שאתם מחפשים את אותו דגם במידה אחרת» or מק״ט-from-photo loop."
+    )
+  } else if (
     isPostPurchaseAlternateSizeThread(history, body) &&
     !isShippingAddressChangeAsk(body, history)
   ) {
