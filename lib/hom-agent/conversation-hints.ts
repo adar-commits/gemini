@@ -862,6 +862,15 @@ function isBareModelChangeRequestInThread(history: HistoryMessage[], body: strin
   )
 }
 
+/** Sales chat ended without a HoM purchase — e.g. bought elsewhere (533146618). */
+function customerClosedSalesWithoutPurchaseInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      /(?:קניתי|רכשתי|לקחתי)[^\n]{0,56}(?:אחר|במקום)/i.test(message.content)
+  )
+}
+
 /** Dynamic turn hints — guide the LLM without bypassing it. */
 export function buildConversationHints(input: {
   history: HistoryMessage[]
@@ -1353,6 +1362,17 @@ export function buildConversationHints(input: {
   if (greetingAfterDocumentDelivery) {
     lines.push(
       'FRESH START after invoice/receipt delivery: customer said hello to begin anew — mirror hello warmly (e.g. "היי! 😊") and ask how you can help. NOT a thanks wrap-up — never "בשמחה! אם יעלה עוד משהו".'
+    )
+  }
+
+  if (
+    (isCasualGreeting(body) || isCasualSmallTalk(body)) &&
+    !hasImmediateBusinessAsk(body) &&
+    customerClosedSalesWithoutPurchaseInThread(history) &&
+    !isFirstSubstantiveCustomerTurn(history)
+  ) {
+    lines.push(
+      "RESOLVED SALES REOPEN GREETING (533146618): they already closed this sales chat (bought elsewhere / declined rep). Bare hello after a long gap = fresh start — mirror greeting and ask how to help (`action: reply`). **Never** belatedly answer an old unanswered question from weeks ago and **never** `human_sales` unless they ask for a rep or a new purchase request this turn."
     )
   }
 
