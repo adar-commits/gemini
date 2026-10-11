@@ -4,6 +4,7 @@ import { formatHebrewCustomerDate } from "@/lib/agents/hebrew-date-format"
 import {
   channelPhone,
   extractOrderNumber,
+  extractOrderNumberFromConfirmationPrompt,
   extractOrderReference,
   isChannelPhoneSelfReference,
   customerOrderNumberStyleFromHistory,
@@ -484,6 +485,35 @@ function isDeliveryTimingConfirmOfferedByBot(history: HistoryMessage[]) {
   const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
   if (!lastAssistant) return false
   return /(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))/i.test(lastAssistant.content)
+}
+
+/** Bot offered to recheck shipping status on a known order — not order-card confirm (534276359). */
+function isStatusRecheckOfferPending(history: HistoryMessage[]) {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  if (!lastAssistant) return false
+  return /(?:אשמח\s+)?(?:ל)?בדוק\s+שוב(?:\s+א(?:ת\s+)?)?(?:סטטוס|הסטטוס)/i.test(
+    lastAssistant.content
+  )
+}
+
+function isStatusRecheckOfferAffirmation(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  if (/^כן(?:\s|[,.!?]|$)/i.test(text) && /(?:בדוק|לבדוק)/i.test(text)) return true
+  return /^(?:כן|בטח|בסדר)(?:\s|[,.!?]|$)/i.test(text) && text.length <= 20
+}
+
+function orderIdForStatusRecheckHint(history: HistoryMessage[]) {
+  const fromThread = orderIdGivenInThread(history)
+  if (fromThread) return fromThread
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    const fromPrompt = extractOrderNumberFromConfirmationPrompt(message.content)
+    if (fromPrompt) return fromPrompt
+    const ref = extractOrderReference(message.content, history)
+    if (ref) return ref
+  }
+  return null
 }
 
 /** Customer asks bot to check live delivery/ETA — not bare handoff confirm (534443123). */
@@ -2475,6 +2505,19 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "KNOWN ORDER STATUS CHECK YES (533760226): כן תבדוק/תבדקו confirms your status-check offer on the named SO — call lookup_order_status immediately and answer shipping status. Never service rep summary, never אי-שביעות רצון, never human_service on this turn."
+    )
+  }
+
+  const threadOrderForRecheck = orderIdForStatusRecheckHint(history)
+  if (
+    isStatusRecheckOfferPending(history) &&
+    isStatusRecheckOfferAffirmation(body) &&
+    threadOrderForRecheck &&
+    isDeliveryEtaThread(history) &&
+    !isHumanHandoffPending(history)
+  ) {
+    lines.push(
+      `STATUS RECHECK OFFER YES (534276359): you offered to recheck shipping status for order ${threadOrderForRecheck} — customer affirmed (e.g. כן לבדוק). Call lookup_order_status with ${threadOrderForRecheck} now and answer status + ETA policy. Prior human_service or «לא הצלחתי להציג סטטוס» does NOT justify another handoff before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
     )
   }
 
