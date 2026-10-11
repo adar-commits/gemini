@@ -276,7 +276,7 @@ export function mentionsPetInText(text: string) {
 }
 
 const SALES_PHOTO_REQUEST_RE =
-  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?\s+תמונה|(?:,\s*)?של(?:ח|וח)(?:\/י)?(?:ו)?\s+תמונה|תמונה(?:\s+\S+){0,6}\s+של\s+(?:ה)?(?:חלל|סלון)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה|(?:יעזור|תעזור)\s+ליועץ\s+העיצוב/i
+  /(?:אפשר|רוצ(?:ה|ים|ות)?)\s+(?:ל)?(?:צר(?:ף|ור)|של(?:ח|וח))(?:\/י)?(?:\s+\S+){0,8}\s+תמונה|(?:,\s*)?של(?:ח|וח)(?:\/י)?(?:\s+\S+){0,8}\s+תמונה|במקום\s+זה\s+תמונה|תמונה(?:\s+\S+){0,6}\s+של\s+(?:ה)?(?:חלל|סלון|חדר)|צר(?:ף|ור)\s+תמונה|תמונה\s+תעזור\s+ליועץ\s+לדייק\s+את\s+המידה|(?:יעזור|תעזור)\s+ליועץ\s+העיצוב/i
 
 /** Photo asked for the service rep (wrong item, defect) — not a sales room photo. */
 const SERVICE_REP_PHOTO_REQUEST_RE = /נציג(?:י)?\s+(?:ה)?שירות/
@@ -369,7 +369,7 @@ const CUSTOMER_PHOTO_UPLOAD_ASK_RE =
   /אפשר\s+(?:פשוט\s+)?(?:ל)?(?:העל(?:ות|ה)|של(?:ח|וח)|צר(?:ף|ור))(?:\/י)?\s+תמונה/i
 
 const SOFA_SIZING_QUESTION_RE =
-  /מידת הספה|גודל(?:\s+כללי)?\s+של\s+הסלון|גודל\s+הסלון|בערך\s+גודל\s+הסלון/i
+  /מידת הספה|גודל(?:\s+כללי)?\s+של\s+הסלון|גודל\s+הסלון|בערך\s+גודל\s+הסלון|בערך\s+גודל\s+(?:ה)?(?:חדר|חלל)|גודל\s+(?:ה)?(?:חדר|חלל)/i
 
 /** Customer chose a room photo instead of typing sofa/room dimensions — photo is the sizing answer. */
 export function isSalesSizingPhotoSubstitutePending(history: HistoryMessage[]) {
@@ -378,6 +378,7 @@ export function isSalesSizingPhotoSubstitutePending(history: HistoryMessage[]) {
   let sawPhotoApproval = false
   let sawCustomerPhotoAsk = false
   let sawSizingQuestion = false
+  let sizingAndPhotoOfferSameMessage = false
 
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
@@ -385,6 +386,10 @@ export function isSalesSizingPhotoSubstitutePending(history: HistoryMessage[]) {
       if (isInactivityAssistantMessage(message.content)) continue
       if (!sawPhotoApproval && SALES_PHOTO_REQUEST_RE.test(message.content)) {
         sawPhotoApproval = true
+        if (SOFA_SIZING_QUESTION_RE.test(message.content)) {
+          sawSizingQuestion = true
+          sizingAndPhotoOfferSameMessage = true
+        }
         continue
       }
       if (sawPhotoApproval && !sawSizingQuestion && SOFA_SIZING_QUESTION_RE.test(message.content)) {
@@ -399,7 +404,11 @@ export function isSalesSizingPhotoSubstitutePending(history: HistoryMessage[]) {
     }
   }
 
-  return sawPhotoApproval && sawCustomerPhotoAsk && sawSizingQuestion
+  return (
+    sawPhotoApproval &&
+    sawSizingQuestion &&
+    (sawCustomerPhotoAsk || sizingAndPhotoOfferSameMessage)
+  )
 }
 
 const SALES_RECAP_SENT_RE = /(?:רשמתי|אז לסיכום|לסיכום)/i
