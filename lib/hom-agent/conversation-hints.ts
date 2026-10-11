@@ -18,6 +18,7 @@ import {
   isAlternatePhoneRequestPending,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
+  isAwaitingReplyAfterOrderLookupAsk,
   wasOrderNumberRequestedInThread,
   isOrderReferencePresentation,
   isIdentifiedOrderRejection,
@@ -2110,6 +2111,14 @@ export function buildConversationHints(input: {
   if (isBackInStockAwaitingSimilarReply(body, history)) {
     lines.push(
       'BACK-IN-STOCK STEP1 ALREADY SENT (534372455): FAQ or your prior message already acknowledged the restock request and offered something similar — the customer has **not** replied yet. **`action: end`** — do not send human_sales, off-hours advisor text, or a second bot message. Wait for their answer on the similar-item question; handoff only after they want options and confirm size/shape (operator policy 2026-10-09).'
+    )
+  } else if (
+    isAwaitingReplyAfterOrderLookupAsk(history) &&
+    requiresOrderIdentification(body, history) &&
+    !hasOngoingSalesIntake(history)
+  ) {
+    lines.push(
+      'ORDER LOOKUP ASK ALREADY SENT (533184059): FAQ or your prior message already asked for מספר הזמנה / lookup phone on a **shipping delay or not-yet-delivered order** thread — the customer has **not** replied yet. **`action: end`** — do not send human_sales, off-hours יועץ מכירות text, or any second bot message. This is **שירות** (`crm_department: service`), not sales — after they give the id, call lookup_order_status; handoff only as human_service if they explicitly need a rep.'
     )
   } else if (isBackInStockOfferThread(history)) {
     lines.push(

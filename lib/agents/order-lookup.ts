@@ -933,6 +933,27 @@ export function isOrderNumberRequestPending(history: HistoryMessage[]) {
   return false
 }
 
+/** Bot asked for order id/phone and customer has not sent a new message since (533184059). */
+export function isAwaitingReplyAfterOrderLookupAsk(history: HistoryMessage[]) {
+  let lastRealAssistantIndex = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) continue
+    lastRealAssistantIndex = index
+    break
+  }
+  if (lastRealAssistantIndex < 0) return false
+  if (
+    !isOrderLookupIdentificationAssistantMessage(history[lastRealAssistantIndex]!.content)
+  ) {
+    return false
+  }
+  for (let index = lastRealAssistantIndex + 1; index < history.length; index += 1) {
+    if (history[index]!.role === "user") return false
+  }
+  return true
+}
+
 /** Any assistant turn in thread asked for order # — not only the latest (533991279). */
 export function wasOrderNumberRequestedInThread(history: HistoryMessage[]) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
