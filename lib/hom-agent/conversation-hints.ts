@@ -1809,7 +1809,7 @@ export function buildConversationHints(input: {
         )
       } else {
         lines.push(
-          "AFTER-HOURS HANDOFF: reps are offline. If the customer confirms the transfer, set action human_sales or human_service; the system appends one offline notice at the end. In reply keep only what still helps (answer / recap) — do NOT write transfer lines (מעביר ליועץ / יחזור אליכם / ניצור קשר), they duplicate the notice. Nothing to add → empty reply."
+          "AFTER-HOURS HANDOFF: reps are offline. If the customer confirms the transfer, set action human_sales or human_service; the system appends one offline notice at the end. In reply keep only what still helps (answer / recap) — do NOT write transfer lines (מעביר ליועץ / יחזור אליכם / ניצור קשר), they duplicate the notice. Never rep-facing headers (`ליועץ המכירות:`, `לנציג:`) or repeat hours / «אין יועצי…» / «קיבלנו את הפנייה». Nothing to add → empty reply."
         )
       }
     }
@@ -3126,7 +3126,7 @@ export function buildConversationHints(input: {
     (hasOngoingSalesIntake(history) || isActiveProductSalesPrepThread(history))
   ) {
     lines.push(
-      'SALES PHOTO + SIZE (534083625): room photo **and** stated rug dimensions in the same turn — ack once (קיבלתי את התמונה), bullet recap (product from thread, size, use case), **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON (מעביר ליועץ מכירות). **Never** write אעביר/מעביר and then ask another intake question (pets, room). Missing optional fields → note for advisor in recap.'
+      'SALES PHOTO + SIZE (534083625 / 534716649): room photo **and** stated rug dimensions in the same turn — ack once (קיבלתי את התמונה), answer open FAQ (coupon via get_campaigns, import preorder ETA — cannot expedite) in customer Hebrew, then **`action: human_sales`** + **`crm_department: sales`**. When sales is offline: **no** «ליועץ המכירות:» / rep bullet block and **no** hours or OOO paragraph in `reply` (runtime appends queue notice). **Never** write אעביר/מעביר and then ask another intake question (pets, room).'
     )
   } else if (
     /\[media:image:/i.test(body) &&
@@ -3201,7 +3201,7 @@ export function buildConversationHints(input: {
     )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
-      'PHOTO RECEIVED (533695023 / 320713782): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה" and hand off to יועץ מכירות with a short summary of what they asked. **Same JSON must include `action: human_sales` + `crm_department: sales`** — never write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
+      'PHOTO RECEIVED (533695023 / 320713782 / 534716649): this turn contains a customer image — it **already arrived**. Never write that the photo/link did not arrive and never ask them to resend it. You cannot identify a rug model from a photo (story screenshot / "איך השטיח נקרא באתר?") — ack "קיבלתי את התמונה", answer open FAQ (coupon via get_campaigns, import preorder ETA — cannot expedite) in customer Hebrew, then **`action: human_sales` + `crm_department: sales`**. When sales is offline: **no** «ליועץ המכירות:» / rep bullet block and **no** hours or OOO paragraph in `reply` (runtime appends queue notice). **Never** write מעביר/אעביר/מעביר אליו with `action: reply` only (Action ↔ transfer wording). Skip unless an order/service flow is active.'
     )
   } else if (
     /\[media:video:/i.test(body) &&
