@@ -6,6 +6,7 @@
  */
 
 import { cleanText, isStreetPrefixWord, tokens as keyTokens } from "./normalize"
+import { isFallbackEnabled, withAddressFallback } from "./fallback"
 import { parseAddressUnits } from "./parse-units"
 import {
   matchCity,
@@ -348,7 +349,9 @@ export function fixAddressWithIndex(
 export async function fixAddress(input: AddressFixerInput): Promise<AddressFixerOutput> {
   try {
     const index = await getAddressIndex()
-    return fixAddressWithIndex(input, index)
+    const primary = fixAddressWithIndex(input, index)
+    if (!isFallbackEnabled()) return primary
+    return await withAddressFallback(input, primary, index)
   } catch (error) {
     try {
       return fixAddressWithIndex(input, getSnapshotIndex())
