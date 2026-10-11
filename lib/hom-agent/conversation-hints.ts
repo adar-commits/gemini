@@ -183,6 +183,7 @@ import {
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryRepeatRefinement,
+  isServiceSummaryDeliveryStatusClarification,
   isServiceSummaryOrderReferenceClarification,
   isOpenServiceDefectFollowUpThread,
   isOpenRefundCreditFollowUpThread,
@@ -1461,6 +1462,10 @@ export function buildConversationHints(input: {
     if (isServiceSummaryOrderReferenceClarification(body, history)) {
       lines.push(
         "SERVICE ORDER ID CLARIFY (354673370): customer asked why SO… and #… differ after your summary — explain both are the same order (SO = tracking ORDNAME, # = customer REFERENCE). Keep action reply + awaiting service_summary_confirm; never human_service until they clearly confirm the case details."
+      )
+    } else if (isServiceSummaryDeliveryStatusClarification(body, history)) {
+      lines.push(
+        "SERVICE SUMMARY DELIVERY STATUS CLARIFY (532010096): customer approved the recap (מדויק/כן) but asked how/why the order shows as delivered — explain briefly that ERP marks delivered when the courier reports delivery (scan/time in the summary); partial delivery (e.g. stickers only) is why the rep will investigate. Same JSON: action human_service with transfer line + that explanation — never transfer-only."
       )
     } else if (isServiceHandoffSummaryConfirmed(body, history)) {
       const intake = extractServiceIntake(history, body)

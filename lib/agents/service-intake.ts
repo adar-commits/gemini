@@ -524,12 +524,34 @@ export function isServiceSummaryOrderReferenceClarification(
   )
 }
 
+/** Confirm+question why delivery shows as delivered after service summary — not bare pre-turn confirm. */
+export function isServiceSummaryDeliveryStatusClarification(
+  body: string,
+  history: HistoryMessage[]
+) {
+  if (!isServiceHandoffSummaryPending(history)) return false
+  const text = body.trim()
+  const affirmed =
+    startsWithHandoffAffirmation(text) ||
+    /^(?:נכון|בדיוק|מדויק)/iu.test(text)
+  if (!affirmed) return false
+  if (isServiceSummaryOrderReferenceClarification(body, history)) return false
+  return (
+    /(?:לא\s+הבנתי|איך\s+ציינ|למה\s+(?:סומן|רשום|מופיע))/iu.test(text) &&
+    /(?:נמסר|סומן\s+כ|סטטוס\s+משלוח)/iu.test(text)
+  )
+}
+
 export function isServiceHandoffSummaryConfirmed(
   body: string,
   history?: HistoryMessage[]
 ) {
   const text = body.trim()
-  if (history?.length && isServiceSummaryOrderReferenceClarification(body, history)) {
+  if (
+    history?.length &&
+    (isServiceSummaryOrderReferenceClarification(body, history) ||
+      isServiceSummaryDeliveryStatusClarification(body, history))
+  ) {
     return false
   }
   if (startsWithHandoffAffirmation(text)) return true
