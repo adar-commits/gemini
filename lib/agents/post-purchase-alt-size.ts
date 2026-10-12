@@ -50,11 +50,12 @@ function hasExplicitAlternateSizeAvailabilityAsk(text: string) {
 }
 
 function hasRecentPurchaseContext(history: HistoryMessage[], text: string) {
-  if (
-    /(?:רכשתי|הזמנתי|ההזמנה(?:\s+שלי)?|בהזמנה|SO\d+|היום\s+ר(?:כש|כש)|ש(?:ב|)חר(?:תי)?)/i.test(
+  const purchaseFromCustomerText =
+    /(?:רכשתי|הזמנתי|ההזמנה(?:\s+שלי)?|SO\d+|היום\s+ר(?:כש|כש)|ש(?:ב|)חר(?:תי)?)/i.test(
       text
-    )
-  ) {
+    ) ||
+    (/\bבהזמנה\b/i.test(text) && !/הזמנה\s+מוקדמת/i.test(text))
+  if (purchaseFromCustomerText) {
     return true
   }
   return history.some(
@@ -85,6 +86,19 @@ function isSizeExchangeIntakeContext(history: HistoryMessage[], body = "") {
     /איז(?:ו|ה)\s+מידה\s+(?:אני|צריך|מתאים)/i.test(text)
   const sizeRelatedExchange = /(?:מידה\s+אחר(?:ת)?|גודל\s+אחר|החלפת\s+מידה)/i.test(text)
   return Boolean(receivedProduct && (sizeIssue || sizeRelatedExchange))
+}
+
+/** New purchase: site pre-order option + delivery timing — not post-purchase alt-size. */
+export function isPrePurchasePreOrderSalesInquiry(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  const text = allUserText(history, body)
+  if (hasRecentPurchaseContext(history, text)) return false
+  return (
+    /הזמנה\s+מוקדמת|מוקדמת\s+ב(?:אתר|איזור)/i.test(text) &&
+    /(?:מתי|מועד|צפי|א(?:קבל|גיע))/i.test(text)
+  )
 }
 
 /** Post-purchase: same model in another size — not branch SKU lookup; advisor checks the order. */

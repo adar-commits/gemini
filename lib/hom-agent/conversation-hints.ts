@@ -217,6 +217,7 @@ import {
 import {
   isPostPurchaseAlternateSizeThread,
   isPostPurchaseDifferentModelOrPackagingExchange,
+  isPrePurchasePreOrderSalesInquiry,
   isShippingAddressChangeAsk,
 } from "@/lib/agents/post-purchase-alt-size"
 import {
@@ -3449,7 +3450,11 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isPostPurchaseDifferentModelOrPackagingExchange(body, history)) {
+  if (isPrePurchasePreOrderSalesInquiry(body, history)) {
+    lines.push(
+      "SALES PREORDER ETA (534753071): new purchase — they named product + size and ask when a **הזמנה מוקדמת** / site pre-order arrives. Stay sales (`crm_department: sales`): ack model + size, explain pre-order = import/restock timing (KB or lookup_inventory when they typed מק״ט), or offer יועץ מכירות for exact ETA — **never** post-purchase «אותו דגם במידה אחרת» / «מול ההזמנה שלכם» or מק״ט-from-photo when the model is already in text."
+    )
+  } else if (isPostPurchaseDifferentModelOrPackagingExchange(body, history)) {
     lines.push(
       "EXCHANGE DIFFERENT MODEL / PACKAGING (534041229): thread is post-purchase **החלפה** because the rug does not match or packaging was opened for inspection — **not** same-model alt-size. Ack packaging policy honestly; answer branch/fees if asked; bullet recap for יועץ מכירות when they want a rep. **Never** «מבין שאתם מחפשים את אותו דגם במידה אחרת» or מק״ט-from-photo loop."
     )
