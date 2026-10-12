@@ -3370,7 +3370,7 @@ export function buildConversationHints(input: {
     !isHumanHandoffPending(history)
   ) {
     lines.push(
-      `LIVE STATUS CHECK OFFER YES (532858826): you offered to check live shipping status now for order ${threadOrderForLiveStatusCheck} (e.g. «יכול לבדוק את הסטטוס» after greeting). Customer affirmed (כן / כן בבקשה) — call lookup_order_status with ${threadOrderForLiveStatusCheck} now and answer status + ETA policy. Pre Order / no restock date in ERP is still a valid status answer — never human_service or rep summary before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
+      `LIVE STATUS CHECK OFFER YES (532858826 / 532880861): you offered to check live shipping status now for order ${threadOrderForLiveStatusCheck} (e.g. «יכול/אשמח לבדוק … הסטטוס» after greeting). Customer affirmed (כן / כן בבקשה) — call lookup_order_status with ${threadOrderForLiveStatusCheck} now and answer status + ETA policy. Pre Order / no restock date in ERP is still a valid status answer — never human_service or rep summary before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
     )
   }
 

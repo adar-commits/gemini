@@ -2406,6 +2406,12 @@ function orderIdOfferedByAssistant(history: HistoryMessage[]) {
       const ref = extractOrderReference(message.content, history)
       const normalized = text.replace(/[\u2066\u2069]/g, "")
       if (ref && (normalized.match(/#\s*\d{5}\b/g) ?? []).length === 1) return ref
+      if (
+        ref &&
+        /(?:ה)?זמנ(?:ה|ות)\s*(?:#|מס(?:'|׳|"|')?\s*)?\d{4,8}\b/i.test(normalized)
+      ) {
+        return ref
+      }
     }
   }
   return null

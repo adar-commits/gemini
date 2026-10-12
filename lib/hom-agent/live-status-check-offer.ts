@@ -15,7 +15,8 @@ export function botOfferedLiveStatusCheck(content: string) {
   if (botOfferedShippingProgressCheck(text)) return false
   return (
     /(?:יכול|אוכל|אני\s+יכול)\s+(?:ל)?בדוק.{0,80}(?:ה)?סטטוס/i.test(text) ||
-    /(?:ל)?בדוק\s+ל(?:ך|כם)\s+עכשיו\s+א(?:ת\s+)?(?:ה)?סטטוס/i.test(text)
+    /(?:ל)?בדוק\s+ל(?:ך|כם)\s+עכשיו\s+א(?:ת\s+)?(?:ה)?סטטוס/i.test(text) ||
+    /(?:אשמח|נשמח)\s+(?:ל)?בדוק.{0,80}(?:ה)?סטטוס/i.test(text)
   )
 }
 
