@@ -362,21 +362,37 @@ function hasCustomerIdentifierForRepOrderCheck(history: HistoryMessage[]) {
   )
 }
 
-/** human_service logged so rep checks shipping status — customer may ping while waiting (274323208 / 424571373). */
+/** human_service logged so rep checks shipping status — customer may ping while waiting (274323208 / 424571373 / 531240208). */
 function isRepShippingStatusHandoffAwaitingCallback(history: HistoryMessage[]) {
   if (!isPostHumanHandoff(null, history)) return false
-  const offeredRepForShippingStatus = history.some(
-    (message) =>
-      message.role === "assistant" &&
+  const offeredRepForShippingStatus = history.some((message) => {
+    if (message.role !== "assistant") return false
+    const lookupFailOffer =
       /(?:לא\s+(?:הצלחתי|מצליח|יכול)[^\n]{0,72}(?:הציג|למשוך)[^\n]{0,48}סטטוס\s+(?:ההזמנה|משלוח)|עדיין\s+לא\s+הצלחתי[^\n]{0,48}סטטוס\s+משלוח)/i.test(
         message.content
       ) &&
       /(?:נציג\s+שירות|להעביר[^\n]{0,40}נציג|יבדוק[^\n]{0,56}(?:סטטוס\s+משלוח|א(?:ת)?\s+ההזמנה))/i.test(
         message.content
       )
-  )
+    const faqShipmentCheckOffer =
+      /(?:נציג\s+שירות\s+)?יבדוק(?:\s+א(?:ת)?)?\s+(?:ה)?משלוח(?:\s+הזה)?|בדיק(?:ה|ת)\s+(?:פרטנית\s+)?(?:של\s+)?(?:המשלוח|מועד)|להעביר[^\n]{0,32}(?:לו|לנציג)[^\n]{0,24}בדיקה/i.test(
+        message.content
+      ) && /(?:נציג\s+שירות|להעביר)/i.test(message.content)
+    return lookupFailOffer || faqShipmentCheckOffer
+  })
   if (!offeredRepForShippingStatus) return false
-  return hasCustomerIdentifierForRepOrderCheck(history)
+  if (hasCustomerIdentifierForRepOrderCheck(history)) return true
+  return isShippingThreadFromHistory(history)
+}
+
+function isShippingRepHandoffQueueChase(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  if (isRepShippingStatusWaitChase(text)) return true
+  return (
+    /מחכ(?:ה|ים)[^\n]{0,56}(?:תשובה|עדכון)/i.test(text) &&
+    /(?:משלוח|שטיח\s+חלופי|אספקה|תיאום)/i.test(text)
+  )
 }
 
 function isRepShippingStatusWaitChase(body: string) {
@@ -1872,7 +1888,7 @@ export function buildConversationHints(input: {
     !greetingAfterDocumentDelivery &&
     (isNonSubstantiveFollowUp(body) ||
       isCasualSmallTalk(body) ||
-      (isRepShippingStatusWaitChase(body) &&
+      (isShippingRepHandoffQueueChase(body) &&
         isRepShippingStatusHandoffAwaitingCallback(history)) ||
       (isSalesHandoffWaitChase(body) &&
         isSalesExchangeHandoffAwaitingCallback(history)) ||
@@ -1885,7 +1901,7 @@ export function buildConversationHints(input: {
         identifiedOrderNumberFromThread(history) ??
         orderIdGivenInThread(history)
       lines.push(
-        `SERVICE SHIPPING STATUS WAIT PING (274323208): human_service already logged so נציג שירות checks shipping status${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
+        `SERVICE SHIPPING STATUS WAIT PING (274323208 / 424571373 / 531240208): human_service already logged (including offline «קיבלנו את הפנייה») so נציג שירות checks shipping status / delivery coordination${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה / מחכה לתשובה על משלוח or שטיח חלופי means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **Never** recap פגמים, תמונות, or an older defect SO when recent customer lines are only מעקב משלוח / תיאום אספקה / משלוח חלופי. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
       )
     } else if (isServiceDefectRepHandoffAwaitingCallback(history)) {
       const orderRef =
