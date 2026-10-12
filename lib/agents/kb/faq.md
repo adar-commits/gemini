@@ -203,6 +203,7 @@ Updated 09.11.25
 - Pozitive assembly/care videos: https://www.pozitiveshop.co.il/pages/pozitive-tutorial-videos
 - About: https://www.carpetshop.co.il/pages/about
 - Branches: https://www.carpetshop.co.il/pages/%D7%A1%D7%A0%D7%99%D7%A4%D7%99%D7%9D-%D7%94%D7%A9%D7%98%D7%99%D7%97-%D7%94%D7%90%D7%93%D7%95%D7%9D
+- Architects & interior designers (join / designer card entry): https://www.carpetshop.co.il/pages/designers — contact Liat 053-9192021 for card-opening steps if the customer needs the exact registration link.
 - Visualization: https://www.carpetshop.co.il/pages/visualization-page
 - Roomvo: https://www.roomvo.com/my/carpetshop/rooms/
 - Returns portal: https://returns.carpetshop.co.il/
