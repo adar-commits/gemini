@@ -426,7 +426,10 @@ function isServiceHandoffWaitChase(body: string) {
   const text = body.trim()
   if (!text || text.length > 120) return false
   if (isNonSubstantiveFollowUp(text)) return true
-  return /^איפה\s+(?:ה)?(?:נציג(?:\s+(?:ה)?שירות)?|שירות)/i.test(text)
+  if (/^איפה\s+(?:ה)?(?:נציג(?:\s+(?:ה)?שירות)?|שירות)/i.test(text)) return true
+  return /מתי\s+(?:הוא|היא|נציג(?:\s+השירות)?)?\s*(?:יעלה|תעלה|נכנס|מצטרף)\s*(?:ל)?(?:צ['']?ט|צ׳אט|chat)/i.test(
+    text
+  )
 }
 
 function branchInquiryCustomerNameFromHistory(history: HistoryMessage[]): string | null {
@@ -510,6 +513,17 @@ function hasOpenExchangeShippingDelayInThread(history: HistoryMessage[]) {
 function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
   if (isPartialRefundChaseThread(history)) return true
   if (isOpenRefundCreditFollowUpThread(history)) return true
+  if (
+    history.some(
+      (message) =>
+        message.role === "user" &&
+        /(?:לא\s+)?(?:קיבל(?:תי|נו)?|התקבל(?:ה)?)\s+אישור.{0,24}זיכוי/i.test(
+          message.content
+        )
+    )
+  ) {
+    return true
+  }
   if (
     history.some(
       (message) => message.role === "user" && isRefundStatusInquiry(message.content)
@@ -3119,7 +3133,17 @@ export function buildConversationHints(input: {
     lines.push(
       liveRepOnRefund
         ? "REFUND STATUS FOLLOW-UP (295276261): return/pickup already happened and a live rep was handling the refund — customer asks for an update (e.g. «יש חדש לגבי הזיכוי?»). Empathize for the wait; recap briefly that the case stays open with service; **do not** reopen generic «7 ימי עסקים מביטול העסקה» as if nothing was done and **do not** pretend you cannot see status without acknowledging the rep’s prior work. Set `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/סימנתי/מעלה בעדיפות — urgent re-escalation, not a fresh policy lecture."
-        : "REFUND STATUS FOLLOW-UP (295276261 / 533700177): return/pickup already in thread — customer asks refund **status** (e.g. «מה עם ההחזר כספי», «עושים זיכוי?» — not how to return). Empathize; run lookup_order_status when you need the order, then `action: human_service` + `crm_department: service` in the **same** JSON when you offer/check status with the team. **Never** `human_sales`, stale sales intake (סידני / גודל סלון), or off-hours **יועץ מכירות** boilerplate on this thread. Never only generic cancellation SLA with `action: reply`."
+        : "REFUND STATUS FOLLOW-UP (295276261 / 533274296 / 533700177): return/pickup already in thread — customer asks refund **status** or missing **credit approval** (e.g. «לא קיבלתי אישור על הזיכוי», «מה עם ההחזר כספי» — not how to return). Empathize; run lookup_order_status when you need the order, then `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/סימנתi — **never** `action: reply` only with transfer prose or «הנציג כבר קיבל». **Never** `human_sales` or stale sales intake on this thread. Never only generic cancellation SLA with `action: reply`."
+    )
+  }
+
+  if (
+    isOpenRefundCreditFollowUpThread(history) &&
+    isServiceHandoffWaitChase(body) &&
+    isPostHumanHandoff(null, history)
+  ) {
+    lines.push(
+      "REFUND CREDIT REP JOIN WAIT (533274296): refund/credit after pickup — customer asks when a live rep joins chat (מתי יעלה לצ'ט / איפה נציג). If **`human_service`** is **not** logged yet for this case, set **`action: human_service`** + `crm_department: service` in the **same** JSON now (transfer words in an earlier `reply` turn do **not** assign). **Never** «הנציג כבר קיבל» on `action: reply`. After **`human_service`** is logged, answer with service hours + patience — **`action: reply`** only; **never** duplicate «מעולה, העברתi את השיחה לנציג שירות» or a second **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
