@@ -138,10 +138,11 @@ const DESIGNER_PARTNERSHIP_ASK_RE =
 
 const DESIGNER_CODE_ORDER_RE = /קוד\s*(?:ה)?מעצב(?:ת)?/i
 
-const BUYME_PAYMENT_RE = /(?:buy\s*me|buyme|ב(?:י)?ימי|בי\s*מי)/i
+const BUYME_PAYMENT_RE =
+  /(?:buy\s*me|buyme|ב(?:י)?ימי|ביי?\s*מי|שובר(?:י|ים)?\s*(?:buy|בי))/i
 
 const NEW_RUG_ORDER_INTENT_RE =
-  /(?:רוצ(?:ה|ים|ות)\s+(?:ל)?(?:הזמין|קנ(?:ות|ייה))|(?:להזמין|להזמנה)\s+(?:שטיח|פוף)|(?:שטיח|פוף).*(?:להזמין|לקנ(?:ות|ייה)))/i
+  /(?:רוצ(?:ה|ים|ות)\s+(?:ל)?(?:הזמין|קנ(?:ות|ייה))|(?:להזמין|להזמנה)\s+(?:שטיח|פוף)|(?:שטיח|פוף).*(?:להזמין|לקנ(?:ות|ייה))|(?:לבצע|לעשות|לסגור)\s+(?:את\s+)?(?:ה)?הזמנה|(?:רוצ(?:ה|ים|ות)|איך\s+(?:אפשר|אוכל))\s+(?:לשלם|לבצע\s+(?:את\s+)?(?:ה)?הזמנה))/i
 
 const SALES_PHONE_CALLBACK_ASK_RE =
   /(?:נציג\s+)?(?:יתקשר|יחז(?:ור|יר)\s+(?:אלי(?:ך|)?|טלפונית)|שיחזר(?:ו|ו)\s+אלי|חזרה\s+טלפונית)/i
@@ -308,7 +309,6 @@ export function isBuyMeSalesOrderCallbackInquiry(
       .map((message) => message.content),
   ].join("\n")
   if (!BUYME_PAYMENT_RE.test(userCorpus)) return false
-  if (!SALES_PHONE_CALLBACK_ASK_RE.test(userCorpus)) return false
   return NEW_RUG_ORDER_INTENT_RE.test(userCorpus)
 }
 

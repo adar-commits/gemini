@@ -1221,7 +1221,7 @@ export function buildConversationHints(input: {
 
   if (isBuyMeSalesOrderCallbackInquiry(body, history) && !hasOngoingSalesIntake(history)) {
     lines.push(
-      'BUYME ORDER + CALLBACK (534528968): customer wants to order a rug, pay with BUYME, and get a sales call — answer BUYME basics from KB briefly, then bullet recap (order intent, BUYME, callback phone) + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone. You may ask optional model/size in the same message; optional info must **not** block handoff. On the handoff turn use **one** transfer line — never both «אני מעביר…» and «העברתי את השיחה» in the same reply.'
+      'BUYME ORDER + CALLBACK (534528968 / 534683661): customer wants to **place an order** and pay with BUYME (including **several vouchers** on one order, with or without a phone callback) — answer BUYME basics from KB briefly, then bullet recap (product from thread if known, payment: multiple BUYME vouchers, open room/size) + `action: human_sales` + `crm_department: sales` in the **same** JSON when you write מעביר ליועץ מכירות — never `action: reply` alone. You may ask optional room/size in the same message; optional info must **not** block handoff. On the handoff turn use **one** transfer line — never both «אני מעביר…» and «העברתי את השיחה» in the same reply.'
     )
   }
 

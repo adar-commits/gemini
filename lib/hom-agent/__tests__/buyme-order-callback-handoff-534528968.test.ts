@@ -43,7 +43,7 @@ describe("BUYME order callback handoff (534528968)", () => {
       whatsappPhone: "+972524460247",
     })
     assert.notEqual(hints, null)
-    assert.match(hints!, /BUYME ORDER \+ CALLBACK \(534528968\)/)
+    assert.match(hints!, /BUYME ORDER \+ CALLBACK \(534528968 \/ 534683661\)/)
     assert.match(hints!, /action: human_sales/)
     assert.match(hints!, /never `action: reply` alone/)
     assert.match(hints!, /one.*transfer line/i)
