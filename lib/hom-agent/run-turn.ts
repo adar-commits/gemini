@@ -262,6 +262,7 @@ export async function runHomAgentTurn(
   const preTurn = runPreTurnGuards({
     turn,
     history: structuredHistory,
+    threadHistory: history,
     customerName: options?.customerName,
   })
 

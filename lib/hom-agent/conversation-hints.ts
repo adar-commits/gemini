@@ -217,6 +217,7 @@ import {
 } from "@/lib/agents/service-intake"
 import {
   isPostPurchaseAlternateSizeThread,
+  isPostPurchaseAltSizeNewRugShipmentAsk,
   isPostPurchaseDifferentModelOrPackagingExchange,
   isPrePurchasePreOrderSalesInquiry,
   isShippingAddressChangeAsk,
@@ -363,21 +364,37 @@ function hasCustomerIdentifierForRepOrderCheck(history: HistoryMessage[]) {
   )
 }
 
-/** human_service logged so rep checks shipping status — customer may ping while waiting (274323208 / 424571373). */
+/** human_service logged so rep checks shipping status — customer may ping while waiting (274323208 / 424571373 / 531240208). */
 function isRepShippingStatusHandoffAwaitingCallback(history: HistoryMessage[]) {
   if (!isPostHumanHandoff(null, history)) return false
-  const offeredRepForShippingStatus = history.some(
-    (message) =>
-      message.role === "assistant" &&
+  const offeredRepForShippingStatus = history.some((message) => {
+    if (message.role !== "assistant") return false
+    const lookupFailOffer =
       /(?:לא\s+(?:הצלחתי|מצליח|יכול)[^\n]{0,72}(?:הציג|למשוך)[^\n]{0,48}סטטוס\s+(?:ההזמנה|משלוח)|עדיין\s+לא\s+הצלחתי[^\n]{0,48}סטטוס\s+משלוח)/i.test(
         message.content
       ) &&
       /(?:נציג\s+שירות|להעביר[^\n]{0,40}נציג|יבדוק[^\n]{0,56}(?:סטטוס\s+משלוח|א(?:ת)?\s+ההזמנה))/i.test(
         message.content
       )
-  )
+    const faqShipmentCheckOffer =
+      /(?:נציג\s+שירות\s+)?יבדוק(?:\s+א(?:ת)?)?\s+(?:ה)?משלוח(?:\s+הזה)?|בדיק(?:ה|ת)\s+(?:פרטנית\s+)?(?:של\s+)?(?:המשלוח|מועד)|להעביר[^\n]{0,32}(?:לו|לנציג)[^\n]{0,24}בדיקה/i.test(
+        message.content
+      ) && /(?:נציג\s+שירות|להעביר)/i.test(message.content)
+    return lookupFailOffer || faqShipmentCheckOffer
+  })
   if (!offeredRepForShippingStatus) return false
-  return hasCustomerIdentifierForRepOrderCheck(history)
+  if (hasCustomerIdentifierForRepOrderCheck(history)) return true
+  return isShippingThreadFromHistory(history)
+}
+
+function isShippingRepHandoffQueueChase(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  if (isRepShippingStatusWaitChase(text)) return true
+  return (
+    /מחכ(?:ה|ים)[^\n]{0,56}(?:תשובה|עדכון)/i.test(text) &&
+    /(?:משלוח|שטיח\s+חלופי|אספקה|תיאום)/i.test(text)
+  )
 }
 
 function isRepShippingStatusWaitChase(body: string) {
@@ -410,7 +427,10 @@ function isServiceHandoffWaitChase(body: string) {
   const text = body.trim()
   if (!text || text.length > 120) return false
   if (isNonSubstantiveFollowUp(text)) return true
-  return /^איפה\s+(?:ה)?(?:נציג(?:\s+(?:ה)?שירות)?|שירות)/i.test(text)
+  if (/^איפה\s+(?:ה)?(?:נציג(?:\s+(?:ה)?שירות)?|שירות)/i.test(text)) return true
+  return /מתי\s+(?:הוא|היא|נציג(?:\s+השירות)?)?\s*(?:יעלה|תעלה|נכנס|מצטרף)\s*(?:ל)?(?:צ['']?ט|צ׳אט|chat)/i.test(
+    text
+  )
 }
 
 function branchInquiryCustomerNameFromHistory(history: HistoryMessage[]): string | null {
@@ -507,6 +527,17 @@ function hasOpenExchangeShippingDelayInThread(history: HistoryMessage[]) {
 function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
   if (isPartialRefundChaseThread(history)) return true
   if (isOpenRefundCreditFollowUpThread(history)) return true
+  if (
+    history.some(
+      (message) =>
+        message.role === "user" &&
+        /(?:לא\s+)?(?:קיבל(?:תי|נו)?|התקבל(?:ה)?)\s+אישור.{0,24}זיכוי/i.test(
+          message.content
+        )
+    )
+  ) {
+    return true
+  }
   if (
     history.some(
       (message) => message.role === "user" && isRefundStatusInquiry(message.content)
@@ -1137,8 +1168,8 @@ function botAskedOrderOrOtherTopic(history: HistoryMessage[]) {
     if (message.role !== "assistant") continue
     const content = message.content
     if (!/\?/.test(content)) return false
-    if (!/מדובר\s+ב(?:ה)?הזמנה/i.test(content)) return false
     if (!/משהו\s+אחר/i.test(content)) return false
+    if (!/מדובר\s+ב/i.test(content)) return false
     return Boolean(extractOrderReference(content, history))
   }
   return false
@@ -1895,7 +1926,7 @@ export function buildConversationHints(input: {
     !greetingAfterDocumentDelivery &&
     (isNonSubstantiveFollowUp(body) ||
       isCasualSmallTalk(body) ||
-      (isRepShippingStatusWaitChase(body) &&
+      (isShippingRepHandoffQueueChase(body) &&
         isRepShippingStatusHandoffAwaitingCallback(history)) ||
       (isSalesHandoffWaitChase(body) &&
         isSalesExchangeHandoffAwaitingCallback(history)) ||
@@ -1908,7 +1939,7 @@ export function buildConversationHints(input: {
         identifiedOrderNumberFromThread(history) ??
         orderIdGivenInThread(history)
       lines.push(
-        `SERVICE SHIPPING STATUS WAIT PING (274323208): human_service already logged so נציג שירות checks shipping status${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
+        `SERVICE SHIPPING STATUS WAIT PING (274323208 / 424571373 / 531240208): human_service already logged (including offline «קיבלנו את הפנייה») so נציג שירות checks shipping status / delivery coordination${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה / מחכה לתשובה על משלוח or שטיח חלופי means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **Never** recap פגמים, תמונות, or an older defect SO when recent customer lines are only מעקב משלוח / תיאום אספקה / משלוח חלופי. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
       )
     } else if (isServiceDefectRepHandoffAwaitingCallback(history)) {
       const orderRef =
@@ -3125,7 +3156,17 @@ export function buildConversationHints(input: {
     lines.push(
       liveRepOnRefund
         ? "REFUND STATUS FOLLOW-UP (295276261): return/pickup already happened and a live rep was handling the refund — customer asks for an update (e.g. «יש חדש לגבי הזיכוי?»). Empathize for the wait; recap briefly that the case stays open with service; **do not** reopen generic «7 ימי עסקים מביטול העסקה» as if nothing was done and **do not** pretend you cannot see status without acknowledging the rep’s prior work. Set `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/סימנתי/מעלה בעדיפות — urgent re-escalation, not a fresh policy lecture."
-        : "REFUND STATUS FOLLOW-UP (295276261 / 533700177): return/pickup already in thread — customer asks refund **status** (e.g. «מה עם ההחזר כספי», «עושים זיכוי?» — not how to return). Empathize; run lookup_order_status when you need the order, then `action: human_service` + `crm_department: service` in the **same** JSON when you offer/check status with the team. **Never** `human_sales`, stale sales intake (סידני / גודל סלון), or off-hours **יועץ מכירות** boilerplate on this thread. Never only generic cancellation SLA with `action: reply`."
+        : "REFUND STATUS FOLLOW-UP (295276261 / 533274296 / 533700177): return/pickup already in thread — customer asks refund **status** or missing **credit approval** (e.g. «לא קיבלתי אישור על הזיכוי», «מה עם ההחזר כספי» — not how to return). Empathize; run lookup_order_status when you need the order, then `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/סימנתi — **never** `action: reply` only with transfer prose or «הנציג כבר קיבל». **Never** `human_sales` or stale sales intake on this thread. Never only generic cancellation SLA with `action: reply`."
+    )
+  }
+
+  if (
+    isOpenRefundCreditFollowUpThread(history) &&
+    isServiceHandoffWaitChase(body) &&
+    isPostHumanHandoff(null, history)
+  ) {
+    lines.push(
+      "REFUND CREDIT REP JOIN WAIT (533274296): refund/credit after pickup — customer asks when a live rep joins chat (מתי יעלה לצ'ט / איפה נציג). If **`human_service`** is **not** logged yet for this case, set **`action: human_service`** + `crm_department: service` in the **same** JSON now (transfer words in an earlier `reply` turn do **not** assign). **Never** «הנציג כבר קיבל» on `action: reply`. After **`human_service`** is logged, answer with service hours + patience — **`action: reply`** only; **never** duplicate «מעולה, העברתi את השיחה לנציג שירות» or a second **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
@@ -3408,7 +3449,7 @@ export function buildConversationHints(input: {
   if (botAskedOrderOrOtherTopic(history) && affirmsOrderOrOtherSameTopic(body)) {
     const known = orderIdGivenInThread(history)
     lines.push(
-      `ORDER OR OTHER TOPIC YES (532326366): you asked if the thread is about order ${known ?? "already named in thread"} or another topic — customer confirmed same order (אותה הזמנה / הזמנה). Call lookup_order_status for fresh shipping status; brief empathy if they are waiting. Prior human_service or an old rep request does NOT mean they want a rep again this turn — action reply. NEVER human_service or «העברתי/סימנתי לנציג» unless THIS message explicitly asks for a rep.`
+      `ORDER OR OTHER TOPIC YES (532326366 / 503283917): you asked if the thread is about order ${known ?? "already named in thread"} or a named issue on that order (e.g. missing medallion line) versus another topic — customer confirmed (כן / אותה הזמנה / הזמנה). Call lookup_order_status for ${known ?? "that order id"}; answer status or continue partial-delivery service (rep summary → human_service only after lookup when ready). Never «תודה על האישור» + human_service as if they confirmed a rep offer — no handoff was pending. Prior human_service or an old rep request does NOT mean they want a rep again this turn — action reply. NEVER human_service or «העברתי/סימנתי לנציג» unless THIS message explicitly asks for a rep.`
     )
   }
 
@@ -3480,6 +3521,12 @@ export function buildConversationHints(input: {
   } else if (isPostPurchaseDifferentModelOrPackagingExchange(body, history)) {
     lines.push(
       "EXCHANGE DIFFERENT MODEL / PACKAGING (534041229): thread is post-purchase **החלפה** because the rug does not match or packaging was opened for inspection — **not** same-model alt-size. Ack packaging policy honestly; answer branch/fees if asked; bullet recap for יועץ מכירות when they want a rep. **Never** «מבין שאתם מחפשים את אותו דגם במידה אחרת» or מק״ט-from-photo loop."
+    )
+  } else if (isPostPurchaseAltSizeNewRugShipmentAsk(body, history)) {
+    const orderRef =
+      identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
+    lines.push(
+      `EXCHANGE ALT SIZE BRANCH SHIP FAQ (534095173): post-purchase **החלפת מידה**${orderRef ? ` on order ${orderRef}` : ""} — branch return steps already sent and **human_sales** logged for target מק״ט/availability. Customer asks whether HoM will **ship the new size** — explain: return the received rug at the branch (unused + packaging + invoice); the **new size** is not on the shelf now (pre-order ETA from thread if known); יועץ מכירות already has the case and coordinates ordering/shipment to the order address. **action: reply** or **action: end** — **never** duplicate **human_sales** or «העברתי את השיחה ליועץ מכירות» unless they explicitly ask for a rep **this turn** or say nobody contacted them.`
     )
   } else if (
     isPostPurchaseAlternateSizeThread(history, body) &&

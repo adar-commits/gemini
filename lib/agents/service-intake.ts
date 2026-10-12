@@ -732,11 +732,14 @@ export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
   const hasCreditAsk = userTexts.some(
     (text) =>
       /החזר\s*כספ/i.test(text) ||
+      /(?:לא\s+)?(?:קיבל(?:תי|נו)?|התקבל(?:ה)?)\s+אישור.{0,24}זיכוי/i.test(text) ||
       (/זיכוי/i.test(text) &&
-        /(?:עושים|(?:מ)?(?:קבל|ראה)|מתי|אפשר|מה\s+(?:קורה|המצב|עם))/i.test(text))
+        /(?:עושים|(?:מ)?(?:קבל|ראה)|מתי|אפשר|מה\s+(?:קורה|המצב|עם)|אישור)/i.test(text))
   )
-  const hasReturnDone = userTexts.some((text) =>
-    /(?:החזר(?:תי|נו|ה)|מסר(?:תי|נו).{0,40}(?:סניף|חנות))/i.test(text)
-  )
+  const corpus = history.map((message) => message.content).join("\n")
+  const hasReturnDone =
+    userTexts.some((text) =>
+      /(?:החזר(?:תי|נו|ה)|מסר(?:תי|נו).{0,40}(?:סניף|חנות))/i.test(text)
+    ) || /(?:נאס(?:ף|פ(?:ה|ו)?)|(?:בוצע|עש(?:ו|ית(?:י)?))\s+איסוף)/i.test(corpus)
   return hasCreditAsk && hasReturnDone
 }

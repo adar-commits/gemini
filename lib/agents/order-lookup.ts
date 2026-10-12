@@ -87,6 +87,7 @@ import {
   buildDeliveryStatusMessage,
   isMappedDeliveryStatusId,
   isUnknownDeliveryStatusMessage,
+  UNKNOWN_DELIVERY_STATUS_ETA_DEFERRED,
 } from "@/lib/agents/delivery-status-terminology"
 import { buildDeliveryEstimatePolicyReply } from "@/lib/agents/delivery-estimate-policy"
 import {
@@ -3512,6 +3513,13 @@ export function isServiceHandoffOrderLookupReply(reply: string) {
   return reply.trim() === buildHumanHandoffConfirmedReply("human_service").trim()
 }
 
+function buildDeferredUnknownShippingStatusReply(order: OrderShipmentStatus) {
+  return buildDeliveryEstimatePolicyReply({
+    ...order,
+    statusDescription: UNKNOWN_DELIVERY_STATUS_ETA_DEFERRED,
+  })
+}
+
 async function replyAfterOrderIdentified(
   order: OrderShipmentStatus,
   lookupPhone: string,
@@ -3567,6 +3575,13 @@ async function replyAfterOrderIdentified(
 
   if (shouldUseModificationAwareStatusReply(history, body)) {
     return buildOrderModificationAwareStatusReply(order, history, body)
+  }
+
+  if (
+    requiresOrderStatusServiceHandoff(order) &&
+    shouldDeferUnknownDeliveryStatusHandoff(history)
+  ) {
+    return buildDeferredUnknownShippingStatusReply(order)
   }
 
   return buildOrderStatusReply(order)

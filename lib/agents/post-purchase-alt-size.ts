@@ -166,6 +166,53 @@ export function isPostPurchaseAlternateSizeThread(
   )
 }
 
+/** Bot already explained in-branch exchange steps for a post-purchase size swap (534095173). */
+export function isPostPurchaseAltSizeBranchExchangeExplained(
+  history: HistoryMessage[] = []
+) {
+  const corpus = history.map((message) => message.content).join("\n")
+  if (
+    !/(?:החלפת\s+מידה|להחליף\s+מידה|מידה\s+אחר)/i.test(corpus) ||
+    !hasRecentPurchaseContext(history, corpus)
+  ) {
+    return false
+  }
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:בסניף\s+זה\s+ללא\s+עלות|אין\s+החלפות\s+בסניפים|בכל\s+סניף\s+בימים)/i.test(
+        message.content
+      )
+  )
+}
+
+function hasLoggedSalesHandoffForAltSizeExchange(history: HistoryMessage[]) {
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!/(?:החלפת\s+מידה|להחליף\s+מידה)/i.test(corpus)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעולה,\s+העברתי)[^\n]{0,80}יועץ\s+מכירות/i.test(
+        message.content
+      )
+  )
+}
+
+/** Logistics FAQ after branch path — not a fresh sales handoff (534095173). */
+export function isPostPurchaseAltSizeNewRugShipmentAsk(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (!isPostPurchaseAltSizeBranchExchangeExplained(history)) return false
+  if (!hasLoggedSalesHandoffForAltSizeExchange(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  return (
+    /(?:ת)?שלח|משלוח|ישלח|תגיע/i.test(text) &&
+    /(?:שטיח|מידה|המידה\s+החדש)/i.test(text)
+  )
+}
+
 export function buildPostPurchaseAlternateSizeAdvisorReply(options?: {
   photoAck?: boolean
 }) {
