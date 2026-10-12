@@ -701,7 +701,6 @@ export function isPartialRefundChaseThread(history: HistoryMessage[]) {
   )
 }
 
-/** Return done + credit/refund question still open — not sales intake (533700177). */
 const OPEN_SERVICE_POST_PURCHASE_KINDS = new Set<PostPurchaseCaseKind>([
   "defect",
   "return_request",
@@ -721,6 +720,28 @@ export function isOpenPostPurchaseServiceIssueInThread(history: HistoryMessage[]
   if (!corpus) return false
   const kind = classifyPostPurchaseCase(corpus)
   return kind !== null && OPEN_SERVICE_POST_PURCHASE_KINDS.has(kind)
+}
+
+/** Photos + fluff/shedding quality complaint — FAQ must not answer shipping delivered (528280449). */
+export function isOpenProductQualityServiceThread(history: HistoryMessage[]) {
+  if (isOpenPostPurchaseServiceIssueInThread(history)) return true
+  const userCorpus = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .join("\n")
+  const hasCustomerPhoto =
+    /\[media:image:/i.test(userCorpus) || /\[תמונה\]/i.test(userCorpus)
+  const qualitySignal =
+    /(?:מ(?:אוכז(?:ב|ז)(?:ת|ים|ות)?)|פלומ(?:ה|ות)|שואב(?:ים)?\s+מלא|סיב(?:ים)?|אין\s+שיפור)/i.test(
+      userCorpus
+    )
+  if (hasCustomerPhoto && qualitySignal) return true
+  const botAskedProductQuality = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:פלומ(?:ה|ות)|מאכזב|קיבלתי\s+את\s+התמונ)/i.test(message.content)
+  )
+  return botAskedProductQuality && qualitySignal
 }
 
 export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {

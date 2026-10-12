@@ -40,6 +40,7 @@ import {
   buildReturnPickupAwaitingServiceReply,
   buildServiceHandoffConfirmReply,
   extractServiceIntake,
+  isOpenProductQualityServiceThread,
   isReturnPickupAwaitingThread,
   isServiceHandoffSummaryConfirmedInThread,
   type ServiceIntake,
@@ -891,6 +892,7 @@ export function isServiceLookupContext(
   lastAgent: AgentId | null = null
 ): boolean {
   if (lastAgent === "service") return true
+  if (isOpenProductQualityServiceThread(history)) return true
 
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]

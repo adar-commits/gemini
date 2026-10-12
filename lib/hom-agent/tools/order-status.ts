@@ -1,6 +1,7 @@
 import {
   buildReturnPickupAwaitingServiceReply,
   extractServiceIntake,
+  isOpenProductQualityServiceThread,
   isPostPurchaseServiceFlow,
   isReturnPickupAwaitingThread,
 } from "@/lib/agents/service-intake"
@@ -10,6 +11,7 @@ import {
   shouldOfferReturnOptionsFirst,
 } from "@/lib/agents/dissatisfaction"
 import { isExchangeIntakeActive } from "@/lib/agents/exchange-intake"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import {
   classifyPostPurchaseCase,
   isActiveReturnExchangePickupCase,
@@ -33,6 +35,7 @@ import {
   extractOrderReference,
   extractOrderNumber,
   isServiceOrderIdentificationFlow,
+  isOrderDeliveryStatusQuestion,
   requiresOrderIdentification,
   isServiceHandoffOrderLookupReply,
   identifiedOrderNumberFromThread,
@@ -126,6 +129,24 @@ export async function executeLookupOrderStatus(input: OrderLookupInput) {
       errorCode: "lookup_misroute",
       error:
         "SHIPPING ADDRESS UPDATE (532692073): this thread is a request to change the delivery address, not a shipment-status ask. Do NOT call lookup_order_status and do NOT send a בדקתי status card. Answer from shipping-policy KB: updating the address is not always possible — it depends on whether the order was already handed to the courier. After handover there is a cost; WhatsApp 077-9725055 or *3076. Do not ask them to type the new address or an order number. action reply.",
+    }
+  }
+
+  const identifyOnlyEarly =
+    input.purpose === "identify_order" || isIdentificationOnlyOrderLookup(history)
+  if (
+    isOpenProductQualityServiceThread(history) &&
+    !identifyOnlyEarly &&
+    !isShippingStatusQuestion(body) &&
+    !isOrderDeliveryStatusQuestion(body) &&
+    !extractOrderReference(body, history) &&
+    !extractOrderNumber(body)
+  ) {
+    return {
+      ok: false as const,
+      errorCode: "lookup_misroute",
+      error:
+        "OPEN SERVICE CASE (528280449): customer is reporting product quality / fluff / dissatisfaction on an open service thread — continue service (empathy, clarify issue, order identify if needed, photos, rep summary → human_service). Do NOT call lookup_order_status for delivered/shipping status or warm-close with שמחתי לעזור.",
     }
   }
 

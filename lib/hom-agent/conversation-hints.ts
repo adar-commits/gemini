@@ -209,6 +209,7 @@ import {
   threadHasUnansweredPhysicalArrivalQuestion,
   isOpenServiceDefectFollowUpThread,
   isOpenPostPurchaseServiceIssueInThread,
+  isOpenProductQualityServiceThread,
   isOpenRefundCreditFollowUpThread,
   isPartialRefundChaseThread,
   isOpenPreorderDelayCompensationFollowUpThread,
@@ -2192,6 +2193,16 @@ export function buildConversationHints(input: {
   if (postPurchaseKind === "defect") {
     lines.push(
       'DEFECT / WARRANTY (534098184): empathize and describe what they reported — never confirm "מדובר בפגם" or "פגם מלכתחילה". Set `"crm_department": "service"` every turn. Collect photos + order # → rep summary → `human_service`. **Never** `human_sales` / יועץ מכירות. Rep bullet: דיווח על בעיה / חשש (לפי הלקוח). Human verifies liability.'
+    )
+  }
+
+  if (
+    isOpenProductQualityServiceThread(history) &&
+    !isShippingStatusQuestion(body) &&
+    !isOrderDeliveryStatusQuestion(body)
+  ) {
+    lines.push(
+      "OPEN SERVICE CASE CONTINUATION (528280449): thread already has defect / fluff / dissatisfaction / return service — follow-up lines (e.g. שואב מלא בפלומה, אין שיפור) continue **that** case. **`crm_department: service`**. Empathize + service playbook (order identify if needed, photos, rep summary → **`human_service`**). **Never** `lookup_order_status` for «משלוח נמסר» / delivered status + **שמחתי לעזור** mid quality complaint."
     )
   }
 
