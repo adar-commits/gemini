@@ -25,10 +25,18 @@ const SELF_PICKUP_COLLECTED_MESSAGE =
 export const UNKNOWN_DELIVERY_STATUS_MESSAGE =
   "ההזמנה נמצאה, אך לא ניתן להציג כרגע סטטוס משלוח חד-משמעי. הפנייה תועבר להמשך טיפול."
 
+/** ETA confirm thread — unknown code without implying backend transfer on action reply (530185940 / 532716685). */
+export const UNKNOWN_DELIVERY_STATUS_ETA_DEFERRED =
+  "ההזמנה נמצאה, אך לא ניתן להציג כרגע סטטוס משלוח חד-משמעי."
+
 const UNKNOWN_STATUS_MESSAGE = UNKNOWN_DELIVERY_STATUS_MESSAGE
 
 export function isUnknownDeliveryStatusMessage(message: string) {
-  return message.trim() === UNKNOWN_DELIVERY_STATUS_MESSAGE
+  const trimmed = message.trim()
+  return (
+    trimmed === UNKNOWN_DELIVERY_STATUS_MESSAGE ||
+    trimmed === UNKNOWN_DELIVERY_STATUS_ETA_DEFERRED
+  )
 }
 
 const MAPPED_DELIVERY_STATUS_IDS = new Set([
