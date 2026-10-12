@@ -1,4 +1,6 @@
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
+import { crmHoldsHumanAssignment } from "@/lib/crm/conversation-assign"
+import { isLiveHumanLastOutbound } from "@/lib/agents/memory"
 import { getAgentSupabase } from "@/lib/agents/supabase"
 
 export function crmCloseSyncEnabled() {
@@ -7,7 +9,22 @@ export function crmCloseSyncEnabled() {
 
 export type CloseCrmConversationResult =
   | { ok: true; updated: true; sessionId: string }
-  | { ok: true; updated: false; reason: "disabled" | "not_found" | "already_closed" }
+  | {
+      ok: true
+      updated: false
+      reason: "disabled" | "not_found" | "already_closed" | "human_handling"
+    }
+
+/**
+ * Only reps close inquiries they handle. Landbot message hooks sometimes clear the CRM
+ * assignment, so a live-rep last outbound counts as human handling too.
+ */
+export function crmCloseBlockedByHuman(input: {
+  assignedAgentCode: string | null | undefined
+  liveHumanLastOutbound: boolean
+}) {
+  return crmHoldsHumanAssignment(input.assignedAgentCode) || input.liveHumanLastOutbound
+}
 
 /**
  * Close the inquiry in the CRM inbox (conversations.closed_at) — not Landbot-only.
@@ -28,6 +45,23 @@ export async function closeCrmConversation(input: {
 
   if (row.closed_at) {
     return { ok: true, updated: false, reason: "already_closed" }
+  }
+
+  const liveHumanLastOutbound = crmHoldsHumanAssignment(row.assigned_agent_code)
+    ? true
+    : await isLiveHumanLastOutbound(input.conversationId).catch(() => true)
+  if (
+    crmCloseBlockedByHuman({
+      assignedAgentCode: row.assigned_agent_code,
+      liveHumanLastOutbound,
+    })
+  ) {
+    console.log("[crm-close] skipped — human handling", {
+      sessionId: row.session_id,
+      reason: input.reason,
+      assignedAgentCode: row.assigned_agent_code,
+    })
+    return { ok: true, updated: false, reason: "human_handling" }
   }
 
   const supabase = getAgentSupabase()

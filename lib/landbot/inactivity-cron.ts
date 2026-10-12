@@ -624,11 +624,11 @@ async function attemptInactivityClose(row: CloseCandidate) {
     hasOpenFaqFollowUpQuestion(context.history, context.lastAgent) ||
     hasOpenSalesIntakeQuestion(context.history, context.lastAgent)
   ) {
-    await executeInactivityServiceClose({
+    const closed = await executeInactivityServiceClose({
       conversationId: row.conversation_id,
       customerId,
     })
-    return "closed" as const
+    return "skipped" in closed ? ("skipped" as const) : ("closed" as const)
   }
 
   if (salesRecovery) {
@@ -639,11 +639,11 @@ async function attemptInactivityClose(row: CloseCandidate) {
     return "sales_recovery" as const
   }
 
-  await executeInactivityServiceClose({
+  const closed = await executeInactivityServiceClose({
     conversationId: row.conversation_id,
     customerId,
   })
-  return "closed" as const
+  return "skipped" in closed ? ("skipped" as const) : ("closed" as const)
 }
 
 /** Cron runs every minute with maxDuration 60s — stop starting rows well before that. */

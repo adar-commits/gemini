@@ -249,10 +249,6 @@ export async function handleLandbotInbound(
   if (replyEnabled && !trainerResetBypass && !voiceClosureWake && humanAssist.mode === "fresh") {
     const history = await getHistory(conversationId)
     if (isThanksAcknowledgment(turnSummary) && (await isLiveHumanLastOutbound(conversationId))) {
-      await closeCrmConversation({
-        conversationId,
-        reason: "human_thread_thanks",
-      }).catch(() => {})
       return {
         ok: true,
         agent: "master",
@@ -260,7 +256,7 @@ export async function handleLandbotInbound(
         reply: "",
         duplicateSuppressed: true,
         mode,
-        skipped: "human_thread_thanks_close",
+        skipped: "human_thread_thanks",
       }
     }
     if (!shouldBypassHumanThreadSilence(turnSummary, history)) {

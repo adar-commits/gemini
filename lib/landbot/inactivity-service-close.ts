@@ -1,8 +1,7 @@
 import { buildInactivityCloseReply } from "@/lib/agents/inactivity"
-import { recordProactiveAssistantMessage } from "@/lib/agents/memory"
+import { isLiveHumanLastOutbound, recordProactiveAssistantMessage } from "@/lib/agents/memory"
 import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
-import { crmHoldsHumanAssignment } from "@/lib/crm/conversation-assign"
-import { closeCrmConversation } from "@/lib/crm/conversation-close"
+import { closeCrmConversation, crmCloseBlockedByHuman } from "@/lib/crm/conversation-close"
 import { findCrmConversation } from "@/lib/crm/conversation-lookup"
 import { archiveCustomer, assignToApiAgent, sendCustomerText } from "@/lib/landbot/client"
 
@@ -17,9 +16,20 @@ export async function executeInactivityServiceClose(input: {
   const reply = buildInactivityCloseReply()
 
   const crmRow = await findCrmConversation(input.conversationId).catch(() => null)
-  if (!crmHoldsHumanAssignment(crmRow?.assigned_agent_code)) {
-    await assignToApiAgent(input.customerId)
+  const liveHumanLastOutbound = await isLiveHumanLastOutbound(input.conversationId).catch(
+    () => true
+  )
+  if (
+    crmCloseBlockedByHuman({
+      assignedAgentCode: crmRow?.assigned_agent_code,
+      liveHumanLastOutbound,
+    })
+  ) {
+    console.log("[inactivity-close] skipped — human handling", input.conversationId)
+    return { ok: true as const, skipped: "human_handling" as const }
   }
+
+  await assignToApiAgent(input.customerId)
   await sendCustomerText(input.customerId, reply)
   await recordProactiveAssistantMessage({
     conversationId: input.conversationId,
