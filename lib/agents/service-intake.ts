@@ -682,6 +682,25 @@ export function isOpenPreorderDelayCompensationFollowUpThread(history: HistoryMe
   )
 }
 
+/** Cancelled order — one refund/credit received, another still missing (468077939). */
+export function isPartialRefundChaseThread(history: HistoryMessage[]) {
+  const userTexts = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+  if (userTexts.length === 0) return false
+  const corpus = userTexts.join("\n")
+  if (!/זיכוי/i.test(corpus)) return false
+  const missingStill =
+    /(?:לא\s+רא(?:יתי|ה)|עדיין\s+לא\s+(?:רא(?:יתי|ה)|הופיע|קיבל))/i.test(corpus) ||
+    /(?:איך\s+)?(?:לא\s+)?(?:רא(?:יתי|ה)|קיבל(?:תי|ו)).*זיכוי/i.test(corpus)
+  if (!missingStill) return false
+  return (
+    /(?:את\s+זה\s+כן|אחד\s+כן|הראשון\s+כן)/i.test(corpus) &&
+    /(?:שני\s+לא|השני\s+לא|הזיכוי\s+השני)/i.test(corpus)
+  )
+}
+
 /** Return done + credit/refund question still open — not sales intake (533700177). */
 export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
   const userTexts = history

@@ -200,6 +200,7 @@ import {
   threadHasUnansweredPhysicalArrivalQuestion,
   isOpenServiceDefectFollowUpThread,
   isOpenRefundCreditFollowUpThread,
+  isPartialRefundChaseThread,
   isOpenPreorderDelayCompensationFollowUpThread,
   isServiceHandoffSummaryPending,
   isServiceHandoffSummaryText,
@@ -461,6 +462,7 @@ function hasOpenExchangeShippingDelayInThread(history: HistoryMessage[]) {
 }
 
 function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
+  if (isPartialRefundChaseThread(history)) return true
   if (isOpenRefundCreditFollowUpThread(history)) return true
   if (
     history.some(
@@ -1835,6 +1837,10 @@ export function buildConversationHints(input: {
       lines.push(
         "REFUND CREDIT WAIT PING (533700177): customer already returned and asked about credit/refund (זיכוי) — a ? / ?? ping is chasing that open service case, **not** a fresh sales chat. Brief empathy + confirm you are here; recap the return + credit question from the thread. **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי לנציג שירות — **never** resume stale sales intake (סידני / גודל סלון / יועץ מכירות) or **`human_sales`** on this thread."
       )
+    } else if (isPartialRefundChaseThread(history)) {
+      lines.push(
+        "PARTIAL REFUND WAIT PING (468077939): cancelled order — one credit/refund already received, the other (often card) still missing past SLA. ? / ?? is chasing that open credit check — brief empathy + recap order/phone from the thread. **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי לנציג שירות — **never** generic «איך אוכל לעזור?» only or **`human_sales`**."
+      )
     } else {
       lines.push(
         'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
@@ -2939,6 +2945,12 @@ export function buildConversationHints(input: {
   if (isRefundTimelineQuestion(body)) {
     lines.push(
       "Refund timeline: up to 7 business days from cancellation date — not from warehouse/branch receipt."
+    )
+  }
+
+  if (isPartialRefundChaseThread(history)) {
+    lines.push(
+      "PARTIAL REFUND CHASE (468077939): cancelled order — customer reports one credit/refund already received and another still missing (often card) after SLA. Run lookup_order_status when you need SO/phone. Empathize + service bullet recap (order #, which credit received vs missing, phone). **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי — **never** `action: reply` only listing what the rep will get without transferring now. **Never** `human_sales` or stale sales intake."
     )
   }
 

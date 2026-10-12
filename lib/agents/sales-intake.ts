@@ -24,7 +24,10 @@ import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
 import { isConfirmationAffirmationWithExtra } from "@/lib/agents/compound-reply"
 import { classifyPostPurchaseCase } from "@/lib/agents/inquiry-intent"
-import { isOpenRefundCreditFollowUpThread } from "@/lib/agents/service-intake"
+import {
+  isOpenRefundCreditFollowUpThread,
+  isPartialRefundChaseThread,
+} from "@/lib/agents/service-intake"
 import { isPostPurchaseIntentConfirmPending } from "@/lib/agents/intent-confirmation"
 import {
   isOpenServiceDefectFollowUpThread,
@@ -439,6 +442,7 @@ export function isActiveSalesConsultation(
   if (isPostPurchaseIntentConfirmPending(history)) return false
   if (isOpenServiceDefectFollowUpThread(history)) return false
   if (isOpenRefundCreditFollowUpThread(history)) return false
+  if (isPartialRefundChaseThread(history)) return false
   return (
     hasOngoingSalesIntake(history) ||
     isAwaitingSalesIntakeAnswer(history) ||
