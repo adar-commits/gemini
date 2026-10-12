@@ -3013,6 +3013,16 @@ export function buildConversationHints(input: {
   }
 
   if (
+    isDeliveryPostponementRequest(body) &&
+    isAwaitingReplyAfterPostponementFaqAnswer(history) &&
+    !customerExplicitlyRequestsHuman(body)
+  ) {
+    lines.push(
+      'DELIVERY POSTPONE AFTER FAQ (533585020): FAQ or your prior message already answered postponement policy (*3076 / carrier calls on delivery day) and offered order lookup — the customer has **not** replied yet. **`action: end`** — do not send human_sales, off-hours יועץ מכירות text, or any second bot message. `"crm_department": "service"` — shipping postpone is **not** sales even when an old sales product was mentioned in the greeting.'
+    )
+  }
+
+  if (
     botOfferedReceiptOrderConfirm(history) &&
     !isKnownOrderConfirmPending(history) &&
     isSoftKnownOrderConfirm(body)
@@ -3445,6 +3455,48 @@ function isDeliverySchedulingPreferenceQuestion(body: string) {
       text
     )
   )
+}
+
+function isDeliveryPostponementRequest(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  if (!/(?:משלוח|מסירה|אספקה|שטיח)/i.test(text)) return false
+  return (
+    /(?:דח(?:ות|י(?:יה|ה))|לא\s+(?:מתאים|יכול(?:ה)?)\s+(?:ל)?קבל|בעיה\s+לקבל)/i.test(
+      text
+    ) || /(?:היום|היום\s+שטוח)/i.test(text) && /(?:לא|בעיה)/i.test(text)
+  )
+}
+
+function isPostponementPolicyAssistantMessage(content: string) {
+  return (
+    /\*3076/.test(content) &&
+    /(?:דחי|מראש|שליח(?:ויות)?)/i.test(content)
+  )
+}
+
+/** FAQ answered postpone-delivery policy; customer has not sent a new line since (533585020). */
+export function isAwaitingReplyAfterPostponementFaqAnswer(history: HistoryMessage[]) {
+  let lastRealAssistantIndex = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) continue
+    lastRealAssistantIndex = index
+    break
+  }
+  if (lastRealAssistantIndex < 0) return false
+  const content = history[lastRealAssistantIndex]!.content
+  if (!isPostponementPolicyAssistantMessage(content)) return false
+  if (
+    !/(?:רוצ(?:ה|ים)\s+ש(?:א|)בדוק|באיזה\s+שלב)/i.test(content) &&
+    !/(?:לבדוק|lookup)/i.test(content)
+  ) {
+    return false
+  }
+  for (let index = lastRealAssistantIndex + 1; index < history.length; index += 1) {
+    if (history[index]!.role === "user") return false
+  }
+  return true
 }
 
 function ordersOfferedInLastAssistantQuestion(history: HistoryMessage[]) {
