@@ -675,6 +675,12 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
   ) {
     return false
   }
+  if (
+    (isNonSubstantiveFollowUp(text) || isSalesHandoffWaitChase(text)) &&
+    isSalesExchangeHandoffAwaitingCallback(history)
+  ) {
+    return false
+  }
   if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
   const openServiceDefectWait = isOpenServiceDefectFollowUpThread(history)
   if (!isPostHumanHandoff(null, history) && !openServiceDefectWait) return false
@@ -1345,7 +1351,20 @@ export function buildConversationHints(input: {
   }
 
   if (
+    isSalesExchangeHandoffAwaitingCallback(history) &&
+    !isNonSubstantiveFollowUp(body.trim()) &&
+    !isSalesHandoffWaitChase(body)
+  ) {
+    const orderRef =
+      identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
+    lines.push(
+      `SALES EXCHANGE MODEL FOLLOW-UP (532191753): post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} already has **human_sales** logged — customer may name/link the replacement model for the advisor. Brief ack + ask once for product link, מק״ט, or exact model name from the site if not in thread yet; confirm it is noted for יועץ מכירות. **action: reply** — **never** duplicate «העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly complain nobody contacted them (אין מענה / לא חוזרים) **this turn**.`
+    )
+  }
+
+  if (
     !isExtraRugPickupServiceThread(history, body) &&
+    !isSalesExchangeHandoffAwaitingCallback(history) &&
     (isCatalogProductInquiry(body, history) ||
       isHomStorefrontUrl(body) ||
       isProductDetailsRequest(body))

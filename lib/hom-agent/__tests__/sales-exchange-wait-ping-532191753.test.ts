@@ -59,4 +59,24 @@ describe("sales exchange wait ping (532191753)", () => {
       }) ?? ""
     assert.match(hints, /SALES EXCHANGE WAIT PING \(532191753\)/)
   })
+
+  it("emits wait ping on multi-question-mark chase (??????)", () => {
+    const hints =
+      buildConversationHints({
+        history: history532191753(),
+        body: "??????",
+      }) ?? ""
+    assert.match(hints, /SALES EXCHANGE WAIT PING \(532191753\)/)
+    assert.doesNotMatch(hints, /POST-HANDOFF NO-RESPONSE RE-ESCALATION/)
+  })
+
+  it("model follow-up after exchange handoff avoids catalog product hint", () => {
+    const hints =
+      buildConversationHints({
+        history: history532191753(),
+        body: "אני יודעת לאיזה שטיח אני רוצה להחליף",
+      }) ?? ""
+    assert.match(hints, /SALES EXCHANGE MODEL FOLLOW-UP \(532191753\)/)
+    assert.doesNotMatch(hints, /CATALOG PRODUCT \(534348772/)
+  })
 })
