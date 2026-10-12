@@ -645,10 +645,10 @@ export function isPostPurchaseServiceFlow(history: HistoryMessage[]) {
 }
 
 const SERVICE_DEFECT_THREAD_RE =
-  /(?:פג(?:ם|ום)|שטיח\s+פגום|בעקבות\s+(?:שטיח\s+)?פג(?:ם|ום))/i
+  /(?:פג(?:ם|ום)|שטיח\s+פגום|בעקבות\s+(?:שטיח\s+)?פג(?:ם|ום)|(?:\d+\s+)?חור(?:ים)?(?:\s+ב(?:שטיח)?)?|שלכאורה\s+פגום)/i
 
 const SERVICE_DEFECT_IN_PROGRESS_RE =
-  /(?:ב(?:דיק(?:ה|ת)|ממתינ(?:ה|ים))[^\n]{0,48}בקרת\s+איכות|אשמח\s+להבין\s+איפה\s+השטיח|נמשיך\s+לטפל|פונה\s+אל(?:יך|כם)\s+בעקבות)/i
+  /(?:ב(?:דיק(?:ה|ת)|ממתינ(?:ה|ים))[^\n]{0,48}בקרת\s+איכות|אשמח\s+להבין\s+איפה\s+השטיח|נמשיך\s+לטפל|פונה\s+אל(?:יך|כם)\s+בעקבות|פניית\s+סניף[^\n]{0,160}(?:פג(?:ם|ום)|חור))/i
 
 /** Open defect/quality case — intake or QC wait, not closed (507829534). */
 export function isOpenServiceDefectFollowUpThread(history: HistoryMessage[]) {

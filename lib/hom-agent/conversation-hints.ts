@@ -371,6 +371,43 @@ function isSalesHandoffWaitChase(body: string) {
   return /^מה\s+עם\s+הפנייה(?:\s+של(?:י|נו))?/i.test(text)
 }
 
+function branchInquiryCustomerNameFromHistory(history: HistoryMessage[]): string | null {
+  for (const message of history) {
+    if (message.role !== "user") continue
+    const match = message.content.match(/לקוח\/ה:\s*([^\n]+?)(?:\s+טלפון:|$)/i)
+    const name = match?.[1]?.trim()
+    if (name) return name
+  }
+  for (const message of history) {
+    if (message.role !== "assistant") continue
+    const match = message.content.match(/היי\s+([^\n,👋]+?)(?:\s+👋|\s*,)/i)
+    const name = match?.[1]?.trim()
+    if (name) return name
+  }
+  return null
+}
+
+/** human_service logged for branch/defect case — customer may ping while waiting (533557694). */
+function isServiceDefectRepHandoffAwaitingCallback(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history)) return false
+  if (isRepShippingStatusHandoffAwaitingCallback(history)) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!/(?:פג(?:ם|ום)|(?:\d+\s+)?חור(?:ים)?|שלכאורה\s+פגום)/i.test(corpus)) return false
+  const hasServiceHandoff = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעביר[^\n]{0,48}נציג\s+שירות)/i.test(
+        message.content
+      )
+  )
+  if (!hasServiceHandoff) return false
+  return (
+    identifiedOrderNumberFromThread(history) != null ||
+    orderIdGivenInThread(history) != null ||
+    /SO\d{6,}/i.test(corpus)
+  )
+}
+
 function hasLogisticsCoordinationMentionInThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
@@ -578,6 +615,12 @@ function isNoResponseCreditInvoiceEscalation(body: string) {
 function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: string) {
   const text = body.trim()
   if (!text || text.length > 320) return false
+  if (
+    isNonSubstantiveFollowUp(text) &&
+    isServiceDefectRepHandoffAwaitingCallback(history)
+  ) {
+    return false
+  }
   if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
   const openServiceDefectWait = isOpenServiceDefectFollowUpThread(history)
   if (!isPostHumanHandoff(null, history) && !openServiceDefectWait) return false
@@ -1702,6 +1745,13 @@ export function buildConversationHints(input: {
         orderIdGivenInThread(history)
       lines.push(
         `SERVICE SHIPPING STATUS WAIT PING (274323208): human_service already logged so נציג שירות checks shipping status${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
+      )
+    } else if (isServiceDefectRepHandoffAwaitingCallback(history)) {
+      const orderRef =
+        identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
+      const customerName = branchInquiryCustomerNameFromHistory(history)
+      lines.push(
+        `SERVICE DEFECT WAIT PING (533557694): human_service already logged for defect/quality${orderRef ? ` on order ${orderRef}` : ""} — ? / ?? means waiting for service callback, not a first-time transfer. Brief empathy + confirm the case is already with נציג שירות.${customerName ? ` Address the customer as **${customerName}** only — never invent another name from CRM assignee fields.` : " Use the customer name from branch inquiry or prior bot greeting only — never invent a name."} **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות בעדיפות without first-time handoff boilerplate.`
       )
     } else if (
       isSalesHandoffWaitChase(body) &&
