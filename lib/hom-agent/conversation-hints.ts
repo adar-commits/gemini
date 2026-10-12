@@ -2366,6 +2366,14 @@ export function buildConversationHints(input: {
       lines.push(
         "REP REQUEST AFTER PAYMENT OUTREACH (512798146): recent bot/system messages sent checkout or split-payment links (PayPlus / חבר / unpaid order). Customer asks for a rep — bullet recap must cover **that** payment/order thread (links, split cards, completing checkout), **not** an older back-in-stock alert or first sales-intake topic unless they mention it again this turn. Set action human_sales or human_service NOW in the same JSON. Never never-stuck fallback on this turn."
       )
+    } else if (
+      isOrderDeliveryStatusQuestion(body) ||
+      isDeliveryEstimateQuestion(body) ||
+      isShippingStatusQuestion(body)
+    ) {
+      lines.push(
+        "EXPLICIT REP + SHIPPING ETA (532625326): same turn asks for a human (נציג / נציג אנושי / מענה אנושי) AND delivery timing or shipping status — you may call lookup_order_status first or cite one short status line, then **`action: human_service`** + `crm_department: service` in the same JSON with transfer prose. **Never** `action: end` or **שמחתי לעזור** while ignoring the rep ask."
+      )
     } else {
       lines.push(
         "EXPLICIT REP REQUEST: customer asks for a human (נציג / מענה אנושי / לא בוט) — set action human_service or human_sales NOW in the same JSON. Never never-stuck fallback on this turn."
