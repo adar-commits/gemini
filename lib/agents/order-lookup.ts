@@ -1591,6 +1591,32 @@ export function pendingOrderNumberFromHistory(history: HistoryMessage[]) {
   return null
 }
 
+/** Rapid «כן» then ETA frustration before lookup — pending card still open (533480532). */
+export function shippingEtaThreadContinuesAfterPriorOrderConfirm(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOrderConfirmationPending(history)) return false
+  if (!isShippingThreadFromHistory(history)) return false
+  if (isOrderConfirmationNo(body) || isIdentifiedOrderRejection(body)) return false
+  if (isServiceOrderIdentificationFlow(history, body)) return false
+  if (isPureOrderConfirmation(body) || isOrderDeliveryStatusQuestion(body)) return false
+
+  let lastCardIdx = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (!isOrderConfirmationAssistantMessage(message.content)) continue
+    lastCardIdx = index
+    break
+  }
+  if (lastCardIdx < 0) return false
+  return history.slice(lastCardIdx + 1).some(
+    (message) =>
+      message.role === "user" && isPureOrderConfirmation(message.content.trim())
+  )
+}
+
 /** "כן כן", "נכון נכון" — Hebrew doubles affirmations for emphasis. */
 function collapseRepeatedWords(text: string) {
   return text.replace(/(^|\s)(\S+)(?:\s+\2)+/gu, "$1$2")
@@ -3936,6 +3962,21 @@ async function resolveOrderConfirmationFlow(input: {
       input.history,
       getPriorityApiLogContext()?.whatsappPhone
     )
+  }
+
+  if (
+    pendingOrder &&
+    shippingEtaThreadContinuesAfterPriorOrderConfirm(input.history, input.body)
+  ) {
+    const matched = findOrderByNumber(sorted, pendingOrder)
+    if (matched) {
+      return replyAfterOrderIdentified(
+        matched,
+        threadLookupPhone,
+        input.history,
+        input.body
+      )
+    }
   }
 
   if (pendingOrder) {

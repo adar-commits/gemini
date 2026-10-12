@@ -127,6 +127,7 @@ import {
   isNumberedReturnPolicyChoicePending,
   isOrderConfirmationNo,
   isOrderConfirmationPending,
+  isServiceOrderIdentificationFlow,
   isDeliveryEstimateQuestion,
   isKnownOrderConfirmPending,
   isOrderDeliveryStatusQuestion,
@@ -881,11 +882,19 @@ export async function runStructuredOrderLookupPreTurn(input: {
     isPurePhoneLookupConfirmYes(body) &&
     !/^(?:כן\s+)?ז(?:ה|ו)(?:\s|$)/i.test(body.trim())
   const pendingLookupFlow = orderConfirmPending || phoneLookupPending
+  const shippingEtaFollowUpOnOrderCard =
+    orderConfirmPending &&
+    isShippingThreadFromHistory(input.history) &&
+    !isOrderConfirmationNo(body) &&
+    !isIdentifiedOrderRejection(body) &&
+    !isServiceOrderIdentificationFlow(input.history, body) &&
+    body.trim().length > 0
   const deliveryLookupBinding =
     pendingLookupFlow &&
     (isOrderDeliveryStatusQuestion(body) ||
       isDeliveryEstimateQuestion(body) ||
       isShippingStatusQuestion(body) ||
+      shippingEtaFollowUpOnOrderCard ||
       (isKnownOrderConfirmPending(input.history) &&
         !isOrderConfirmationNo(body) &&
         !isIdentifiedOrderRejection(body) &&
