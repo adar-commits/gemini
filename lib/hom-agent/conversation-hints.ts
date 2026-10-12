@@ -213,6 +213,7 @@ import {
   isOpenPreorderDelayCompensationFollowUpThread,
   isServiceHandoffSummaryPending,
   isServiceHandoffSummaryText,
+  isServiceHandoffSummaryConfirmedInThread,
 } from "@/lib/agents/service-intake"
 import {
   isPostPurchaseAlternateSizeThread,
@@ -428,26 +429,39 @@ function branchInquiryCustomerNameFromHistory(history: HistoryMessage[]): string
   return null
 }
 
+function hasServiceAfterHoursQueueHandoff(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /אין\s+נציגי\s+שירות/i.test(message.content) &&
+      /קיבלנו\s+את\s+הפנייה/i.test(message.content)
+  )
+}
+
 /** human_service logged for branch/defect case — customer may ping while waiting (533557694). */
 function isServiceDefectRepHandoffAwaitingCallback(history: HistoryMessage[]) {
-  if (!isPostHumanHandoff(null, history)) return false
+  if (!isPostHumanHandoff(null, history) && !hasServiceAfterHoursQueueHandoff(history)) {
+    return false
+  }
   if (isRepShippingStatusHandoffAwaitingCallback(history)) return false
   const corpus = history.map((message) => message.content).join("\n")
   if (
-    !/(?:פג(?:ם|ום)|(?:\d+\s+)?חור(?:ים)?|שלכאורה\s+פגום|ריח\s+(?:נוראי|רעיל|מזעזע)|מוצר\s+פגום)/i.test(
+    !/(?:פג(?:ם|ום)|(?:\d+\s+)?חור(?:ים)?|שלכאורה\s+פגום|ריח\s+(?:נוראי|רעיל|מזעזע)|מוצר\s+פגום|(?:נפר(?:ם|מה)|היפרם|שנפרם))/i.test(
       corpus
     )
   ) {
     return false
   }
+  const confirmedSummary = isServiceHandoffSummaryConfirmedInThread(history)
   const hasServiceHandoff = history.some(
     (message) =>
       message.role === "assistant" &&
-      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעביר[^\n]{0,48}נציג\s+שירות)/i.test(
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעביר[^\n]{0,48}נציג\s+שירות|אין\s+נציגי\s+שירות[^\n]{0,160}קיבלנו\s+את\s+הפנייה)/i.test(
         message.content
       )
   )
-  if (!hasServiceHandoff) return false
+  if (!hasServiceHandoff && !confirmedSummary) return false
+  if (confirmedSummary && hasServiceHandoff) return true
   return (
     identifiedOrderNumberFromThread(history) != null ||
     orderIdGivenInThread(history) != null ||
@@ -1290,6 +1304,15 @@ export function buildConversationHints(input: {
       !input.visit.fresh && input.visit.anchor
         ? `CURRENT VISIT (228989877): this visit started with the customer message «${input.visit.anchor}» after ${input.visit.gapDays} days of silence (previous visit ended ${previous}). Messages before it are background from a past visit — answer what they ask in this visit. Never continue an old product inquiry, sales quiz, order or complaint from the earlier visit unless the customer brings it up again.`
         : `NEW VISIT (228989877): the previous message in this thread was ${input.visit.gapDays} days ago (${previous}). Treat this message as a fresh inquiry — earlier messages are background from a past visit. Do not assume they still mean that older product, order, quiz or complaint unless they say so; if their message is only a greeting or unclear, ask how you can help.`
+    )
+  }
+
+  if (
+    isServiceDefectRepHandoffAwaitingCallback(history) &&
+    (isCasualSmallTalk(body) || isNonSubstantiveFollowUp(body))
+  ) {
+    lines.push(
+      "SERVICE DEFECT CALLBACK RESUME (475968017): service rep recap was already confirmed and human_service logged (including after-hours queue). A bare greeting or ping continues the open fray/defect case — brief welcome, acknowledge they may still be waiting for נציג שירות, recap defect + contact from thread. **Never** «במה אפשר לעזור?» / «משהו אחר?» as if a new topic. If they say nobody called back → empathize + urgent re-escalation with **action: human_service** + crm_department service in the **same** JSON."
     )
   }
 
