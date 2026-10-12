@@ -3113,6 +3113,16 @@ export function resolveLookupPhoneFromHistory(
       if (cachedPhone) return cachedPhone
     }
 
+    // Pure confirm on the order card — channel phone before stale authorized (441681621).
+    if (
+      body?.trim() &&
+      isPureOrderConfirmation(body) &&
+      pendingOrderNumberFromHistory(history)
+    ) {
+      const channel = channelPhone(whatsappPhone)
+      if (channel) return channel
+    }
+
     const authorized = authorizedLookupPhoneFromHistory(history, whatsappPhone)
     if (authorized) return authorized
 
@@ -3723,6 +3733,54 @@ async function lookupAndStartOrderConfirm(
   return empathize ? empathize(reply) : reply
 }
 
+/** Confirm turn after getOrders returned [] — reuse thread cache or channel phone (441681621). */
+async function replyAfterPendingOrderConfirmWhenPhoneLookupEmpty(input: {
+  body: string
+  lookupPhone: string
+  history: HistoryMessage[]
+  pendingOrder: string
+  threadLookupPhone: string
+  conversationId?: string | null
+}) {
+  const relaxed =
+    input.conversationId != null && input.conversationId.trim() !== ""
+      ? recallConversationOrdersRelaxed(input.conversationId)
+      : null
+  if (relaxed?.length) {
+    const matched = findOrderByNumber(relaxed, input.pendingOrder)
+    if (matched) {
+      return replyAfterOrderIdentified(
+        matched,
+        input.threadLookupPhone,
+        input.history,
+        input.body
+      )
+    }
+  }
+
+  const whatsappPhone = getPriorityApiLogContext()?.whatsappPhone
+  const channel = whatsappPhone ? channelPhone(whatsappPhone) : null
+  if (
+    channel &&
+    phoneForOrderApi(channel) !== phoneForOrderApi(input.lookupPhone)
+  ) {
+    const channelOrders = await lookupOrdersForPhone(channel)
+    if (channelOrders?.length) {
+      const matched = findOrderByNumber(channelOrders, input.pendingOrder)
+      if (matched) {
+        return replyAfterOrderIdentified(
+          matched,
+          channel,
+          input.history,
+          input.body
+        )
+      }
+    }
+  }
+
+  return null
+}
+
 async function resolveOrderConfirmationFlow(input: {
   body: string
   lookupPhone: string
@@ -3740,7 +3798,20 @@ async function resolveOrderConfirmationFlow(input: {
   const orders =
     threadOrders ?? (await lookupOrdersForPhone(input.lookupPhone))
   if (orders == null) return buildOrderLookupApiFailureReply()
-  if (orders.length === 0) return buildNoOrdersFoundReply(threadLookupPhone)
+  if (orders.length === 0) {
+    if (pendingOrder && isPureOrderConfirmation(input.body)) {
+      const recovered = await replyAfterPendingOrderConfirmWhenPhoneLookupEmpty({
+        body: input.body,
+        lookupPhone: input.lookupPhone,
+        history: input.history,
+        pendingOrder,
+        threadLookupPhone,
+        conversationId,
+      })
+      if (recovered) return recovered
+    }
+    return buildNoOrdersFoundReply(threadLookupPhone)
+  }
 
   const sorted = sortOrdersNewestFirst(orders)
   const explicitOrder = extractOrderNumber(input.body)
