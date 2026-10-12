@@ -19,6 +19,7 @@ import {
 } from "@/lib/agents/branches"
 import {
   hasLiveRepReplyAfterBotHandoff,
+  isLiveRepAssistantMessage,
   isPostHumanHandoff,
 } from "@/lib/agents/post-handoff"
 
@@ -173,6 +174,88 @@ export function isPostHandoffStockFollowUp(history: HistoryMessage[], body: stri
 }
 
 const HOM_SKU_RE = /\b(\d{8}-\d{6})\b/
+
+const NAMED_MODEL_SIZE_LIST_RE =
+  /(?:ב)?(?:איזה|מה)\s*(?:ה)?(?:מידות?|גדלים?)\s+(?:יש|קיימ)/i
+
+const SIZE_QUESTION_MODEL_STOPWORDS = new Set([
+  "היי",
+  "שלום",
+  "בוקר",
+  "ערב",
+  "שטיח",
+  "שטיחים",
+  "מידות",
+  "מידה",
+  "גודל",
+  "גדלים",
+  "יש",
+  "קיימים",
+  "קיימות",
+  "את",
+  "הזה",
+  "הזו",
+  "של",
+  "לגבי",
+  "בבקשה",
+  "תודה",
+  "באיזה",
+  "מה",
+  "איזה",
+])
+
+function extractNamedModelTokensFromSizeQuestion(text: string) {
+  const tokens = text.match(/[\u0590-\u05FF]{3,}|[A-Za-z]{4,}/g) ?? []
+  return tokens.filter(
+    (token) =>
+      !SIZE_QUESTION_MODEL_STOPWORDS.has(token) &&
+      !SIZE_QUESTION_MODEL_STOPWORDS.has(token.toLowerCase())
+  )
+}
+
+function threadTextHaystack(history: HistoryMessage[], body: string) {
+  return [...history.map((message) => message.content), body].join("\n").toLowerCase()
+}
+
+function hasPriorLiveRepSizingTalk(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isLiveRepAssistantMessage(message.content) &&
+      /\d\s*[*×xX]\s*\d|מיד(?:ה|ות)/i.test(message.content)
+  )
+}
+
+/** Named model + sizes ask when product already in thread — not only post-bot-handoff (532637319). */
+export function isSalesNamedModelSizeListQuestion(body: string, history: HistoryMessage[]) {
+  const text = body.trim()
+  if (!text) return false
+  if (isBackInStockNotificationRequest(text)) return false
+  if (isPostPurchaseAlternateSizeAvailabilityQuestion(text, history)) return false
+  if (isPostHandoffStockFollowUp(history, text)) return false
+  const sizeAsk =
+    NAMED_MODEL_SIZE_LIST_RE.test(text) ||
+    SIZE_STOCK_LIST_RE.test(text) ||
+    (/\bמידות?\b/i.test(text) && /\b(?:יש|קיימ)/i.test(text))
+  if (!sizeAsk) return false
+
+  const modelTokens = extractNamedModelTokensFromSizeQuestion(text)
+  if (modelTokens.length === 0) return false
+  const hay = threadTextHaystack(history, text)
+  if (!modelTokens.some((token) => hay.includes(token.toLowerCase()))) return false
+
+  const hasSalesProductContext =
+    isPostHumanHandoff(null, history) ||
+    hasLiveRepReplyAfterBotHandoff(history) ||
+    hasPriorLiveRepSizingTalk(history) ||
+    history.some((message) => HOM_SKU_RE.test(message.content)) ||
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        /בדקתי\s+זמינות|31503138/i.test(message.content)
+    )
+  return hasSalesProductContext
+}
 
 const DATE_SKU_RE = /^\d{4}-\d{2}-\d{2}$/
 

@@ -173,6 +173,7 @@ Care / wash / stain / packaging how-to on a product they have is **service** —
 | Sales intake (paused) | "לא קיבלתי את המשלוח" / delivery problem | **`crm_department: "service"`** — handle delivery issue; bare **כן** after phone confirm is **order lookup**, not a sales quiz answer. |
 | Sales intake (room quiz open) | "באיזה חנות/סניף יש במלאי?" / buy today at a branch | **Pause intake** — ask מק״ט + area, then `lookup_inventory` when SKU is available. **`action: reply`** until lookup runs — never `human_sales` while SKU is still missing (431273377). |
 | **Post-handoff stock recheck (533554450)** — after `human_sales` and/or live rep already discussed sizes/prices, customer returns: "איזה מידות במלאי?" / "השטיח שדיברנו" | **`action: reply`** — product is already in thread; ask **once** for **מק״ט** from the site for the size they care about, then `lookup_inventory`. **Never** rerun sales intake summary or `human_sales` just because you cannot enumerate all sizes without מק״ט. Advisor handoff only if they refuse SKU or ask for a rep. |
+| **Returning named-model sizes (532637319)** — "באיזה מידות יש [דגם]?" when that model was already discussed (live rep sizes, prior Firenze/shaggy talk, thread SKU) | **`action: reply`** — reuse sizes already stated in thread/KB; explain cut policy when relevant; ask **once** for **מק״ט** then `lookup_inventory` for availability. **Never** immediate `human_sales` claiming no size list on the first turn. |
 
 Examples:
 ```json

@@ -181,6 +181,7 @@ import {
   isBranchInventoryQuestion,
   isInventoryQuestion,
   isPostHandoffStockFollowUp,
+  isSalesNamedModelSizeListQuestion,
   isInventoryRecheckRequest,
   isSkuCorrectionAfterStockAnswer,
   isSkuRequestPending,
@@ -2989,6 +2990,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'POST-HANDOFF STOCK RECHECK (533554450): after prior sales handoff and/or live rep stock talk, customer asks which sizes are in stock now for the product already in thread («השטיח שדיברנו», named model). **`action: reply`** — ask once for **מק״ט** from the product page (31503138-200290) for that model, then **`lookup_inventory`** when provided. **Never** restart sales intake bullets or **`human_sales`** only because you cannot list every size without מק״ט. **`human_sales`** only if they refuse SKU or explicitly ask for an advisor.'
+    )
+  }
+
+  if (isSalesNamedModelSizeListQuestion(body, history) && !postHandoffNoResponseReEscalation) {
+    lines.push(
+      'SALES NAMED MODEL SIZES (532637319): customer asks which sizes exist for a **named model already in this thread** (incl. after live-rep sizing talk). **`action: reply`** + `"crm_department": "sales"`. Recap standard sizes from thread/KB when already stated (e.g. 160×230, 200×290); note cut-to-size policy when relevant. Ask **once** for **מק״ט** from the product page to check stock via **`lookup_inventory`**. **Never** `human_sales` on the first turn claiming you have no size list — handoff only if they refuse SKU or ask for an advisor.'
     )
   }
 
