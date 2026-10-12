@@ -2675,6 +2675,30 @@ export function buildConversationHints(input: {
     )
   }
 
+  const missedCourierCallbackShippingContext =
+    isShippingThreadFromHistory(history) ||
+    isOrderLookupCompletedInThread(history) ||
+    isOrderStatusDeliveredInThread(history) ||
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        /(?:לפי הסטטוס|נארזה|ממתינה לאיסוף|השליח יתאם|חברת השליחויות)/i.test(message.content)
+    )
+
+  if (
+    identifiedOrderNumberFromThread(history) &&
+    !isOrderConfirmationPending(history) &&
+    !isPhoneLookupConfirmPending(history) &&
+    missedCourierCallbackShippingContext &&
+    /(?:ליצור\s+קשר.*(?:שליח|שליחויות)|(?:התקשר|צלצ(?:ל|)ל).*שליח.*(?:אי\s*אפשר|לא\s*(?:מצליח|יכול)).*לחזור|אי\s*אפשר\s*לחזור\s*אל(?:יו|הם))/i.test(
+      body
+    )
+  ) {
+    lines.push(
+      "MISSED COURIER CALLBACK (530560884): courier called and customer cannot reach them back / needs direct courier contact — you do NOT have the driver's private number. 077-9725055 is HoM logistics WhatsApp (same channel as this chat for many customers), NOT a substitute for returning a missed courier call. Acknowledge + order # when known → human_service in the SAME JSON so service coordinates with the courier. Never action end with only 077-9725055 / *3076 self-service."
+    )
+  }
+
   if (
     isOrderLookupCompletedInThread(history) &&
     isOrderStatusDeliveredInThread(history) &&
