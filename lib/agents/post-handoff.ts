@@ -104,6 +104,17 @@ function isBotHandoffCommitmentContent(content: string) {
   )
 }
 
+/** Past-tense CRM assign — future «אני מעביר» alone is not executed (533540551). */
+export function assistantTextIndicatesHandoffExecuted(text: string) {
+  const body = assistantBodyWithoutHeader(text)
+  if (!body) return false
+  return (
+    HANDOFF_CONFIRMED_RE.test(body) ||
+    /מעולה,\s+העברתי/i.test(body) ||
+    SALES_HANDOFF_COMMITTED_RE.test(body)
+  )
+}
+
 /** Prior transfer prose/commit in thread — still post-handoff after thanks-close (533540551). */
 function hasBotHandoffCommitmentInHistory(history: HistoryMessage[]) {
   return history.some(

@@ -67,6 +67,7 @@ import {
   replyAwaitingCustomerInput,
 } from "@/lib/agents/compound-reply"
 import {
+  assistantTextIndicatesHandoffExecuted,
   hasLiveRepReplyAfterBotHandoff,
   isPostHumanHandoff,
 } from "@/lib/agents/post-handoff"
@@ -183,13 +184,51 @@ export type PreTurnResult =
       awaiting?: BotAwaiting
     }
 
+function preTurnThreadHistory(input: {
+  history: HistoryMessage[]
+  threadHistory?: HistoryMessage[]
+}) {
+  return input.threadHistory?.length ? input.threadHistory : input.history
+}
+
+/** Thanks after «אני מעביר לנציג» that never got human_service — bind assign (533540551 / 321404113). */
+function isThanksAfterUnexecutedHandoffProse(
+  body: string,
+  explicitThanks: boolean,
+  visitHistory: HistoryMessage[],
+  threadHistory: HistoryMessage[]
+) {
+  if (!isThanksAcknowledgment(body) || !explicitThanks) return false
+  if (hasLiveRepReplyAfterBotHandoff(threadHistory)) return false
+
+  const lastVisitAssistant = lastNonInactivityAssistantText(visitHistory)
+  if (
+    lastVisitAssistant &&
+    hasDeclarativeHandoffTransfer(lastVisitAssistant) &&
+    !assistantTextIndicatesHandoffExecuted(lastVisitAssistant)
+  ) {
+    return true
+  }
+
+  for (let index = threadHistory.length - 1; index >= 0; index -= 1) {
+    const message = threadHistory[index]
+    if (message.role !== "assistant") continue
+    if (!hasDeclarativeHandoffTransfer(message.content)) continue
+    return !assistantTextIndicatesHandoffExecuted(message.content)
+  }
+  return false
+}
+
 export function runPreTurnGuards(input: {
   turn: UserTurn
   history: HistoryMessage[]
+  /** Full thread — thanks/handoff binding when visitHistory is truncated (321404113). */
+  threadHistory?: HistoryMessage[]
   customerName?: string
 }): PreTurnResult {
   const body = summarizeTurn(input.turn)
   const explicitThanks = isExplicitThanks(body)
+  const threadHistory = preTurnThreadHistory(input)
 
   if (turnHasVoiceMessage(input.turn)) {
     return {
@@ -322,7 +361,7 @@ export function runPreTurnGuards(input: {
   if (
     isThanksAcknowledgment(body) &&
     explicitThanks &&
-    hasLiveRepReplyAfterBotHandoff(input.history)
+    hasLiveRepReplyAfterBotHandoff(threadHistory)
   ) {
     return {
       kind: "handled",
@@ -378,7 +417,23 @@ export function runPreTurnGuards(input: {
     }
   }
 
-  if (isThanksAcknowledgment(body) && isPostHumanHandoff(null, input.history)) {
+  if (
+    isThanksAfterUnexecutedHandoffProse(
+      body,
+      explicitThanks,
+      input.history,
+      threadHistory
+    )
+  ) {
+    const action = inferHumanHandoffAction(threadHistory, null)
+    return {
+      kind: "handled",
+      reply: `${CUSTOMER_HEADER}\n${buildHumanHandoffConfirmedReply(action)}`,
+      action,
+    }
+  }
+
+  if (isThanksAcknowledgment(body) && isPostHumanHandoff(null, threadHistory)) {
     return {
       kind: "handled",
       reply: buildThanksAckReply(input.customerName, { postHandoff: true }),
@@ -395,7 +450,8 @@ export function runPreTurnGuards(input: {
     !isDesignerCodeRequestPending(input.history) &&
     !isAwaitingSalesIntakeAnswer(input.history) &&
     !isServiceHandoffSummaryPending(input.history) &&
-    !isOrderLookupPhoneReplyPending(input.history)
+    !isOrderLookupPhoneReplyPending(input.history) &&
+    !isPostHumanHandoff(null, threadHistory)
   ) {
     return {
       kind: "handled",
