@@ -1015,6 +1015,8 @@ function isOrderStatusProgressOpener(content: string) {
     /(?:מבקש(?:ים|ות)?\s+לדעת|רוצ(?:ה|ים|ות)\s+לדעת).*(?:ה)?הזמנה/i.test(text) ||
     /(?:מתי|ממתי).{0,80}(?:יגיע|תגיע|מגיע).*(?:שטיח|הזמנה|פוף)/i.test(text) ||
     /(?:מתי|ממתי).*(?:שטיח|הזמנה|פוף).{0,80}(?:יגיע|תגיע|מגיע)/i.test(text) ||
+    (/(?:מתי|ממתי)\s+אקבל/i.test(text) &&
+      /(?:שטיח|הזמנה|פוף|משלוח)/i.test(text)) ||
     /(?:אשמח|רוצ(?:ה|ים|ות)|מבקש(?:ים|ות)?)\s+לדעת\s+מתי/i.test(text)
   )
 }
@@ -2263,7 +2265,7 @@ export function buildConversationHints(input: {
       isExpectReceiveDeliveryAsk(body))
   ) {
     lines.push(
-      `ETA OPENER + ORDER ID (533428072 / 533710142 / 532250107 / 534257487): customer asks when the order will arrive (including «מה קורה עם השטיח» / «צפי לקבל הזמנה») and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
+      `ETA OPENER + ORDER ID (497664206 / 533428072 / 533710142 / 532250107 / 534257487): customer asks when the order will arrive (including «מתי אקבל את השטיח» / «מה קורה עם השטיח» / «צפי לקבל הזמנה») and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. **Never** «ביקשת קודם לדבר עם נציג» unless a handoff offer is pending in this thread — stale CRM or older messages outside the visible ask do not count. If lookup fails: brief apologize + offer to retry or offer rep transfer (action reply) — human_service only if they explicitly ask for a rep this turn or confirm your handoff offer; never invent a prior rep request. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
     )
   }
 
