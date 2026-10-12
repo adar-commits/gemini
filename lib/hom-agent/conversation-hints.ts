@@ -2096,7 +2096,7 @@ export function buildConversationHints(input: {
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "SHIPPING ETA + LOOKUP MISS + REORDER CONTEXT (533871542): delivery/ETA thread — order card was confirmed but lookup missed on channel phone. Customer explaining wrong charge, זיכוי, or a newer order is **which order to track**, not dissatisfaction/return. **Never** the two-option exchange+return menu or returns portal. Empathize, ask for invoice / new SO / SMS order #, or service rep summary for צפי הגעה → **`action: human_service`** when you write מעביר. If they restate «רק רוצה לדעת מתי השטיח מגיע» — stay on shipping, not return FAQ."
+      "SHIPPING ETA + LOOKUP MISS + REORDER CONTEXT (533871542): delivery/ETA thread — order card was confirmed but lookup missed on channel phone. Customer explaining wrong charge, זיכוי, or a newer order is **which order to track**, not dissatisfaction/return. **Never** the two-option exchange+return menu or returns portal. Empathize, ask for invoice / new SO / SMS order #, or service rep summary for צפי הגעה — when you write מעביר/העברתi **now**, **`action: human_service`** + `crm_department: service` in the **same** JSON; **never** `action: reply` with declarative מעביר or «הנציג כבר קיבל». If they restate «רק רוצה לדעת מתי השטיח מגיע» — stay on shipping, brief apology if you mis-routed, then hand off with matching action — not return FAQ."
     )
   }
 

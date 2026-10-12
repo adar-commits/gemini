@@ -86,6 +86,18 @@ describe("shipping credit reorder context 533871542", () => {
     )
   })
 
+  it("ETA restatement after lookup miss binds human_service on transfer prose (533871542 violation)", () => {
+    const history: HistoryMessage[] = [
+      ...historyThroughMiss,
+      { role: "assistant", content: BAD_RETURN_MENU },
+      { role: "user", content: ETA_ONLY },
+    ]
+    const hints = buildConversationHints({ body: ETA_ONLY, history }) ?? ""
+    assert.match(hints, /SHIPPING ETA \+ LOOKUP MISS \+ REORDER CONTEXT \(533871542\)/)
+    assert.match(hints, /never.*`action: reply` with declarative מעביר/i)
+    assert.match(hints, /`action: human_service`/i)
+  })
+
   it("prompt teaches shipping reorder context is not return menu", () => {
     const line = prompt.split("\n").find((l) => l.includes("533871542"))
     assert.ok(line, "missing 533871542 shipping reorder rule")
