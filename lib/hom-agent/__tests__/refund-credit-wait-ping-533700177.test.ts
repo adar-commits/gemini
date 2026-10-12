@@ -34,4 +34,26 @@ describe("refund credit wait ping (533700177)", () => {
     assert.match(hints, /Never.*sales intake/i)
     assert.match(hints, /REFUND STATUS FOLLOW-UP/)
   })
+
+  it("binds explicit refund status ask — not sales handoff (533700177)", () => {
+    const history: HistoryMessage[] = [
+      { role: "user", content: "החזרתי אותו" },
+      { role: "user", content: "אתם עושים לי זיכוי?" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)* סליחה על ההמתנה, אני כאן 🙂 נמשיך עם סידני 01 קרם לסלון.",
+      },
+      { role: "user", content: "אני רוצה לברר מה עם ההחזר כספי שלי" },
+    ]
+    const hints =
+      buildConversationHints({
+        history,
+        body: "אני רוצה לברר מה עם ההחזר כספי שלי",
+      }) ?? ""
+    assert.match(hints, /REFUND STATUS FOLLOW-UP/)
+    assert.match(hints, /human_service/)
+    assert.doesNotMatch(hints, /THREAD PRODUCT BINDING \(533700177\)/)
+    assert.match(hints, /Never.*human_sales/)
+  })
 })

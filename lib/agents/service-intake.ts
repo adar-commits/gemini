@@ -691,8 +691,9 @@ export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
   if (userTexts.length === 0) return false
   const hasCreditAsk = userTexts.some(
     (text) =>
-      /זיכוי/i.test(text) &&
-      /(?:עושים|(?:מ)?(?:קבל|ראה)|מתי|אפשר|מה\s+(?:קורה|המצב))/i.test(text)
+      /החזר\s*כספ/i.test(text) ||
+      (/זיכוי/i.test(text) &&
+        /(?:עושים|(?:מ)?(?:קבל|ראה)|מתי|אפשר|מה\s+(?:קורה|המצב|עם))/i.test(text))
   )
   const hasReturnDone = userTexts.some((text) =>
     /(?:החזר(?:תי|נו|ה)|מסר(?:תי|נו).{0,40}(?:סניף|חנות))/i.test(text)

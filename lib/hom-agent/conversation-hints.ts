@@ -455,7 +455,12 @@ function isRefundStatusFollowUpTurn(history: HistoryMessage[], body: string) {
   if (!hasPriorRefundOrReturnExecutionInThread(history)) return false
   if (isRefundStatusInquiry(trimmed) || isRefundTimelineQuestion(trimmed)) return true
   if (isNonSubstantiveFollowUp(trimmed)) return true
-  return /זיכוי/i.test(trimmed) && trimmed.length <= 80
+  if (/זיכוי/i.test(trimmed) && trimmed.length <= 80) return true
+  if (isOpenRefundCreditFollowUpThread(history)) {
+    if (/החזר\s*כספ/i.test(trimmed)) return true
+    if (/(?:מה\s+עם|לברר).{0,48}(?:החזר|זיכוי)/i.test(trimmed)) return true
+  }
+  return false
 }
 
 /** Polite confirm after rep offer — not a pivot to a new ask (534415948). */
@@ -2833,7 +2838,7 @@ export function buildConversationHints(input: {
     lines.push(
       liveRepOnRefund
         ? "REFUND STATUS FOLLOW-UP (295276261): return/pickup already happened and a live rep was handling the refund — customer asks for an update (e.g. «יש חדש לגבי הזיכוי?»). Empathize for the wait; recap briefly that the case stays open with service; **do not** reopen generic «7 ימי עסקים מביטול העסקה» as if nothing was done and **do not** pretend you cannot see status without acknowledging the rep’s prior work. Set `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/סימנתי/מעלה בעדיפות — urgent re-escalation, not a fresh policy lecture."
-        : "REFUND STATUS FOLLOW-UP (295276261): return/pickup already in thread — customer asks refund **status** (not how to return). Empathize; `action: human_service` + `crm_department: service` in the **same** JSON when you offer/check status with the team. Never only generic cancellation SLA with `action: reply`."
+        : "REFUND STATUS FOLLOW-UP (295276261 / 533700177): return/pickup already in thread — customer asks refund **status** (e.g. «מה עם ההחזר כספי», «עושים זיכוי?» — not how to return). Empathize; run lookup_order_status when you need the order, then `action: human_service` + `crm_department: service` in the **same** JSON when you offer/check status with the team. **Never** `human_sales`, stale sales intake (סידני / גודל סלון), or off-hours **יועץ מכירות** boilerplate on this thread. Never only generic cancellation SLA with `action: reply`."
     )
   }
 
@@ -3363,6 +3368,7 @@ export function buildConversationHints(input: {
   const threadRequestedModel = requestedModelFromUserThread(history, body)
   if (
     threadRequestedModel &&
+    !isOpenRefundCreditFollowUpThread(history) &&
     (hasOngoingSalesIntake(history) || isActiveProductSalesPrepThread(history))
   ) {
     lines.push(
