@@ -282,6 +282,25 @@ function isVoiceClosureTemplateLastAssistant(history: HistoryMessage[]) {
   return isVoiceClosureTemplateMessage(lastAssistant ? { body: lastAssistant.content } : null)
 }
 
+function isSalesSizeFitConfirmation(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  return (
+    /(?:מתאים|מתאימ)/i.test(text) &&
+    /(?:חלל|מידה|גודל|סלון|בבית)/i.test(text)
+  )
+}
+
+function recentUserLinesIncludePriceAsk(history: HistoryMessage[], body: string) {
+  const userLines = [...history, { role: "user" as const, content: body }]
+    .filter((message) => message.role === "user")
+    .slice(-4)
+    .map((message) => message.content.trim())
+  return userLines.some((line) =>
+    /(?:מה\s+המחיר|כמה\s+עולה)(?:\s|[?!.,]|$)/i.test(line)
+  )
+}
+
 function isReturnPortalSelfServiceThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
@@ -3618,6 +3637,25 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "PETS ALREADY ANSWERED (533966352): customer already answered the pets question in this thread — never ask about בעלי חיים again. Continue to דרישות מיוחדות or handoff summary+human_sales."
+    )
+  }
+  if (
+    hasOngoingSalesIntake(history) &&
+    salesIntake.pets != null &&
+    isSalesSizeFitConfirmation(body) &&
+    !postHandoffNoResponseReEscalation
+  ) {
+    lines.push(
+      'SALES SIZE FIT ACK (527257973): customer confirms the catalog size fits their room — brief ack only; `"crm_department": "sales"`; advance to optional photo / דרישות מיוחדות or handoff. **Never** re-ask pets or restart intake. **Never** FAQ-only sizing without continuing sales intake.'
+    )
+  }
+  if (
+    hasOngoingSalesIntake(history) &&
+    recentUserLinesIncludePriceAsk(history, body) &&
+    !postHandoffNoResponseReEscalation
+  ) {
+    lines.push(
+      "SALES PRICE ASK MID INTAKE (527257973): customer asked price (מחיר / כמה עולה) — you cannot quote live prices. In the **same** reply when you hand off or recap, note that **יועץ המכירות יציג מחיר מדויק** for the product/size in thread; **never** ignore the price question silently."
     )
   }
   const threadRequestedModel = requestedModelFromUserThread(history, body)
