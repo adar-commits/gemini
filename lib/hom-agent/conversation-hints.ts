@@ -194,7 +194,9 @@ import {
   isServiceHandoffSummaryConfirmed,
   isServiceHandoffSummaryRepeatRefinement,
   isServiceSummaryDeliveryStatusClarification,
+  isServiceSummaryPhysicalArrivalQuestion,
   isServiceSummaryOrderReferenceClarification,
+  threadHasUnansweredPhysicalArrivalQuestion,
   isOpenServiceDefectFollowUpThread,
   isOpenRefundCreditFollowUpThread,
   isOpenPreorderDelayCompensationFollowUpThread,
@@ -1445,6 +1447,16 @@ export function buildConversationHints(input: {
   }
 
   if (
+    wrongItemReplacementServiceThread &&
+    threadHasUnansweredPhysicalArrivalQuestion(history) &&
+    !isServiceHandoffSummaryPending(history)
+  ) {
+    lines.push(
+      "SERVICE PHYSICAL ARRIVAL OPENER (533051539): thread still has «המשלוח/השטיח הגיע אלי?» without a clear yes — answer first line that the carpet/shipment reached them (השטיח הגיע אלייך) before service recap bullets or pickup timing. Pickup date is rep-coordinated — separate from whether delivery happened. action reply until recap is sent; never recap-only while that question is open."
+    )
+  }
+
+  if (
     isOrderStatusDeliveredInThread(history) &&
     (isSpecificProductMention(body, history) || isProductInventoryQuestion(body))
   ) {
@@ -1829,6 +1841,10 @@ export function buildConversationHints(input: {
     } else if (isServiceSummaryDeliveryStatusClarification(body, history)) {
       lines.push(
         "SERVICE SUMMARY DELIVERY STATUS CLARIFY (532010096): customer approved the recap (מדויק/כן) but asked how/why the order shows as delivered — explain briefly that ERP marks delivered when the courier reports delivery (scan/time in the summary); partial delivery (e.g. stickers only) is why the rep will investigate. Same JSON: action human_service with transfer line + that explanation — never transfer-only."
+      )
+    } else if (isServiceSummaryPhysicalArrivalQuestion(body, history)) {
+      lines.push(
+        "SERVICE SUMMARY PHYSICAL ARRIVAL (533051539): service recap is pending and customer asks whether the shipment/carpet physically reached them (or says you skipped that) — lead with a clear yes/no (e.g. השטיח הגיע אלייך). Pickup timing is rep-coordinated; do not confuse with delivery arrival. Same reply: answer arrival, then recap bullets or confirm question — action reply + awaiting service_summary_confirm unless they clearly need rep now; never human_service or recap-only without answering הגיע אלי."
       )
     } else if (isServiceHandoffSummaryConfirmed(body, history)) {
       const intake = extractServiceIntake(history, body)

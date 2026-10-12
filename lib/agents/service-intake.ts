@@ -25,6 +25,7 @@ import {
   formatCustomerOrderNumberForThread,
   priorityReferenceDigitsFromOrder,
   ltrIsolateOrderNumber,
+  isOrderDeliveryStatusQuestion,
   ORDER_NUMBER_ASK_EXAMPLES,
   type OrderShipmentStatus,
 } from "@/lib/agents/order-lookup"
@@ -540,6 +541,48 @@ export function isServiceSummaryDeliveryStatusClarification(
     /(?:לא\s+הבנתי|איך\s+ציינ|למה\s+(?:סומן|רשום|מופיע))/iu.test(text) &&
     /(?:נמסר|סומן\s+כ|סטטוס\s+משלוח)/iu.test(text)
   )
+}
+
+/** Service recap pending — customer asks if shipment/carpet physically reached them (not ERP «נמסר» semantics). */
+export function isServiceSummaryPhysicalArrivalQuestion(
+  body: string,
+  history: HistoryMessage[]
+) {
+  if (!isServiceHandoffSummaryPending(history)) return false
+  if (isServiceSummaryDeliveryStatusClarification(body, history)) return false
+  const text = body.trim()
+  if (!text) return false
+  const physicalArrival =
+    /(?:ה(?:גיע|יגע)|מגיע)\s+אל/i.test(text) ||
+    /(?:משלוח|שטיח).*?(?:ה(?:גיע|יגע)|מגיע)\s+אל/i.test(text)
+  if (!physicalArrival && !/לא\s+ענית/i.test(text)) return false
+  return isOrderDeliveryStatusQuestion(text) || physicalArrival
+}
+
+/** Thread still has a user ask whether delivery reached them without a clear bot yes. */
+export function threadHasUnansweredPhysicalArrivalQuestion(
+  history: HistoryMessage[]
+) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "user") continue
+    const text = message.content.trim()
+    const physicalArrival =
+      /(?:ה(?:גיע|יגע)|מגיע)\s+אל/i.test(text) ||
+      /(?:משלוח|שטיח).*?(?:ה(?:גיע|יגע)|מגיע)\s+אל/i.test(text)
+    if (!physicalArrival) continue
+    const after = history.slice(index + 1)
+    const answered = after.some(
+      (next) =>
+        next.role === "assistant" &&
+        !isInactivityAssistantMessage(next.content) &&
+        /(?:השטיח|המשלוח).*(?:הגיע\s+אל|אצלך|נמסר\s+אל)/iu.test(
+          next.content
+        )
+    )
+    return !answered
+  }
+  return false
 }
 
 export function isServiceHandoffSummaryConfirmed(
