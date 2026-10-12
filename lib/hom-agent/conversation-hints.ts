@@ -372,6 +372,14 @@ function isSalesHandoffWaitChase(body: string) {
   return /^מה\s+עם\s+הפנייה(?:\s+של(?:י|נו))?/i.test(text)
 }
 
+/** After service handoff — customer asks where the rep is (367779250), not a fresh transfer. */
+function isServiceHandoffWaitChase(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 120) return false
+  if (isNonSubstantiveFollowUp(text)) return true
+  return /^איפה\s+(?:ה)?(?:נציג(?:\s+(?:ה)?שירות)?|שירות)/i.test(text)
+}
+
 function branchInquiryCustomerNameFromHistory(history: HistoryMessage[]): string | null {
   for (const message of history) {
     if (message.role !== "user") continue
@@ -393,7 +401,13 @@ function isServiceDefectRepHandoffAwaitingCallback(history: HistoryMessage[]) {
   if (!isPostHumanHandoff(null, history)) return false
   if (isRepShippingStatusHandoffAwaitingCallback(history)) return false
   const corpus = history.map((message) => message.content).join("\n")
-  if (!/(?:פג(?:ם|ום)|(?:\d+\s+)?חור(?:ים)?|שלכאורה\s+פגום)/i.test(corpus)) return false
+  if (
+    !/(?:פג(?:ם|ום)|(?:\d+\s+)?חור(?:ים)?|שלכאורה\s+פגום|ריח\s+(?:נוראי|רעיל|מזעזע)|מוצר\s+פגום)/i.test(
+      corpus
+    )
+  ) {
+    return false
+  }
   const hasServiceHandoff = history.some(
     (message) =>
       message.role === "assistant" &&
@@ -405,7 +419,8 @@ function isServiceDefectRepHandoffAwaitingCallback(history: HistoryMessage[]) {
   return (
     identifiedOrderNumberFromThread(history) != null ||
     orderIdGivenInThread(history) != null ||
-    /SO\d{6,}/i.test(corpus)
+    /SO\d{6,}/i.test(corpus) ||
+    /\bIN\d{6,}/i.test(corpus)
   )
 }
 
@@ -618,6 +633,12 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
   if (!text || text.length > 320) return false
   if (
     isNonSubstantiveFollowUp(text) &&
+    isServiceDefectRepHandoffAwaitingCallback(history)
+  ) {
+    return false
+  }
+  if (
+    isServiceHandoffWaitChase(text) &&
     isServiceDefectRepHandoffAwaitingCallback(history)
   ) {
     return false
@@ -1768,7 +1789,9 @@ export function buildConversationHints(input: {
       (isRepShippingStatusWaitChase(body) &&
         isRepShippingStatusHandoffAwaitingCallback(history)) ||
       (isSalesHandoffWaitChase(body) &&
-        isSalesExchangeHandoffAwaitingCallback(history)))
+        isSalesExchangeHandoffAwaitingCallback(history)) ||
+      (isServiceHandoffWaitChase(body) &&
+        isServiceDefectRepHandoffAwaitingCallback(history)))
   ) {
     if (isRepShippingStatusHandoffAwaitingCallback(history)) {
       const orderRef =
@@ -1783,7 +1806,7 @@ export function buildConversationHints(input: {
         identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
       const customerName = branchInquiryCustomerNameFromHistory(history)
       lines.push(
-        `SERVICE DEFECT WAIT PING (533557694): human_service already logged for defect/quality${orderRef ? ` on order ${orderRef}` : ""} — ? / ?? means waiting for service callback, not a first-time transfer. Brief empathy + confirm the case is already with נציג שירות.${customerName ? ` Address the customer as **${customerName}** only — never invent another name from CRM assignee fields.` : " Use the customer name from branch inquiry or prior bot greeting only — never invent a name."} **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות בעדיפות without first-time handoff boilerplate.`
+        `SERVICE DEFECT WAIT PING (533557694 / 367779250): human_service already logged for defect/quality${orderRef ? ` on order ${orderRef}` : ""} — ? / ?? / «איפה נציג (השירות)?» means waiting for service callback or a live rep in chat, not a first-time transfer. Brief empathy + confirm the case is already with נציג שירות (voice-template messages are not a live rep).${customerName ? ` Address the customer as **${customerName}** only — never invent another name from CRM assignee fields.` : " Use the customer name from branch inquiry or prior bot greeting only — never invent a name."} **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות בעדיפות without first-time handoff boilerplate.`
       )
     } else if (
       isSalesHandoffWaitChase(body) &&
