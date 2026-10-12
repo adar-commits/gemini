@@ -1443,8 +1443,7 @@ export function buildConversationHints(input: {
     )
   }
 
-  const wrongItemReplacementServiceThread =
-    serviceFlowActive && wrongItemReplacementServiceContext
+  const wrongItemReplacementServiceThread = wrongItemReplacementServiceContext
   if (wrongItemReplacementServiceThread) {
     lines.push(
       'WRONG ORDER ITEM REPLACEMENT (508272038): wrong color/pattern/item shipped — finish service intake → rep summary → **`action: human_service`** + `crm_department: service`. **Never** `human_sales` / יועץ מכירות (not sales exchange menu, not pre-delivery model change). Transfer wording: נציג שירות only.'
@@ -3035,6 +3034,15 @@ export function buildConversationHints(input: {
   }
 
   if (
+    isAwaitingReplyAfterWrongItemServiceIntakeAsk(history) &&
+    !customerExplicitlyRequestsHuman(body)
+  ) {
+    lines.push(
+      'WRONG-ITEM SERVICE INTAKE AFTER FAQ (508272038): FAQ or your prior message already opened wrong-item **service** intake (נציג השירות / החלפה + pending color/order questions) for this customer turn — they have **not** sent a new line yet. **`action: end`** — do not send human_sales, off-hours יועץ מכירות text, or any second bot message. `"crm_department": "service"`. A bare re-greeting (היי / מה קורה) is not a sales handoff.'
+    )
+  }
+
+  if (
     botOfferedReceiptOrderConfirm(history) &&
     !isKnownOrderConfirmPending(history) &&
     isSoftKnownOrderConfirm(body)
@@ -3486,6 +3494,33 @@ function isPostponementPolicyAssistantMessage(content: string) {
     /\*3076/.test(content) &&
     /(?:דחי|מראש|שליח(?:ויות)?)/i.test(content)
   )
+}
+
+function isWrongItemServiceIntakeAssistantMessage(content: string) {
+  return (
+    /נציג\s+השירות/i.test(content) &&
+    /החלפ/i.test(content) &&
+    /\?/.test(content)
+  )
+}
+
+/** Service wrong-item intake questions sent; customer has not sent a new line since (508272038). */
+export function isAwaitingReplyAfterWrongItemServiceIntakeAsk(history: HistoryMessage[]) {
+  let lastRealAssistantIndex = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) continue
+    lastRealAssistantIndex = index
+    break
+  }
+  if (lastRealAssistantIndex < 0) return false
+  if (!isWrongItemServiceIntakeAssistantMessage(history[lastRealAssistantIndex]!.content)) {
+    return false
+  }
+  for (let index = lastRealAssistantIndex + 1; index < history.length; index += 1) {
+    if (history[index]!.role === "user") return false
+  }
+  return true
 }
 
 /** FAQ answered postpone-delivery policy; customer has not sent a new line since (533585020). */
