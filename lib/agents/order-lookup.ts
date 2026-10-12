@@ -47,6 +47,11 @@ import {
 import { flowMarkerFromText } from "@/lib/agents/post-purchase-case.constants"
 import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-template"
 import { customerTurnIncludedImage } from "@/lib/hom-agent/truncated-output"
+import {
+  botAssistantOfferedKnownOrderCard,
+  isLiveStatusCheckAffirmation,
+  isLiveStatusCheckOfferPending,
+} from "@/lib/hom-agent/live-status-check-offer"
 import type { AgentId } from "@/lib/agents/types"
 import {
   activeOrderLineItemVerificationRequest,
@@ -2403,10 +2408,11 @@ function lastRealAssistantContent(history: HistoryMessage[]) {
 }
 
 function assistantOfferedKnownOrder(content: string, known: string) {
-  const text = stripMediaAndUrls(content)
-  if (!text.includes(known)) return false
-  if (!/\?/.test(text)) return false
-  return !isOrderLookupIdentificationAssistantMessage(text)
+  return botAssistantOfferedKnownOrderCard(
+    stripMediaAndUrls(content),
+    known,
+    isOrderLookupIdentificationAssistantMessage
+  )
 }
 
 /** Bot already asked whether they mean the receipt order — not a fresh number ask. */
@@ -2470,6 +2476,9 @@ export function shouldBindKnownOrderTurn(body: string, history: HistoryMessage[]
   if (mentionsCancellationDesire(body)) return false
   const other = extractOrderNumber(body)
   if (other && other.toUpperCase() !== known.toUpperCase()) return false
+  if (isLiveStatusCheckOfferPending(history) && isLiveStatusCheckAffirmation(body)) {
+    return true
+  }
   if (isKnownOrderConfirmPending(history)) {
     if (affirmsKnownOrder(body)) return true
     if (

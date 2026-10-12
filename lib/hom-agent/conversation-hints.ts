@@ -47,6 +47,10 @@ import {
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
 import {
+  botOfferedLiveStatusCheck,
+  isLiveStatusCheckOfferPending,
+} from "@/lib/hom-agent/live-status-check-offer"
+import {
   isBranchOpeningHoursOfferPending,
   isDesignCenterLocationQuestion,
 } from "@/lib/agents/branches"
@@ -1076,6 +1080,7 @@ function botOfferedReceiptOrderConfirm(history: HistoryMessage[]) {
     if (message.role !== "assistant") continue
     const text = message.content
     if (!text.includes(known) || !/\?/.test(text)) return false
+    if (botOfferedLiveStatusCheck(text) && !/\bזו\s+ה?הזמנה\b/i.test(text)) return false
     return !/(?:אוכל לקבל|מה|איז(?:ה|ו))\s+(?:את\s+)?(?:מספר(?:י)?\s+)?(?:ה)?הזמנ(?:ה|ות)/i.test(
       text
     )
@@ -3287,6 +3292,20 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `SHIPPING PROGRESS CHECK YES (534689508): you offered to check which stage the order is at (even without repeating SO in the question). Customer affirmed — call lookup_order_status with ${threadOrderForProgressCheck} from the tracking link / thread now and answer shipping status + ETA policy. Never claim you cannot pull status or human_service before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
+    )
+  }
+
+  const threadOrderForLiveStatusCheck = orderIdGivenInThread(history)
+  if (
+    isLiveStatusCheckOfferPending(history) &&
+    !isKnownOrderConfirmPending(history) &&
+    !isShippingProgressCheckOfferPending(history) &&
+    isShippingProgressCheckAffirmation(body) &&
+    threadOrderForLiveStatusCheck &&
+    !isHumanHandoffPending(history)
+  ) {
+    lines.push(
+      `LIVE STATUS CHECK OFFER YES (532858826): you offered to check live shipping status now for order ${threadOrderForLiveStatusCheck} (e.g. «יכול לבדוק את הסטטוס» after greeting). Customer affirmed (כן / כן בבקשה) — call lookup_order_status with ${threadOrderForLiveStatusCheck} now and answer status + ETA policy. Pre Order / no restock date in ERP is still a valid status answer — never human_service or rep summary before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
     )
   }
 
