@@ -114,6 +114,7 @@ import {
 import {
   isCheckoutPaymentSplitCancelThread,
   isDuplicateChargeRefundTimelineFollowUp,
+  isInstallmentChargeCallbackFollowUp,
   isMembershipClubCheckoutQuestion,
 } from "@/lib/agents/payment-intent"
 import { salesOutreachTemplateInThread } from "@/lib/agents/sales-outreach"
@@ -2932,6 +2933,12 @@ export function buildConversationHints(input: {
   if (isDuplicateChargeRefundTimelineFollowUp(history, body)) {
     lines.push(
       "DUPLICATE CHARGE TIMELINE FOLLOW-UP (505729214): duplicate/extra card charge on the order is already with service after a prior handoff — customer asks **when** the money returns / to cancel one charge. Empathize for the wait; explain you cannot give an exact refund date from here (rep checks actual charges). Confirm the open case stays with service; you may say סימנתי שוב לצוות. **`action: reply`** — **never** «העברתי עכשיו» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isInstallmentChargeCallbackFollowUp(history, body)) {
+    lines.push(
+      "INSTALLMENT CHARGE CALLBACK FOLLOW-UP (534684988): website **2 תשלומים** / split charge issue is already with service after a prior **`human_service`** — customer asks for a callback or says nobody returned (e.g. «האם אפשר לחזור אלי»). Empathize for the wait; recap the open billing case (installments not shown on charge); confirm marked urgent / נציג יחזור to their phone — you may say סימנתי שוב לצוות. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 

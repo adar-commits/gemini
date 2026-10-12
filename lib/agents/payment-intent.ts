@@ -34,6 +34,40 @@ export function isDuplicateChargeRefundTimelineFollowUp(
   return isDuplicateChargeTimelineAsk(body)
 }
 
+const INSTALLMENT_SPLIT_CHARGE_THREAD_RE =
+  /(?:2|שני|שתי)\s*תשלומים|ל(?:חלק|פצל).{0,32}תשלומים|תשלומים.{0,40}(?:חיוב|חייב)/i
+
+/** Website checkout split into installments not reflected on card charge (534684988). */
+export function isOpenInstallmentSplitChargeThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      INSTALLMENT_SPLIT_CHARGE_THREAD_RE.test(message.content)
+  )
+}
+
+function isInstallmentChargeCallbackAsk(body: string) {
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 320) return false
+  return (
+    /(?:א(?:פשר|םשר)|יש\s+אפשרות).{0,20}(?:ל)?(?:ח(?:ז(?:ור|ר)|התקשר)|(?:ש)?(?:יחז|תחז)(?:רו|רי)?)[^\n]{0,16}אלי/i.test(
+      trimmed
+    ) ||
+    /(?:עדיין\s+)?לא\s+חזר(?:ו|ה|ת)[^\n]{0,20}אלי/i.test(trimmed) ||
+    /מחכ(?:ה|ים)[^\n]{0,32}(?:קשר|ש(?:יחז|תחז)(?:רו|רי)?)/i.test(trimmed)
+  )
+}
+
+/** After handoff on installment charge — customer asks for callback / no human yet (534684988). */
+export function isInstallmentChargeCallbackFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenInstallmentSplitChargeThread(history)) return false
+  if (!isPostHumanHandoff(null, history)) return false
+  return isInstallmentChargeCallbackAsk(body)
+}
+
 /** BUYME/voucher + credit charged wrong; customer asked ביטול עסקה / redo (534268241 / 534579658). */
 export function isCheckoutPaymentSplitCancelThread(
   history: HistoryMessage[],
