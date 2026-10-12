@@ -216,6 +216,7 @@ import {
 } from "@/lib/agents/service-intake"
 import {
   isPostPurchaseAlternateSizeThread,
+  isPostPurchaseAltSizeNewRugShipmentAsk,
   isPostPurchaseDifferentModelOrPackagingExchange,
   isPrePurchasePreOrderSalesInquiry,
   isShippingAddressChangeAsk,
@@ -3473,6 +3474,12 @@ export function buildConversationHints(input: {
   } else if (isPostPurchaseDifferentModelOrPackagingExchange(body, history)) {
     lines.push(
       "EXCHANGE DIFFERENT MODEL / PACKAGING (534041229): thread is post-purchase **החלפה** because the rug does not match or packaging was opened for inspection — **not** same-model alt-size. Ack packaging policy honestly; answer branch/fees if asked; bullet recap for יועץ מכירות when they want a rep. **Never** «מבין שאתם מחפשים את אותו דגם במידה אחרת» or מק״ט-from-photo loop."
+    )
+  } else if (isPostPurchaseAltSizeNewRugShipmentAsk(body, history)) {
+    const orderRef =
+      identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
+    lines.push(
+      `EXCHANGE ALT SIZE BRANCH SHIP FAQ (534095173): post-purchase **החלפת מידה**${orderRef ? ` on order ${orderRef}` : ""} — branch return steps already sent and **human_sales** logged for target מק״ט/availability. Customer asks whether HoM will **ship the new size** — explain: return the received rug at the branch (unused + packaging + invoice); the **new size** is not on the shelf now (pre-order ETA from thread if known); יועץ מכירות already has the case and coordinates ordering/shipment to the order address. **action: reply** or **action: end** — **never** duplicate **human_sales** or «העברתי את השיחה ליועץ מכירות» unless they explicitly ask for a rep **this turn** or say nobody contacted them.`
     )
   } else if (
     isPostPurchaseAlternateSizeThread(history, body) &&
