@@ -245,7 +245,9 @@ import { isSalesHandoffCommittedInAssistantText } from "@/lib/agents/human-waiti
 import {
   hasLiveRepReplyAfterBotHandoff,
   isLiveRepAssistantMessage,
+  isOpenShippingDelayServiceHandoffThread,
   isPostHumanHandoff,
+  isShippingDelayHandoffResponseWaitFollowUp,
   postHandoffKind,
 } from "@/lib/agents/post-handoff"
 import { messageAwaits } from "@/lib/agents/bot-awaiting"
@@ -631,6 +633,7 @@ function isNoResponseCreditInvoiceEscalation(body: string) {
 function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: string) {
   const text = body.trim()
   if (!text || text.length > 320) return false
+  if (isShippingDelayHandoffResponseWaitFollowUp(history, body)) return false
   if (
     isNonSubstantiveFollowUp(text) &&
     isServiceDefectRepHandoffAwaitingCallback(history)
@@ -2962,6 +2965,12 @@ export function buildConversationHints(input: {
   if (isInstallmentChargeCallbackFollowUp(history, body)) {
     lines.push(
       "INSTALLMENT CHARGE CALLBACK FOLLOW-UP (534684988): website **2 תשלומים** / split charge issue is already with service after a prior **`human_service`** — customer asks for a callback or says nobody returned (e.g. «האם אפשר לחזור אלי»). Empathize for the wait; recap the open billing case (installments not shown on charge); confirm marked urgent / נציג יחזור to their phone — you may say סימנתי שוב לצוות. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isShippingDelayHandoffResponseWaitFollowUp(history, body)) {
+    lines.push(
+      "SHIPPING DELAY HANDOFF RESPONSE WAIT (528863688): shipping-delay case already got **`human_service`** with recap (מועד אספקה / פופים / סטטוס) — customer now complains about **slow human response** (עיכוב בתשובה / זלזול / אין מענה), not a fresh shipping-status ask. Brief empathize; confirm the case is already with נציג שירות and marked urgent; optional **`lookup_order_status`** if ERP may have updated. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג שירות» or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate."
     )
   }
 

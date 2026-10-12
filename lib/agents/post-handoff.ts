@@ -144,6 +144,40 @@ export function postHandoffKind(
   return null
 }
 
+const SHIPPING_DELAY_THREAD_RE =
+  /(?:מועד\s+האספקה|ע(?:יכוב|בר)\s+(?:משלוח|מועד)|לא\s+(?:הגיע|קיבל)|אמור\s+להגיע|ימ(?:י|ים)\s+!!!!|סטטוס\s+ומועד\s+הגעה)/i
+
+const SERVICE_SHIPPING_HANDOFF_RE =
+  /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעביר(?:ים|ה|א)?[^\n]{0,96}נציג\s+שירות|סימנ(?:תי|ו)[^\n]{0,72}(?:דחופ|נציג))/i
+
+/** human_service already logged on a shipping-delay case — customer may chase rep response (528863688). */
+export function isOpenShippingDelayServiceHandoffThread(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history)) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!SHIPPING_DELAY_THREAD_RE.test(corpus)) return false
+  if (!/(?:משלוח|אספקה|פופ|הזמנה)/i.test(corpus)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      SERVICE_SHIPPING_HANDOFF_RE.test(message.content) &&
+      /(?:משלוח|אספקה|מועד|סטטוס|פופ)/i.test(message.content)
+  )
+}
+
+/** After shipping-delay handoff — complaint about slow human response, not a fresh transfer ask. */
+export function isShippingDelayHandoffResponseWaitFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenShippingDelayServiceHandoffThread(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 320) return false
+  return /(?:עיכוב\s+בתשובה|זלזול|אין\s+(?:לי\s+)?מענה|לא\s+מעדכ(?:ן|נ)|אף\s+אחד\s+לא\s+מעדכן)/i.test(
+    text
+  )
+}
+
 /** Gentle reminder on the last FAQ answer after handoff — not on every bubble. */
 export function buildPostHandoffFooter(kind: "human_sales" | "human_service") {
   return kind === "human_sales"
