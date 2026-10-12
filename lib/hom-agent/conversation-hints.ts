@@ -258,8 +258,10 @@ import { isSalesHandoffCommittedInAssistantText } from "@/lib/agents/human-waiti
 import {
   hasLiveRepReplyAfterBotHandoff,
   isLiveRepAssistantMessage,
+  isOpenReplacementDeliveryServiceHandoffThread,
   isOpenShippingDelayServiceHandoffThread,
   isPostHumanHandoff,
+  isReplacementDeliveryCallbackWaitFollowUp,
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffResponseWaitFollowUp,
   postHandoffKind,
@@ -693,7 +695,7 @@ const PRIOR_HANDOFF_OR_REP_COMMIT_RE =
 function assistantTextIndicatesHandoffExecuted(text: string) {
   const body = text.replace(/\*הום בוט\s:\)\*/gi, "").trim()
   return (
-    /העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|הפנייה\s+הועברה|מעולה,\s+העברתi/i.test(
+    /העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|הפנייה\s+הועברה|מעולה,\s+העברתי/i.test(
       body
     ) || isSalesHandoffCommittedInAssistantText(body)
   )
@@ -2353,7 +2355,7 @@ export function buildConversationHints(input: {
     !isServiceOrderIdentificationFlow(history, body)
   ) {
     lines.push(
-      "SHIPPING ETA + LOOKUP MISS + REORDER CONTEXT (533871542): delivery/ETA thread — order card was confirmed but lookup missed on channel phone. Customer explaining wrong charge, זיכוי, or a newer order is **which order to track**, not dissatisfaction/return. **Never** the two-option exchange+return menu or returns portal. Empathize, ask for invoice / new SO / SMS order #, or service rep summary for צפי הגעה — when you write מעביר/העברתi **now**, **`action: human_service`** + `crm_department: service` in the **same** JSON; **never** `action: reply` with declarative מעביר or «הנציג כבר קיבל». If they restate «רק רוצה לדעת מתי השטיח מגיע» — stay on shipping, brief apology if you mis-routed, then hand off with matching action — not return FAQ."
+      "SHIPPING ETA + LOOKUP MISS + REORDER CONTEXT (533871542): delivery/ETA thread — order card was confirmed but lookup missed on channel phone. Customer explaining wrong charge, זיכוי, or a newer order is **which order to track**, not dissatisfaction/return. **Never** the two-option exchange+return menu or returns portal. Empathize, ask for invoice / new SO / SMS order #, or service rep summary for צפי הגעה — when you write מעביר/העברתי **now**, **`action: human_service`** + `crm_department: service` in the **same** JSON; **never** `action: reply` with declarative מעביר or «הנציג כבר קיבל». If they restate «רק רוצה לדעת מתי השטיח מגיע» — stay on shipping, brief apology if you mis-routed, then hand off with matching action — not return FAQ."
     )
   }
 
@@ -3160,7 +3162,7 @@ export function buildConversationHints(input: {
     lines.push(
       liveRepOnRefund
         ? "REFUND STATUS FOLLOW-UP (295276261): return/pickup already happened and a live rep was handling the refund — customer asks for an update (e.g. «יש חדש לגבי הזיכוי?»). Empathize for the wait; recap briefly that the case stays open with service; **do not** reopen generic «7 ימי עסקים מביטול העסקה» as if nothing was done and **do not** pretend you cannot see status without acknowledging the rep’s prior work. Set `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/סימנתי/מעלה בעדיפות — urgent re-escalation, not a fresh policy lecture."
-        : "REFUND STATUS FOLLOW-UP (295276261 / 533274296 / 533700177): return/pickup already in thread — customer asks refund **status** or missing **credit approval** (e.g. «לא קיבלתי אישור על הזיכוי», «מה עם ההחזר כספי» — not how to return). Empathize; run lookup_order_status when you need the order, then `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/סימנתi — **never** `action: reply` only with transfer prose or «הנציג כבר קיבל». **Never** `human_sales` or stale sales intake on this thread. Never only generic cancellation SLA with `action: reply`."
+        : "REFUND STATUS FOLLOW-UP (295276261 / 533274296 / 533700177): return/pickup already in thread — customer asks refund **status** or missing **credit approval** (e.g. «לא קיבלתי אישור על הזיכוי», «מה עם ההחזר כספי» — not how to return). Empathize; run lookup_order_status when you need the order, then `action: human_service` + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/סימנתי — **never** `action: reply` only with transfer prose or «הנציג כבר קיבל». **Never** `human_sales` or stale sales intake on this thread. Never only generic cancellation SLA with `action: reply`."
     )
   }
 
@@ -3170,7 +3172,7 @@ export function buildConversationHints(input: {
     isPostHumanHandoff(null, history)
   ) {
     lines.push(
-      "REFUND CREDIT REP JOIN WAIT (533274296): refund/credit after pickup — customer asks when a live rep joins chat (מתי יעלה לצ'ט / איפה נציג). If **`human_service`** is **not** logged yet for this case, set **`action: human_service`** + `crm_department: service` in the **same** JSON now (transfer words in an earlier `reply` turn do **not** assign). **Never** «הנציג כבר קיבל» on `action: reply`. After **`human_service`** is logged, answer with service hours + patience — **`action: reply`** only; **never** duplicate «מעולה, העברתi את השיחה לנציג שירות» or a second **`human_service`** unless they explicitly ask to transfer again **this turn**."
+      "REFUND CREDIT REP JOIN WAIT (533274296): refund/credit after pickup — customer asks when a live rep joins chat (מתי יעלה לצ'ט / איפה נציג). If **`human_service`** is **not** logged yet for this case, set **`action: human_service`** + `crm_department: service` in the **same** JSON now (transfer words in an earlier `reply` turn do **not** assign). **Never** «הנציג כבר קיבל» on `action: reply`. After **`human_service`** is logged, answer with service hours + patience — **`action: reply`** only; **never** duplicate «מעולה, העברתי את השיחה לנציג שירות» or a second **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
@@ -3183,6 +3185,12 @@ export function buildConversationHints(input: {
   if (isInstallmentChargeCallbackFollowUp(history, body)) {
     lines.push(
       "INSTALLMENT CHARGE CALLBACK FOLLOW-UP (534684988): website **2 תשלומים** / split charge issue is already with service after a prior **`human_service`** — customer asks for a callback or says nobody returned (e.g. «האם אפשר לחזור אלי»). Empathize for the wait; recap the open billing case (installments not shown on charge); confirm marked urgent / נציג יחזור to their phone — you may say סימנתי שוב לצוות. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isReplacementDeliveryCallbackWaitFollowUp(history, body)) {
+    lines.push(
+      "REPLACEMENT DELIVERY CALLBACK WAIT (533162865): defect **replacement carpet** / delivery coordination is already with **`human_service`** (including urgent callback today) — customer says nobody returned yet (e.g. «טרם חזרו אלי»). Empathize; recap open case (replacement not arrived, callback/coordination, cancel/refund deadline if they stated it); confirm still marked urgent — you may say סימנתי שוב לצוות. Outside service hours → explain hours + that the team will contact when back — still **`action: reply`**. **Never** «העברתי את הפנייה» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 

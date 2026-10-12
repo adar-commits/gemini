@@ -189,6 +189,41 @@ export function isShippingDelayHandoffResponseWaitFollowUp(
   )
 }
 
+/** Replacement carpet delivery / coordination after defect — human_service already logged (533162865). */
+export function isOpenReplacementDeliveryServiceHandoffThread(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history)) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  if (
+    !/(?:שטיח\s+חלופ|החלפ(?:ה|ת)\s+לשטיח|ת(?:יאום|אום)\s+(?:ה)?אספק(?:ה|ת))/i.test(
+      corpus
+    )
+  ) {
+    return false
+  }
+  if (!/(?:פג(?:ם|ום|מים)|חלופ|החלפ|ביטול\s+עסקה)/i.test(corpus)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      SERVICE_SHIPPING_HANDOFF_RE.test(message.content)
+  )
+}
+
+/** After replacement-delivery handoff — nobody called back yet (533162865). */
+export function isReplacementDeliveryCallbackWaitFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenReplacementDeliveryServiceHandoffThread(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  return (
+    /טרם\s+חזר(?:ו|ה)?(?:\s+אלי(?:י|ך)?)?/i.test(text) ||
+    /(?:עדיין\s+)?לא\s+חזר(?:ו|ה|ת)(?:\s+אלי(?:י|ך)?)?/i.test(text) ||
+    /(?:אין\s+מענה|לא\s+עונ(?:ים|ה))/i.test(text)
+  )
+}
+
 /** After shipping-delay handoff — short «יש חדש?» / greeting + news ask (534083795). */
 export function isShippingDelayHandoffNewsFollowUp(
   history: HistoryMessage[],
