@@ -1028,6 +1028,37 @@ function botOfferedReceiptOrderConfirm(history: HistoryMessage[]) {
   return false
 }
 
+function botAskedOrderOrOtherTopic(history: HistoryMessage[]) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    const content = message.content
+    if (!/\?/.test(content)) return false
+    if (!/מדובר\s+ב(?:ה)?הזמנה/i.test(content)) return false
+    if (!/משהו\s+אחר/i.test(content)) return false
+    return Boolean(extractOrderReference(content, history))
+  }
+  return false
+}
+
+function affirmsOrderOrOtherSameTopic(body: string) {
+  if (isSoftKnownOrderConfirm(body)) return true
+  const compact = body.replace(/\s+/g, " ").trim()
+  if (!compact || compact.length > 80) return false
+  if (/(?:נציג|יועץ|שירות|מעביר)/i.test(compact)) return false
+  if (/^(?:אותה\s+)?(?:ה)?ז?מנ?ה(?:[\s,.!?]|$)/i.test(compact)) return true
+  if (/אותה\s+הז?מנ?ה/i.test(compact)) return true
+  const lines = body
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  return (
+    lines.length <= 3 &&
+    lines.every((line) => line.length <= 24) &&
+    lines.every((line) => /^(?:אותה\s+)?(?:ה)?ז?מנ?ה|הז?נה$/i.test(line))
+  )
+}
+
 function isSoftKnownOrderConfirm(body: string) {
   if (isOrderConfirmationYes(body)) return true
   const firstLine = body.trim().split(/\n+/)[0]?.trim() ?? body.trim()
@@ -3123,6 +3154,13 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `STATUS RECHECK OFFER YES (534276359): you offered to recheck shipping status for order ${threadOrderForRecheck} — customer affirmed (e.g. כן לבדוק). Call lookup_order_status with ${threadOrderForRecheck} now and answer status + ETA policy. Prior human_service or «לא הצלחתי להציג סטטוס» does NOT justify another handoff before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
+    )
+  }
+
+  if (botAskedOrderOrOtherTopic(history) && affirmsOrderOrOtherSameTopic(body)) {
+    const known = orderIdGivenInThread(history)
+    lines.push(
+      `ORDER OR OTHER TOPIC YES (532326366): you asked if the thread is about order ${known ?? "already named in thread"} or another topic — customer confirmed same order (אותה הזמנה / הזמנה). Call lookup_order_status for fresh shipping status; brief empathy if they are waiting. Prior human_service or an old rep request does NOT mean they want a rep again this turn — action reply. NEVER human_service or «העברתי/סימנתי לנציג» unless THIS message explicitly asks for a rep.`
     )
   }
 

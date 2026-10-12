@@ -1109,7 +1109,7 @@ export function extractOrderReference(rawText: string, history: HistoryMessage[]
   const prefixed = extractOrderNumber(text)
   if (prefixed) return prefixed
 
-  const hashMatch = text.match(HASH_REFERENCE_RE)
+  const hashMatch = text.replace(/[\u2066\u2069]/g, "").match(HASH_REFERENCE_RE)
   if (hashMatch?.[1]) return hashMatch[1]
 
   const labeled =
@@ -2367,9 +2367,15 @@ function orderIdOfferedByAssistant(history: HistoryMessage[]) {
         raw.replace(/\s+/g, "").toUpperCase()
       )
     )
-    if (ids.size !== 1) continue
-    const id = extractOrderNumber(text)
-    if (id) return id
+    if (ids.size === 1) {
+      const id = extractOrderNumber(text)
+      if (id) return id
+    }
+    if (ids.size === 0) {
+      const ref = extractOrderReference(message.content, history)
+      const normalized = text.replace(/[\u2066\u2069]/g, "")
+      if (ref && (normalized.match(/#\s*\d{5}\b/g) ?? []).length === 1) return ref
+    }
   }
   return null
 }
