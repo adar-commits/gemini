@@ -7,21 +7,24 @@ const prompt = readFileSync(join(process.cwd(), "lib/hom-agent/prompts/hom-bot.m
 
 /**
  * 464488405 — "הזמנתי שטיח שטרם הגיע ... רציתי לבטל". Bot answered with the post-receipt return
- * policy + "שמחתי לעזור", then only the portal. Operator policy: portal link AND human_service.
+ * policy + "שמחתי לעזור", then only the portal. Undelivered cancel → human_service, no returns portal.
  */
 describe("pre-delivery cancel handoff 464488405", () => {
-  const line = prompt.split("\n").find((l) => l.includes("Pre-delivery cancel") && l.includes("464488405"))
+  const block = prompt.slice(
+    prompt.indexOf("Pre-delivery cancel — cancel routing"),
+    prompt.indexOf("- **Portal phone prefill")
+  )
 
-  it("teaches portal + human_service in the same turn", () => {
-    assert.ok(line, "missing pre-delivery cancel rule")
-    assert.match(line, /returns portal/)
-    assert.match(line, /action: human_service/)
-    assert.match(line, /same turn/)
+  it("teaches human_service without returns portal when not received yet", () => {
+    assert.match(block, /464488405/)
+    assert.match(block, /533685634/)
+    assert.match(block, /post-receipt returns only/i)
+    assert.match(block, /action: human_service/)
+    assert.match(block, /same turn/)
   })
 
   it("drops the old no-handoff rule and forbids the warm close", () => {
-    assert.ok(line)
     assert.doesNotMatch(prompt, /No proactive handoff\*\* to "help open cancellation"/)
-    assert.match(line, /never warm-close/)
+    assert.match(block, /never warm-close/)
   })
 })

@@ -19,11 +19,11 @@ describe("cancel how-to after status-only 534406245", () => {
     assert.equal(isOrderCancellationSummaryLabel(opening), true)
   })
 
-  it("prompt teaches cancel + how must include portal, not preorder-only", () => {
+  it("prompt teaches cancel + how must route cancel, not preorder-only", () => {
     const line = prompt.split("\n").find((l) => l.includes("Cancel + how (534406245)"))
     assert.ok(line, "missing cancel + how rule")
     assert.match(line!, /464488405/)
-    assert.match(line!, /returns portal/)
+    assert.match(line!, /portal \*\*only when code 6/i)
     assert.match(line!, /never.*preorder ETA/i)
   })
 
@@ -36,7 +36,7 @@ describe("cancel how-to after status-only 534406245", () => {
     assert.notEqual(hints, null)
     assert.match(hints!, /PRE-DELIVERY CANCEL OPENING/)
     assert.match(hints!, /534406245/)
-    assert.match(hints!, /returns portal link/)
+    assert.match(hints!, /533685634|never send it/i)
   })
 
   it("after status-only reply without portal, reaffirm still gets pre-delivery cancel hint", () => {

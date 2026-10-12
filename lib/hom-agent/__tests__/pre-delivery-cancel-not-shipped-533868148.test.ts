@@ -39,7 +39,7 @@ describe("pre-delivery cancel not shipped 533868148", () => {
     assert.match(hints!, /PRE-DELIVERY CANCEL SHIPMENT CONFIRM \(533868148/)
     assert.match(hints!, /464488405/)
     assert.match(hints!, /action human_service/)
-    assert.match(hints!, /after-hours/)
+    assert.match(hints!, /never returns portal/i)
   })
 
   it("prompt teaches cancel shipment confirm follow-up", () => {
@@ -49,7 +49,7 @@ describe("pre-delivery cancel not shipped 533868148", () => {
     assert.ok(line, "missing cancel shipment confirm rule")
     assert.match(line!, /464488405/)
     assert.match(line!, /action: human_service/)
-    assert.match(line!, /after-hours/)
+    assert.match(line!, /never.*returns portal/i)
   })
 
   it("no shipment-confirm hint when cancel was not asked", () => {
