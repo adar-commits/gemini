@@ -261,6 +261,7 @@ import {
   isLiveRepAssistantMessage,
   isOpenReplacementDeliveryServiceHandoffThread,
   isOpenShippingDelayServiceHandoffThread,
+  isPartialDeliveryServiceHandoffAwaitingCallback,
   isPostHumanHandoff,
   isReplacementDeliveryCallbackWaitFollowUp,
   isShippingDelayHandoffNewsFollowUp,
@@ -1350,6 +1351,15 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "SERVICE DEFECT CALLBACK RESUME (475968017): service rep recap was already confirmed and human_service logged (including after-hours queue). A bare greeting or ping continues the open fray/defect case — brief welcome, acknowledge they may still be waiting for נציג שירות, recap defect + contact from thread. **Never** «במה אפשר לעזור?» / «משהו אחר?» as if a new topic. If they say nobody called back → empathize + urgent re-escalation with **action: human_service** + crm_department service in the **same** JSON."
+    )
+  }
+
+  if (
+    isPartialDeliveryServiceHandoffAwaitingCallback(history) &&
+    (isCasualSmallTalk(body) || isNonSubstantiveFollowUp(body))
+  ) {
+    lines.push(
+      "PARTIAL DELIVERY CALLBACK RESUME (532010096): missing carpet / stickers-only delivery already logged with **`human_service`** (including after-hours queue). Bare שלום / ping continues **that** open case — welcome briefly, acknowledge they may still wait for נציג שירות, compact recap (order #, missing line, branch note if any, morning availability they gave). **Never** FAQ «יש משהו חדש להוסיף?» as if a new topic. **`action: reply`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
@@ -3203,7 +3213,7 @@ export function buildConversationHints(input: {
 
   if (isShippingDelayHandoffResponseWaitFollowUp(history, body)) {
     lines.push(
-      "SHIPPING DELAY HANDOFF RESPONSE WAIT (528863688): shipping-delay case already got **`human_service`** with recap (מועד אספקה / פופים / סטטוס) — customer now complains about **slow human response** (עיכוב בתשובה / זלזול / אין מענה), not a fresh shipping-status ask. Brief empathize; confirm the case is already with נציג שירות and marked urgent; optional **`lookup_order_status`** if ERP may have updated. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג שירות» or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate."
+      "SHIPPING DELAY HANDOFF RESPONSE WAIT (528863688 / 532010096): shipping-delay or **partial delivery** (e.g. מדבקות בלי שטיח) already got **`human_service`** with recap — customer now complains **nobody called back** (לא חזרו / עיכוב בתשובה / זלזול / אין מענה) or asks for a **morning callback** they stated. Brief empathize; confirm the case stays with נציג שירות (note morning availability from thread); optional **`lookup_order_status`**. **`action: reply`** — **never** duplicate **`human_service`** or after-hours «אין נציגים» boilerplate as if first transfer unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות / נבקש שיחזרו בבוקר without «העברתי את השיחה»."
     )
   }
 

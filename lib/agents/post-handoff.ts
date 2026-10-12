@@ -161,32 +161,72 @@ const SHIPPING_DELAY_THREAD_RE =
 const SERVICE_SHIPPING_HANDOFF_RE =
   /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעביר(?:ים|ה|א)?[^\n]{0,96}נציג\s+שירות|סימנ(?:תי|ו)[^\n]{0,72}(?:דחופ|נציג))/i
 
-/** human_service already logged on a shipping-delay case — customer may chase rep response (528863688). */
-export function isOpenShippingDelayServiceHandoffThread(history: HistoryMessage[]) {
-  if (!isPostHumanHandoff(null, history)) return false
-  const corpus = history.map((message) => message.content).join("\n")
-  if (!SHIPPING_DELAY_THREAD_RE.test(corpus)) return false
-  if (!/(?:משלוח|אספקה|פופ|הזמנה)/i.test(corpus)) return false
+const SERVICE_OOO_QUEUE_HANDOFF_RE =
+  /אין\s+נציגי\s+שירות[^\n]{0,220}קיבלנו\s+את\s+הפנייה/i
+
+const PARTIAL_DELIVERY_THREAD_RE =
+  /(?:מדבקות|פריט\s+חסר|אספקה\s+חלקית|רק[^\n]{0,48}הגיע|לא\s+קיבלתי[^\n]{0,48}שטיח|הגיע[^\n]{0,32}בלי\s+השטיח)/i
+
+const SHIPPING_CASE_ASSISTANT_CONTEXT_RE =
+  /(?:משלוח|אספקה|מועד|סטטוס|פופ|שטיח|מדבקות|פרטים\s+לטיפול|הזמנה)/i
+
+function hasLoggedServiceHandoffForShippingCase(history: HistoryMessage[]) {
   return history.some(
     (message) =>
       message.role === "assistant" &&
       isHomBotAssistantMessage(message.content) &&
-      SERVICE_SHIPPING_HANDOFF_RE.test(message.content) &&
-      /(?:משלוח|אספקה|מועד|סטטוס|פופ)/i.test(message.content)
+      SHIPPING_CASE_ASSISTANT_CONTEXT_RE.test(message.content) &&
+      (SERVICE_SHIPPING_HANDOFF_RE.test(message.content) ||
+        SERVICE_OOO_QUEUE_HANDOFF_RE.test(message.content) ||
+        /פרטים\s+לטיפול/i.test(message.content))
   )
 }
+
+function hasAfterHoursServiceQueueHandoffInHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      SERVICE_OOO_QUEUE_HANDOFF_RE.test(message.content)
+  )
+}
+
+function isOpenShippingOrPartialDeliveryServiceHandoffThread(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history) && !hasAfterHoursServiceQueueHandoffInHistory(history)) {
+    return false
+  }
+  const corpus = history.map((message) => message.content).join("\n")
+  const openCase =
+    (SHIPPING_DELAY_THREAD_RE.test(corpus) || PARTIAL_DELIVERY_THREAD_RE.test(corpus)) &&
+    /(?:משלוח|אספקה|פופ|הזמנה|שטיח)/i.test(corpus)
+  if (!openCase) return false
+  return hasLoggedServiceHandoffForShippingCase(history)
+}
+
+/** human_service already logged on a shipping-delay case — customer may chase rep response (528863688). */
+export function isOpenShippingDelayServiceHandoffThread(history: HistoryMessage[]) {
+  return isOpenShippingOrPartialDeliveryServiceHandoffThread(history)
+}
+
+/** Partial delivery / missing line after service handoff — customer may ping or chase callback (532010096). */
+export function isPartialDeliveryServiceHandoffAwaitingCallback(history: HistoryMessage[]) {
+  if (!isOpenShippingOrPartialDeliveryServiceHandoffThread(history)) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  return PARTIAL_DELIVERY_THREAD_RE.test(corpus)
+}
+
+const POST_HANDOFF_RESPONSE_WAIT_RE =
+  /(?:עיכוב\s+בתשובה|זלזול|זילזול|אין\s+(?:לי\s+)?מענה|לא\s+מעדכ(?:ן|נ)|אף\s+אחד\s+לא\s+מעדכן|(?:עדיין\s+)?לא\s+חזר(?:ו|ה|ת)[^\n]{0,24}אלי|ש(?:לא|עדיין\s+לא)\s+חזרו)/i
 
 /** After shipping-delay handoff — complaint about slow human response, not a fresh transfer ask. */
 export function isShippingDelayHandoffResponseWaitFollowUp(
   history: HistoryMessage[],
   body: string
 ) {
-  if (!isOpenShippingDelayServiceHandoffThread(history)) return false
+  if (!isOpenShippingOrPartialDeliveryServiceHandoffThread(history)) return false
   const text = body.trim()
-  if (!text || text.length > 320) return false
-  return /(?:עיכוב\s+בתשובה|זלזול|אין\s+(?:לי\s+)?מענה|לא\s+מעדכ(?:ן|נ)|אף\s+אחד\s+לא\s+מעדכן)/i.test(
-    text
-  )
+  if (!text || text.length > 520) return false
+  return POST_HANDOFF_RESPONSE_WAIT_RE.test(text)
 }
 
 /** Replacement carpet delivery / coordination after defect — human_service already logged (533162865). */
