@@ -668,13 +668,15 @@ export function isDefectReplacementStatusQuestion(
 
 export function isCallbackUrgencyRequest(body: string) {
   const text = body.trim()
-  if (!text || text.length > 220) return false
+  if (!text) return false
+  const probe = text.length > 220 ? primaryIntentText(text) : text
+  if (!probe) return false
   const wantsCall =
-    /(?:ת(?:ת|)קשר(?:ו|י)?|(?:ל)?(?:ה)?תקשר(?:ו|י)?|חז(?:ור|ר(?:ו|ה))\s+אליי|(?:ל)?(?:ה)?ת(?:קשר|קשרו))/i.test(
-      text
+    /(?:ת(?:ת|)קשר(?:ו|י)?|(?:ל)?(?:ה)?תקשר(?:ו|י)?|(?:ל)?חז(?:ור|ר(?:ו|ה)?)\s+אל(?:י|יי)|(?:ש)?יחזר(?:ו|ה)\s+אלי|מבקש(?:ת|ים)?\s+(?:ל)?(?:חזור|ש(?:יחזר|תקשר))|(?:ל)?(?:ה)?ת(?:קשר|קשרו))/i.test(
+      probe
     )
   const urgent =
-    /(?:דח(?:וף|ופ)|ב(?:ית\s+)?(?:ה)?משפט|מייד|עכשיו|!{3,})/i.test(text)
+    /(?:דח(?:וף|ופ)|ב(?:ית\s+)?(?:ה)?משפט|מייד|עכשיו|!{3,}|עוד\s+היום)/i.test(probe)
   return wantsCall && urgent
 }
 

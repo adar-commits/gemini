@@ -2048,7 +2048,7 @@ export function buildConversationHints(input: {
 
   if (isCallbackUrgencyRequest(body)) {
     lines.push(
-      "CALLBACK URGENCY: customer demands an urgent phone call — empathize briefly, do NOT loop phone confirm or document intake. Service rep summary if context exists → action human_service in the same JSON (transfer wording must match action)."
+      "CALLBACK URGENCY (533162865): customer demands an urgent phone call today — empathize briefly, do NOT loop phone confirm or document intake. Service rep bullet recap when context exists → **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/מעביר עכשיו — **never** `action: reply` with declarative transfer. Do not use `service_summary_confirm` when you already commit to immediate transfer."
     )
   }
 
