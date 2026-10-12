@@ -841,6 +841,16 @@ function isShippingOnlyOrderIdentificationThread(
   )
 }
 
+/** Long formal complaint naming customer order # — service recap after lookup (534387570). */
+export function hasFormalServiceComplaintOpenerInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      message.content.length >= 200 &&
+      /#\d{4,}/.test(message.content)
+  )
+}
+
 /**
  * Service intake used order lookup only to identify מס׳ הזמנה — after confirm,
  * continue rep report → human_service (not shipping status).
@@ -855,6 +865,7 @@ export function isServiceOrderIdentificationFlow(
   ) {
     return false
   }
+  if (hasFormalServiceComplaintOpenerInThread(history)) return true
   if (isShippingOnlyOrderIdentificationThread(history, body)) return false
   if (isServiceLookupContext(history)) return true
   const userText = history

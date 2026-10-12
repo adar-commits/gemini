@@ -43,6 +43,7 @@ import {
   orderReferenceFromCustomerHistory,
   orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
+  hasFormalServiceComplaintOpenerInThread,
   isAwaitingReplyAfterMissingProductChoiceAsk,
   requiresOrderIdentification,
   userProvidedPhone,
@@ -1075,6 +1076,7 @@ function threadHasStatedCustomerIssue(history: HistoryMessage[], body: string) {
   }
   if (isDuplicateOrExtraItemComplaint(userText)) return true
   if (isMissingOrPartialDeliveryComplaint(userText)) return true
+  if (hasFormalServiceComplaintOpenerInThread(history)) return true
   return false
 }
 
@@ -2465,7 +2467,8 @@ export function buildConversationHints(input: {
       } else if (
         isOrderConfirmationYes(body) &&
         threadHasStatedCustomerIssue(history, body) &&
-        !isReturnWithSalesAdvisoryInThread(history, body)
+        !isReturnWithSalesAdvisoryInThread(history, body) &&
+        !isServiceOrderIdentificationFlow(history, body)
       ) {
         lines.push(
           "ORDER CONFIRM YES: כן/נכון/אוקיי confirms the pending order card — call lookup_order_status immediately with the bound order/phone. Never never-stuck on this turn."
@@ -2475,7 +2478,11 @@ export function buildConversationHints(input: {
         lines.push(
           "ORDER CONFIRM + KB FAQ: customer confirmed (or is confirming) the order card AND asks policy (fees/eligibility/care) — answer from KB first. Trailing כן/כן כן binds to the FAQ answer, NOT a stale handoff offer. action reply unless they explicitly ask for a rep."
         )
-      } else if (isOrderConfirmationYes(body) && isNonReceiptShippingOpenerFromHistory(history)) {
+      } else if (
+        isOrderConfirmationYes(body) &&
+        isNonReceiptShippingOpenerFromHistory(history) &&
+        !hasFormalServiceComplaintOpenerInThread(history)
+      ) {
         lines.push(
           "NON-RECEIPT ORDER CONFIRM YES (532314606): thread opened with לא קיבלתי/עדיין לא קיבלתי and כן confirms the order card — call lookup_order_status. If status is delivered: say the system shows delivered AND acknowledge their claim; list line items; ask which items they actually received. action reply — never warm-close or action end until partial delivery is clarified or rep summary is sent. Partial follow-up (רק/חוץ מ/חסר) → rep summary → human_service. Never service rep summary on the bare confirm turn alone."
         )
@@ -2485,7 +2492,7 @@ export function buildConversationHints(input: {
         !kbSelfServiceFaqThisTurn
       ) {
         lines.push(
-          "SERVICE ORDER ID (505886895 / 533051674 / 534659021): lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding/משיר צמר, photos). After customer confirms the order card → rep summary bullets **must** include: מס׳ הזמנה + דיווח על בעיה/חשש (לפי הלקוח) from the thread + נשלחו תמונות if they sent images — never a generic lone «פנייה לשירות לקוחות» without the problem. **Never** «משך ההמתנה: שבוע» from opening «שבוע טוב» — that is a greeting, not wait duration. Then summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never «לשנות את ההזמנה» / human_sales / יועץ מכירות, never «לא ניתן להציג סטטוס משלוח», never אפשר לעזור במשהו נוסף as the main answer."
+          "SERVICE ORDER ID (505886895 / 533051674 / 534659021 / 534387570): lookup was only to identify מס׳ הזמנה for an open service/quality issue (defect, shedding/משיר צמר, photos, **partial 1+1 / פריט חסר** e.g. שני פופים וסופק אחד). After customer confirms the order card → rep summary bullets **must** include: מס׳ הזמנה + **the actual issue from the opening** (missing second unit, color choice, delivery date ask, compensation) — never placeholder «דיווח על בעיה / חשש» alone. **Never** «משך ההמתנה: שבוע» unless they explicitly said how long they waited — not from «שבוע טוב» or invented. Skip «איזה פריט חסר?» when they already named it. Then summary check (awaiting service_summary_confirm) → human_service. Never shipping status, never «לשנות את ההזמנה» / human_sales / יועץ מכירות, never «לא ניתן להציג סטטוס משלוח», never אפשר לעזור במשהו נוסף as the main answer."
         )
       } else if (
         !isReturnWithSalesAdvisoryInThread(history, body) &&
@@ -3383,7 +3390,14 @@ export function buildConversationHints(input: {
 
   if (isKnownOrderConfirmPending(history)) {
     const known = orderIdGivenInThread(history)
-    if (isNonReceiptShippingOpenerFromHistory(history)) {
+    if (
+      hasFormalServiceComplaintOpenerInThread(history) &&
+      isServiceOrderIdentificationFlow(history, body)
+    ) {
+      lines.push(
+        `FORMAL SERVICE OPENER (534387570): long opening with #${known ?? "…"} already describes the service case (partial supply, missing unit, follow-up dates). After כן/כנראה on the order card → service rep summary bullets from that opener — not lookup again, not «משך ההמתנה: שבוע» unless they stated wait duration. awaiting service_summary_confirm → human_service.`
+      )
+    } else if (isNonReceiptShippingOpenerFromHistory(history)) {
       lines.push(
         `KNOWN ORDER CONFIRM + NON-RECEIPT (532314606): thread opened with לא קיבלתי/עדיין לא קיבלתי and you asked if they mean order ${known ?? "from the receipt"}. כן confirms — call lookup_order_status with that id now. If delivered: acknowledge system vs customer claim, list line items, ask which arrived — action reply, never action end. Partial clarification → rep summary → human_service. Never re-ask for מספר הזמנה or phone.`
       )
