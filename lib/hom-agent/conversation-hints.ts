@@ -1597,6 +1597,12 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isOpenServiceDefectFollowUpThread(history)) {
+    lines.push(
+      "SERVICE DEFECT REVIEW IN PROGRESS (530885396): open fray/defect case already advanced to branch or warehouse review / courier pickup scheduled — thread history has ביקורת, מחסן, or בקרת איכות. Customer resumes the same case, asks if review received the rug, or confirms SO while stating the rug is already with you. **Never** restart full intake (order confirm + new damage photo). Brief empathize, recap SO + review status ask from thread, skip photo when they say the rug is already in review — compact rep summary → **`action: human_service`** + `crm_department: service` in the **same** JSON. Never sales intake or FAQ pivot."
+    )
+  }
+
   const wrongItemReplacementServiceThread = wrongItemReplacementServiceContext
   if (wrongItemReplacementServiceThread) {
     lines.push(
