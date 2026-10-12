@@ -260,6 +260,7 @@ import {
   isLiveRepAssistantMessage,
   isOpenShippingDelayServiceHandoffThread,
   isPostHumanHandoff,
+  isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffResponseWaitFollowUp,
   postHandoffKind,
 } from "@/lib/agents/post-handoff"
@@ -2721,7 +2722,8 @@ export function buildConversationHints(input: {
     isShippingThreadFromHistory(history) &&
     (isShippingStatusQuestion(body) ||
       isOrderDeliveryStatusQuestion(body) ||
-      isDeliveryEstimateQuestion(body)) &&
+      isDeliveryEstimateQuestion(body) ||
+      isShippingDelayHandoffNewsFollowUp(history, body)) &&
     !isHumanHandoffPending(history) &&
     !isServiceHandoffSummaryPending(history) &&
     (isOrderLookupCompletedInThread(history) ||

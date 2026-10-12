@@ -189,6 +189,27 @@ export function isShippingDelayHandoffResponseWaitFollowUp(
   )
 }
 
+/** After shipping-delay handoff — short «יש חדש?» / greeting + news ask (534083795). */
+export function isShippingDelayHandoffNewsFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isPostHumanHandoff(null, history)) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!SHIPPING_DELAY_THREAD_RE.test(corpus)) return false
+  if (!/(?:משלוח|אספקה|פופ|הזמנה)/i.test(corpus)) return false
+  const hasServiceShippingHandoff = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      SERVICE_SHIPPING_HANDOFF_RE.test(message.content)
+  )
+  if (!hasServiceShippingHandoff) return false
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  return /יש\s*חדש/i.test(text)
+}
+
 /** Gentle reminder on the last FAQ answer after handoff — not on every bubble. */
 export function buildPostHandoffFooter(kind: "human_sales" | "human_service") {
   return kind === "human_sales"

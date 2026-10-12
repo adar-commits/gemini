@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 import { extractOrderReference } from "@/lib/agents/order-lookup"
+import { isShippingDelayHandoffNewsFollowUp } from "@/lib/agents/post-handoff"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
 import type { HistoryMessage } from "@/lib/agents/types"
@@ -16,6 +17,7 @@ const OOO_HANDOFF =
   "*הום בוט :)* כרגע אין נציגי שירות זמינים, אבל אל דאגה — קיבלנו את הפנייה. הצוות חוזר ביום ראשון מ-09:00, ניצור איתכם קשר. [שירות] מבקשים: עיכוב משלוח #78309"
 
 const REOPEN = "היי מה נשמע? \nיש חדש עם ההזמנה שלי?"
+const REOPEN_BARE = "היוש מה נשמע? \nיש חדש?"
 
 const BAD_REPLY =
   "*הום בוט :)* היי לאה, שבוע טוב! בבדיקה האחרונה ההזמנה #78309 עדיין הייתה בתהליכי אריזה במחסן, ואין לי עדכון חדש מעבר לזה. מבין שזה כבר מתעכב. סימנתי את הפנייה שלך כדחופה ואני מעביר אותה עכשיו לנציג שירות. מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם."
@@ -59,5 +61,26 @@ describe("shipping delay reopen 534083795", () => {
     assert.match(BAD_REPLY, /העברתי/)
     assert.match(BAD_REPLY, /דחופ/)
     assert.doesNotMatch(BAD_REPLY, /lookup/i)
+  })
+
+  it("bare «יש חדש?» after repeat handoff — Oct 12 reopen (534083795)", () => {
+    const historyOct12: HistoryMessage[] = [
+      ...history,
+      { role: "user", content: REOPEN },
+      { role: "assistant", content: BAD_REPLY },
+      { role: "user", content: "סבבה תודה" },
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)* Leah, בשמחה! הנציג כבר קיבל את הפנייה ויצור קשר בהקדם.",
+      },
+    ]
+    assert.equal(isShippingStatusQuestion(REOPEN_BARE), false)
+    assert.equal(isShippingDelayHandoffNewsFollowUp(historyOct12, REOPEN_BARE), true)
+    const hints =
+      buildConversationHints({ body: REOPEN_BARE, history: historyOct12 }) ?? ""
+    assert.match(hints, /SHIPPING STATUS REOPEN \(534107243 \/ 534083795\)/)
+    assert.match(hints, /lookup_order_status/)
+    assert.match(hints, /NEVER human_service/)
   })
 })
