@@ -1842,6 +1842,32 @@ export function isMissingProductChoicePending(history: HistoryMessage[]) {
   return false
 }
 
+/** Numbered missing-item pick sent; customer has not sent a new line since (533149639). */
+export function isAwaitingReplyAfterMissingProductChoiceAsk(history: HistoryMessage[]) {
+  let lastRealAssistantIndex = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) {
+      continue
+    }
+    if (isPriorityApiWaitAssistantMessage(message.content)) continue
+    lastRealAssistantIndex = index
+    break
+  }
+  if (lastRealAssistantIndex < 0) return false
+  const content = history[lastRealAssistantIndex]!.content
+  if (
+    !MISSING_PRODUCT_CHOICE_PENDING_RE.test(content) ||
+    !/^\s*1\.\s/m.test(content)
+  ) {
+    return false
+  }
+  for (let index = lastRealAssistantIndex + 1; index < history.length; index += 1) {
+    if (history[index]!.role === "user") return false
+  }
+  return true
+}
+
 export function resolveMissingProductChoice(
   body: string,
   items: OrderLineItem[]

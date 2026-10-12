@@ -43,6 +43,7 @@ import {
   orderReferenceFromCustomerHistory,
   orderPhoneNamedByAssistant,
   isServiceOrderIdentificationFlow,
+  isAwaitingReplyAfterMissingProductChoiceAsk,
   requiresOrderIdentification,
   userProvidedPhone,
 } from "@/lib/agents/order-lookup"
@@ -3117,7 +3118,16 @@ export function buildConversationHints(input: {
 
   if (postPurchaseKind === "missing_item") {
     lines.push(
-      "MISSING ITEM / PARTIAL DELIVERY: service case, NOT document copy. lookup_order_status → order confirm (no product list on card) → after כן, if customer already named the missing product in thread (e.g. הגיע רק… מדבקות) skip numbered pick and go to rep summary; only when multiple line items AND missing product not yet named → numbered pick → rep summary with פריט חסר → human_service. If they add another issue (בנוסף + stain/defect) merge both in one summary. Never fetch_digital_document."
+      "MISSING ITEM / PARTIAL DELIVERY: service case, NOT document copy. lookup_order_status → order confirm (no product list on card) → after כן, if customer already named the missing product in thread (e.g. הגיע רק… מדבקות) skip numbered pick and go to rep summary; only when multiple line items AND missing product not yet named → numbered pick → rep summary with פריט חסר → human_service. If they add another issue (בנוסף + stain/defect) merge both in one summary. Never fetch_digital_document. **`crm_department: service`** — **never** `human_sales` / יועץ מכירות on partial delivery or missing line items."
+    )
+  }
+
+  if (
+    isAwaitingReplyAfterMissingProductChoiceAsk(history) &&
+    !customerExplicitlyRequestsHuman(body)
+  ) {
+    lines.push(
+      'MISSING ITEM PICK AFTER LOOKUP (533149639): you already listed line items and asked «איזה פריט לא הגיע?» — the customer has **not** answered yet. **`action: end`** — do not send human_sales, off-hours יועץ מכירות text, or any second bot message. `"crm_department": "service"`. After they pick → service rep summary → **`human_service`** only.'
     )
   }
 
