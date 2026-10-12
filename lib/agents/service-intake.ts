@@ -702,6 +702,27 @@ export function isPartialRefundChaseThread(history: HistoryMessage[]) {
 }
 
 /** Return done + credit/refund question still open — not sales intake (533700177). */
+const OPEN_SERVICE_POST_PURCHASE_KINDS = new Set<PostPurchaseCaseKind>([
+  "defect",
+  "return_request",
+  "dissatisfaction",
+  "missing_item",
+  "exchange_request",
+  "return_pickup_pending",
+])
+
+/** Substantive service/defect/return case in user history — not closed (527266764). */
+export function isOpenPostPurchaseServiceIssueInThread(history: HistoryMessage[]) {
+  const corpus = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join("\n")
+  if (!corpus) return false
+  const kind = classifyPostPurchaseCase(corpus)
+  return kind !== null && OPEN_SERVICE_POST_PURCHASE_KINDS.has(kind)
+}
+
 export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
   const userTexts = history
     .filter((message) => message.role === "user")

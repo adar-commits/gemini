@@ -201,6 +201,7 @@ import {
   isServiceSummaryOrderReferenceClarification,
   threadHasUnansweredPhysicalArrivalQuestion,
   isOpenServiceDefectFollowUpThread,
+  isOpenPostPurchaseServiceIssueInThread,
   isOpenRefundCreditFollowUpThread,
   isPartialRefundChaseThread,
   isOpenPreorderDelayCompensationFollowUpThread,
@@ -1868,6 +1869,10 @@ export function buildConversationHints(input: {
       lines.push(
         "PARTIAL REFUND WAIT PING (468077939): cancelled order — one credit/refund already received, the other (often card) still missing past SLA. ? / ?? is chasing that open credit check — brief empathy + recap order/phone from the thread. **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי לנציג שירות — **never** generic «איך אוכל לעזור?» only or **`human_sales`**."
       )
+    } else if (isOpenPostPurchaseServiceIssueInThread(history)) {
+      lines.push(
+        "SERVICE CASE WAIT PING (527266764): customer already described defect / return / quality / missing-item service in the thread — ? / ?? means waiting for help on **that** case, not a shipping-status FAQ. Brief empathy + confirm you are here; continue the service playbook from their report (return options, order identify, photos, rep summary → human_service when ready). **Never** standalone «משלוח נמסר» / delivered lookup + **שמחתי לעזור** as if the service case is done. **`crm_department: service`**, **`action: reply`** unless they explicitly ask for a rep this turn."
+      )
     } else {
       lines.push(
         'WAIT PING (? / ?? / הלו?): customer checks if anyone is still here — apologize briefly for any delay, confirm you are here, ask how to help. Do NOT say they reached the wrong company. Old invoice billing names (e.g. business name on receipt) or third-party auto-replies in thread history do NOT mean misdirected contact — they are still HoM customers.'
@@ -2110,7 +2115,8 @@ export function buildConversationHints(input: {
       isRatingEmailNonReceiptOpener(body) ||
       isPurchasedItemNotArrivedOpener(body) ||
       isDeliverySupplyInquiry(body)) &&
-    !isServiceOrderIdentificationFlow(history, body)
+    !isServiceOrderIdentificationFlow(history, body) &&
+    !isOpenPostPurchaseServiceIssueInThread(history)
   ) {
     lines.push(
       "ORDER STATUS OPENING (532163951 / 532360395 / 533691332 / 532250107 / 534036639 / 534100267 / 534252170): delivery/shipment tracking — lookup_order_status → confirm → live status. \"לא קיבלתי את המשלוח\" / \"לא קיבלתי את השטיח\" / מייל לדרג + «עדיין לא הגיע» (534100267) without רק/חסר/חלק is NOT missing_item and NOT a FAQ warm-close — never ORDSTATUSDES הושלם + שמחתי לעזור on the opening turn (534036639). **534252170:** complaint about slow CS (מעל שבוע / ללא מענה) **plus** לברר לגבי אספקת/אספקה or phone-callback ask — still **lookup first** on channel phone; brief empathize for CS delay; answer status + ETA policy; try action end when resolved — **never** human_service on turn 1 just because they waited for humans. After confirm, if a line is Pre Order: explain that הזמנה מוקדמת means the item was not in stock as stated on the order page, so we expect חידוש מלאי around preorder_reqdate — never echo the customer's \"היה במלאי / יום למחרת / היה אמור להגיע\" as HoM's promise (532581645). If status is delivered while they claimed non-receipt (532314606) → acknowledge the gap, list line items, ask which arrived — action reply, never action end. Otherwise close with אם יש משהו נוסף שאוכל לעזור בו, אני כאן 😊 and action end — not שמחתי לעזור, not human_service just because delivery status is empty. Stale exchange/return FAQ in history does NOT make a status opener (מצב ההזמנה / יום עסקים + order #) a modification request — never human_sales or לשנות הזמנה unless this turn explicitly asks to change/cancel."
