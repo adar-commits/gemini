@@ -126,6 +126,8 @@ import {
 import {
   isDissatisfactionMenuPending,
   isExplicitExchangeExecutionTurn,
+  isExchangeCourierPathCommitted,
+  isExchangeCourierUndecidedTargetTurn,
   isExchangeIntakeActive,
   isExchangeKindPending,
   isExchangeOrderRequired,
@@ -2680,6 +2682,10 @@ export function buildConversationHints(input: {
   } else if (isExchangeOriginalPackagingPolicyPending(history)) {
     lines.push(
       "EXCHANGE PACKAGING BARRIER (533332336 / 533502989): you just explained exchange requires unused + original packaging. If the customer says the rug is not in original packaging / opened / no box — acknowledge honestly (policy normally requires original packaging; advisor may review), then action human_sales in the same JSON. Never lookup_inventory, never ask for SKU to check branch stock on this turn."
+    )
+  } else if (isExchangeCourierUndecidedTargetTurn(history, body)) {
+    lines.push(
+      "EXCHANGE COURIER PICK AT BRANCH (530723343): courier exchange is locked — choosing model/size later at a branch does NOT mean branch-only exchange. Never get_branch_info + action end as the main outcome. Bullet recap (order, courier fees already quoted, no final rug yet) → action human_sales in the same JSON so sales helps choose and schedules courier pickup. Never pivot to «החלפה בסניף בלי עלות שליח»."
     )
   } else if (needsExchangeKindQuestion(history)) {
     lines.push(

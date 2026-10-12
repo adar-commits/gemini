@@ -39,6 +39,11 @@ export const EXCHANGE_SWITCH_CREATED_MARKER = "נפתחה בקשת החלפה"
 const KIND_QUESTION_RE = /איזה\s+סוג\s+החלפה\s+מתאים/i
 const SKU_QUESTION_RE = /מה\s+המק(?:״|"|')?ט\s+של\s+הפריט/i
 const REASON_QUESTION_RE = /מה\s+לא\s+אהבתם\s+במוצר/i
+const BRANCH_OR_COURIER_QUESTION_RE = /בסניף\s+או\s+עם\s+שליח/i
+const COURIER_EXCHANGE_PATH_RE =
+  /החלפה\s+עם\s+שליח|נמשיך\s+עם\s+החלפה\s+עם\s+שליח|בהחלפה\s+עם\s+שליח/i
+const EXCHANGE_TARGET_ITEM_QUESTION_RE =
+  /מה\s+תרצ(?:י|ו|ה)?\s+להחליף|איזה\s+(?:פריט|שטיח)\s+רוצ/i
 
 function isExchangeSkuQuestionContent(content: string) {
   return (
@@ -89,6 +94,58 @@ export function exchangeIntakeOrderConfirmed(history: HistoryMessage[]) {
 export function isExchangeOrderRequired(history: HistoryMessage[]) {
   if (!isExchangeIntakeActive(history)) return false
   return !exchangeIntakeOrderConfirmed(history)
+}
+
+/** Thread already chose courier exchange (not branch-only execution). */
+export function isExchangeCourierPathCommitted(history: HistoryMessage[]) {
+  if (!isExchangeIntakeStartedInThread(history)) return false
+  if (
+    assistantMessages(history).some((message) =>
+      COURIER_EXCHANGE_PATH_RE.test(message.content)
+    )
+  ) {
+    return true
+  }
+  let branchOrCourierQuestionSeen = false
+  for (const message of history) {
+    if (message.role === "assistant" && !isInactivityAssistantMessage(message.content)) {
+      if (BRANCH_OR_COURIER_QUESTION_RE.test(message.content)) {
+        branchOrCourierQuestionSeen = true
+      }
+    }
+    if (
+      branchOrCourierQuestionSeen &&
+      message.role === "user" &&
+      /^(?:עם\s+שליח|החלפה\s+עם\s+שליח)/i.test(message.content.trim())
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function lastAssistantAskedExchangeTargetItem(history: HistoryMessage[]) {
+  const last = lastNonInactivityAssistantText(history)
+  return (
+    EXCHANGE_TARGET_ITEM_QUESTION_RE.test(last) || KIND_QUESTION_RE.test(last)
+  )
+}
+
+/** Courier exchange + order confirmed + bot asked what to switch; customer is answering. */
+export function isExchangeCourierUndecidedTargetTurn(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isExchangeCourierPathCommitted(history)) return false
+  if (!exchangeIntakeOrderConfirmed(history)) return false
+  if (!lastAssistantAskedExchangeTargetItem(history)) return false
+  const intake = extractExchangeIntake(history, body)
+  if (intake.switchRequestId) return false
+  if (intake.exchangeKind && intake.exchangeKind !== "different_model") return false
+  if (intake.exchangeKind === "different_model" && intake.customerReasonText) {
+    return false
+  }
+  return body.trim().length > 0
 }
 
 function lastAssistantMatches(history: HistoryMessage[], pattern: RegExp) {

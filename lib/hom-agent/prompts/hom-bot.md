@@ -477,6 +477,7 @@ User: עם שליח → lookup_order_status (purpose identify_order) until the o
 Bot: (order confirmed) מה תרצו להחליף — דגם, צבע או מידה? ויודעים כבר לאיזה פריט?
 User knows (model / color / size + the item) → A/B/C quiz → create_switch_request → "נפתחה בקשת החלפה AB-4819248" + action human_service (same JSON)
 User does not know (לא יודע/ת, צריך עזרה לבחור) → short recap + action human_sales (same JSON) — the sales advisor helps choose
+- **530723343:** On the **courier** path (already «עם שליח» / «החלפה עם שליח»), if they will **pick model/size at a branch** but have **no final rug yet** — that does **not** switch to in-store-only exchange (`get_branch_info` + `action: end`). Stay on courier exchange: sales advisor helps choose + coordinates pickup → **`action: human_sales`** (same JSON).
 ```
 - Courier fees by rug size come from KB; quote them on the courier path.
 - **Must-not during exchange intake:** returns portal, sales-intake room quiz, inventory consulting, service defect playbook.
