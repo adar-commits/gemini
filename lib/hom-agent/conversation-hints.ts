@@ -897,10 +897,35 @@ function isShippingStatusCheckOfferedInThread(history: HistoryMessage[]) {
   return history.some(
     (message) =>
       message.role === "assistant" &&
-      /(?:אבדוק|לבדוק).*סטטוס\s*(?:ה)?משלוח|רוצים\s+שאבדוק\s+א(?:ת\s+)?סטטוס\s*(?:ה)?משלוח/i.test(
+      (/(?:אבדוק|לבדוק).*סטטוס\s*(?:ה)?משלוח|רוצים\s+שאבדוק\s+א(?:ת\s+)?סטטוס\s*(?:ה)?משלוח/i.test(
         message.content
-      )
+      ) ||
+        isShippingProgressCheckOfferText(message.content))
   )
+}
+
+/** Bot offered to check order shipping stage — SO may only be on the tracking link (534689508). */
+function isShippingProgressCheckOfferText(content: string) {
+  const text = content.trim()
+  if (!text) return false
+  return (
+    /רוצ(?:ה|ים|ות)\s+ש(?:א|נ)?בדוק\s+באיזה\s+שלב/i.test(text) ||
+    /(?:אבדוק|לבדוק)\s+באיזה\s+שלב\s+(?:נמצא(?:ת|ים)?\s+)?(?:ה)?הזמנה/i.test(text)
+  )
+}
+
+function isShippingProgressCheckOfferPending(history: HistoryMessage[]) {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  if (!lastAssistant) return false
+  return isShippingProgressCheckOfferText(lastAssistant.content)
+}
+
+function isShippingProgressCheckAffirmation(body: string) {
+  const text = body.trim()
+  if (!text || isOrderConfirmationNo(text)) return false
+  if (isOrderConfirmationYes(text)) return true
+  if (/^כן/i.test(text) && /(?:בדוק|בבקשה|ממך)/i.test(text)) return true
+  return /^כן/i.test(text) && text.length <= 48 && !/\bלא\b/.test(text)
 }
 
 function isOrderStatusProgressOpener(content: string) {
@@ -3211,6 +3236,19 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `STATUS RECHECK OFFER YES (534276359): you offered to recheck shipping status for order ${threadOrderForRecheck} — customer affirmed (e.g. כן לבדוק). Call lookup_order_status with ${threadOrderForRecheck} now and answer status + ETA policy. Prior human_service or «לא הצלחתי להציג סטטוס» does NOT justify another handoff before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
+    )
+  }
+
+  const threadOrderForProgressCheck = orderIdGivenInThread(history)
+  if (
+    isShippingProgressCheckOfferPending(history) &&
+    !isKnownOrderConfirmPending(history) &&
+    isShippingProgressCheckAffirmation(body) &&
+    threadOrderForProgressCheck &&
+    !isHumanHandoffPending(history)
+  ) {
+    lines.push(
+      `SHIPPING PROGRESS CHECK YES (534689508): you offered to check which stage the order is at (even without repeating SO in the question). Customer affirmed — call lookup_order_status with ${threadOrderForProgressCheck} from the tracking link / thread now and answer shipping status + ETA policy. Never claim you cannot pull status or human_service before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
     )
   }
 
