@@ -37,7 +37,7 @@ describe("order or other topic 532326366", () => {
 
   it("hints lookup and no stale human_service", () => {
     const hints = buildConversationHints({ body, history }) ?? ""
-    assert.match(hints, /ORDER OR OTHER TOPIC YES \(532326366\)/)
+    assert.match(hints, /ORDER OR OTHER TOPIC YES \(532326366 \/ 503283917\)/)
     assert.match(hints, /76959/)
     assert.match(hints, /NEVER human_service/)
     assert.match(hints, /lookup_order_status/)

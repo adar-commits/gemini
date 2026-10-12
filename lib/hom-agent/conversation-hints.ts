@@ -1123,8 +1123,8 @@ function botAskedOrderOrOtherTopic(history: HistoryMessage[]) {
     if (message.role !== "assistant") continue
     const content = message.content
     if (!/\?/.test(content)) return false
-    if (!/מדובר\s+ב(?:ה)?הזמנה/i.test(content)) return false
     if (!/משהו\s+אחר/i.test(content)) return false
+    if (!/מדובר\s+ב/i.test(content)) return false
     return Boolean(extractOrderReference(content, history))
   }
   return false
@@ -3385,7 +3385,7 @@ export function buildConversationHints(input: {
   if (botAskedOrderOrOtherTopic(history) && affirmsOrderOrOtherSameTopic(body)) {
     const known = orderIdGivenInThread(history)
     lines.push(
-      `ORDER OR OTHER TOPIC YES (532326366): you asked if the thread is about order ${known ?? "already named in thread"} or another topic — customer confirmed same order (אותה הזמנה / הזמנה). Call lookup_order_status for fresh shipping status; brief empathy if they are waiting. Prior human_service or an old rep request does NOT mean they want a rep again this turn — action reply. NEVER human_service or «העברתי/סימנתי לנציג» unless THIS message explicitly asks for a rep.`
+      `ORDER OR OTHER TOPIC YES (532326366 / 503283917): you asked if the thread is about order ${known ?? "already named in thread"} or a named issue on that order (e.g. missing medallion line) versus another topic — customer confirmed (כן / אותה הזמנה / הזמנה). Call lookup_order_status for ${known ?? "that order id"}; answer status or continue partial-delivery service (rep summary → human_service only after lookup when ready). Never «תודה על האישור» + human_service as if they confirmed a rep offer — no handoff was pending. Prior human_service or an old rep request does NOT mean they want a rep again this turn — action reply. NEVER human_service or «העברתי/סימנתי לנציג» unless THIS message explicitly asks for a rep.`
     )
   }
 
