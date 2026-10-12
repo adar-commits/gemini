@@ -1870,6 +1870,13 @@ export function buildConversationHints(input: {
       lines.push(
         "SERVICE SUMMARY REPEAT REFINEMENT (533801731): customer already got one service recap and you sent an updated recap (עדכנתי / עכשיו זה מדויק?) — their latest message refines the defect again in their own words. Set action human_service NOW with one short transfer line; fold their latest defect wording into the rep note mentally — do NOT send another bullet recap or ask «מדויק?» again."
       )
+    } else if (
+      /(?:^|\s)(?:אנא\s+)?(?:תוס(?:יף|יפ(?:ו|י)?)|להוס(?:יף|יפ))/u.test(body) ||
+      /חסר\s+משהו/u.test(body)
+    ) {
+      lines.push(
+        "SERVICE SUMMARY AMENDMENT (533843643): customer asks to add to the rep recap (תוסיף/להוסיף/חסר…) — NOT confirm. Merge new facts into bullets (wrong SKU delivered, missing line item, delivery timeline ask, frustration) under «מטרת הפנייה» / מבקשים. action reply with full updated recap + «זה מדויק, או שחסר משהו?» + awaiting service_summary_confirm — NEVER human_service, empty reply, or after-hours-only on this turn."
+      )
     } else {
       lines.push(
         "SERVICE SUMMARY CORRECTION (429830143): customer did not confirm — treat as correction/refinement of the case. Replace «בעיה לפי הלקוח» with ONLY their latest wording; drop any prior bot/image detail they contradicted or did not repeat (e.g. «אין סיבים בולטים» → remove סיבים from the recap). Never merge old inference with their correction. Updated recap → action reply + awaiting service_summary_confirm; human_service only after clear confirm."
