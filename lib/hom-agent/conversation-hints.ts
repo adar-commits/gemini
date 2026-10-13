@@ -1701,7 +1701,23 @@ export function buildConversationHints(input: {
         ? "human_sales + crm_department sales"
         : "human_service + crm_department service"
     lines.push(
-      `CALLBACK REPEAT RE-ESCALATION (533886824): customer already asked for a phone callback and a prior handoff/callback was logged — empathize that nobody called yet if they say so. Re-confirm the case + phone, mark urgent, and set action ${department} in the **same** JSON when you write העברתי/סימנתי/מעביר. Never replay "אין נציגים זמינים" after you already transferred during business hours. The voice-callback template ("כאן נציג/ה…") is automatic — not a live rep in chat.`
+      `CALLBACK REPEAT RE-ESCALATION (533886824): customer already asked for a phone callback and a prior handoff/callback was logged — empathize that nobody called yet if they say so. Re-confirm the case + phone, mark urgent, and set action ${department} in the **same** JSON when you write העברתי/סימנתי/מעביר. Use **one** transfer sentence in the reply — **never** both opening «העברתi/מעביר עכשיו…» and closing «מעולה, העברתi את השיחה לנציג…». Never replay "אין נציגים זמינים" after you already transferred during business hours. The voice-callback template ("כאן נציג/ה…") is automatic — not a live rep in chat.`
+    )
+  }
+
+  if (
+    CALLBACK_ASK_RE.test(body.trim()) &&
+    body.trim().length <= 280 &&
+    isPostHumanHandoff(null, history) &&
+    !isCallbackRepeatAfterHandoff(history, body)
+  ) {
+    const handoffKind = postHandoffKind(null, history) ?? "human_service"
+    const department =
+      handoffKind === "human_sales"
+        ? "human_sales + crm_department sales"
+        : "human_service + crm_department service"
+    lines.push(
+      `SERVICE CALLBACK ASK AFTER HANDOFF (533843643): customer asks for a rep to call (e.g. «אשמח שנציג יתקשר אלי») on an open service case already transferred — brief empathize for the wait if relevant; bullet recap from thread (order #, wrong/missing items, callback phone) → **action: ${department}** in the **same** JSON when you write מעביר/העברתi. Use **one** transfer sentence — **never** open with «העברתi עכשיו…» and also close with «מעולה, העברתi את השיחה לנציג שירות. ניצור קשר בהקדם.»`
     )
   }
 
