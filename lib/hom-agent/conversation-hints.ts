@@ -275,6 +275,7 @@ import {
   isSalesProductInquiryHandoffCompleteInHistory,
   isPreorderRestockCallbackWaitFollowUp,
   isReplacementDeliveryCallbackWaitFollowUp,
+  isDeliveryCoordinationTimingFollowUp,
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffAnswerWaitFollowUp,
   isShippingDelayHandoffResponseWaitFollowUp,
@@ -3445,6 +3446,12 @@ export function buildConversationHints(input: {
   if (isPreorderRestockCallbackWaitFollowUp(history, body)) {
     lines.push(
       "PREORDER RESTOCK CALLBACK WAIT (529931531): **הזמנה מוקדמת** / **חידוש מלאי** check already got **`human_service`** (rep to verify restock ETA for SO/product in thread) — customer chases callback (e.g. «מחכה שתיצרו קשר», «מחכה לטלפון», «מתי תיצרו קשר»). Empathize for the delay; recap open case (model, SO, restock check); confirm still marked urgent for נציג שירות — you may say סימנתי שוב לצוות / נבקש שיחזרו לטלפון מהשיחה. Service-hours note OK. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג שירות» / «העברתי שוב» first-transfer boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isDeliveryCoordinationTimingFollowUp(history, body)) {
+    lines.push(
+      "DELIVERY COORDINATION TIMING FOLLOW-UP (313407519): **`human_service`** already logged so נציג שירות coordinates with **חברת ההובלה** (including after a live rep spoke in chat) — customer asks whether delivery can happen **today** / by a time window / «יש סיכוי לקבל». Empathize; you cannot guarantee courier timing from here — note their latest window for the rep (optional **`lookup_order_status`** if SO is in thread). **`action: reply`** — **never** duplicate «מעולה, העברתי את השיחה לנציג שירות» or **`human_service`** unless they explicitly ask to transfer again **this turn**. You may say עדכנתי/סימנתי לנציג without first-time handoff boilerplate."
     )
   }
 

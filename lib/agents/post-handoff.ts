@@ -323,6 +323,50 @@ export function isPreorderRestockCallbackWaitFollowUp(
   return PREORDER_RESTOCK_CALLBACK_WAIT_RE.test(text)
 }
 
+const DELIVERY_COORDINATION_THREAD_RE =
+  /(?:ת(?:יאום|אום)[^\n]{0,56}(?:מסירה|אספקה|הובלה)|שע(?:ת)?\s+מסירה|חבר(?:ת)?\s+(?:ה)?(?:הובלה|שליח))/i
+
+/** Purchase delivery coordination with carrier — human_service already logged (313407519). */
+export function isOpenDeliveryCoordinationServiceHandoffThread(
+  history: HistoryMessage[]
+) {
+  if (!isPostHumanHandoff(null, history)) return false
+  if (isOpenReplacementDeliveryServiceHandoffThread(history)) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!DELIVERY_COORDINATION_THREAD_RE.test(corpus)) return false
+  if (!/(?:משלוח|אספקה|שטיח|הובלה)/i.test(corpus)) return false
+  const botCoordinationHandoff = history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      /(?:חבר(?:ת)?\s+(?:ה)?הובלה|ת(?:יאום|אום)\s+(?:מסירה|אספקה))/i.test(
+        message.content
+      ) &&
+      (assistantTextIndicatesHandoffExecuted(message.content) ||
+        hasDeclarativeHandoffTransferInText(message.content))
+  )
+  return botCoordinationHandoff || hasLoggedServiceHandoffForShippingCase(history)
+}
+
+/** Same-day / slot timing ask on open coordination case after handoff (313407519). */
+export function isDeliveryCoordinationTimingFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenDeliveryCoordinationServiceHandoffThread(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 320) return false
+  if (isShippingDelayHandoffResponseWaitFollowUp(history, body)) return false
+  if (isReplacementDeliveryCallbackWaitFollowUp(history, body)) return false
+  return (
+    /(?:סיכוי|אפשר|מתי|האם)[^\n]{0,96}(?:היום|לקבל|יגיע|מסיר|עד\s+\d)/i.test(
+      text
+    ) ||
+    (/היום/i.test(text) &&
+      /(?:שטיח|משלוח|מסיר|18|קבל)/i.test(text))
+  )
+}
+
 /** After shipping-delay handoff — short «יש חדש?» / greeting + news ask (534083795). */
 export function isShippingDelayHandoffNewsFollowUp(
   history: HistoryMessage[],
