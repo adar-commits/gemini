@@ -444,7 +444,9 @@ function isSalesExchangeHandoffAwaitingCallback(history: HistoryMessage[]) {
   return history.some(
     (message) =>
       message.role === "assistant" &&
-      /(?:סוג\s+החלפה|דגם\s+אחר\s+לגמרי)/i.test(message.content) &&
+      /(?:סוג\s+החלפה|דגם\s+אחר\s+לגמרי|בקש(?:ת|ה)\s+החלפה|החלפה\s+לדגם)/i.test(
+        message.content
+      ) &&
       /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|קיבלנו\s+את\s+הפנייה|יועצ(?:י|)\s+מכירות|ניצור\s+[^\n]{0,32}קשר)/i.test(
         message.content
       )
@@ -761,6 +763,12 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
   }
   if (
     (isNonSubstantiveFollowUp(text) || isSalesHandoffWaitChase(text)) &&
+    isSalesExchangeHandoffAwaitingCallback(history)
+  ) {
+    return false
+  }
+  if (
+    NO_RESPONSE_COMPLAINT_RE.test(text) &&
     isSalesExchangeHandoffAwaitingCallback(history)
   ) {
     return false
@@ -2009,6 +2017,8 @@ export function buildConversationHints(input: {
         isRepShippingStatusHandoffAwaitingCallback(history)) ||
       (isSalesHandoffWaitChase(body) &&
         isSalesExchangeHandoffAwaitingCallback(history)) ||
+      (NO_RESPONSE_COMPLAINT_RE.test(body.trim()) &&
+        isSalesExchangeHandoffAwaitingCallback(history)) ||
       (isSalesHandoffWaitChase(body) &&
         isBackInStockSalesHandoffThread(history)) ||
       (isServiceHandoffWaitChase(body) &&
@@ -2030,13 +2040,13 @@ export function buildConversationHints(input: {
         `SERVICE DEFECT WAIT PING (533557694 / 367779250): human_service already logged for defect/quality${orderRef ? ` on order ${orderRef}` : ""} — ? / ?? / «איפה נציג (השירות)?» means waiting for service callback or a live rep in chat, not a first-time transfer. Brief empathy + confirm the case is already with נציג שירות (voice-template messages are not a live rep).${customerName ? ` Address the customer as **${customerName}** only — never invent another name from CRM assignee fields.` : " Use the customer name from branch inquiry or prior bot greeting only — never invent a name."} **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות בעדיפות without first-time handoff boilerplate.`
       )
     } else if (
-      isSalesHandoffWaitChase(body) &&
-      isSalesExchangeHandoffAwaitingCallback(history)
+      isSalesExchangeHandoffAwaitingCallback(history) &&
+      (isSalesHandoffWaitChase(body) || NO_RESPONSE_COMPLAINT_RE.test(body.trim()))
     ) {
       const orderRef =
         identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
       lines.push(
-        `SALES EXCHANGE WAIT PING (532191753): human_sales already logged for post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} (different model / סוג החלפה) — ? / ?? / מה עם הפנייה means waiting for sales callback, not a fresh transfer. Brief empathy + confirm the case is already with יועץ מכירות; if they named a target model earlier, note it for the advisor. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate.`
+        `SALES EXCHANGE WAIT PING (532191753 / 339160767): human_sales already logged for post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} (different model / סוג החלפה / בקשת החלפה לדגם) — ? / ?? / מה עם הפנייה / אין מענה / לא עונים means waiting for sales callback, not a fresh transfer. Brief empathy + confirm the case is already with יועץ מכירות; if they named a target model earlier, note it for the advisor. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות», «יועץ זמין עכשיו» as first transfer, or **human_sales** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate.`
       )
     } else if (
       isSalesHandoffWaitChase(body) &&
