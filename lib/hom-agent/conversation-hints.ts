@@ -264,6 +264,7 @@ import {
   isOpenShippingDelayServiceHandoffThread,
   isPartialDeliveryServiceHandoffAwaitingCallback,
   isPostHumanHandoff,
+  isRefundCreditPostHandoffStatusFollowUp,
   isReplacementDeliveryCallbackWaitFollowUp,
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffResponseWaitFollowUp,
@@ -589,6 +590,7 @@ function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
 function isRefundStatusFollowUpTurn(history: HistoryMessage[], body: string) {
   const trimmed = body.trim()
   if (!trimmed || trimmed.length > 160) return false
+  if (isRefundCreditPostHandoffStatusFollowUp(history, body)) return false
   if (!hasPriorRefundOrReturnExecutionInThread(history)) return false
   if (isRefundStatusInquiry(trimmed) || isRefundTimelineQuestion(trimmed)) return true
   if (isNonSubstantiveFollowUp(trimmed)) return true
@@ -3219,6 +3221,12 @@ export function buildConversationHints(input: {
   if (isReplacementDeliveryCallbackWaitFollowUp(history, body)) {
     lines.push(
       "REPLACEMENT DELIVERY CALLBACK WAIT (533162865): defect **replacement carpet** / delivery coordination is already with **`human_service`** (including urgent callback today) — customer says nobody returned yet (e.g. «טרם חזרו אלי»). Empathize; recap open case (replacement not arrived, callback/coordination, cancel/refund deadline if they stated it); confirm still marked urgent — you may say סימנתי שוב לצוות. Outside service hours → explain hours + that the team will contact when back — still **`action: reply`**. **Never** «העברתי את הפנייה» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isRefundCreditPostHandoffStatusFollowUp(history, body)) {
+    lines.push(
+      "REFUND CREDIT HANDOFF WAIT (532600018): branch return / missing **refund or credit** already got **`human_service`** with recap — customer chases status (e.g. «מה קורה עם זה», «מה עם ההחזר»). Empathize for the wait; confirm the case stays with נציג שירות and is marked urgent — you may say סימנתי שוב לצוות. **`action: reply`** — **never** duplicate «מעולה, העברתי את השיחה לנציג שירות» / first-time handoff boilerplate or a second **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 

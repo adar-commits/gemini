@@ -1,6 +1,7 @@
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import { isOpenRefundCreditFollowUpThread } from "@/lib/agents/service-intake"
 import { isVoiceClosureTemplateMessage } from "@/lib/landbot/voice-closure-template"
 
 const HANDOFF_CONFIRMED_RE =
@@ -283,6 +284,20 @@ export function isShippingDelayHandoffNewsFollowUp(
   const text = body.trim()
   if (!text || text.length > 220) return false
   return /יש\s*חדש/i.test(text)
+}
+
+/** Branch/store refund credit already handed off — customer chases status (532600018). */
+export function isRefundCreditPostHandoffStatusFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenRefundCreditFollowUpThread(history)) return false
+  if (!isPostHumanHandoff(null, history)) return false
+  const text = body.trim()
+  if (!text || text.length > 120) return false
+  if (/^מה\s+קורה\s+ע/i.test(text)) return true
+  if (/^מה\s+ע(?:ם|im)\s+(?:ה)?(?:החזר|זיכוי)/i.test(text)) return true
+  return false
 }
 
 /** Gentle reminder on the last FAQ answer after handoff — not on every bubble. */
