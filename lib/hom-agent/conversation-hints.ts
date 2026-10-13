@@ -270,6 +270,7 @@ import {
   isOpenShippingDelayServiceHandoffThread,
   isPartialDeliveryServiceHandoffAwaitingCallback,
   hasExecutedBotHandoffInHistory,
+  hasPastTenseHandoffExecutedInText,
   isPostHumanHandoff,
   isPreDeliveryCancelHandoffResponseWaitFollowUp,
   isPreDeliveryCancelServiceHandoffAwaitingCallback,
@@ -1519,9 +1520,14 @@ export function buildConversationHints(input: {
     hasDeclarativeHandoffTransfer(lastAssistantText) &&
     !assistantTextIndicatesHandoffExecuted(lastAssistantText) &&
     !hasLiveRepReplyAfterBotHandoff(history)
+  const orderModThanksStillNeedsExecute =
+    isOrderModificationInThread(history, body) &&
+    lastAssistantText != null &&
+    isSalesHandoffCommittedInAssistantText(lastAssistantText) &&
+    !hasPastTenseHandoffExecutedInText(lastAssistantText)
   const postHandoffThanksClose =
     isThanksAcknowledgment(body) &&
-    !isOrderModificationInThread(history, body) &&
+    !orderModThanksStillNeedsExecute &&
     !thanksAfterHandoffProseOnly &&
     (hasLiveRepReplyAfterBotHandoff(history) ||
       isBackInStockSalesHandoffThread(history) ||
@@ -1650,7 +1656,11 @@ export function buildConversationHints(input: {
     pastOrderSizeRecallPending ||
     (!isOrderLookupCompletedInThread(history) && isPriorOrderSizeReorderThread(history))
 
-  if (isSalesTransferPromisedInLastAssistant(history) && !blockSalesTransferForPastOrderSize) {
+  if (
+    isSalesTransferPromisedInLastAssistant(history) &&
+    !blockSalesTransferForPastOrderSize &&
+    !postHandoffThanksClose
+  ) {
     lines.push(
       'SALES TRANSFER PROMISED (533891498 / 534528968): you already wrote מעביר ליועץ מכירות — customer may add model, rooms, quantities, or photos. Update the advisor recap + set `action: human_sales` in the **same** JSON now. Never stay on reply/faq while they wait for the rep. Use **one** transfer sentence on the handoff turn — never both «אני מעביר…» and «העברתי את השיחה» in the same message.'
     )
@@ -1813,6 +1823,7 @@ export function buildConversationHints(input: {
     !/(?:צבע|מידה|גודל|דגם|הזמנה)/i.test(body.trim())
 
   if (
+    !postHandoffThanksClose &&
     !shippingServiceThanksClose &&
     !wrongItemReplacementServiceContext &&
     !threadHasDefectCase &&
@@ -1824,7 +1835,7 @@ export function buildConversationHints(input: {
       isBareModelChangeRequestInThread(history, body))
   ) {
     lines.push(
-      'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166 / 531256545): customer wants to change color/size/model on an existing order — including bare "להחליף דגם" / "דגם אחר". Empathize → call lookup_order_status (phone confirm is OK). **Never** post-receipt exchange policy (14 days / unused packaging / "מה לא התאים?") on the opening turn before status. After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging / not yet delivered → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after you already said מעביר ליועץ → human_sales NOW — never action end. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+      'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166 / 498385542 / 531256545): customer wants to change color/size/model on an existing order — including bare "להחליף דגם" / "דגם אחר". Empathize → call lookup_order_status (phone confirm is OK). **Never** post-receipt exchange policy (14 days / unused packaging / "מה לא התאים?") on the opening turn before status. After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging / not yet delivered → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after declarative מעביר ליועץ **without** past-tense «העברתי את השיחה» in that bot turn → human_sales NOW — never action end. After «העברתי» already sent (498385542) → POST-HANDOFF thanks close only. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
     )
   }
 
@@ -2029,6 +2040,7 @@ export function buildConversationHints(input: {
 
   if (
     isHumanHandoffPending(history) &&
+    !postHandoffThanksClose &&
     !kbSelfServiceFaqThisTurn &&
     !(
       hasDeliveryHandoffWithoutLookupInThread(history) &&

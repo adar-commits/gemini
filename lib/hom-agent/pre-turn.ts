@@ -68,6 +68,7 @@ import {
 } from "@/lib/agents/compound-reply"
 import {
   assistantTextIndicatesHandoffExecuted,
+  hasPastTenseHandoffExecutedInText,
   hasLiveRepReplyAfterBotHandoff,
   isPostHumanHandoff,
 } from "@/lib/agents/post-handoff"
@@ -381,7 +382,8 @@ export function runPreTurnGuards(input: {
     isOrderModificationInThread(input.history, body) &&
     isThanksAcknowledgment(body) &&
     explicitThanks &&
-    !isPureHandoffAffirmation(body)
+    !isPureHandoffAffirmation(body) &&
+    !hasPastTenseHandoffExecutedInText(lastAssistantBeforeThanks)
   ) {
     return {
       kind: "handled",

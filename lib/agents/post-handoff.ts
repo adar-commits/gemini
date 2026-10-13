@@ -106,13 +106,19 @@ function isBotHandoffCommitmentContent(content: string) {
   )
 }
 
+/** Past-tense CRM assign — future «מעביר ליועץ» alone is not executed (530164166 vs 498385542). */
+export function hasPastTenseHandoffExecutedInText(text: string) {
+  const body = assistantBodyWithoutHeader(text)
+  if (!body) return false
+  return HANDOFF_CONFIRMED_RE.test(body) || /מעולה,\s+העברתי/i.test(body)
+}
+
 /** Past-tense CRM assign — future «אני מעביר» alone is not executed (533540551). */
 export function assistantTextIndicatesHandoffExecuted(text: string) {
   const body = assistantBodyWithoutHeader(text)
   if (!body) return false
   return (
-    HANDOFF_CONFIRMED_RE.test(body) ||
-    /מעולה,\s+העברתי/i.test(body) ||
+    hasPastTenseHandoffExecutedInText(text) ||
     SALES_HANDOFF_COMMITTED_RE.test(body)
   )
 }
