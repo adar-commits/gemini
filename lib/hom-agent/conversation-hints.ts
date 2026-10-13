@@ -955,6 +955,20 @@ function isStaleCourierLoadedEtaOpener(body: string) {
   )
 }
 
+/** Opening: long wait + real delivery update — no warm-close after lookup (532619558). */
+function isLongWaitRealEtaShippingOpener(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  const longWait =
+    /מחכ(?:ה|ים).{0,100}(?:המון|הרבה|מעל\s+שבוע|יותר\s+מ)/i.test(text) ||
+    /(?:מעל|יותר\s+מ)\s*שבוע/i.test(text)
+  const realUpdate =
+    /(?:עדכון\s+אמיתי|זמן\s+הגעה)/i.test(text) ||
+    isDeliveryEstimateQuestion(text) ||
+    isOrderDeliveryStatusQuestion(text)
+  return longWait && realUpdate
+}
+
 /** Opening cites website promised delivery + asks live order/shipping status (533793181). */
 function isWebsitePromisedDeliveryStatusOpener(body: string) {
   const text = body.trim()
@@ -2388,6 +2402,17 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "STALE COURIER LOADED ETA (532005744): opening asks מתי/צפi and cites הועמס לשליח/על ידי שליח already יומיים+ — call lookup_order_status on channel phone first (534048082). Answer live status + ETA policy; acknowledge courier-stage delays when status matches. action reply — never generic FAQ-only + action end without running the tool."
+    )
+  }
+
+  if (
+    isLongWaitRealEtaShippingOpener(body) &&
+    !isOrderLookupCompletedInThread(history) &&
+    !isHumanHandoffPending(history) &&
+    !isServiceHandoffSummaryPending(history)
+  ) {
+    lines.push(
+      "LONG WAIT REAL ETA OPENING (532619558): opening asks for a real delivery update after waiting long (week+ / stale tracking «בדרך»). Call lookup_order_status first. If status is ממתין להפצה or ERP has no calendar ETA, empathize the wait exceeds what they expected; offer **`human_service`** so a rep checks warehouse/logistics — **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי **now**. Never **`action: end`** or **שמחתי לעזור** alone when they asked for a real update and there is still no arrival date."
     )
   }
 
