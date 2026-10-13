@@ -172,7 +172,7 @@ const BEDROOM_USE_Q =
 const CHILDREN_Q = "מדובר בילדים קטנים, גדולים, או גם וגם?"
 const PETS_Q = "האם אמור להתאים לבעלי חיים?"
 const STYLE_PHOTO_Q =
-  "אפשר לשלוח תמונה אחת ברורה של החלל? זה יעזור ליועץ העיצוב."
+  "אפשר לשלוח תמונה אחת ברורה של החלל? זה יעזור ליועץ המכירות."
 const STYLE_Q =
   "איזה סגנון מדבר אליכם? מודרני, בוהו, מינימליסטי, קלאסי/וינטג' או שניתן ליועץ להחליט?"
 const STYLE_FROM_COLOR_ONLY = "לפי צבע מועדף"
@@ -1857,7 +1857,7 @@ function introForFlow(text: string, history: HistoryMessage[], intake: SalesInta
   }
   return `בשמחה,
 שטיח נכון הוא הבמה של החלל – מחבר ברכות בין הרהיטים, עוטף את המרחב ומוסיף חמימות.
-אשאל כמה שאלות קצרות כדי שיועץ העיצוב יוכל לדייק את ההתאמה.`
+אשאל כמה שאלות קצרות כדי שיועץ המכירות יוכל לדייק את ההתאמה.`
 }
 
 function formatBudget(budget: string) {
@@ -2257,12 +2257,12 @@ function buildSalesPhotoAck(history: HistoryMessage[], turn: UserTurn) {
   const alreadyHad = hasRoomPhotoInHistory(history)
 
   if (imagesInTurn > 1) {
-    return "תודה, קיבלתי את התמונות — אעביר ליועץ העיצוב. לעתיד, תמונה אחת ברורה מספיקה 😊"
+    return "תודה, קיבלתי את התמונות. לעתיד, תמונה אחת ברורה מספיקה 😊"
   }
   if (alreadyHad) {
-    return "תודה, קיבלתי. תמונה אחת ברורה מספיקה — אעביר ליועץ העיצוב."
+    return "תודה, קיבלתי. תמונה אחת ברורה מספיקה."
   }
-  return "תודה, קיבלתי את התמונה — אעביר ליועץ העיצוב."
+  return "תודה, קיבלתי את התמונה."
 }
 
 function bodyForPhotoIntakeContinuation(body: string, turn?: UserTurn) {
