@@ -948,10 +948,31 @@ function isPolicySlaBreachedShippingFrustration(text: string) {
   const body = text.trim()
   if (!body) return false
   if (/לא\s+עמד(?:תם|ו)?\s+ב(?:מ)?דינ(?:יות)?/i.test(body)) return true
+  if (
+    /(?:התחייב(?:תם|ו)?|מובטח|הבטיח(?:ו|ת)?)/i.test(body) &&
+    /(?:\d+\s+)?ימ(?:י|ים)\s+עסקים/i.test(body)
+  ) {
+    return true
+  }
   return (
     /(?:עבר(?:ו)?|יותר\s+מ|מעבר\s+ל|הרבה\s+מעבר)/i.test(body) &&
     /(?:ימ(?:י|)(?:\s+)?עסקים|מדינ(?:יות)?\s+האספקה)/i.test(body)
   )
+}
+
+/** Angry delay + ETA demand — neutral handoff wording, not «מעולה» (505087102). */
+function isAngryShippingDelayEscalation(body: string) {
+  const text = body.trim()
+  if (!text) return false
+  const upset =
+    /(?:מאכזב|לא\s+לעניין|מתעכב(?:ת)?\s+בצורה\s+משמעותית|שירות\s+לקוחות\s+מאכזב)/i.test(
+      text
+    )
+  const etaDemand =
+    /(?:עדכון\s+מיידי|מועד\s+אספקה\s+מדויק)/i.test(text) ||
+    isDeliveryEstimateQuestion(text) ||
+    isPolicySlaBreachedShippingFrustration(text)
+  return upset && etaDemand
 }
 
 function threadHasPolicySlaBreachComplaint(history: HistoryMessage[]) {
@@ -2517,7 +2538,17 @@ export function buildConversationHints(input: {
     !isServiceHandoffSummaryPending(history)
   ) {
     lines.push(
-      "SLA BREACH SHIPPING ESCALATION (534683087): confirmed order + delivery delay beyond stated business-day policy (בביצוע/מוקפא/הזמנה מוקדמת, no ETA in ERP). When you decide a service rep must check — **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי **now** — never `action: reply` with declarative מעביר. Never «הנציג כבר קיבל» on action reply without assigning."
+      "SLA BREACH SHIPPING ESCALATION (534683087 / 505087102): confirmed order + delivery delay beyond stated business-day policy (בביצוע/מוקפא/הזמנה מוקדמת, no ETA in ERP). When you decide a service rep must check — **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי **now** — never `action: reply` with declarative מעביר. Never «הנציג כבר קיבל» on action reply without assigning. **Never** «מעולה, העברתי…» on angry-delay escalation — neutral transfer only."
+    )
+  }
+
+  if (
+    isAngryShippingDelayEscalation(body) &&
+    !isHumanHandoffPending(history) &&
+    !isServiceHandoffSummaryPending(history)
+  ) {
+    lines.push(
+      "ANGRY SHIPPING DELAY HANDOFF (505087102): customer is upset about significant delay, slow chat response, and wants an immediate update + precise delivery date. Optional lookup_order_status first; then **`human_service`** + `crm_department: service` when you write מעביר/העברתי **now**. Empathize — transfer line stays **neutral** («העברתי את השיחה לנציג שירות…»). **Never** «מעולה, העברתי…» / «מצוין» before handoff after their complaint."
     )
   }
 
