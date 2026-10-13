@@ -127,6 +127,7 @@ import {
   isInstallmentChargeCallbackFollowUp,
   isMembershipClubCheckoutQuestion,
   isPayplusPaidReceiptCallbackChaseFollowUp,
+  isSalesPaymentArrangementFollowUp,
 } from "@/lib/agents/payment-intent"
 import { salesOutreachTemplateInThread } from "@/lib/agents/sales-outreach"
 import {
@@ -3605,6 +3606,12 @@ export function buildConversationHints(input: {
   if (isPayplusPaidReceiptCallbackChaseFollowUp(history, body)) {
     lines.push(
       "PAYPLUS PAID RECEIPT CALLBACK CHASE (534267975): thread already had PayPlus/חבר **unpaid** outreach, then an automated **purchase confirmation** (קבלה/מעקב `documents.carpetshop` / `tracking.carpetshop`) — **never** recap «התשלום עדיין לא הושלם» from the old outreach. Customer chases **no callback** / «לא ייצרו קשר» / «אפשר לבדוק». Run **`lookup_order_status`** with order # or SO from the receipt/tracking line **before** status in the reply. Empathize for the wait; bullet recap: order + **live** payment/shipping status from lookup, prior callback promise + phone. Urgent re-escalation → **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/סימנתי — **never** stale unpaid-payment bullets."
+    )
+  }
+
+  if (isSalesPaymentArrangementFollowUp(history, body)) {
+    lines.push(
+      "SALES PAYMENT ARRANGEMENT (527257973): product-inquiry **human_sales** already happened and a rep may have quoted a price in chat. Customer wants to **arrange or complete payment** (include any amount they wrote). Ack the payment request; handoff bullets: product from thread, quoted/agreed price if visible, payment they want to make — **never** replay «אני מחפש עבורכם שטיח» / sales-intake quiz summary or weave old intake answers into a new recap. **`action: human_sales`** + `crm_department: sales` in the **same** JSON when you write מעביר/העברתi — one transfer line."
     )
   }
 

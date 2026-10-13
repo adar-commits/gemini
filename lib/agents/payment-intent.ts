@@ -1,6 +1,11 @@
 import type { HistoryMessage } from "@/lib/agents/types"
 import { isRefundTimelineQuestion } from "@/lib/agents/inquiry-intent"
-import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
+import {
+  hasLiveRepReplyAfterBotHandoff,
+  isLiveRepAssistantMessage,
+  isPostHumanHandoff,
+  isSalesProductInquiryHandoffCompleteInHistory,
+} from "@/lib/agents/post-handoff"
 import { isOrderCancellationSummaryLabel } from "@/lib/agents/service-intake"
 
 const DUPLICATE_CHARGE_THREAD_RE =
@@ -154,6 +159,40 @@ export function isCheckoutPaymentSplitCancelThread(
     return false
   }
   return /(?:אשראי|חייב|חיוב|הפרש|כרטיס|מסטר|יתרה)/i.test(corpus)
+}
+
+function hasLiveRepPriceQuoteInHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isLiveRepAssistantMessage(message.content) &&
+      /\d[\d,]{2,7}/.test(message.content)
+  )
+}
+
+/** Customer wants to arrange or complete payment (527257973). */
+export function isPaymentArrangementAsk(body: string) {
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 280) return false
+  return (
+    /(?:רוצ(?:ה|ים)|א(?:פשר|שמח)).{0,24}(?:להסדיר|לסדר|לשלם|לפרוע).{0,32}תשלום/i.test(
+      trimmed
+    ) || /(?:להסדיר|לסדר|לשלם|לפרוע).{0,24}תשלום/i.test(trimmed)
+  )
+}
+
+/** Sales intake handoff already done — customer returns to pay (527257973). */
+export function isSalesPaymentArrangementFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isPaymentArrangementAsk(body)) return false
+  if (isSalesProductInquiryHandoffCompleteInHistory(history)) return true
+  if (!isPostHumanHandoff(null, history)) return false
+  return (
+    hasLiveRepReplyAfterBotHandoff(history) ||
+    hasLiveRepPriceQuoteInHistory(history)
+  )
 }
 
 /** Checkout / payment with membership, gift card, or reloadable benefit card. */
