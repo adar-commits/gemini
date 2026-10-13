@@ -230,6 +230,22 @@ export function isShippingDelayHandoffResponseWaitFollowUp(
   return POST_HANDOFF_RESPONSE_WAIT_RE.test(text)
 }
 
+const SHIPPING_DELAY_ANSWER_WAIT_RE =
+  /(?:ממתינ(?:ה|ים|ות)?|מחכ(?:ה|ים))[^\n]{0,40}(?:ל)?(?:תשובה|התייחסות|מענה)/i
+
+/** Shipping-delay service handoff — gentle wait for rep answer (534103691), not a complaint chase. */
+export function isShippingDelayHandoffAnswerWaitFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenShippingDelayServiceHandoffThread(history)) return false
+  if (isPartialDeliveryServiceHandoffAwaitingCallback(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  if (isShippingDelayHandoffResponseWaitFollowUp(history, body)) return false
+  return SHIPPING_DELAY_ANSWER_WAIT_RE.test(text)
+}
+
 /** Replacement carpet delivery / coordination after defect — human_service already logged (533162865). */
 export function isOpenReplacementDeliveryServiceHandoffThread(history: HistoryMessage[]) {
   if (!isPostHumanHandoff(null, history)) return false

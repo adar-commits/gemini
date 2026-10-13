@@ -267,6 +267,7 @@ import {
   isRefundCreditPostHandoffStatusFollowUp,
   isReplacementDeliveryCallbackWaitFollowUp,
   isShippingDelayHandoffNewsFollowUp,
+  isShippingDelayHandoffAnswerWaitFollowUp,
   isShippingDelayHandoffResponseWaitFollowUp,
   postHandoffKind,
 } from "@/lib/agents/post-handoff"
@@ -1388,6 +1389,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "PARTIAL DELIVERY CALLBACK RESUME (532010096): missing carpet / stickers-only delivery already logged with **`human_service`** (including after-hours queue). Bare שלום / ping continues **that** open case — welcome briefly, acknowledge they may still wait for נציג שירות, compact recap (order #, missing line, branch note if any, morning availability they gave). **Never** FAQ «יש משהו חדש להוסיף?» as if a new topic. **`action: reply`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isShippingDelayHandoffAnswerWaitFollowUp(history, body)) {
+    lines.push(
+      "SHIPPING DELAY ANSWER WAIT (534103691): overdue delivery / missed ETA already **`human_service`** (incl. after live rep spoke in chat). Customer waits for callback or ETA (e.g. «שלום ממתינה לתשובה») — empathize; compact recap (SO, product, promised date, phone); re-mark urgent for נציג שירות. **`action: human_service`** + `crm_department: service` in the **same** JSON — **never** FAQ `action: reply` that only says the request is logged with service hours. Optional **`lookup_order_status`**. Do not treat as a fresh FAQ thread."
     )
   }
 
