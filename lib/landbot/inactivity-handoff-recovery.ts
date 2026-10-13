@@ -15,6 +15,10 @@ import {
   isActiveSalesConsultation,
   isConfirmationPending,
 } from "@/lib/agents/sales-intake"
+import {
+  isOrderLookupPhoneReplyPending,
+  isOrderNumberRequestPending,
+} from "@/lib/agents/order-lookup"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -27,6 +31,9 @@ export function resolveInactivityHandoffAction(
   lastAgent: AgentId | null = null
 ): HumanHandoffAction {
   if (isServiceHandoffSummaryPending(history)) return "human_service"
+  if (isOrderNumberRequestPending(history) || isOrderLookupPhoneReplyPending(history)) {
+    return "human_service"
+  }
   if (isConfirmationPending(history)) return "human_sales"
   if (isActiveSalesConsultation(history, lastAgent)) return "human_sales"
   return inferHumanHandoffAction(history, lastAgent)

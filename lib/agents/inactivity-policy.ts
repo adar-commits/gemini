@@ -35,6 +35,14 @@ import {
 } from "@/lib/agents/service-intake"
 import { CUSTOMER_HEADER, type AgentId, type HistoryMessage } from "@/lib/agents/types"
 
+function isOrderLookupAwaitingCustomerInput(history: HistoryMessage[]) {
+  return (
+    isOrderNumberRequestPending(history) ||
+    isOrderLookupPhoneReplyPending(history) ||
+    isOrderDisambiguationPending(history)
+  )
+}
+
 /**
  * Sales / inventory threads never auto-close. After a service-style ping (if any),
  * inactivity recovery assigns human_sales instead of closing. שירות keeps ping + close.
@@ -43,6 +51,7 @@ export function shouldSkipInactivityClose(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (isOrderLookupAwaitingCustomerInput(history)) return false
   return (
     isActiveSalesConsultation(history, lastAgent) ||
     isActiveInventoryThread(history)
@@ -57,6 +66,7 @@ export function shouldSkipInactivityPingForSalesHandoff(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (isOrderLookupAwaitingCustomerInput(history)) return false
   if (isActiveSalesConsultation(history, lastAgent)) return true
   if (isSalesFinalSummaryPending(history)) return true
   return false
@@ -165,6 +175,7 @@ export function shouldSilentAutoAssignOnQuietWindow(
 ) {
   if (isHandoffOfferAbandonedInThread(history)) return false
   if (hasOpenSalesIntakeQuestion(history, lastAgent)) return false
+  if (isOrderLookupAwaitingCustomerInput(history)) return false
   if (shouldSkipInactivityPingForSalesHandoff(history, lastAgent)) return true
   if (isHumanHandoffPending(history)) {
     if (customerRespondedToHandoffWithoutConfirm(history)) return false
