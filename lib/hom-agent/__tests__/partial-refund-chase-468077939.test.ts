@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { isActiveSalesConsultation } from "@/lib/agents/sales-intake"
+import { isPostHumanHandoff } from "@/lib/agents/post-handoff"
 import {
   isPartialRefundChaseThread,
 } from "@/lib/agents/service-intake"
@@ -54,5 +55,30 @@ describe("partial refund chase (468077939)", () => {
     assert.match(hints, /PARTIAL REFUND WAIT PING \(468077939\)/)
     assert.match(hints, /human_service/)
     assert.doesNotMatch(hints, /WAIT PING \(\? \/ \?\? \/ הלו\?\): customer checks if anyone is still here/)
+  })
+
+  it("after human_service — ??? wait ping must not duplicate handoff (468077939 Oct 13)", () => {
+    const handoff =
+      "*הום בוט :)* סליחה על ההמתנה, נוי. אני מעביר עכשיו לנציג שירות לקוחות לבדיקה דחופה של הזיכוי השני מול חברת האשראי (הזמנה SO26021262). הנציג ימשיך איתך כאן בצ׳אט. מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם."
+    const history: HistoryMessage[] = [
+      ...openingHistory468077939(),
+      {
+        role: "assistant",
+        content:
+          "*הום בוט :)* היי נוי, מצטער שהזיכוי השני עדיין לא הופיע. עברו כבר יותר מ-7 ימי עסקים מהביטול, ולכן נציג שירות צריך לבדוק את זה מול חברת האשראי.",
+      },
+      { role: "user", content: "?" },
+      { role: "assistant", content: handoff },
+      { role: "user", content: "???" },
+    ]
+    assert.equal(isPostHumanHandoff(null, history), true)
+    const hints =
+      buildConversationHints({
+        history,
+        body: "???",
+      }) ?? ""
+    assert.match(hints, /PARTIAL REFUND HANDOFF WAIT \(468077939\)/)
+    assert.match(hints, /action: reply/i)
+    assert.match(hints, /never.*human_service/i)
   })
 })

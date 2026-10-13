@@ -116,6 +116,16 @@ export function assistantTextIndicatesHandoffExecuted(text: string) {
   )
 }
 
+/** Past-tense handoff prose in thread — not merely «נציג יבדוק» without transfer executed. */
+export function hasExecutedBotHandoffInHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      assistantTextIndicatesHandoffExecuted(message.content)
+  )
+}
+
 /** Prior transfer prose/commit in thread — still post-handoff after thanks-close (533540551). */
 function hasBotHandoffCommitmentInHistory(history: HistoryMessage[]) {
   return history.some(

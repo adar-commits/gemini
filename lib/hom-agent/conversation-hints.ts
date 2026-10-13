@@ -263,6 +263,7 @@ import {
   isOpenReplacementDeliveryServiceHandoffThread,
   isOpenShippingDelayServiceHandoffThread,
   isPartialDeliveryServiceHandoffAwaitingCallback,
+  hasExecutedBotHandoffInHistory,
   isPostHumanHandoff,
   isRefundCreditPostHandoffStatusFollowUp,
   isSalesProductInquiryHandoffCompleteInHistory,
@@ -2067,9 +2068,15 @@ export function buildConversationHints(input: {
         "REFUND CREDIT WAIT PING (533700177): customer already returned and asked about credit/refund (זיכוי) — a ? / ?? ping is chasing that open service case, **not** a fresh sales chat. Brief empathy + confirm you are here; recap the return + credit question from the thread. **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי לנציג שירות — **never** resume stale sales intake (סידני / גודל סלון / יועץ מכירות) or **`human_sales`** on this thread."
       )
     } else if (isPartialRefundChaseThread(history)) {
-      lines.push(
-        "PARTIAL REFUND WAIT PING (468077939): cancelled order — one credit/refund already received, the other (often card) still missing past SLA. ? / ?? is chasing that open credit check — brief empathy + recap order/phone from the thread. **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי לנציג שירות — **never** generic «איך אוכל לעזור?» only or **`human_sales`**."
-      )
+      if (hasExecutedBotHandoffInHistory(history)) {
+        lines.push(
+          "PARTIAL REFUND HANDOFF WAIT (468077939): cancelled order — missing card credit already got **`human_service`** with recap — ? / ?? / ??? means waiting for נציג שירות on the credit check vs אשראי, not a first-time transfer. Empathize for the delay; confirm the case stays urgent with service — you may say סימנתי שוב לצוות. **`action: reply`** — **never** duplicate «מעולה, העברתי את השיחה לנציג שירות» / first-time handoff boilerplate or a second **`human_service`** unless they explicitly ask to transfer again **this turn**."
+        )
+      } else {
+        lines.push(
+          "PARTIAL REFUND WAIT PING (468077939): cancelled order — one credit/refund already received, the other (often card) still missing past SLA. ? / ?? is chasing that open credit check — brief empathy + recap order/phone from the thread. **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי לנציג שירות — **never** generic «איך אוכל לעזור?» only or **`human_sales`**."
+        )
+      }
     } else if (isOpenPostPurchaseServiceIssueInThread(history)) {
       lines.push(
         "SERVICE CASE WAIT PING (527266764): customer already described defect / return / quality / missing-item service in the thread — ? / ?? means waiting for help on **that** case, not a shipping-status FAQ. Brief empathy + confirm you are here; continue the service playbook from their report (return options, order identify, photos, rep summary → human_service when ready). **Never** standalone «משלוח נמסר» / delivered lookup + **שמחתי לעזור** as if the service case is done. **`crm_department: service`**, **`action: reply`** unless they explicitly ask for a rep this turn."
