@@ -2,7 +2,12 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
+import {
+  isPreDeliveryCancelHandoffResponseWaitFollowUp,
+  isPreDeliveryCancelServiceHandoffAwaitingCallback,
+} from "@/lib/agents/post-handoff"
 import { buildConversationHints } from "@/lib/hom-agent/conversation-hints"
+import type { HistoryMessage } from "@/lib/agents/types"
 
 const prompt = readFileSync(join(process.cwd(), "lib/hom-agent/prompts/hom-bot.md"), "utf8")
 
@@ -40,5 +45,43 @@ describe("pre-delivery cancel no returns portal 533685634", () => {
   it("records the wrong first reply pattern (portal on undelivered cancel)", () => {
     assert.match(BAD_FIRST_REPLY, /returns\.carpetshop/)
     assert.match(BAD_FIRST_REPLY, /עדיין לא נשלחה/)
+  })
+})
+
+const SECOND_HANDOFF =
+  "*הום בוט :)* יעל, תודה שעדכנת. מצטער על הבלבול בפורטל. אני מעביר את הבקשה לנציג שירות עכשיו. מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם."
+
+function historyBeforeCreditChase(): HistoryMessage[] {
+  return [
+    { role: "user", content: OPENING },
+    { role: "assistant", content: BAD_FIRST_REPLY },
+    { role: "user", content: "בפורטל מופיע סכום נמוך" },
+    { role: "assistant", content: SECOND_HANDOFF },
+    { role: "user", content: "תוך כמה זמן כי אתם לא חוזרים" },
+  ]
+}
+
+/** Replay 533685634 — ביטול עסקה + מרדף זיכוי/אי-חזרה אחרי העברה. */
+describe("pre-delivery cancel handoff wait 533685634", () => {
+  it("detects ביטול עסקה thread after service handoff", () => {
+    assert.equal(isPreDeliveryCancelServiceHandoffAwaitingCallback(historyBeforeCreditChase()), true)
+  })
+
+  it("detects credit/no-callback chase wording", () => {
+    const body =
+      "אפשר להבין מה זה השירות לקוחות המזעזע שלכם למה אתם לא חוזרים אליי למה לא מעבירים זיכוי"
+    assert.equal(isPreDeliveryCancelHandoffResponseWaitFollowUp(historyBeforeCreditChase(), body), true)
+  })
+
+  it("hints reply on credit chase — not duplicate human_service", () => {
+    const hints =
+      buildConversationHints({
+        history: historyBeforeCreditChase(),
+        body: "למה לא מעבירים זיכוי",
+        whatsappPhone: "0544562719",
+      }) ?? ""
+    assert.match(hints, /533685634/)
+    assert.match(hints, /action: reply/i)
+    assert.match(hints, /never.*human_service/i)
   })
 })

@@ -3604,7 +3604,7 @@ export function buildConversationHints(input: {
 
   if (isPreDeliveryCancelHandoffResponseWaitFollowUp(history, body)) {
     lines.push(
-      "PRE-DELIVERY CANCEL HANDOFF RESPONSE WAIT (534579658): **cancel before warehouse** + **BUYME reorder** already got **`human_service`** with recap (including after-hours queue) — customer now complains **nobody answered** (למה לא עונים / אף אחד לא עונה / ??). Brief empathize for the wait; confirm the case stays with נציג שירות and is marked urgent again — you may say סימנתי שוב לצוות / העליתי בעדיפות. During service hours you may note the team is active now — **never** «מעולה, העברתי את השיחה» / first-time handoff boilerplate. **`action: reply`** — **never** duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+      "PRE-DELIVERY CANCEL HANDOFF RESPONSE WAIT (533685634 / 534579658): **cancel before receipt** (undelivered / before warehouse / BUYME reorder) already got **`human_service`** with recap (including after-hours queue) — customer now complains **nobody answered**, **no credit yet**, or angry service tone (למה לא חוזרים / לא מעבירים זיכוי / ??). Brief empathize for the wait; confirm the case stays with נציג שירות and is marked urgent again — you may say סימנתי שוב לצוות / העליתי בעדיפות. During service hours you may note the team is active now — **never** «מעולה, העברתי את השיחה» / first-time handoff boilerplate. **`action: reply`** — **never** duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 

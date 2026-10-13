@@ -248,7 +248,7 @@ export function isShippingDelayHandoffResponseWaitFollowUp(
 }
 
 const PRE_DELIVERY_CANCEL_THREAD_RE =
-  /(?:ביטול\s+(?:ה)?הזמנה|לבטל\s+א(?:ת)?\s+(?:ה)?(?:עסקה|הזמנה)|BUYME|ביימי|עסקה\s+מחדש)/i
+  /(?:ביטול\s+(?:ה)?(?:הזמנה|עסקה)|לבטל\s+א(?:ת)?\s+(?:ה)?(?:עסקה|הזמנה)|BUYME|ביימי|עסקה\s+מחדש)/i
 
 const PRE_DELIVERY_CANCEL_HANDOFF_CONTEXT_RE =
   /(?:ביטול[^\n]{0,96}(?:BUYME|ביימי)|(?:BUYME|ביימי)[^\n]{0,96}ביטול|לפני\s+ש(?:היא|)[^\n]{0,48}(?:מחסן|יוצא)|נארז)/i
@@ -281,7 +281,7 @@ export function isPreDeliveryCancelServiceHandoffAwaitingCallback(history: Histo
 }
 
 const PRE_DELIVERY_CANCEL_RESPONSE_WAIT_RE =
-  /(?:אין\s+(?:לי\s+)?מענה|לא\s+עונ(?:ים|ה)?(?:\s+אלי(?:י|ך))?|אף\s+אחד\s+לא(?:\s+עונ(?:ה|ים))?|(?:עדיין\s+)?לא\s+חזר(?:ו|ה|ת)(?:\s+אלי(?:י|ך))?|עיכוב\s+בתשובה|זלזול|זילזול)/i
+  /(?:אין\s+(?:לי\s+)?מענה|לא\s+עונ(?:ים|ה)?(?:\s+אלי(?:י|ך))?|אף\s+אחד\s+לא(?:\s+עונ(?:ה|ים))?|(?:עדיין\s+)?לא\s+ח(?:זר|וזר)(?:ו|ה|ת|ים)(?:\s+אלי(?:י|ך))?|עיכוב\s+בתשובה|זלזול|זילזול|(?:למה|מדוע)[^\n]{0,48}לא\s+מעביר(?:ים|)?\s+(?:זיכוי|החזר)|שירות[^\n]{0,32}מזעז)/i
 
 /** After pre-delivery cancel handoff — nobody answered yet (534579658). */
 export function isPreDeliveryCancelHandoffResponseWaitFollowUp(

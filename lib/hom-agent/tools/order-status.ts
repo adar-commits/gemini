@@ -346,6 +346,17 @@ async function deliverOrderLookupReply(input: OrderLookupInput, identifyOnly = f
         error: `PRE-DELIVERY CANCEL (464488405 / 534579658): never send a shipping status + warm-close (שמחתי לעזור) as the full answer to a cancel ask. ${CANCEL_BY_SHIPPING_CODE}`,
       }
     }
+    if (
+      isPreDeliveryCancelWithoutPortalYet(input.body, history) &&
+      /returns\.carpetshop\.co\.il/i.test(trimmed)
+    ) {
+      return {
+        ok: false as const,
+        errorCode: "lookup_misroute",
+        error: `PRE-DELIVERY CANCEL (533685634): never returns.carpetshop.co.il when the customer is canceling before receipt. ${CANCEL_BY_SHIPPING_CODE}`,
+      }
+    }
+
     const action = /לא ניתן להציג כרגע סטטוס משלוח/i.test(trimmed)
       ? shouldDeferUnknownDeliveryStatusHandoff(history)
         ? ("reply" as const)
