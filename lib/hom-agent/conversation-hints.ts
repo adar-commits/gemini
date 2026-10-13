@@ -468,6 +468,35 @@ function isSalesExchangeHandoffAwaitingCallback(history: HistoryMessage[]) {
   )
 }
 
+/** human_sales logged after pre-ship order size / order change — customer may ping while waiting (533106217). */
+function isSalesOrderModificationHandoffAwaitingCallback(history: HistoryMessage[]) {
+  const userAskedOrderSizeChange = history.some(
+    (message) =>
+      message.role === "user" &&
+      /(?:ל)?שנ(?:ות|ה)\s+(?:את\s+)?(?:ה)?הזמנה[^\n]{0,56}מידה|שינוי\s+(?:מידה|הזמנה)|מידה\s+(?:אחת\s+)?(?:קטנה|קטן)/i.test(
+        message.content
+      )
+  )
+  if (!userAskedOrderSizeChange) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /(?:שינוי\s+מידה|יועץ\s+מכירות\s+י(?:בדוק|עדכן)|מידה\s+קטנה\s+יותר)/i.test(
+        message.content
+      ) &&
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעביר[^\n]{0,40}יועץ\s+מכירות|ניצור\s+[^\n]{0,32}קשר)/i.test(
+        message.content
+      )
+  )
+}
+
+function isSalesHandoffAwaitingCallbackThread(history: HistoryMessage[]) {
+  return (
+    isSalesExchangeHandoffAwaitingCallback(history) ||
+    isSalesOrderModificationHandoffAwaitingCallback(history)
+  )
+}
+
 function isSalesHandoffWaitChase(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
@@ -482,7 +511,11 @@ function isSalesCallbackEtaWaitChase(body: string) {
   if (!text || text.length > 120) return false
   return (
     /תוך\s+כמה\s+זמן[^\n]{0,48}(?:יחזור|יקבע|יתקשר|יטפל|נציג|יועץ)/i.test(text) ||
-    /מתי\s+(?:הוא|היא|יועץ|נציג)[^\n]{0,40}(?:יחזור|יתקשר|יקבע)/i.test(text)
+    /מתי\s+(?:הוא|היא|יועץ|נציג|י)?(?:צר(?:ו|ה)|יצר(?:ו|ה)|יתקשר)[^\n]{0,32}(?:אית(?:י|ך)|קשר)/i.test(
+      text
+    ) ||
+    /מתי\s+(?:הוא|היא|יועץ|נציג)[^\n]{0,40}(?:יחזור|יתקשר|יקבע)/i.test(text) ||
+    /אשמח\s+ש(?:יחז(?:רו|ור)|יצר(?:ו|ה))[^\n]{0,32}(?:אלי|קשר)/i.test(text)
   )
 }
 
@@ -816,17 +849,17 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
     (isNonSubstantiveFollowUp(text) ||
       isSalesHandoffWaitChase(text) ||
       isSalesCallbackEtaWaitChase(text)) &&
-    isSalesExchangeHandoffAwaitingCallback(history)
+    isSalesHandoffAwaitingCallbackThread(history)
   ) {
     return false
   }
   if (
     NO_RESPONSE_COMPLAINT_RE.test(text) &&
-    isSalesExchangeHandoffAwaitingCallback(history)
+    isSalesHandoffAwaitingCallbackThread(history)
   ) {
     return false
   }
-  if (isSalesCallbackEtaWaitChase(text) && isSalesExchangeHandoffAwaitingCallback(history)) {
+  if (isSalesCallbackEtaWaitChase(text) && isSalesHandoffAwaitingCallbackThread(history)) {
     return false
   }
   if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
@@ -2206,9 +2239,9 @@ export function buildConversationHints(input: {
       (isShippingRepHandoffQueueChase(body) &&
         isRepShippingStatusHandoffAwaitingCallback(history)) ||
       (isSalesHandoffWaitChase(body) &&
-        isSalesExchangeHandoffAwaitingCallback(history)) ||
+        isSalesHandoffAwaitingCallbackThread(history)) ||
       (NO_RESPONSE_COMPLAINT_RE.test(body.trim()) &&
-        isSalesExchangeHandoffAwaitingCallback(history)) ||
+        isSalesHandoffAwaitingCallbackThread(history)) ||
       (isSalesHandoffWaitChase(body) &&
         isBackInStockSalesHandoffThread(history)) ||
       (isServiceHandoffWaitChase(body) &&
@@ -2241,6 +2274,15 @@ export function buildConversationHints(input: {
         identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
       lines.push(
         `SALES EXCHANGE WAIT PING (532191753 / 339160767 / 530723343): human_sales already logged for post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} (different model / סוג החלפה / בקשת החלפה לדגם / החלפה עם שליח) — ? / ?? / מה עם הפנייה / אין מענה / לא עונים / תוך כמה זמן (יועץ|נציג) יחזור means waiting for sales callback or SLA reassurance, not a fresh transfer. Brief empathy + confirm the case is already with יועץ מכירות; give hours/SLA from KB when they ask timing — no exact callback clock. If they named a target model earlier, note it for the advisor. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות», «יועץ זמין עכשיו» as first transfer, or **human_sales** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate.`
+      )
+    } else if (
+      isSalesOrderModificationHandoffAwaitingCallback(history) &&
+      (isSalesHandoffWaitChase(body) || NO_RESPONSE_COMPLAINT_RE.test(body.trim()))
+    ) {
+      const orderRef =
+        identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
+      lines.push(
+        `SALES ORDER CHANGE WAIT PING (533106217 / 530723343): human_sales already logged for pre-ship order size / שינוי מידה${orderRef ? ` on order ${orderRef}` : ""} — ? / ?? / מתי יצרו קשר / אשמח שיחזרו / אין מענה means waiting for יועץ מכירות callback or urgency mark, not a first-time transfer. Brief empathy + confirm sales already has the change request (model/size from thread). You may say סימנתי שוב לצוות / דחופה — **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly ask to transfer again **this turn**.`
       )
     } else if (
       isSalesHandoffWaitChase(body) &&
