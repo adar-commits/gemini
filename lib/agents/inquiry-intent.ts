@@ -1,3 +1,5 @@
+import { isInTransitTrackingNotificationGap } from "@/lib/hom-agent/delivery-supply-inquiry"
+
 /** First clause wins when the customer mentions multiple issues in one message. */
 export function primaryIntentText(body: string) {
   const text = body.trim()
@@ -400,6 +402,7 @@ function matchesDefect(text: string) {
 }
 
 function isDeliveryTimingFrustrationNotProductFit(text: string) {
+  if (isInTransitTrackingNotificationGap(text)) return true
   return (
     /(?:בזמנ(?:ים|י)|עיכוב|איחור|מ(?:אחר|ש(?:ך|כה))|מתי|מגיע|הגיע|משלוח|הזמנה)/i.test(
       text

@@ -59,7 +59,10 @@ import {
 } from "@/lib/agents/branches"
 import { customerExplicitlyRequestsHuman } from "@/lib/agents/kb-self-service-faq"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
-import { isDeliverySupplyInquiry } from "@/lib/hom-agent/delivery-supply-inquiry"
+import {
+  isDeliverySupplyInquiry,
+  isInTransitTrackingNotificationGap,
+} from "@/lib/hom-agent/delivery-supply-inquiry"
 import {
   isTrackingLinkLocationQuestion,
   trackingUrlFromThread,
@@ -1329,7 +1332,11 @@ function isDeliveryEtaThread(history: HistoryMessage[]) {
     isShippingThreadFromHistory(history) ||
     isOrderStatusProgressOpenerFromHistory(history) ||
     isDeliveryDateQuestionInHistory(history) ||
-    isDeliveryTimingConfirmOfferedByBot(history)
+    isDeliveryTimingConfirmOfferedByBot(history) ||
+    history.some(
+      (message) =>
+        message.role === "user" && isInTransitTrackingNotificationGap(message.content)
+    )
   )
 }
 
@@ -2836,7 +2843,7 @@ export function buildConversationHints(input: {
           isMergedDeliveryAskWithTrailingOrderConfirm(body))
       ) {
         lines.push(
-          "SHIPPING ORDER CONFIRM YES (529935551 / 532732459 / 532742549 / 532864454 / 533011641 / 533856219 / 534429742 / 530882419 / 441681621 / 533480532): כן / כן בבקשה / כן מ 20.09.26 (confirm + order date from the card) / כן. זו/זאת ההזמנה confirms the order card when the thread has a delivery-timing ask (מתי/מועד/תאריך אספקה/מהו תאריך האספקה/מתי אקבל / מה קורה עם ההזמנה / משלוח אצל השליח ולא הגיע — even mid-thread after FAQ). Rapid messages may merge as «שאלת תאריך» or «זה כבר מעל חודש» + שורת «כן» — or leading «כן» + «זמן האספקה המובטח כבר עבר» (533480532) — still bind to the pending order card. Call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Even when status is partial, share what the tool returned — never \"לא ניתן להציג סטטוס\" / \"אין תאריך מדויק\" + human_service on this turn. Never \"לא מצאתי הזמנות פעילות לפי הטלפון\" right after they confirmed the order card — use the SO from the card. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Long wait (חודש+) → lookup first, then human_service only if lookup fails or they ask for a rep — never skip lookup. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
+          "SHIPPING ORDER CONFIRM YES (529935551 / 532732459 / 532742549 / 532864454 / 533011641 / 533856219 / 534429742 / 530882419 / 441681621 / 533480532 / 534760699): כן / כן בבקשה / כן מ 20.09.26 (confirm + order date from the card) / כן. זו/זאת ההזמנה confirms the order card when the thread has a delivery-timing ask (מתי/מועד/תאריך אספקה/מהו תאריך האספקה/מתי אקבל / מה קורה עם ההזמנה / משלוח אצל השליח ולא הגיע / רשום בדרך ולא קיבלתי הודעה או שליח לא יצר קשר — even mid-thread after FAQ). Rapid messages may merge as «שאלת תאריך» or «זה כבר מעל חודש» + שורת «כן» — or leading «כן» + «זמן האספקה המובטח כבר עבר» (533480532) — still bind to the pending order card. Call lookup_order_status and answer status plus ETA policy (no exact calendar date in ERP; courier calls on delivery day). Even when status is partial, share what the tool returned — never \"לא ניתן להציג סטטוס\" / \"אין תאריך מדויק\" + human_service on this turn. Never service rep summary or אי-שביעות רצון מהמוצר on this turn. Never \"לא מצאתי הזמנות פעילות לפי הטלפון\" right after they confirmed the order card — use the SO from the card. action reply — never warm-close (שמחתי לעזור) or action end until the timing question is addressed. Long wait (חודש+) → lookup first, then human_service only if lookup fails or they ask for a rep — never skip lookup. Never infer order modification or human_sales unless they explicitly ask to change/cancel (לשנות/לבטל/עדכון). Never write מעביר without matching human_sales/human_service in the same JSON."
         )
       } else if (
         !isReturnWithSalesAdvisoryInThread(history, body) &&

@@ -62,7 +62,10 @@ import {
   isOutboundDocumentDeliveryMessage,
 } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
-import { isDeliverySupplyInquiry } from "@/lib/hom-agent/delivery-supply-inquiry"
+import {
+  isDeliverySupplyInquiry,
+  isInTransitTrackingNotificationGap,
+} from "@/lib/hom-agent/delivery-supply-inquiry"
 import {
   buildCantVisitBranchReturnReply,
   buildReturnsPortalUrl,
@@ -818,7 +821,7 @@ function substantiveUserLinesForServiceGate(history: HistoryMessage[], body: str
         !/\[media:(?:image|video):/i.test(line) &&
         !isOrderConfirmationYes(line) &&
         !isPureOrderConfirmation(line) &&
-        line.length > 2
+        line.length > 4
     )
 }
 
@@ -870,6 +873,15 @@ export function isServiceOrderIdentificationFlow(
   }
   if (hasFormalServiceComplaintOpenerInThread(history)) return true
   if (isShippingOnlyOrderIdentificationThread(history, body)) return false
+  if (
+    isOrderConfirmationPending(history) &&
+    history.some(
+      (message) =>
+        message.role === "user" && isInTransitTrackingNotificationGap(message.content)
+    )
+  ) {
+    return false
+  }
   if (isServiceLookupContext(history)) return true
   const userText = history
     .filter((message) => message.role === "user")

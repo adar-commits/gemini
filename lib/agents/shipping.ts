@@ -1,7 +1,10 @@
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
 import { isCustomerServiceOpener } from "@/lib/agents/customer-service-opener"
 import { isDigitalDocumentRequest } from "@/lib/agents/digital-document-flow"
-import { isDeliverySupplyInquiry } from "@/lib/hom-agent/delivery-supply-inquiry"
+import {
+  isDeliverySupplyInquiry,
+  isInTransitTrackingNotificationGap,
+} from "@/lib/hom-agent/delivery-supply-inquiry"
 
 const PURCHASED_ITEM_RE = /(?:שטיח|פוף|מוצר|הזמנה|חבילה)/i
 const DELIVERY_CONTEXT_RE =
@@ -87,6 +90,7 @@ function hasDeliveryTrackingIntent(text: string) {
     return true
   }
 
+  if (isInTransitTrackingNotificationGap(text)) return true
   if (isDeliverySupplyInquiry(text)) return true
 
   return false
