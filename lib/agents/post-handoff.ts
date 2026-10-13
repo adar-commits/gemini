@@ -241,6 +241,54 @@ export function isShippingDelayHandoffResponseWaitFollowUp(
   return POST_HANDOFF_RESPONSE_WAIT_RE.test(text)
 }
 
+const PRE_DELIVERY_CANCEL_THREAD_RE =
+  /(?:ביטול\s+(?:ה)?הזמנה|לבטל\s+א(?:ת)?\s+(?:ה)?(?:עסקה|הזמנה)|BUYME|ביימי|עסקה\s+מחדש)/i
+
+const PRE_DELIVERY_CANCEL_HANDOFF_CONTEXT_RE =
+  /(?:ביטול[^\n]{0,96}(?:BUYME|ביימי)|(?:BUYME|ביימי)[^\n]{0,96}ביטול|לפני\s+ש(?:היא|)[^\n]{0,48}(?:מחסן|יוצא)|נארז)/i
+
+function isOpenPreDeliveryCancelServiceHandoffThread(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history) && !hasAfterHoursServiceQueueHandoffInHistory(history)) {
+    return false
+  }
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!PRE_DELIVERY_CANCEL_THREAD_RE.test(corpus)) return false
+  if (!PRE_DELIVERY_CANCEL_HANDOFF_CONTEXT_RE.test(corpus) && !/ביטול/i.test(corpus)) {
+    return false
+  }
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      (SERVICE_SHIPPING_HANDOFF_RE.test(message.content) ||
+        SERVICE_OOO_QUEUE_HANDOFF_RE.test(message.content) ||
+        PRE_DELIVERY_CANCEL_HANDOFF_CONTEXT_RE.test(message.content) ||
+        /העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|קיבלנו\s+את\s+הפנייה/i.test(
+          message.content
+        ))
+  )
+}
+
+/** Pre-delivery cancel + BUYME reorder already handed off — customer may chase rep (534579658). */
+export function isPreDeliveryCancelServiceHandoffAwaitingCallback(history: HistoryMessage[]) {
+  return isOpenPreDeliveryCancelServiceHandoffThread(history)
+}
+
+const PRE_DELIVERY_CANCEL_RESPONSE_WAIT_RE =
+  /(?:אין\s+(?:לי\s+)?מענה|לא\s+עונ(?:ים|ה)?(?:\s+אלי(?:י|ך))?|אף\s+אחד\s+לא(?:\s+עונ(?:ה|ים))?|(?:עדיין\s+)?לא\s+חזר(?:ו|ה|ת)(?:\s+אלי(?:י|ך))?|עיכוב\s+בתשובה|זלזול|זילזול)/i
+
+/** After pre-delivery cancel handoff — nobody answered yet (534579658). */
+export function isPreDeliveryCancelHandoffResponseWaitFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenPreDeliveryCancelServiceHandoffThread(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 520) return false
+  if (/^(?:\?{1,3}|!{2,})$/.test(text)) return true
+  return PRE_DELIVERY_CANCEL_RESPONSE_WAIT_RE.test(text)
+}
+
 const SHIPPING_DELAY_ANSWER_WAIT_RE =
   /(?:ממתינ(?:ה|ים|ות)?|מחכ(?:ה|ים))[^\n]{0,40}(?:ל)?(?:תשובה|התייחסות|מענה)/i
 

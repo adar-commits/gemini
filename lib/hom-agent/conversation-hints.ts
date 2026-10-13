@@ -271,6 +271,8 @@ import {
   isPartialDeliveryServiceHandoffAwaitingCallback,
   hasExecutedBotHandoffInHistory,
   isPostHumanHandoff,
+  isPreDeliveryCancelHandoffResponseWaitFollowUp,
+  isPreDeliveryCancelServiceHandoffAwaitingCallback,
   isRefundCreditPostHandoffStatusFollowUp,
   isSalesProductInquiryHandoffCompleteInHistory,
   isPreorderRestockCallbackWaitFollowUp,
@@ -756,6 +758,7 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
   const text = body.trim()
   if (!text || text.length > 320) return false
   if (isShippingDelayHandoffResponseWaitFollowUp(history, body)) return false
+  if (isPreDeliveryCancelHandoffResponseWaitFollowUp(history, body)) return false
   if (
     isNonSubstantiveFollowUp(text) &&
     isServiceDefectRepHandoffAwaitingCallback(history)
@@ -1469,6 +1472,15 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "PARTIAL DELIVERY CALLBACK RESUME (532010096): missing carpet / stickers-only delivery already logged with **`human_service`** (including after-hours queue). Bare שלום / ping continues **that** open case — welcome briefly, acknowledge they may still wait for נציג שירות, compact recap (order #, missing line, branch note if any, morning availability they gave). **Never** FAQ «יש משהו חדש להוסיף?» as if a new topic. **`action: reply`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (
+    isPreDeliveryCancelServiceHandoffAwaitingCallback(history) &&
+    (isCasualSmallTalk(body) || isNonSubstantiveFollowUp(body))
+  ) {
+    lines.push(
+      "PRE-DELIVERY CANCEL CALLBACK RESUME (534579658): cancel before warehouse + BUYME reorder already logged with **`human_service`** (including after-hours queue). Bare שלום / ping continues **that** open case — welcome briefly, acknowledge they may still wait for נציג שירות, compact recap (stop shipment / cancel, BUYME reorder). **Never** «יש משהו חדש?» as a new topic. **`action: reply`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
@@ -3464,6 +3476,12 @@ export function buildConversationHints(input: {
   if (isShippingDelayHandoffResponseWaitFollowUp(history, body)) {
     lines.push(
       "SHIPPING DELAY HANDOFF RESPONSE WAIT (528863688 / 532010096): shipping-delay or **partial delivery** (e.g. מדבקות בלי שטיח) already got **`human_service`** with recap — customer now complains **nobody called back** (לא חזרו / עיכוב בתשובה / זלזול / אין מענה) or asks for a **morning callback** they stated. Brief empathize; confirm the case stays with נציג שירות (note morning availability from thread); optional **`lookup_order_status`**. **`action: reply`** — **never** duplicate **`human_service`** or after-hours «אין נציגים» boilerplate as if first transfer unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות / נבקש שיחזרו בבוקר without «העברתי את השיחה»."
+    )
+  }
+
+  if (isPreDeliveryCancelHandoffResponseWaitFollowUp(history, body)) {
+    lines.push(
+      "PRE-DELIVERY CANCEL HANDOFF RESPONSE WAIT (534579658): **cancel before warehouse** + **BUYME reorder** already got **`human_service`** with recap (including after-hours queue) — customer now complains **nobody answered** (למה לא עונים / אף אחד לא עונה / ??). Brief empathize for the wait; confirm the case stays with נציג שירות and is marked urgent again — you may say סימנתי שוב לצוות / העליתי בעדיפות. During service hours you may note the team is active now — **never** «מעולה, העברתי את השיחה» / first-time handoff boilerplate. **`action: reply`** — **never** duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
