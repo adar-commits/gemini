@@ -292,6 +292,37 @@ export function isReplacementDeliveryCallbackWaitFollowUp(
   )
 }
 
+const PREORDER_RESTOCK_THREAD_RE =
+  /(?:הזמנה\s+מוקדמת|חידוש\s+(?:ה)?מלאי|Pre\s+Order|מוקדמת)/i
+
+/** Pre-order restock ETA check already handed to service (529931531). */
+export function isOpenPreorderRestockServiceHandoffThread(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history)) return false
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!PREORDER_RESTOCK_THREAD_RE.test(corpus)) return false
+  if (!/(?:SO\d|צפוי\s+חידוש|בדיק(?:ה|ת)\s+מתי)/i.test(corpus)) return false
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      isHomBotAssistantMessage(message.content) &&
+      SERVICE_SHIPPING_HANDOFF_RE.test(message.content)
+  )
+}
+
+const PREORDER_RESTOCK_CALLBACK_WAIT_RE =
+  /(?:מחכ(?:ה|ים)[^\n]{0,56}(?:ל)?(?:טלפון|קשר|ש(?:ת)?(?:ענ|צר)|תשובה)|מתי\s+(?:ת)?(?:יצר(?:ו|ה)|תחז(?:ר|ו)|תתקשר))/i
+
+/** After preorder restock service handoff — waiting for callback (529931531). */
+export function isPreorderRestockCallbackWaitFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenPreorderRestockServiceHandoffThread(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 160) return false
+  return PREORDER_RESTOCK_CALLBACK_WAIT_RE.test(text)
+}
+
 /** After shipping-delay handoff — short «יש חדש?» / greeting + news ask (534083795). */
 export function isShippingDelayHandoffNewsFollowUp(
   history: HistoryMessage[],

@@ -264,6 +264,7 @@ import { isSalesHandoffCommittedInAssistantText } from "@/lib/agents/human-waiti
 import {
   hasLiveRepReplyAfterBotHandoff,
   isLiveRepAssistantMessage,
+  isOpenPreorderRestockServiceHandoffThread,
   isOpenReplacementDeliveryServiceHandoffThread,
   isOpenShippingDelayServiceHandoffThread,
   isPartialDeliveryServiceHandoffAwaitingCallback,
@@ -271,6 +272,7 @@ import {
   isPostHumanHandoff,
   isRefundCreditPostHandoffStatusFollowUp,
   isSalesProductInquiryHandoffCompleteInHistory,
+  isPreorderRestockCallbackWaitFollowUp,
   isReplacementDeliveryCallbackWaitFollowUp,
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffAnswerWaitFollowUp,
@@ -762,6 +764,9 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
     isServiceHandoffWaitChase(text) &&
     isServiceDefectRepHandoffAwaitingCallback(history)
   ) {
+    return false
+  }
+  if (isPreorderRestockCallbackWaitFollowUp(history, body)) {
     return false
   }
   if (
@@ -3384,6 +3389,12 @@ export function buildConversationHints(input: {
   if (isReplacementDeliveryCallbackWaitFollowUp(history, body)) {
     lines.push(
       "REPLACEMENT DELIVERY CALLBACK WAIT (533162865): defect **replacement carpet** / delivery coordination is already with **`human_service`** (including urgent callback today) — customer says nobody returned yet (e.g. «טרם חזרו אלי»). Empathize; recap open case (replacement not arrived, callback/coordination, cancel/refund deadline if they stated it); confirm still marked urgent — you may say סימנתי שוב לצוות. Outside service hours → explain hours + that the team will contact when back — still **`action: reply`**. **Never** «העברתי את הפנייה» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isPreorderRestockCallbackWaitFollowUp(history, body)) {
+    lines.push(
+      "PREORDER RESTOCK CALLBACK WAIT (529931531): **הזמנה מוקדמת** / **חידוש מלאי** check already got **`human_service`** (rep to verify restock ETA for SO/product in thread) — customer chases callback (e.g. «מחכה שתיצרו קשר», «מחכה לטלפון», «מתי תיצרו קשר»). Empathize for the delay; recap open case (model, SO, restock check); confirm still marked urgent for נציג שירות — you may say סימנתי שוב לצוות / נבקש שיחזרו לטלפון מהשיחה. Service-hours note OK. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג שירות» / «העברתי שוב» first-transfer boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
