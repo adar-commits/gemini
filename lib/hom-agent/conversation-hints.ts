@@ -789,6 +789,30 @@ function customerTextAfterMediaMarkers(body: string): string {
     .trim()
 }
 
+function userTextCorpusFromThread(history: HistoryMessage[], body: string) {
+  return [
+    ...history.filter((message) => message.role === "user").map((message) => message.content),
+    body,
+  ].join("\n")
+}
+
+function isShippingAddressEtaAskInThread(history: HistoryMessage[], body: string) {
+  return /(?:מתי|מועד|יגיע|הגיע|אספקה|בקבלה|עתיד)/i.test(
+    userTextCorpusFromThread(history, body)
+  )
+}
+
+/** Address-change thread — customer chases after silence (503283358). */
+function isShippingAddressEtaWaitChaseBody(body: string) {
+  const text = customerTextAfterMediaMarkers(body).trim()
+  if (!text || text.length > 520) return false
+  if (NO_RESPONSE_COMPLAINT_RE.test(text)) return true
+  if (/^(?:\?{2,}|!{2,})$/.test(text)) return true
+  if (/מחכ(?:ה|ים)[^\n]{0,48}ש(?:ת)?(?:ענ|צר)/i.test(text)) return true
+  if (/די\s+נו|בחיי\s+זה\s+הזוי/i.test(text)) return true
+  return false
+}
+
 function isImageOnlyCustomerTurn(body: string): boolean {
   if (!/\[media:image:/i.test(body)) return false
   return customerTextAfterMediaMarkers(body).length === 0
@@ -1712,6 +1736,7 @@ export function buildConversationHints(input: {
     !threadHasDefectCase &&
     !isServiceDefectOrderIdentificationThread(history, body) &&
     !genericExchangeOpenerNotOrderMod &&
+    !isShippingAddressChangeAsk(body, history) &&
     (isOrderModificationRequest(body) ||
       isOrderModificationInThread(history, body) ||
       isBareModelChangeRequestInThread(history, body))
@@ -3674,6 +3699,17 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    isShippingAddressChangeAsk(body, history) &&
+    isShippingAddressEtaAskInThread(history, body) &&
+    isShippingAddressEtaWaitChaseBody(body)
+  ) {
+    const known = orderIdGivenInThread(history)
+    lines.push(
+      `SHIPPING ADDRESS + ETA WAIT CHASE (503283358): open case is **delivery address change** + **when the order arrives**${known ? ` (order ${known})` : ""} — recap **only** from customer text in this thread (street they gave). They are chasing after silence; a photo is context for the same case, **not** a new back-in-stock / sales / inventory ask. Call **lookup_order_status** when the order id is already in thread and ETA was never answered. **action: human_service** + crm_department service when you write מעביר/העברתי — **never human_sales**, never «יחזור למלאי» or alternate-size talk unless they explicitly asked that in writing. Never invent a different product from photos alone.`
+    )
+  }
+
   if (isPrePurchasePreOrderSalesInquiry(body, history)) {
     lines.push(
       "SALES PREORDER ETA (534753071): new purchase — they named product + size and ask when a **הזמנה מוקדמת** / site pre-order arrives. Stay sales (`crm_department: sales`): ack model + size, explain pre-order = import/restock timing (KB or lookup_inventory when they typed מק״ט), or offer יועץ מכירות for exact ETA — **never** post-purchase «אותו דגם במידה אחרת» / «מול ההזמנה שלכם» or מק״ט-from-photo when the model is already in text."
@@ -3798,6 +3834,14 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       "SHIPPING INVOICE PHOTO (285505270): shipping/ETA thread — you asked for order # or phone and customer sent receipt/invoice image (even bare photo). Read IN… / SO… / #… from vision, call lookup_order_status, answer status + ETA policy. Only if lookup fails → service rep summary (awaiting service_summary_confirm) with future אעביר — never skip lookup and jump to rep summary for shipping status."
+    )
+  } else if (
+    /\[media:image:/i.test(body) &&
+    isShippingAddressChangeAsk(body, history) &&
+    isShippingAddressEtaAskInThread(history, body)
+  ) {
+    lines.push(
+      "SHIPPING ADDRESS PHOTO CHASE (503283358): receipt/order screenshot on an open **address change + delivery timing** thread — ack the photo, continue **503283358** / SHIPPING ADDRESS + ETA WAIT CHASE (service recap + lookup when order id is in text). **Never** PHOTO RECEIVED sales / back-in-stock path from the image alone."
     )
   } else if (/\[media:image:/i.test(body)) {
     lines.push(
