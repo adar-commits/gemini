@@ -1526,9 +1526,21 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isFirstSubstantiveCustomerTurn(history)) {
+  const weezmoFirstCustomerTurn =
+    isFirstSubstantiveCustomerTurn(history) &&
+    outboundDocumentDeliveryInThread(history) &&
+    orderIdGivenInThread(history) != null
+
+  if (isFirstSubstantiveCustomerTurn(history) && !weezmoFirstCustomerTurn) {
     lines.push(
       "FIRST CUSTOMER MESSAGE: interpret their full intent with LLM + tools this turn — no structured FAQ/order shortcuts. Answer what they actually asked; call lookup_order_status only when they ask about an existing order/shipment — never for a product page or פרטים נוספים."
+    )
+  }
+
+  if (weezmoFirstCustomerTurn) {
+    const weezmoOrder = orderIdGivenInThread(history)!
+    lines.push(
+      `WEEXMO FIRST REPLY (534854164): automated קבלה+tracking already sent for ${weezmoOrder}. Questions about where they see the chosen rug, missing carpet detail on the receipt PDF, or the tracking page — **lookup_order_status** on ${weezmoOrder} first (order card + line items). Digital קבלה = payment summary; product model/size from lookup; tracking = delivery progress only — never "אין לי פירוט" without lookup. **Not** fetch_digital_document. If they also ask שיחזרו אליי → human_service after lookup summary in the same turn.`
     )
   }
 
@@ -3519,7 +3531,7 @@ export function buildConversationHints(input: {
       forwardedWeezmoOrder
         ? mentionsCancellationDesire(body)
           ? `KNOWN ORDER CANCEL (530265067): the receipt already names order ${forwardedWeezmoOrder} and the customer asked to cancel and get a refund. Call lookup_order_status with that id now. Do NOT ask whether they mean that order, do NOT ask for מספר הזמנה or a phone, and never reply "לא הצלחתי להבין". If it is a pre-order, explain הזמנה מוקדמת and the expected date — that is why it has not arrived. action reply.`
-          : `FORWARDED WEEZMO TEMPLATE / KNOWN ORDER ${forwardedWeezmoOrder} (532748267 / 534031731): the receipt/tracking link already names this order. Call lookup_order_status now. The tool returns the order card — שבוצעה לפני … ימים באתר או בסניף, סכום, מס׳ הזמנה # (never SO when # exists). Send that card. Do NOT ask for מספר הזמנה or phone. Do NOT write "מדובר בהזמנה SO… שמופיעה בקישור המעקב". On כן, lookup returns live status for ${forwardedWeezmoOrder} only. Not a document-copy request.`
+          : `FORWARDED WEEZMO TEMPLATE / KNOWN ORDER ${forwardedWeezmoOrder} (532748267 / 534031731 / 534854164): the receipt/tracking link already names this order. Call lookup_order_status now. The tool returns the order card — שבוצעה לפני … ימים באתר או בסניף, סכום, מס׳ הזמנה # (never SO when # exists). Send that card. Do NOT ask for מספר הזמנה or phone. Do NOT write "מדובר בהזמנה SO… שמופיעה בקישור המעקב". Chosen-rug / missing detail on receipt PDF → line items from lookup; קבלה = payment summary; tracking = progress only — never "אין לי פירוט" without lookup. Not a document-copy request.`
         : "FORWARDED WEEZMO TEMPLATE: automated receipt is order context, not a document copy. Do not open איזה סוג מסמך. If they ask about delivery, confirm the tracking order already in the thread — do not ask for a new order number."
     )
   }
@@ -3562,7 +3574,8 @@ export function buildConversationHints(input: {
     (isDigitalDocumentRequest(body) ||
       isActiveDigitalDocumentFlow(history, body) ||
       isDirectReceiptPhoneIntakeThread(history)) &&
-    !shouldReleaseStructuredDocumentFlow(history, body)
+    !shouldReleaseStructuredDocumentFlow(history, body) &&
+    !weezmoFirstCustomerTurn
   ) {
     lines.push(
       "DOCUMENT COPY (קבלה / חשבונית / העתק): fetch_digital_document only — getDocument API by phone. Never lookup_order_status or getOrders for invoice/receipt requests."
