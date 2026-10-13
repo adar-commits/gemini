@@ -1736,7 +1736,7 @@ export function buildConversationHints(input: {
         ? "human_sales + crm_department sales"
         : "human_service + crm_department service"
     lines.push(
-      `CALLBACK REPEAT RE-ESCALATION (533886824): customer already asked for a phone callback and a prior handoff/callback was logged — empathize that nobody called yet if they say so. Re-confirm the case + phone, mark urgent, and set action ${department} in the **same** JSON when you write העברתי/סימנתי/מעביר. Use **one** transfer sentence in the reply — **never** both opening «העברתi/מעביר עכשיו…» and closing «מעולה, העברתi את השיחה לנציג…». Never replay "אין נציגים זמינים" after you already transferred during business hours. The voice-callback template ("כאן נציג/ה…") is automatic — not a live rep in chat.`
+      `CALLBACK REPEAT RE-ESCALATION (533886824): customer already asked for a phone callback and a prior handoff/callback was logged — empathize that nobody called yet if they say so. Re-confirm the case + phone, mark urgent, and set action ${department} in the **same** JSON when you write העברתי/סימנתי/מעביר. Use **one** transfer sentence in the reply — **never** both opening «העברתי/מעביר עכשיו…» and closing «מעולה, העברתי את השיחה לנציג…». Never replay "אין נציגים זמינים" after you already transferred during business hours. The voice-callback template ("כאן נציג/ה…") is automatic — not a live rep in chat.`
     )
   }
 
@@ -1752,7 +1752,7 @@ export function buildConversationHints(input: {
         ? "human_sales + crm_department sales"
         : "human_service + crm_department service"
     lines.push(
-      `SERVICE CALLBACK ASK AFTER HANDOFF (533843643): customer asks for a rep to call (e.g. «אשמח שנציג יתקשר אלי») on an open service case already transferred — brief empathize for the wait if relevant; bullet recap from thread (order #, wrong/missing items, callback phone) → **action: ${department}** in the **same** JSON when you write מעביר/העברתi. Use **one** transfer sentence — **never** open with «העברתi עכשיו…» and also close with «מעולה, העברתi את השיחה לנציג שירות. ניצור קשר בהקדם.»`
+      `SERVICE CALLBACK ASK AFTER HANDOFF (533843643): customer asks for a rep to call (e.g. «אשמח שנציג יתקשר אלי») on an open service case already transferred — brief empathize for the wait if relevant; bullet recap from thread (order #, wrong/missing items, callback phone) → **action: ${department}** in the **same** JSON when you write מעביר/העברתי. Use **one** transfer sentence — **never** open with «העברתי עכשיו…» and also close with «מעולה, העברתי את השיחה לנציג שירות. ניצור קשר בהקדם.»`
     )
   }
 
@@ -2536,10 +2536,24 @@ export function buildConversationHints(input: {
     (isShippingStatusQuestion(body) ||
       isOrderDeliveryStatusQuestion(body) ||
       isOrderStatusProgressOpener(body) ||
-      isExpectReceiveDeliveryAsk(body))
+      isExpectReceiveDeliveryAsk(body) ||
+      isShippingAddressEtaAskInThread(history, body))
   ) {
     lines.push(
-      `ETA OPENER + ORDER ID (497664206 / 533428072 / 533710142 / 532250107 / 534257487): customer asks when the order will arrive (including «מתי אקבל את השטיח» / «מה קורה עם השטיח» / «צפי לקבל הזמנה») and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. **Never** «ביקשת קודם לדבר עם נציג» unless a handoff offer is pending in this thread — stale CRM or older messages outside the visible ask do not count. If lookup fails: brief apologize + offer to retry or offer rep transfer (action reply) — human_service only if they explicitly ask for a rep this turn or confirm your handoff offer; never invent a prior rep request. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
+      `ETA OPENER + ORDER ID (497664206 / 533428072 / 533710142 / 532250107 / 534257487 / 533978479): customer asks when the order will arrive (including «מתי אקבל את השטיח» / «מה קורה עם השטיח» / «צפi לקבל הזמנה» / «מועד אספקה הזמנה») and already gave order ${shippingOpenerOrderId} in this turn (rapid messages merge into one). Call lookup_order_status with ${shippingOpenerOrderId} now — answer status + ETA policy after lookup. **Never** «ביקשת קודם לדבר עם נציג» unless a handoff offer is pending in this thread — stale CRM or older messages outside the visible ask do not count. If lookup fails: brief apologize + offer to retry or offer rep transfer (action reply) — human_service only if they explicitly ask for a rep this turn or confirm your handoff offer; never invent a prior rep request. **533978479:** after you answer ETA (from lookup or a notification they cited) → action reply — **never** append «מעולה, העברתי את השיחה לנציג שירות» / human_service on the same turn when they only asked timing. Prior handoffs in thread do not auto-transfer again. Delivered copy only when shipping code is 6 or 23 — empty ZPIT_DELSTATUSCODE uses neutral order-status fallback; never say נמסרה from ORDSTATUSDES alone (533710142). If they also say טרם הגיע/לא קיבל/עדיין לא and shipping code 6/23 confirms delivery — acknowledge the gap (532314606), list line items, ask which arrived; action reply, never שמחתי לעזור or action end. Never generic SLA + human_service without running the tool.`
+    )
+  }
+
+  if (
+    isPostHumanHandoff(null, history) &&
+    shippingOpenerOrderId &&
+    isShippingAddressEtaAskInThread(history, body) &&
+    !customerExplicitlyRequestsHuman(body) &&
+    !isHumanHandoffPending(history)
+  ) {
+    const etaOrder = shippingOpenerOrderId ?? orderIdGivenInThread(history)
+    lines.push(
+      `POST-HANDOFF ETA ONLY (533978479): delivery timing ask on order ${etaOrder} — human_service already logged earlier. Answer from lookup_order_status or thread context (SMS/notification date they cited) + ETA policy — action reply. **Never** duplicate «מעולה, העברתי את השיחה לנציג שירות» / human_service unless they explicitly ask for a rep **this turn**.`
     )
   }
 
