@@ -965,6 +965,19 @@ function isDeliveryTimingConfirmOfferedByBot(history: HistoryMessage[]) {
   return /(?:מועד|תאריך)\s+(?:ה)?(?:אספק(?:ה|ת)|הגע(?:ה|ת))/i.test(lastAssistant.content)
 }
 
+/** Bot offered to check order line details for size/model — not order-card confirm (323441987). */
+function isOrderLineDetailCheckOfferPending(history: HistoryMessage[]) {
+  const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
+  if (!lastAssistant) return false
+  const text = lastAssistant.content
+  if (!/(?:מידה|גודל)/i.test(text)) return false
+  if (/לבדוק\s+לך\s*\?/i.test(text)) return true
+  return (
+    /(?:פרטי\s+(?:ה)?הזמנה|את\s+פרטי\s+(?:ה)?הזמנה)/i.test(text) &&
+    /(?:לבדוק|אבדוק|אוכל\s+לבדוק)/i.test(text)
+  )
+}
+
 /** Bot offered to recheck shipping status on a known order — not order-card confirm (534276359). */
 function isStatusRecheckOfferPending(history: HistoryMessage[]) {
   const lastAssistant = [...history].reverse().find((message) => message.role === "assistant")
@@ -3926,6 +3939,19 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       `LIVE STATUS CHECK OFFER YES (532858826 / 532880861): you offered to check live shipping status now for order ${threadOrderForLiveStatusCheck} (e.g. «יכול/אשמח לבדוק … הסטטוס» after greeting). Customer affirmed (כן / כן בבקשה) — call lookup_order_status with ${threadOrderForLiveStatusCheck} now and answer status + ETA policy. Pre Order / no restock date in ERP is still a valid status answer — never human_service or rep summary before lookup runs. action reply — human_service only if lookup fails AND they explicitly ask for a rep this turn.`
+    )
+  }
+
+  const threadOrderForLineDetailCheck = orderIdGivenInThread(history)
+  if (
+    isOrderLineDetailCheckOfferPending(history) &&
+    !isKnownOrderConfirmPending(history) &&
+    !isHumanHandoffPending(history) &&
+    isShippingProgressCheckAffirmation(body) &&
+    threadOrderForLineDetailCheck
+  ) {
+    lines.push(
+      `ORDER LINE SIZE CHECK YES (323441987): you offered «לבדוק לך?» / to check order line details to verify size or model (e.g. מידה L) and order ${threadOrderForLineDetailCheck} is already in the thread. Customer affirmed (כן / כן תודה) — call lookup_order_status with ${threadOrderForLineDetailCheck} now and confirm size from line items. Never «אין לי אפשרות לשלוף פירוט» or human_service before lookup runs. action reply — human_service only if lookup fails or they explicitly confirm a separate rep-transfer offer after you answer.`
     )
   }
 
