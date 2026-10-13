@@ -488,3 +488,41 @@ export function isSalesProductInquiryHandoffCompleteInHistory(history: HistoryMe
       !/(?:סוג\s+החלפה|דגם\s+אחר\s+לגמרי)/i.test(message.content)
   )
 }
+
+const EXTRA_RUG_PICKUP_THREAD_RE =
+  /(?:ש(?:לח(?:ו|ת(?:ם|)?)|הגיע)\s+)?שטיח\s*(?:ה)?נוסף|שטיח\s+נוסף\s+בטעות|אותו\s+שטיח\s+פעמיים|שטיח\s+כפול/i
+
+/** Wrong/extra rug pickup + optional salon recommendation — service handoff already logged (533672658). */
+export function isOpenExtraRugPickupServiceHandoffThread(history: HistoryMessage[]) {
+  if (!isPostHumanHandoff(null, history) && !hasAfterHoursServiceQueueHandoffInHistory(history)) {
+    return false
+  }
+  const corpus = history.map((message) => message.content).join("\n")
+  if (!EXTRA_RUG_PICKUP_THREAD_RE.test(corpus)) return false
+  return (
+    hasExecutedBotHandoffInHistory(history) ||
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        isHomBotAssistantMessage(message.content) &&
+        /שטיח\s*(?:ה)?נוסף/i.test(message.content) &&
+        /(?:איסוף|מתנה|לא\s+נשאר|קיבלנו\s+את\s+הפנייה|העבר(?:תי|נו))/i.test(
+          message.content
+        )
+    )
+  )
+}
+
+const EXTRA_RUG_PICKUP_WAIT_BODY_RE =
+  /(?:ימכר|למכור|נמכר|מתנה|לא\s+למכור|תודה)/i
+
+/** After extra-rug service handoff — thanks, sale intent, or gift policy ping (533672658). */
+export function isExtraRugPickupHandoffWaitFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenExtraRugPickupServiceHandoffThread(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  return EXTRA_RUG_PICKUP_WAIT_BODY_RE.test(text)
+}

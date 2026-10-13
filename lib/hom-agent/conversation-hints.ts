@@ -287,6 +287,8 @@ import {
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffAnswerWaitFollowUp,
   isShippingDelayHandoffResponseWaitFollowUp,
+  isExtraRugPickupHandoffWaitFollowUp,
+  isOpenExtraRugPickupServiceHandoffThread,
   postHandoffKind,
 } from "@/lib/agents/post-handoff"
 import { messageAwaits } from "@/lib/agents/bot-awaiting"
@@ -1625,6 +1627,7 @@ export function buildConversationHints(input: {
     !thanksAfterHandoffProseOnly &&
     (hasLiveRepReplyAfterBotHandoff(history) ||
       isBackInStockSalesHandoffThread(history) ||
+      hasExecutedBotHandoffInHistory(history) ||
       (lastAssistantText != null &&
         assistantTextIndicatesHandoffExecuted(lastAssistantText)))
   const shippingServiceThanksClose =
@@ -3651,6 +3654,12 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isExtraRugPickupHandoffWaitFollowUp(history, body)) {
+    lines.push(
+      "EXTRA RUG PICKUP HANDOFF WAIT (533672658): un-ordered **extra rug** pickup (and optional salon recommendation note) already got **`human_service`** — customer now says thanks, «השטיח ימכר» / sale intent, or gift-policy ping. Brief empathize for the wait; restate **do not sell** — keep in original packaging until service coordinates pickup; confirm the open case stays with נציג שירות (note salon recommendation for the rep if in thread). **`action: reply`** — **never** duplicate **`human_service`** or after-hours «אין נציגים» boilerplate as if first transfer unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
   if (isPreDeliveryCancelHandoffResponseWaitFollowUp(history, body)) {
     lines.push(
       "PRE-DELIVERY CANCEL HANDOFF RESPONSE WAIT (533685634 / 534579658): **cancel before receipt** (undelivered / before warehouse / BUYME reorder) already got **`human_service`** with recap (including after-hours queue) — customer now complains **nobody answered**, **no credit yet**, or angry service tone (למה לא חוזרים / לא מעבירים זיכוי / ??). Brief empathize for the wait; confirm the case stays with נציג שירות and is marked urgent again — you may say סימנתי שוב לצוות / העליתי בעדיפות. During service hours you may note the team is active now — **never** «מעולה, העברתי את השיחה» / first-time handoff boilerplate. **`action: reply`** — **never** duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
@@ -3698,18 +3707,22 @@ export function buildConversationHints(input: {
   }
 
   if (
-    isDuplicateOrExtraItemComplaint(body) ||
-    history.some(
-      (message) =>
-        message.role === "user" && isDuplicateOrExtraItemComplaint(message.content)
-    )
+    !isOpenExtraRugPickupServiceHandoffThread(history) &&
+    (isDuplicateOrExtraItemComplaint(body) ||
+      history.some(
+        (message) =>
+          message.role === "user" && isDuplicateOrExtraItemComplaint(message.content)
+      ))
   ) {
     lines.push(
       'DUPLICATE / EXTRA ITEM (533672658): same product twice / extra unit not ordered — **service**, `"crm_department": "service"`. lookup_order_status only to identify מס׳ הזמנה → rep summary (פריט נוסף/כפול לא מוזמן, תיאום איסוף) → human_service. **Never** reply with delivery status alone (נמסר/שמחתי לעזור/action end). If they also ask for a **new purchase** (בנוסף + המלצה/שטיח לסלון) — finish service summary first, note the sales ask for the rep; do not pivot to sales intake before handoff.'
     )
   }
 
-  if (isExtraRugPickupServiceThread(history, body)) {
+  if (
+    isExtraRugPickupServiceThread(history, body) &&
+    !isOpenExtraRugPickupServiceHandoffThread(history)
+  ) {
     lines.push(
       'EXTRA RUG PICKUP / GIFT (533672658): un-ordered extra rug — איסוף, «נשאר כמתנה?», or no callback / wants a phone call. **`action: human_service`** + `"crm_department": "service"` in the **same** JSON when you hand off — **never** `human_sales` / יועצי מכירות, even if a salon recommendation was mentioned in the thread. Service owns pickup and gift policy; note any separate sales ask in the rep summary only.'
     )
