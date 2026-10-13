@@ -458,7 +458,7 @@ function isSalesExchangeHandoffAwaitingCallback(history: HistoryMessage[]) {
   return history.some(
     (message) =>
       message.role === "assistant" &&
-      /(?:סוג\s+החלפה|דגם\s+אחר\s+לגמרי|בקש(?:ת|ה)\s+החלפה|החלפה\s+לדגם)/i.test(
+      /(?:סוג\s+החלפה|דגם\s+אחר\s+לגמרי|בקש(?:ת|ה)\s+החלפה|החלפה\s+לדגם|החלפה\s+עם\s+שליח|דגם\s+ו(?:מידה|גודל)\s+אחר|נמשיך\s+עם\s+החלפה)/i.test(
         message.content
       ) &&
       /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|קיבלנו\s+את\s+הפנייה|יועצ(?:י|)\s+מכירות|ניצור\s+[^\n]{0,32}קשר)/i.test(
@@ -471,7 +471,18 @@ function isSalesHandoffWaitChase(body: string) {
   const text = body.trim()
   if (!text || text.length > 80) return false
   if (isNonSubstantiveFollowUp(text)) return true
+  if (isSalesCallbackEtaWaitChase(text)) return true
   return /^מה\s+עם\s+הפנייה(?:\s+של(?:י|נו))?/i.test(text)
+}
+
+/** After sales handoff — customer asks when the advisor will call back (530723343). */
+function isSalesCallbackEtaWaitChase(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 120) return false
+  return (
+    /תוך\s+כמה\s+זמן[^\n]{0,48}(?:יחזור|יקבע|יתקשר|יטפל|נציג|יועץ)/i.test(text) ||
+    /מתי\s+(?:הוא|היא|יועץ|נציג)[^\n]{0,40}(?:יחזור|יתקשר|יקבע)/i.test(text)
+  )
 }
 
 /** After service handoff — customer asks where the rep is (367779250), not a fresh transfer. */
@@ -780,7 +791,9 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
     return false
   }
   if (
-    (isNonSubstantiveFollowUp(text) || isSalesHandoffWaitChase(text)) &&
+    (isNonSubstantiveFollowUp(text) ||
+      isSalesHandoffWaitChase(text) ||
+      isSalesCallbackEtaWaitChase(text)) &&
     isSalesExchangeHandoffAwaitingCallback(history)
   ) {
     return false
@@ -789,6 +802,9 @@ function isPostHandoffNoResponseReEscalation(history: HistoryMessage[], body: st
     NO_RESPONSE_COMPLAINT_RE.test(text) &&
     isSalesExchangeHandoffAwaitingCallback(history)
   ) {
+    return false
+  }
+  if (isSalesCallbackEtaWaitChase(text) && isSalesExchangeHandoffAwaitingCallback(history)) {
     return false
   }
   if (!NO_RESPONSE_COMPLAINT_RE.test(text)) return false
@@ -1590,7 +1606,8 @@ export function buildConversationHints(input: {
   if (
     isSalesExchangeHandoffAwaitingCallback(history) &&
     !isNonSubstantiveFollowUp(body.trim()) &&
-    !isSalesHandoffWaitChase(body)
+    !isSalesHandoffWaitChase(body) &&
+    !isSalesCallbackEtaWaitChase(body)
   ) {
     const orderRef =
       identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
@@ -2183,7 +2200,7 @@ export function buildConversationHints(input: {
       const orderRef =
         identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
       lines.push(
-        `SALES EXCHANGE WAIT PING (532191753 / 339160767): human_sales already logged for post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} (different model / סוג החלפה / בקשת החלפה לדגם) — ? / ?? / מה עם הפנייה / אין מענה / לא עונים means waiting for sales callback, not a fresh transfer. Brief empathy + confirm the case is already with יועץ מכירות; if they named a target model earlier, note it for the advisor. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות», «יועץ זמין עכשיו» as first transfer, or **human_sales** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate.`
+        `SALES EXCHANGE WAIT PING (532191753 / 339160767 / 530723343): human_sales already logged for post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} (different model / סוג החלפה / בקשת החלפה לדגם / החלפה עם שליח) — ? / ?? / מה עם הפנייה / אין מענה / לא עונים / תוך כמה זמן (יועץ|נציג) יחזור means waiting for sales callback or SLA reassurance, not a fresh transfer. Brief empathy + confirm the case is already with יועץ מכירות; give hours/SLA from KB when they ask timing — no exact callback clock. If they named a target model earlier, note it for the advisor. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות», «יועץ זמין עכשיו» as first transfer, or **human_sales** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate.`
       )
     } else if (
       isSalesHandoffWaitChase(body) &&
