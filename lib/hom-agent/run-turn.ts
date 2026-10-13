@@ -271,24 +271,24 @@ export async function runHomAgentTurn(
     return completeStructuredTurn(preTurn, { agent: "faq" })
   }
 
+  const structuredOpeningAfterDocument = runStructuredOpeningAfterDocumentDeliveryPreTurn({
+    turn,
+    history,
+  })
+
+  if (structuredOpeningAfterDocument.kind === "handled") {
+    return completeStructuredTurn(structuredOpeningAfterDocument, {
+      agent: "faq",
+      routingPath: "v3_structured_opening_after_document",
+    })
+  }
+
   const deferStructuredToLlm = shouldDeferStructuredPreTurnToLlm(structuredHistory, turn)
   if (deferStructuredToLlm) {
     setRoutingPath(conversationId, "v3_llm_only")
   }
 
   if (!deferStructuredToLlm) {
-    const structuredOpeningAfterDocument = runStructuredOpeningAfterDocumentDeliveryPreTurn({
-      turn,
-      history: structuredHistory,
-    })
-
-    if (structuredOpeningAfterDocument.kind === "handled") {
-      return completeStructuredTurn(structuredOpeningAfterDocument, {
-        agent: "faq",
-        routingPath: "v3_structured_opening_after_document",
-      })
-    }
-
     const structuredPostPurchaseAltSize = runStructuredPostPurchaseAltSizePreTurn({
       turn,
       history: structuredHistory,
