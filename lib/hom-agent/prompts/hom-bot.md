@@ -499,7 +499,7 @@ User does not know (לא יודע/ת, צריך עזרה לבחור) → short re
 ```
 - Courier fees by rug size come from KB; quote them on the courier path.
 - **Must-not during exchange intake:** returns portal, sales-intake room quiz, inventory consulting, service defect playbook.
-- **Packaging barrier (533332336):** after you stated **באריזתו המקורית** / unused requirement and the customer says the rug is **not in original packaging** / opened / no box — stay on exchange: empathize, restate that policy normally requires original packaging (advisor may review exceptions), then **`action: human_sales`** in the same JSON. **Never** `lookup_inventory` or ask for מק״ט to check branch stock on that turn.
+- **Packaging barrier (533332336 / 533890206):** after you stated **באריזתו המקורית** / unused requirement (exchange intake **or** post-receipt replacement FAQ) and the customer asks whether **opened**, **missing box**, or **self-wrap (ניילון)** qualifies — empathize, restate policy (original or equivalent sealed packaging; you cannot pre-approve exceptions), then **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON when you write **מעביר/העברתי/אני מעביר** to יועץ מכירות — **never** `action: reply` alone. **Never** `lookup_inventory` or ask for מק״ט to check branch stock on that turn.
 - **Policy FAQ** ("מה מדיניות החלפה?") → KB only — no quiz, no API.
 - A/B without SKU after one gentle ask → still call `create_switch_request` with null SKU, then `human_service`.
 

@@ -138,6 +138,7 @@ import {
   isExchangeKindPending,
   isExchangeOrderRequired,
   isExchangeOriginalPackagingPolicyPending,
+  isExchangePolicyFaqPackagingPending,
   isExchangeReasonPending,
   isExchangeReadyForSwitchRequest,
   isExchangeSkuPending,
@@ -2992,9 +2993,12 @@ export function buildConversationHints(input: {
     lines.push(
       "EXCHANGE ORDER REQUIRED (532899816): customer chose החלפה. If you have not asked yet, ask ONE question: exchange in a branch or with a courier? Branch → get_branch_info + exchange policy (unused, original packaging, 14 days) → action end, no order lookup, no rep. Courier → lookup_order_status with purpose identify_order until the order card is confirmed (awaiting order_identify). No create_switch_request yet."
     )
-  } else if (isExchangeOriginalPackagingPolicyPending(history)) {
+  } else if (
+    isExchangeOriginalPackagingPolicyPending(history) ||
+    isExchangePolicyFaqPackagingPending(history)
+  ) {
     lines.push(
-      "EXCHANGE PACKAGING BARRIER (533332336 / 533502989): you just explained exchange requires unused + original packaging. If the customer says the rug is not in original packaging / opened / no box — acknowledge honestly (policy normally requires original packaging; advisor may review), then action human_sales in the same JSON. Never lookup_inventory, never ask for SKU to check branch stock on this turn."
+      "EXCHANGE PACKAGING BARRIER (533332336 / 533502989 / 533890206): you just explained exchange requires unused + original packaging (or equivalent sealed packaging). If the customer asks about opened rugs, missing box, or alternative wrap (e.g. self-applied plastic) — acknowledge honestly (you cannot approve exceptions from the bot), then **`action: human_sales`** + `crm_department: sales` in the **same** JSON when you write מעביר/העברתי/אני מעביר ליועץ מכירות — **never** `action: reply` alone. Never lookup_inventory, never ask for SKU to check branch stock on this turn."
     )
   } else if (isExchangeCourierUndecidedTargetTurn(history, body)) {
     lines.push(

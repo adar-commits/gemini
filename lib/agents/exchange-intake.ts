@@ -186,6 +186,20 @@ export function isExchangeOriginalPackagingPolicyPending(history: HistoryMessage
   return ORIGINAL_PACKAGING_POLICY_RE.test(lastNonInactivityAssistantText(history))
 }
 
+const EXCHANGE_POLICY_FAQ_RE =
+  /(?:אפשר\s+להחליף|החלפה\s+אפשרית|14\s*יום\s+מקבלת)/i
+
+/** Post-receipt exchange policy FAQ (no intake marker) — customer may ask packaging alternatives (533890206). */
+export function isExchangePolicyFaqPackagingPending(history: HistoryMessage[]) {
+  if (isExchangeIntakeStartedInThread(history)) return false
+  if (!ORIGINAL_PACKAGING_POLICY_RE.test(lastNonInactivityAssistantText(history))) {
+    return false
+  }
+  return assistantMessages(history).some((message) =>
+    EXCHANGE_POLICY_FAQ_RE.test(message.content)
+  )
+}
+
 export function isExchangeReasonPending(history: HistoryMessage[]) {
   if (!isExchangeIntakeActive(history)) return false
   const intake = extractExchangeIntake(history, "")
