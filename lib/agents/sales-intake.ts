@@ -18,7 +18,11 @@ import {
   isServiceTopicSwitch,
   isTopicPivotPhrase,
 } from "@/lib/agents/topic-switch"
-import { isHumanHandoffPending, isOffTopicQuestion } from "@/lib/agents/off-topic"
+import {
+  isExplicitHumanHandoffRequest,
+  isHumanHandoffPending,
+  isOffTopicQuestion,
+} from "@/lib/agents/off-topic"
 import { isShippingPolicyQuestion, isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { isDissatisfactionWithoutDefect } from "@/lib/agents/dissatisfaction"
 import { isConversationClosing, isNonSubstantiveFollowUp } from "@/lib/agents/conversation-close"
@@ -604,6 +608,7 @@ export function isIntakeTopicPivot(body: string, history: HistoryMessage[]) {
 
   // During an active quiz, only explicit FAQ/service pivots break out — not budget/style answers.
   if (hasOngoingSalesIntake(history) || lastIntakeQuestionKind(history)) {
+    if (isExplicitHumanHandoffRequest(trimmed)) return true
     if (isCustomerServiceOpener(trimmed)) return true
     if (isTopicPivotPhrase(trimmed)) return true
     if (isFaqTopicSwitch(trimmed)) return true

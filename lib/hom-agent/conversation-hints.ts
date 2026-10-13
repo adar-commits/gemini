@@ -293,6 +293,7 @@ import {
   isHumanHandoffAffirmation,
   isHumanHandoffDecline,
   isHumanHandoffOfferText,
+  isExplicitHumanHandoffRequest,
   isHumanHandoffPending,
 } from "@/lib/agents/off-topic"
 import { isConfirmationPending, isSalesFinalSummaryPending } from "@/lib/agents/sales-intake"
@@ -1852,6 +1853,16 @@ export function buildConversationHints(input: {
   if (salesIntakeActive && !postHandoffNoResponseReEscalation) {
     lines.push(
       'SALES THREAD (מכירות): new purchase / product inquiry / available sizes (e.g. יש יותר קטן?) — not שירות. Include `"crm_department": "sales"` in JSON this turn. When intake is complete, send recap + action human_sales in the **same** JSON (מעביר ליועץ מכירות) — never אני צודק? and never wait for approval. **534665892:** mid-quiz room/sofa dimensions or pre-purchase fit check (בודק שטיח בגודל… / לוודא שיתאים) — stay sales intake: ack sizes, optional brief sizing guidance from KB, next quiz step or handoff summary — **never** dissatisfaction two-option menu (החלפה/החזרה + returns portal).'
+    )
+  }
+
+  if (
+    hasOngoingSalesIntake(history) &&
+    isExplicitHumanHandoffRequest(body) &&
+    !postHandoffNoResponseReEscalation
+  ) {
+    lines.push(
+      "SALES INTAKE + HUMAN REP ASK (534861848): during sales intake they asked for a human sales advisor (נציג אנושי / יועץ). Answer briefly that a sales advisor will take over — bullet recap from thread (rooms, sizes already shared) + **`action: human_sales`** + **`crm_department: sales`** in the **same** JSON when you write מעביר/העברתי ליועץ מכירות. **Never** ignore the rep ask and ask the next quiz step (e.g. בעלי חיים) on that turn."
     )
   }
 
