@@ -346,6 +346,18 @@ export function isReplacementDeliveryCallbackWaitFollowUp(
   )
 }
 
+/** Replacement courier arrived but binding/cant still wrong — recap must not say «עדיין לא הגיע» (533162865). */
+export function isReplacementDeliveredStillWrongThread(history: HistoryMessage[]) {
+  if (!isOpenReplacementDeliveryServiceHandoffThread(history)) return false
+  const userCorpus = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .join("\n")
+  if (!/(?:הגיע\s+שליח|שליח\s+הגיע|הבוקר\s+הגיע)/i.test(userCorpus)) return false
+  if (!/(?:שטיח\s+חלופ|החלופ)/i.test(userCorpus)) return false
+  return /(?:סיומת|קאנט|קנט|לא\s+כמו\s+שמופיע|ביקורת\s+איכות|פגם)/i.test(userCorpus)
+}
+
 const PREORDER_RESTOCK_THREAD_RE =
   /(?:הזמנה\s+מוקדמת|חידוש\s+(?:ה)?מלאי|Pre\s+Order|מוקדמת)/i
 

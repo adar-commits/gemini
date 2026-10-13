@@ -281,6 +281,7 @@ import {
   isSalesProductInquiryHandoffCompleteInHistory,
   isPreorderRestockCallbackWaitFollowUp,
   isReplacementDeliveryCallbackWaitFollowUp,
+  isReplacementDeliveredStillWrongThread,
   isDeliveryCoordinationTimingFollowUp,
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffAnswerWaitFollowUp,
@@ -3526,9 +3527,15 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (isReplacementDeliveredStillWrongThread(history)) {
+    lines.push(
+      "REPLACEMENT DELIVERED STILL WRONG (533162865): customer already reported the **replacement courier arrived** but binding/cant/סיומת or QC still fails vs site photos — service handoff bullets must say **delivered but wrong/defective** (include cant/QC asks, second replacement request, cancel/refund if stated) — **never** «השטיח החלופי עדיין לא הגיע» / «טרם הגיע» when delivery is in the thread. Re-escalation with מעביר/העברתi → **`action: human_service`** + `crm_department: service` in the **same** JSON — **one** transfer closing; **never** duplicate «מעולה, העברתi את השיחה לנציג שירות» after you already said העברתi."
+    )
+  }
+
   if (isReplacementDeliveryCallbackWaitFollowUp(history, body)) {
     lines.push(
-      "REPLACEMENT DELIVERY CALLBACK WAIT (533162865): defect **replacement carpet** / delivery coordination is already with **`human_service`** (including urgent callback today) — customer says nobody returned yet (e.g. «טרם חזרו אלי»). Empathize; recap open case (replacement not arrived, callback/coordination, cancel/refund deadline if they stated it); confirm still marked urgent — you may say סימנתי שוב לצוות. Outside service hours → explain hours + that the team will contact when back — still **`action: reply`**. **Never** «העברתי את הפנייה» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+      "REPLACEMENT DELIVERY CALLBACK WAIT (533162865): defect **replacement carpet** / delivery coordination is already with **`human_service`** (including urgent callback today) — customer says nobody returned yet (e.g. «טרם חזרו אלי»). Empathize; recap open case from **latest** customer lines (still waiting for delivery vs callback only if they never reported arrival; cancel/refund deadline if stated); confirm still marked urgent — you may say סימנתי שוב לצוות. Outside service hours → explain hours + that the team will contact when back — still **`action: reply`**. **Never** «העברתי את הפנייה» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )
   }
 
