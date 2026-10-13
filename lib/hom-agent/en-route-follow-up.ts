@@ -22,6 +22,7 @@ export function isEnRouteNotYetArrivedUpdate(body: string, history: HistoryMessa
   const text = body.trim()
   if (!text || text.length > 80) return false
   if (/דחי|מיום|לבטל|החזר|נציג|מתי|צפי/.test(text)) return false
+  if (/לברר|(?:מה\s+)?(?:ה)?סטטוס|מעודכן|מעקב|יש\s+חדש/i.test(text)) return false
   return /טרם\s+הגיע|עוד\s+לא\s+הגיע|עדיין\s+לא\s+הגיע|(?:^|\s)לא\s+הגיע|טרם\s+קיבל/.test(
     text
   )

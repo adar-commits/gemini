@@ -362,6 +362,31 @@ function isPriorServiceHandoffForShippingDelay(history: HistoryMessage[]) {
   )
 }
 
+/** Customer said no to «להעביר?» on a shipping thread — must not auto-transfer later (534061592). */
+function isShippingHandoffOfferDeclinedInThread(history: HistoryMessage[]) {
+  if (!isShippingThreadFromHistory(history)) return false
+  for (let index = 0; index < history.length - 1; index += 1) {
+    const message = history[index]
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    const offerText = message.content.trim()
+    if (
+      !isHumanHandoffOfferText(offerText) &&
+      !/(?:^|[\s,.!])להעביר\s*\?\s*$/m.test(offerText)
+    ) {
+      continue
+    }
+    for (let j = index + 1; j < history.length; j += 1) {
+      const follow = history[j]
+      if (follow.role === "assistant") break
+      if (follow.role !== "user") continue
+      if (isHumanHandoffDecline(follow.content)) return true
+      break
+    }
+  }
+  return false
+}
+
 function hasCustomerIdentifierForRepOrderCheck(history: HistoryMessage[]) {
   if (isOrderLookupCompletedInThread(history)) return true
   if (identifiedOrderNumberFromThread(history) != null) return true
@@ -2766,7 +2791,8 @@ export function buildConversationHints(input: {
     (isOrderLookupCompletedInThread(history) ||
       (hasShippingStatusAnswerInThread(history) &&
         (isPriorServiceHandoffForShippingDelay(history) ||
-          hasLogisticsCoordinationMentionInThread(history))))
+          hasLogisticsCoordinationMentionInThread(history))) ||
+      isShippingHandoffOfferDeclinedInThread(history))
 
   if (
     knownOrderForShippingReopen &&
@@ -2782,8 +2808,11 @@ export function buildConversationHints(input: {
   }
 
   if (shippingStatusReopenTurn) {
+    const declinedHandoffNote = isShippingHandoffOfferDeclinedInThread(history)
+      ? " They previously declined your «להעביר?» offer (e.g. «לא, אין צורך») — **never** «כמו שאמרתי אתמול, אני מעביר» or treat that as agreed handoff."
+      : ""
     lines.push(
-      `SHIPPING STATUS REOPEN (534107243 / 534083795): customer asks again for delivery news (e.g. «יש חדש עם ההזמנה?» / מעקב משלוח) on order ${knownOrderForShippingReopen} after lookup or a shipping-delay service handoff already ran — even if days ago there was courier handoff, OOO «אין נציגים», or an automated invoice between messages. Call lookup_order_status now for fresh ERP status — do not recycle stale «אריזה במחסן» without lookup. Brief empathy; if service already logged the delay case, say the team is on it — do not mark דחוף again. action reply or end — NEVER human_service and never «סימנתי לנציג» / «העברתי» unless THIS message explicitly asks for a rep. Prior-day handoff does not auto-repeat.`
+      `SHIPPING STATUS REOPEN (534107243 / 534083795 / 534061592): customer asks again for delivery news (e.g. «יש חדש?» / «לברר מה הסטטוס» / «עוד לא הגיע») on order ${knownOrderForShippingReopen} after lookup or a shipping-delay service handoff already ran — even if days ago there was courier handoff, OOO «אין נציגים», or an automated invoice between messages.${declinedHandoffNote} Call lookup_order_status now for fresh ERP status — do not recycle stale courier status without lookup. Brief empathy; if service already logged the delay case, say the team is on it — do not mark דחוף again. action reply or end — NEVER human_service and never «סימנתי לנציג» / «העברתי» unless THIS message explicitly asks for a rep or confirms a **new** handoff offer you make after lookup. Prior-day handoff offer/decline does not auto-repeat.`
     )
   }
 
@@ -2819,7 +2848,7 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isEnRouteNotYetArrivedUpdate(body, history)) {
+  if (isEnRouteNotYetArrivedUpdate(body, history) && !shippingStatusReopenTurn) {
     lines.push(
       `EN ROUTE NOT YET ARRIVED (533790731): you already said the shipment is loaded on the driver and on the way. They are only updating that it has not arrived. Do NOT call lookup_order_status again and do NOT ask for מספר הזמנה. NEVER mention בקשה לדחיית מסירה, מיום X, or *3076 — they did not ask to postpone. Say: ${EN_ROUTE_NOT_YET_ARRIVED_REPLY} action reply.`
     )
