@@ -39,7 +39,7 @@ describe("defect branch wait ping 533557694", () => {
         history: history533557694(),
         body: "???",
       }) ?? ""
-    assert.match(hints, /SERVICE DEFECT WAIT PING \(533557694\)/)
+    assert.match(hints, /SERVICE DEFECT WAIT PING \(533557694/)
     assert.match(hints, /SO26023912/)
     assert.match(hints, /ניר עזרי/)
     assert.match(hints, /action: reply/i)

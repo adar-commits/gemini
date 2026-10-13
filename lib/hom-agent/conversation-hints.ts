@@ -750,6 +750,27 @@ function isExpiredCreditNoCallbackReEscalation(history: HistoryMessage[], body: 
 const NO_RESPONSE_COMPLAINT_RE =
   /(?:אין\s+מענה|לא\s+(?:חוזר(?:ים|ה)?|חזר(?:ת|תם|תי|ו)?|עונ(?:ים|ה)?)(?:\s+אלי(?:י|ך))?|לא\s+ה(?:בנת|בין)(?:י|תי)\s+למה|עדיין\s+לא\s+חזר(?:ו|ה)?|אף\s+אחד\s+לא(?:\s+חזר)?|עבר\s+(?:יותר\s+מ?)?(?:זמן|מדי\s+זמן)|לא\s+רוצ(?:ה|ים|ות)\s+.*(?:עובר|יגיע)|מחכ(?:ה|ים)[^\n]{0,32}(?:קשר|עדכון|(?:ש)?(?:ת)?צר(?:ו|ה|ים|ת)?))/i
 
+function hasServiceDefectNoResponseChaseInThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) => message.role === "user" && NO_RESPONSE_COMPLAINT_RE.test(message.content)
+  )
+}
+
+function hasRepeatedServiceHandoffInThread(history: HistoryMessage[]) {
+  let count = 0
+  for (const message of history) {
+    if (message.role !== "assistant") continue
+    if (
+      /העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|מעולה,\s+העברתי\s+א(?:ת|ת)\s+השיחה\s+לנציג\s+שירות/i.test(
+        message.content
+      )
+    ) {
+      count += 1
+    }
+  }
+  return count >= 2
+}
+
 const PRIOR_HANDOFF_OR_REP_COMMIT_RE =
   /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|ניצור\s+קשר\s+בהקדם|מ(?:עביר|חבר)(?:ים|ה|א)?[^\n]{0,48}יועץ\s+מכירות|נציג\s+שירות|שייכ(?:תי|ו)[^\n]{0,64}(?:מנהל|נציג)|נעדכן\s+(?:אות(?:ך|כם)|בהקדם))/i
 
@@ -1474,7 +1495,7 @@ export function buildConversationHints(input: {
     body
   )
 
-  if (input.visit) {
+  if (input.visit && !isServiceDefectRepHandoffAwaitingCallback(history)) {
     const previous = formatHebrewCustomerDate(input.visit.previousVisitAt) ?? "earlier"
     lines.push(
       !input.visit.fresh && input.visit.anchor
@@ -1513,6 +1534,20 @@ export function buildConversationHints(input: {
   if (isShippingDelayHandoffAnswerWaitFollowUp(history, body)) {
     lines.push(
       "SHIPPING DELAY ANSWER WAIT (534103691): overdue delivery / missed ETA already **`human_service`** (incl. after live rep spoke in chat). Customer waits for callback or ETA (e.g. «שלום ממתינה לתשובה») — empathize; compact recap (SO, product, promised date, phone); re-mark urgent for נציג שירות. **`action: human_service`** + `crm_department: service` in the **same** JSON — **never** FAQ `action: reply` that only says the request is logged with service hours. Optional **`lookup_order_status`**. Do not treat as a fresh FAQ thread."
+    )
+  }
+
+  if (
+    isServiceDefectRepHandoffAwaitingCallback(history) &&
+    (isNonSubstantiveFollowUp(body) || isServiceHandoffWaitChase(body)) &&
+    (hasServiceDefectNoResponseChaseInThread(history) ||
+      hasRepeatedServiceHandoffInThread(history))
+  ) {
+    const orderRef =
+      identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
+    const customerName = branchInquiryCustomerNameFromHistory(history)
+    lines.push(
+      `SERVICE DEFECT NO-CALLBACK RE-ESCALATION (533557694): open defect/quality case already got **\`human_service\`** (incl. repeated handoffs) and the customer complained nobody returned — ? / ?? / ??? is chasing **that** case across a new visit gap, **not** a fresh FAQ thread. Empathize; compact recap (defect in their words, photos if sent${orderRef ? `, order ${orderRef}` : ""}, no-callback frustration from thread). Re-mark urgent for נציג שירות. **\`action: human_service\`** + \`crm_department: service\` in the **same** JSON — **never** FAQ \`action: reply\` that only logs hours or treats the thread as new.${customerName ? ` Address **${customerName}** only — never invent another name from CRM.` : ""} Optional one transfer line when you write מעביר/העברתי — no duplicate «מעולה, העברתי» boilerplate after prior handoffs in thread.`
     )
   }
 
@@ -2187,7 +2222,11 @@ export function buildConversationHints(input: {
       lines.push(
         `SERVICE SHIPPING STATUS WAIT PING (274323208 / 424571373 / 531240208): human_service already logged (including offline «קיבלנו את הפנייה») so נציג שירות checks shipping status / delivery coordination${orderRef ? ` for order ${orderRef}` : ""} — ? / ?? / יש תשובה / מחכה לתשובה על משלוח or שטיח חלופי means waiting for callback, not a fresh transfer. Brief empathy + confirm service has the case. Optional lookup_order_status if ERP may have updated. **Never** recap פגמים, תמונות, or an older defect SO when recent customer lines are only מעקב משלוח / תיאום אספקה / משלוח חלופי. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה לנציג שירות» or **human_service** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without full first-time handoff boilerplate.`
       )
-    } else if (isServiceDefectRepHandoffAwaitingCallback(history)) {
+    } else if (
+      isServiceDefectRepHandoffAwaitingCallback(history) &&
+      !hasServiceDefectNoResponseChaseInThread(history) &&
+      !hasRepeatedServiceHandoffInThread(history)
+    ) {
       const orderRef =
         identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
       const customerName = branchInquiryCustomerNameFromHistory(history)
