@@ -679,10 +679,34 @@ function hasPriorRefundOrReturnExecutionInThread(history: HistoryMessage[]) {
   )
 }
 
+function botExplainedRefundUsesActualPaid(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /ההחזר\s+מחושב\s+לפי\s+הסכום\s+ששילמת\s+בפועל/i.test(message.content)
+  )
+}
+
+/** Refund-calculation thread — customer asks what they actually paid (533206321). */
+export function isRefundActualPaidAmountQuestion(
+  history: HistoryMessage[],
+  body: string
+) {
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 280) return false
+  if (
+    !/(?:מה\s+(?:ה)?מחיר\s+ששילמ|כמה\s+שילמ|שילמת(?:י)?\s+בפועל)/i.test(trimmed)
+  ) {
+    return false
+  }
+  return botExplainedRefundUsesActualPaid(history)
+}
+
 /** Follow-up on refund status when return/pickup context is earlier in the thread (295276261). */
 function isRefundStatusFollowUpTurn(history: HistoryMessage[], body: string) {
   const trimmed = body.trim()
   if (!trimmed || trimmed.length > 160) return false
+  if (isRefundActualPaidAmountQuestion(history, body)) return false
   if (isRefundCreditPostHandoffStatusFollowUp(history, body)) return false
   if (!hasPriorRefundOrReturnExecutionInThread(history)) return false
   if (isRefundStatusInquiry(trimmed) || isRefundTimelineQuestion(trimmed)) return true
@@ -3580,6 +3604,12 @@ export function buildConversationHints(input: {
   if (isPartialRefundChaseThread(history)) {
     lines.push(
       "PARTIAL REFUND CHASE (468077939): cancelled order — customer reports one credit/refund already received and another still missing (often card) after SLA. Run lookup_order_status when you need SO/phone. Empathize + service bullet recap (order #, which credit received vs missing, phone). **`crm_department: service`**, **`action: human_service`** in the **same** JSON when you write מעביר/העברתי — **never** `action: reply` only listing what the rep will get without transferring now. **Never** `human_sales` or stale sales intake."
+    )
+  }
+
+  if (isRefundActualPaidAmountQuestion(history, body)) {
+    lines.push(
+      "REFUND PAID AMOUNT CLARIFICATION (533206321): thread already explained refund uses **actual paid** vs today’s website promo — customer asks **what they paid** and/or why the site price differs now. **`lookup_order_status`** with order # / SO from this thread → state **total paid** from lookup; one line that site price is current promo and refund math uses what they paid (minus shipping/home-pickup fee if you already explained). **`action: reply`** — **never** return-pickup **`service_summary_confirm`** bullets or **`human_service`** unless they explicitly ask for a rep **this turn**."
     )
   }
 

@@ -264,6 +264,7 @@ Classify what the customer **wants**:
 - Execute return **after** they have the product / post-receipt
 - Refund **status after pickup** — "אספו את… מתי ההחזר?" → service lookup, NOT shipping status
 - Return pickup **wait / pickup status** (בקשת החזרה הוגשה — ממתינים לאיסוף / סטטוס איסוף) → **advanced service** — not FAQ. Call `lookup_order_status` to identify מס׳ הזמנה if needed, then **rep report** (see playbook) → confirm → `human_service`. **Never** answer with outbound shipping status or "מוכנה לאיסוף עצמי" — human resolves pickup logistics.
+- **Refund paid amount vs website price (533206321):** after you explained **how** refund is calculated (paid amount, not today’s site promo), if they ask **מה שילמתי בפועל** / **למה המחיר באתר שונה** → **`lookup_order_status`** and answer with the **paid total** from ERP + brief why site price differs — **`action: reply`**. **Not** return-pickup service summary or **`human_service`** unless they ask for a rep **this turn**.
 - When post-purchase intent is unclear, you **may** mirror back briefly ("אוקיי, מבין ש… — אני צודק?") — but do **not** force this on every service case; prefer natural intake.
 - Preorder delay complaints
 - Warehouse ship from storage ("שליחה מאחסנה") → explain + offer human_service
