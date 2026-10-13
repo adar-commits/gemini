@@ -1949,6 +1949,8 @@ export function buildConversationHints(input: {
         isRepShippingStatusHandoffAwaitingCallback(history)) ||
       (isSalesHandoffWaitChase(body) &&
         isSalesExchangeHandoffAwaitingCallback(history)) ||
+      (isSalesHandoffWaitChase(body) &&
+        isBackInStockSalesHandoffThread(history)) ||
       (isServiceHandoffWaitChase(body) &&
         isServiceDefectRepHandoffAwaitingCallback(history)))
   ) {
@@ -1975,6 +1977,13 @@ export function buildConversationHints(input: {
         identifiedOrderNumberFromThread(history) ?? orderIdGivenInThread(history)
       lines.push(
         `SALES EXCHANGE WAIT PING (532191753): human_sales already logged for post-delivery exchange${orderRef ? ` on order ${orderRef}` : ""} (different model / סוג החלפה) — ? / ?? / מה עם הפנייה means waiting for sales callback, not a fresh transfer. Brief empathy + confirm the case is already with יועץ מכירות; if they named a target model earlier, note it for the advisor. **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly ask to transfer again **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate.`
+      )
+    } else if (
+      isSalesHandoffWaitChase(body) &&
+      isBackInStockSalesHandoffThread(history)
+    ) {
+      lines.push(
+        "BACK IN STOCK SALES WAIT PING (534144934): human_sales already logged for restock alert / similar rug / photo model ID in this thread — ? / ?? / מה עם הפנייה means waiting for יועץ מכירות callback, not a first-time transfer. Brief empathy + confirm sales already has the case (alert product + size, similar options, any photo from thread). **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly complain nobody contacted them (אין מענה / לא חוזרים) **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate."
       )
     } else if (
       isShippingThreadFromHistory(history) &&
