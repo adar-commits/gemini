@@ -2115,7 +2115,8 @@ export function buildConversationHints(input: {
     isThanksAcknowledgment(body) &&
     !isHumanHandoffPending(history) &&
     !isOrderConfirmationPending(history) &&
-    !isDesignerCodeRequestPending(history)
+    !isDesignerCodeRequestPending(history) &&
+    !isPostHumanHandoff(null, history)
   ) {
     lines.push(
       isShippingThreadFromHistory(history)

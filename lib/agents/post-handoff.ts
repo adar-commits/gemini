@@ -101,6 +101,7 @@ function isBotHandoffCommitmentContent(content: string) {
   return (
     HANDOFF_CONFIRMED_RE.test(body) ||
     hasDeclarativeHandoffTransferInText(body) ||
+    SERVICE_OOO_QUEUE_HANDOFF_RE.test(body) ||
     isBotHandoffAssistantMessage(content)
   )
 }
