@@ -18,6 +18,7 @@ import {
   isOrderDeliveryStatusQuestion,
   isAlternatePhoneRequestPending,
   isOrderLookupPhoneReplyPending,
+  isBareOrderNumberDisclosureSettledThread,
   isOrderNumberRequestPending,
   isAwaitingReplyAfterOrderLookupAsk,
   wasOrderNumberRequestedInThread,
@@ -3195,6 +3196,15 @@ export function buildConversationHints(input: {
 
   if (isCreditCodeOnlineRedemptionRequest(body, history)) {
     lines.push("Online credit-code redemption → explain policy briefly, action human_service.")
+  }
+
+  if (
+    isBareOrderNumberDisclosureSettledThread(history) &&
+    !customerExplicitlyRequestsHuman(body)
+  ) {
+    lines.push(
+      "BARE ORDER NUMBER FAQ SETTLED (534307019): you already gave their SO/# after they asked what the order number is — resolved unless they ask something new. Duplicate Master / quiet-window pass → **`action: end`**, no second message. **Never** **`human_service`** or «העברתי לנציג» without a new customer request this turn."
+    )
   }
 
   if (isCarpetRentalQuestion(body)) {

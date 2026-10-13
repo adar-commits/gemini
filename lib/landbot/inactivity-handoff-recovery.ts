@@ -16,9 +16,11 @@ import {
   isConfirmationPending,
 } from "@/lib/agents/sales-intake"
 import {
+  isBareOrderNumberDisclosureSettledThread,
   isOrderLookupPhoneReplyPending,
   isOrderNumberRequestPending,
 } from "@/lib/agents/order-lookup"
+import { customerExplicitlyRequestsHuman } from "@/lib/agents/kb-self-service-faq"
 import { isServiceHandoffSummaryPending } from "@/lib/agents/service-intake"
 import type { AgentId, HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -68,6 +70,19 @@ export async function executeInactivityHandoffRecovery(input: {
     }
   }
 
+  const lastCustomer = [...input.history].reverse().find((message) => message.role === "user")
+  if (
+    isBareOrderNumberDisclosureSettledThread(input.history) &&
+    !customerExplicitlyRequestsHuman(String(lastCustomer?.content ?? ""))
+  ) {
+    await clearInactivityWatchState(input.conversationId)
+    return {
+      ok: true as const,
+      sent: "skipped_settled_order_number_faq" as const,
+      action: "human_service" as const,
+    }
+  }
+
   const action = resolveInactivityHandoffAction(
     input.history,
     input.lastAgent ?? null
@@ -91,7 +106,6 @@ export async function executeInactivityHandoffRecovery(input: {
 
   await clearInactivityWatchState(input.conversationId)
 
-  const lastCustomer = [...input.history].reverse().find((message) => message.role === "user")
   const lastAssistant = [...input.history]
     .reverse()
     .find((message) => message.role === "assistant")

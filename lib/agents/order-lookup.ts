@@ -59,6 +59,7 @@ import {
   isActiveDigitalDocumentFlow,
   isDigitalDocumentRequest,
   isOrderLineItemVerificationRequest,
+  isOutboundDocumentDeliveryMessage,
 } from "@/lib/agents/digital-document-flow"
 import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { isDeliverySupplyInquiry } from "@/lib/hom-agent/delivery-supply-inquiry"
@@ -986,6 +987,27 @@ export function isAwaitingReplyAfterOrderLookupAsk(history: HistoryMessage[]) {
     if (history[index]!.role === "user") return false
   }
   return true
+}
+
+const BARE_ORDER_NUMBER_DISCLOSURE_RE =
+  /מספר\s+ההזמנה\s+שלך\s+(?:הוא\s+)?(?:#|SO)/i
+
+/** Customer asked what their order number is; HoM already answered with SO/# — no lookup/handoff (534307019). */
+export function isBareOrderNumberDisclosureSettledThread(history: HistoryMessage[]) {
+  const lastUserIndex = history.findLastIndex((message) => message.role === "user")
+  if (lastUserIndex < 0) return false
+  for (let index = lastUserIndex + 1; index < history.length; index += 1) {
+    const message = history[index]!
+    if (message.role === "user") return false
+    if (message.role !== "assistant") continue
+    if (isInactivityAssistantMessage(message.content)) continue
+    if (isOutboundDocumentDeliveryMessage(message.content)) continue
+    const body = message.content.replace(CUSTOMER_HEADER, "").trim()
+    if (BARE_ORDER_NUMBER_DISCLOSURE_RE.test(body) && extractOrderNumber(body)) {
+      return true
+    }
+  }
+  return false
 }
 
 /** Any assistant turn in thread asked for order # — not only the latest (533991279). */

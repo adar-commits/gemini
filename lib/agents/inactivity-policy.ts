@@ -7,6 +7,7 @@ import {
 } from "@/lib/agents/inactivity"
 import { isActiveInventoryThread, isSkuRequestPending } from "@/lib/agents/inventory-lookup"
 import {
+  isBareOrderNumberDisclosureSettledThread,
   isOrderConfirmationPending,
   isOrderDisambiguationPending,
   isOrderLookupPhoneReplyPending,
@@ -99,6 +100,7 @@ export function shouldSkipInactivityPingForCompleteReply(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (isBareOrderNumberDisclosureSettledThread(history)) return true
   if (hasPendingCustomerInputThreadState(history, lastAgent)) return false
   const lastText = lastNonInactivityAssistantText(history)
   if (!lastText) return false
