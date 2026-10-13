@@ -68,6 +68,75 @@ export function isInstallmentChargeCallbackFollowUp(
   return isInstallmentChargeCallbackAsk(body)
 }
 
+const PAYPLUS_UNPAID_OUTREACH_RE =
+  /payments\.payplus\.co\.il|הזמנ(?:ת|)ך\s+אינ(?:ה|ו)\s+עול(?:ה|ים)|טרם\s+שולמ(?:ה|ו)|התשלום\s+עוד\s+פתוח/i
+
+const PROACTIVE_PURCHASE_CONFIRMATION_RE =
+  /תודה על רכישתך בשטיח האדום|documents\.carpetshop\.co\.il|tracking\.carpetshop\.co\.il/i
+
+/** Proactive PayPlus / חבר unpaid-payment outreach already in thread (534267975). */
+export function isOpenPayplusHeverUnpaidOutreachThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      PAYPLUS_UNPAID_OUTREACH_RE.test(message.content)
+  )
+}
+
+/** Automated receipt/tracking after unpaid outreach — payment likely completed (534267975). */
+export function hasPurchaseConfirmationAfterPayplusOutreach(
+  history: HistoryMessage[]
+) {
+  let sawOutreach = false
+  for (const message of history) {
+    if (
+      message.role === "assistant" &&
+      PAYPLUS_UNPAID_OUTREACH_RE.test(message.content)
+    ) {
+      sawOutreach = true
+      continue
+    }
+    if (
+      sawOutreach &&
+      message.role === "assistant" &&
+      PROACTIVE_PURCHASE_CONFIRMATION_RE.test(message.content)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function isNoContactOrCheckChaseAsk(body: string) {
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 220) return false
+  if (
+    /(?:לא\s+י(?:צ|צ)?(?:רו|יער)|לא\s+חזר(?:ו|ה|ת))[^\n]{0,28}קשר/i.test(
+      trimmed
+    )
+  ) {
+    return true
+  }
+  if (
+    /(?:אפשר|אשמח).{0,16}לבדוק/i.test(trimmed) &&
+    /(?:הזמנ|קשר|חזר|יצר)/i.test(trimmed)
+  ) {
+    return true
+  }
+  return false
+}
+
+/** After PayPlus outreach + receipt template + prior callback handoff — chase «לא ייצרו קשר» (534267975). */
+export function isPayplusPaidReceiptCallbackChaseFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenPayplusHeverUnpaidOutreachThread(history)) return false
+  if (!hasPurchaseConfirmationAfterPayplusOutreach(history)) return false
+  if (!isPostHumanHandoff(null, history)) return false
+  return isNoContactOrCheckChaseAsk(body)
+}
+
 /** BUYME/voucher + credit charged wrong; customer asked ביטול עסקה / redo (534268241 / 534579658). */
 export function isCheckoutPaymentSplitCancelThread(
   history: HistoryMessage[],

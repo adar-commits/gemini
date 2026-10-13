@@ -123,6 +123,7 @@ import {
   isDuplicateChargeRefundTimelineFollowUp,
   isInstallmentChargeCallbackFollowUp,
   isMembershipClubCheckoutQuestion,
+  isPayplusPaidReceiptCallbackChaseFollowUp,
 } from "@/lib/agents/payment-intent"
 import { salesOutreachTemplateInThread } from "@/lib/agents/sales-outreach"
 import {
@@ -3426,6 +3427,12 @@ export function buildConversationHints(input: {
   if (isInstallmentChargeCallbackFollowUp(history, body)) {
     lines.push(
       "INSTALLMENT CHARGE CALLBACK FOLLOW-UP (534684988): website **2 תשלומים** / split charge issue is already with service after a prior **`human_service`** — customer asks for a callback or says nobody returned (e.g. «האם אפשר לחזור אלי»). Empathize for the wait; recap the open billing case (installments not shown on charge); confirm marked urgent / נציג יחזור to their phone — you may say סימנתי שוב לצוות. **`action: reply`** — **never** «מעולה, העברתי את השיחה לנציג» / first-time handoff boilerplate or duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
+  if (isPayplusPaidReceiptCallbackChaseFollowUp(history, body)) {
+    lines.push(
+      "PAYPLUS PAID RECEIPT CALLBACK CHASE (534267975): thread already had PayPlus/חבר **unpaid** outreach, then an automated **purchase confirmation** (קבלה/מעקב `documents.carpetshop` / `tracking.carpetshop`) — **never** recap «התשלום עדיין לא הושלם» from the old outreach. Customer chases **no callback** / «לא ייצרו קשר» / «אפשר לבדוק». Run **`lookup_order_status`** with order # or SO from the receipt/tracking line **before** status in the reply. Empathize for the wait; bullet recap: order + **live** payment/shipping status from lookup, prior callback promise + phone. Urgent re-escalation → **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/סימנתי — **never** stale unpaid-payment bullets."
     )
   }
 
