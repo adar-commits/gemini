@@ -21,6 +21,42 @@ export function isShippingAddressChangeAsk(
   return /כתובת/.test(text) && /(?:לשנות|לעדכן|להחליף)/.test(text)
 }
 
+const SHIPPING_ADDRESS_CHANGE_VERB_RE =
+  /(?:לשנות|לעדכן|להחליף|שינוי\s+כתובת|אבקש\s+לשנות)/i
+
+function userLineRequestsShippingAddressChange(line: string) {
+  return /כתובת/.test(line) && SHIPPING_ADDRESS_CHANGE_VERB_RE.test(line)
+}
+
+/** Recent user lines asked to change delivery address — thread state, not latest-line intent. */
+export function hasRecentShippingAddressChangeRequest(
+  history: HistoryMessage[] = [],
+  body = "",
+  maxUserMessages = 10
+) {
+  const userLines = [
+    ...history
+      .filter((message) => message.role === "user")
+      .slice(-maxUserMessages)
+      .map((message) => message.content),
+    body,
+  ]
+  return userLines.some((line) => userLineRequestsShippingAddressChange(line))
+}
+
+/** Address change still open and they also asked when the order arrives (503283358). */
+export function isShippingAddressChangeWithDeliveryEtaThread(
+  history: HistoryMessage[] = [],
+  body = ""
+) {
+  if (!hasRecentShippingAddressChangeRequest(history, body)) return false
+  const userCorpus = [
+    ...history.filter((m) => m.role === "user").map((m) => m.content),
+    body,
+  ].join("\n")
+  return /(?:מתי|מועד|צפי|עתיד\s+להגיע|כדי\s+שא(?:וכ|ו)ל\s+להיות\s+בקבלה)/i.test(userCorpus)
+}
+
 /** Exchange because the rug does not match / they want a different model — not alt-size availability. */
 function isDifferentModelExchangeDissatisfaction(text: string) {
   return /(?:לא\s+(?:דומה|כמו)|לא\s+מה\s+ש(?:רציתי|הזמנתי)|לא\s+א(?:וה|ה)ב|דגם\s+אחר|שטיח\s+אחר|ל(?:ה)?חליף\s+לדגם)/i.test(

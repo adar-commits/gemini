@@ -224,7 +224,9 @@ import {
   isPostPurchaseAltSizeNewRugShipmentAsk,
   isPostPurchaseDifferentModelOrPackagingExchange,
   isPrePurchasePreOrderSalesInquiry,
+  hasRecentShippingAddressChangeRequest,
   isShippingAddressChangeAsk,
+  isShippingAddressChangeWithDeliveryEtaThread,
 } from "@/lib/agents/post-purchase-alt-size"
 import {
   extractSalesIntake,
@@ -1675,6 +1677,17 @@ export function buildConversationHints(input: {
   if (isShippingAddressUpdateThread(history)) {
     lines.push(
       "SHIPPING ADDRESS UPDATE (532692073): they want to change the delivery address — not shipment status. Answer from shipping-policy KB: an update is not always possible; it depends on whether the order was already handed to the courier. After handover there is a cost — WhatsApp 077-9725055 or *3076. Do NOT call lookup_order_status, do NOT send בדקתי / סטטוס משלוח, do NOT ask for the new address or an order number. action reply — never אעביר with action reply."
+    )
+  }
+
+  if (
+    hasRecentShippingAddressChangeRequest(history, body) &&
+    !isBackInStockNotificationRequest(body)
+  ) {
+    lines.push(
+      isShippingAddressChangeWithDeliveryEtaThread(history, body)
+        ? 'OPEN SHIPPING ADDRESS + ETA (503283358 / 534127311): latest need is **delivery-address update** (and when the order arrives) — **שירות**, not מכירות. **Never** `human_sales` / יועץ מכירות and **never** replay an old **חוזר למלאi** / back-in-stock alert (e.g. LENNY) from weeks ago. Empathize if they waited with no answer. Call `lookup_order_status` for the SO/order in the thread for ETA when they asked timing; you cannot apply the address change here → `action: human_service` + `crm_department: service` with recap: new address from thread + order ref + ETA if known.'
+        : 'OPEN SHIPPING ADDRESS (503283358): latest need is **delivery-address update** on an existing order — **שירות**, not מכירות. **Never** `human_sales` / יועץ מכירות and **never** replay old **חוזר למלאi** / restock stock-alert handoffs from earlier in the thread. Empathize if they complained about no response. Answer address policy from KB when helpful; when they need a human to apply the change or already gave the new address → `action: human_service` + `crm_department: service` with brief transfer + address + order ref from thread.'
     )
   }
 
@@ -3249,7 +3262,10 @@ export function buildConversationHints(input: {
     lines.push(
       'ORDER LOOKUP ASK ALREADY SENT (533184059): FAQ or your prior message already asked for מספר הזמנה / lookup phone on a **shipping delay or not-yet-delivered order** thread — the customer has **not** replied yet. **`action: end`** — do not send human_sales, off-hours יועץ מכירות text, or any second bot message. This is **שירות** (`crm_department: service`), not sales — after they give the id, call lookup_order_status; handoff only as human_service if they explicitly need a rep.'
     )
-  } else if (isBackInStockOfferThread(history)) {
+  } else if (
+    isBackInStockOfferThread(history) &&
+    !hasRecentShippingAddressChangeRequest(history, body)
+  ) {
     lines.push(
       'BACK-IN-STOCK SIMILAR-ITEM FLOW (operator policy 2026-10-09): this chat opened with a restock request and you offered something similar. Bind their reply to your last question. (a) They want a similar item → verify size and shape in one question, naming the requested product + size as the reference («רק לוודא — שטיח בל קרם 160*230 הוא הרפרנס הנכון למידה ולצורה?») — **534144934:** only that opening reference; never «או דומה ל-[model they never said]», action reply. (b) They confirm the reference, or give the size/shape they want → a sales advisor will send similar options and is on the way («מעביר אותך ליועץ מכירות שיציע לך…»), action human_sales, `"crm_department": "sales"`. **Recap bullets (534115284):** list **only** models/products the customer explicitly named in this thread — restock alert = the opening product + size; similar search = that reference only — **never** add other SKUs/models they did not say (e.g. do not invent JOY when they only said BUNNY). (c) Not interested / just thanks → short warm close that we have their request, action end. A sales lead that wants options always reaches a rep.'
     )
@@ -3705,7 +3721,7 @@ export function buildConversationHints(input: {
 
   if (isShippingAddressChangeAsk(body, history) && !isShippingAddressUpdateThread(history)) {
     lines.push(
-      "ADDRESS CHANGE NOT STOCK (529942717): לשנות/להחליף כתובת is a delivery-address change. Never alternate size, never מק״ט, never 'אותו דגם במידה אחרת', never lookup_inventory. Address policy from KB. If they also ask when it arrives, that part is shipment timing — do not turn להחליף into a size exchange. כן to a phone-confirm question confirms the phone."
+      "ADDRESS CHANGE NOT STOCK (529942717): לשנות/להחליף כתובת is a delivery-address change. Never alternate size, never מק״ט, never 'אותו דגם במידה אחרת', never lookup_inventory, never `human_sales` / יועץ מכירות or old back-in-stock recaps. Address policy from KB. If they also ask when it arrives, that part is shipment timing — do not turn להחליף into a size exchange. כן to a phone-confirm question confirms the phone."
     )
   }
 
