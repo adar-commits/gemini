@@ -265,6 +265,7 @@ import {
   isPartialDeliveryServiceHandoffAwaitingCallback,
   isPostHumanHandoff,
   isRefundCreditPostHandoffStatusFollowUp,
+  isSalesProductInquiryHandoffCompleteInHistory,
   isReplacementDeliveryCallbackWaitFollowUp,
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffAnswerWaitFollowUp,
@@ -1412,6 +1413,17 @@ export function buildConversationHints(input: {
     )
   }
 
+  if (
+    isSalesProductInquiryHandoffCompleteInHistory(history) &&
+    !isSalesExchangeHandoffAwaitingCallback(history) &&
+    (isCasualSmallTalk(body) || isCasualGreeting(body)) &&
+    !hasImmediateBusinessAsk(body)
+  ) {
+    lines.push(
+      "SALES INTAKE CALLBACK RESUME (349121914): product-inquiry intake already recapped for יועץ מכירות and human_sales logged (including after-hours «קיבלנו את הפנייה»). Bare הי / שלום / ping — brief welcome, confirm the advisor already has the product + sizes from the thread; ask if they want to add anything new. **action: reply** — NEVER rebuild a sales recap from the greeting, NEVER embed their greeting in מידות/סיכום, NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly ask to transfer again **this turn**."
+    )
+  }
+
   if (input.humanThreadAssist === "stale") {
     lines.push(
       "STALE HUMAN THREAD (412809595): a rep last wrote more than 2 staff days ago and the customer wrote again. Decide from the full thread — do not restart a hard case. NEW question (status, stock, product, invoice, a different order) → answer with tools as a new inquiry. OPEN HARD CASE still waiting on the team (cancel/refund, defect, missing items, pickup/repair) and the customer is chasing it (534379659) → do not start intake over and do not repeat links or policy you already sent; one short ack + a compact rep note of what they want now, `action: human_service` (keeps the same rep and flags it). Never answer a chase with `action: reply` twice in a row. A bare greeting or ping (שלום / ?? / אשמח להתייחסות) is not a chase by itself — ask what it is about or answer the open question; never hand off on a greeting alone. Never claim a rep already has the case on `action: reply`."
@@ -2030,6 +2042,14 @@ export function buildConversationHints(input: {
     ) {
       lines.push(
         "BACK IN STOCK SALES WAIT PING (534144934): human_sales already logged for restock alert / similar rug / photo model ID in this thread — ? / ?? / מה עם הפנייה means waiting for יועץ מכירות callback, not a first-time transfer. Brief empathy + confirm sales already has the case (alert product + size, similar options, any photo from thread). **action: reply** — NEVER duplicate «מעולה, העברתי את השיחה ליועץ מכירות» or **human_sales** unless they explicitly complain nobody contacted them (אין מענה / לא חוזרים) **this turn**. You may say סימנתי שוב לצוות without first-time handoff boilerplate."
+      )
+    } else if (
+      (isCasualSmallTalk(body) || isCasualGreeting(body)) &&
+      isSalesProductInquiryHandoffCompleteInHistory(history) &&
+      !isSalesExchangeHandoffAwaitingCallback(history)
+    ) {
+      lines.push(
+        "SALES INTAKE WAIT PING (349121914): human_sales already logged for a product-inquiry recap (מוצר / מידות / יועץ מכירות) — a bare greeting means checking in while waiting, not a new intake. Brief welcome + confirm יועץ מכירות has the case from the thread. **action: reply** — NEVER duplicate human_sales or weave the greeting into a new sales summary."
       )
     } else if (
       isShippingThreadFromHistory(history) &&

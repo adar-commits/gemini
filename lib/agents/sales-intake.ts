@@ -38,6 +38,7 @@ import {
   lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
 import { isPriorityApiWaitMessage } from "@/lib/agents/priority-webhook"
+import { isSalesProductInquiryHandoffCompleteInHistory } from "@/lib/agents/post-handoff"
 import { summarizeTurn, type UserTurn } from "@/lib/agents/user-turn"
 
 export type SalesIntake = {
@@ -470,6 +471,7 @@ export function blocksOrderLookupForSalesConsultation(
 
 export function hasOngoingSalesIntake(history: HistoryMessage[]) {
   if (isPostPurchaseIntentConfirmPending(history)) return false
+  if (isSalesProductInquiryHandoffCompleteInHistory(history)) return false
   if (isSalesPhotoRequestPending(history)) return true
   if (isAwaitingSalesIntakeAnswer(history)) return true
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -527,6 +529,7 @@ function allowsLlmModeStructuredIntake(history: HistoryMessage[]) {
 }
 
 export function isAwaitingSalesIntakeAnswer(history: HistoryMessage[]) {
+  if (isSalesProductInquiryHandoffCompleteInHistory(history)) return false
   return pendingSalesIntakeQuestionKind(history) != null
 }
 

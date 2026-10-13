@@ -322,3 +322,17 @@ export function buildPostHandoffFooter(kind: "human_sales" | "human_service") {
     ? "היועץ כבר קיבל את הפנייה ויצור קשר — בינתיים שמח לעזור."
     : "הנציג כבר קיבל את הפנייה ויצור קשר — בינתיים שמח לעזור."
 }
+
+/** Product-inquiry sales intake recap already sent to יועץ מכירות (349121914). */
+export function isSalesProductInquiryHandoffCompleteInHistory(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      /בשביל\s+יועץ\s+המכירות/i.test(message.content) &&
+      /(?:•\s*מוצר:|מידות\s+החלל)/i.test(message.content) &&
+      /(?:העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)|קיבלנו\s+את\s+הפנייה|יועצ(?:י|)\s+מכירות|אין\s+יועצי\s+מכירות)/i.test(
+        message.content
+      ) &&
+      !/(?:סוג\s+החלפה|דגם\s+אחר\s+לגמרי)/i.test(message.content)
+  )
+}
