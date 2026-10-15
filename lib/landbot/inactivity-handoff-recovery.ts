@@ -10,6 +10,7 @@ import {
   inferHumanHandoffAction,
   isHandoffOfferAbandonedInThread,
 } from "@/lib/agents/off-topic"
+import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   isActiveSalesConsultation,
@@ -71,6 +72,14 @@ export async function executeInactivityHandoffRecovery(input: {
   }
 
   const lastCustomer = [...input.history].reverse().find((message) => message.role === "user")
+  if (lastCustomer && isThanksAcknowledgment(String(lastCustomer.content))) {
+    await clearInactivityWatchState(input.conversationId)
+    return {
+      ok: true as const,
+      sent: "skipped_thanks_close" as const,
+      action: "human_service" as const,
+    }
+  }
   if (
     isBareOrderNumberDisclosureSettledThread(input.history) &&
     !customerExplicitlyRequestsHuman(String(lastCustomer?.content ?? ""))

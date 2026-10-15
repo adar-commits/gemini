@@ -7,6 +7,7 @@ import {
   buildThanksAckReply,
   endsWithOptionalFollowUpOffer,
   isResolvedStatusCloseReply,
+  isResolvedFollowUpThanks,
   isThanksAcknowledgment,
 } from "@/lib/agents/conversation-close"
 import { customerTurnIncludedImage } from "@/lib/hom-agent/truncated-output"
@@ -450,7 +451,8 @@ export function runPreTurnGuards(input: {
     !isOrderConfirmationPending(input.history) &&
     !isHumanHandoffPending(input.history) &&
     !isDesignerCodeRequestPending(input.history) &&
-    !isAwaitingSalesIntakeAnswer(input.history) &&
+    (!isAwaitingSalesIntakeAnswer(input.history) ||
+      isResolvedFollowUpThanks(body)) &&
     !isServiceHandoffSummaryPending(input.history) &&
     !isOrderLookupPhoneReplyPending(input.history) &&
     !isPostHumanHandoff(null, threadHistory)

@@ -12,7 +12,10 @@ import {
   lastNonInactivityAssistantText,
   shouldSuppressInactivityWatch,
 } from "@/lib/agents/inactivity"
-import { endsWithOptionalFollowUpOffer } from "@/lib/agents/conversation-close"
+import {
+  endsWithOptionalFollowUpOffer,
+  isThanksAcknowledgment,
+} from "@/lib/agents/conversation-close"
 import {
   clearInactivityWatchState,
   getSessionInactivityState,
@@ -506,6 +509,13 @@ async function attemptSilentHandoffAssign(row: IdleSessionRow) {
 
   if (shouldSuppressInactivityWatch(history)) return "skipped" as const
   if (isOrderConfirmationPending(history)) return "skipped" as const
+  const lastUserText = [...history]
+    .reverse()
+    .find((message) => message.role === "user")?.content
+  if (lastUserText && isThanksAcknowledgment(lastUserText)) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
   if (!shouldSilentAutoAssignOnQuietWindow(context.history, context.lastAgent)) {
     return "skipped" as const
   }
@@ -545,6 +555,14 @@ async function attemptInactivityPing(row: IdleSessionRow) {
   }
 
   if (shouldSkipInactivityPingForCompleteReply(context.history, context.lastAgent)) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
+
+  const lastUserTextPing = [...history]
+    .reverse()
+    .find((message) => message.role === "user")?.content
+  if (lastUserTextPing && isThanksAcknowledgment(lastUserTextPing)) {
     await clearInactivityWatchState(row.conversation_id)
     return "skipped" as const
   }

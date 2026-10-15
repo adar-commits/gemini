@@ -108,9 +108,23 @@ export function isConversationClosing(body: string) {
     ) ||
     /^(?:סבבה|אוקיי|יופי|מעולה|בסדר)(?:\s*,?\s*תודה(?:\s+רבה)?)?(?:[\s,.!?🙏👍]*|$)/iu.test(
       text
-    )
+    ) ||
+    isResolvedFollowUpThanks(text)
 
   return directClosing || resolvedClosing
+}
+
+/** Thanks after the customer already got an answer (e.g. from a rep) — not a sales-quiz reply. */
+export function isResolvedFollowUpThanks(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  if (!text.startsWith("תודה")) return false
+  const onIndex = text.indexOf("על")
+  if (onIndex === -1 || onIndex > 24) return false
+  for (const word of ["גם", "רציתי", "עוד", "שאל", "אבל", "רק"] as const) {
+    if (text.includes(word)) return false
+  }
+  return true
 }
 
 /** Thanks / wrap-up wording — conversation stays open (never action=end). */
