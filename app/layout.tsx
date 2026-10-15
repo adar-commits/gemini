@@ -17,18 +17,6 @@ export const metadata: Metadata = {
   description: "Product catalog dashboard",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
-  );
+export default function RootLayout() {
+  redirect("https://www.google.com");
 }
