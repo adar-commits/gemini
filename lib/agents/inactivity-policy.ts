@@ -177,6 +177,7 @@ export function shouldSilentAutoAssignOnQuietWindow(
 ) {
   if (isHandoffOfferAbandonedInThread(history)) return false
   if (hasOpenSalesIntakeQuestion(history, lastAgent)) return false
+  if (isSkuRequestPending(history)) return false
   if (isOrderLookupAwaitingCustomerInput(history)) return false
   if (shouldSkipInactivityPingForSalesHandoff(history, lastAgent)) return true
   if (isHumanHandoffPending(history)) {
