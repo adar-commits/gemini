@@ -10,6 +10,7 @@ import {
   isOrderConfirmationPending,
 } from "@/lib/agents/order-lookup"
 import { isValidInventorySku } from "@/lib/agents/phone-for-api"
+import { isShippingStatusQuestion } from "@/lib/agents/shipping"
 import { CUSTOMER_HEADER, type HistoryMessage } from "@/lib/agents/types"
 
 export type ExchangeKind = "same_model_color" | "same_model_size" | "different_model"
@@ -35,6 +36,9 @@ export const EXCHANGE_KIND_QUESTION_MARKER = "איזה סוג החלפה מתא�
 export const EXCHANGE_SKU_QUESTION_MARKER = "מה המק״ט של הפריט"
 export const EXCHANGE_REASON_QUESTION_MARKER = "מה לא אהבתם במוצר"
 export const EXCHANGE_SWITCH_CREATED_MARKER = "נפתחה בקשת החלפה"
+
+const EXCHANGE_POLICY_DELIVERY_METHOD_Q =
+  /תרצ(?:ו|י|ה)?\s+להחליף\s+בסניף\s+או\s+ע(?:ם|ש)\s+שליח/i
 
 const KIND_QUESTION_RE = /איזה\s+סוג\s+החלפה\s+מתאים/i
 const SKU_QUESTION_RE = /מה\s+המק(?:״|"|')?ט\s+של\s+הפריט/i
@@ -257,7 +261,57 @@ export function isExplicitExchangeExecutionTurn(
     return true
   }
 
+  if (isExchangePolicyDeliveryMethodPending(history)) {
+    return /(?:שליח|סניף)/i.test(text) && /(?:החלפ|להחליף|צבע|גוון|מידה)/i.test(text)
+  }
+
   return false
+}
+
+/** After exchange policy FAQ — bot asked branch vs courier. */
+export function isExchangePolicyDeliveryMethodPending(history: HistoryMessage[]) {
+  return lastAssistantMatches(history, EXCHANGE_POLICY_DELIVERY_METHOD_Q)
+}
+
+/** Order lookup found the order — continue exchange, not a shipping-status card. */
+export function isExchangeOrderLookupContinuation(
+  history: HistoryMessage[],
+  body: string
+) {
+  const text = body.trim()
+  if (!text) return false
+  if (isShippingStatusQuestion(text)) return false
+  if (isExchangeIntakeActive(history)) return true
+  if (isExplicitExchangeExecutionTurn(text, history)) return true
+  return false
+}
+
+export function buildExchangeAfterOrderIdentifiedReply(
+  order: { orderNumber: string },
+  body: string
+) {
+  const raw = String(order.orderNumber ?? "").trim()
+  const orderLabel = raw ? (raw.startsWith("#") ? raw : `#${raw.replace(/^#/, "")}`) : ""
+  const lines = [
+    CUSTOMER_HEADER.trim(),
+    orderLabel ? `מצאתי את ההזמנה (${orderLabel}).` : "מצאתי את ההזמנה.",
+    `מעולה! ${EXCHANGE_INTAKE_STARTED_MARKER} 😊`,
+  ]
+  if (/שליח/i.test(body)) {
+    lines.push("רשמתם העדפה להחלפה עם שליח.")
+  } else if (/סניף/i.test(body)) {
+    lines.push("רשמתם העדפה להחלפה בסניף.")
+  }
+  if (/(?:צבע|גוון)/i.test(body) && /(?:להחליף|החלפ|לצבע)/i.test(body)) {
+    const kindBody = buildExchangeKindQuestion().slice(CUSTOMER_HEADER.length).trimStart()
+    lines.push("", kindBody)
+  } else {
+    lines.push(
+      "",
+      "איזה סוג החלפה מתאים — אותו דגם בצבע אחר, מידה אחרת, או דגם אחר?"
+    )
+  }
+  return lines.join("\n")
 }
 
 function extractSkuFromText(text: string) {

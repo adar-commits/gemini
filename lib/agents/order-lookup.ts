@@ -72,6 +72,10 @@ import {
 } from "@/lib/agents/policy-subjects"
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import {
+  buildExchangeAfterOrderIdentifiedReply,
+  isExchangeOrderLookupContinuation,
+} from "@/lib/agents/exchange-intake"
+import {
   isAwaitingSalesIntakeAnswer,
   isLikelyBudgetIntakeAnswer,
   isSalesIntakeAnswer,
@@ -3565,6 +3569,10 @@ async function replyAfterOrderIdentified(
   if (activeOrderLineItemVerificationRequest(history)) {
     return deliverOrderVerificationDocumentReply(lookupPhone)
   }
+  if (isExchangeOrderLookupContinuation(history, body)) {
+    return buildExchangeAfterOrderIdentifiedReply(order, body)
+  }
+
   if (isServiceOrderIdentificationFlow(history, body)) {
     if (isServiceHandoffSummaryConfirmedInThread(history)) {
       return buildHumanHandoffConfirmedReply("human_service")

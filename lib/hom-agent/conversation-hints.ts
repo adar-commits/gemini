@@ -144,6 +144,7 @@ import {
   isExchangeKindPending,
   isExchangeOrderRequired,
   isExchangeOriginalPackagingPolicyPending,
+  isExchangePolicyDeliveryMethodPending,
   isExchangePolicyFaqPackagingPending,
   isExchangeReasonPending,
   isExchangeReadyForSwitchRequest,
@@ -3286,6 +3287,12 @@ export function buildConversationHints(input: {
           : "SO26005938-style"
     lines.push(
       `Customer uses ${styleHint} order IDs — when Priority REFERENCE is set use REFERENCE (#76736), not SO ORDNAME; otherwise keep this format every reply.`
+    )
+  }
+
+  if (isExchangePolicyDeliveryMethodPending(history)) {
+    lines.push(
+      "EXCHANGE POLICY → DELIVERY METHOD (534464386): customer answered סניף/שליח after exchange policy FAQ — this is exchange execution. lookup_order_status may locate the order but the reply must continue with נמשיך עם החלפה / kind quiz — never open with shipping celebration (איזה כיף / הועמס לשליח) unless they asked מתי יגיע."
     )
   }
 
