@@ -32,6 +32,7 @@ import { scheduleInactivityCloseWatch } from "@/lib/landbot/inactivity-watcher"
 import {
   hasOpenFaqFollowUpQuestion,
   hasOpenSalesIntakeQuestion,
+  isAwaitingReplyAfterOrderStatusLookupOffer,
   shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
   shouldSkipInactivityPingForCompleteReply,
@@ -555,6 +556,11 @@ async function attemptInactivityPing(row: IdleSessionRow) {
   }
 
   if (shouldSkipInactivityPingForCompleteReply(context.history, context.lastAgent)) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
+
+  if (isAwaitingReplyAfterOrderStatusLookupOffer(context.history)) {
     await clearInactivityWatchState(row.conversation_id)
     return "skipped" as const
   }

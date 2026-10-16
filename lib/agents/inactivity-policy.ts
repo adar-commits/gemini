@@ -166,6 +166,34 @@ export function hasOpenFaqFollowUpQuestion(
   return false
 }
 
+export function isOrderStatusLookupOfferText(content: string) {
+  const body = content.replace(CUSTOMER_HEADER, "").trim()
+  if (!body || !/[?؟]/.test(body)) return false
+  return (
+    /רוצ(?:ה|ים|ות)\s+ש(?:א|נ)?בדוק/i.test(body) &&
+    /סטטוס/i.test(body)
+  )
+}
+
+/** FAQ offered order status lookup; customer has not sent a new line since (533759845). */
+export function isAwaitingReplyAfterOrderStatusLookupOffer(history: HistoryMessage[]) {
+  let lastRealAssistantIndex = -1
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message.role !== "assistant" || isInactivityAssistantMessage(message.content)) {
+      continue
+    }
+    lastRealAssistantIndex = index
+    break
+  }
+  if (lastRealAssistantIndex < 0) return false
+  if (!isOrderStatusLookupOfferText(history[lastRealAssistantIndex]!.content)) return false
+  for (let index = lastRealAssistantIndex + 1; index < history.length; index += 1) {
+    if (history[index]!.role === "user") return false
+  }
+  return true
+}
+
 /**
  * Pending human queue — never "עדיין כאן?". After the quiet window, silently assign
  * (sales intake, committed declarative transfer, or service summary awaiting confirm).
@@ -175,6 +203,7 @@ export function shouldSilentAutoAssignOnQuietWindow(
   history: HistoryMessage[],
   lastAgent: AgentId | null = null
 ) {
+  if (isAwaitingReplyAfterOrderStatusLookupOffer(history)) return false
   if (isHandoffOfferAbandonedInThread(history)) return false
   if (hasOpenSalesIntakeQuestion(history, lastAgent)) return false
   if (isSkuRequestPending(history)) return false

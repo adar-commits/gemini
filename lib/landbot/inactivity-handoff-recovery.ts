@@ -11,6 +11,7 @@ import {
   isHandoffOfferAbandonedInThread,
 } from "@/lib/agents/off-topic"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
+import { isAwaitingReplyAfterOrderStatusLookupOffer } from "@/lib/agents/inactivity-policy"
 import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   isActiveSalesConsultation,
@@ -88,6 +89,14 @@ export async function executeInactivityHandoffRecovery(input: {
     return {
       ok: true as const,
       sent: "skipped_settled_order_number_faq" as const,
+      action: "human_service" as const,
+    }
+  }
+  if (isAwaitingReplyAfterOrderStatusLookupOffer(input.history)) {
+    await clearInactivityWatchState(input.conversationId)
+    return {
+      ok: true as const,
+      sent: "skipped_status_lookup_offer" as const,
       action: "human_service" as const,
     }
   }

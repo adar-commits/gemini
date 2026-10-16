@@ -173,6 +173,7 @@ import {
   isThanksAcknowledgment,
   isNonSubstantiveFollowUp,
 } from "@/lib/agents/conversation-close"
+import { isAwaitingReplyAfterOrderStatusLookupOffer } from "@/lib/agents/inactivity-policy"
 import {
   extractRecentSku,
   extractSku,
@@ -3916,6 +3917,15 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'DELIVERY POSTPONE AFTER FAQ (533585020): FAQ or your prior message already answered postponement policy (*3076 / carrier calls on delivery day) and offered order lookup — the customer has **not** replied yet. **`action: end`** — do not send human_sales, off-hours יועץ מכירות text, or any second bot message. `"crm_department": "service"` — shipping postpone is **not** sales even when an old sales product was mentioned in the greeting.'
+    )
+  }
+
+  if (
+    isAwaitingReplyAfterOrderStatusLookupOffer(history) &&
+    !customerExplicitlyRequestsHuman(body)
+  ) {
+    lines.push(
+      'STATUS LOOKUP OFFER AFTER FAQ (533759845): you already answered branch/store info and offered to check order shipping status (רוצה שאבדוק… סטטוס) — the customer has **not** replied yet. **`action: end`** — do not send human_sales, off-hours יועץ מכירות text, or any second bot message. `"crm_department": "service"` — delayed delivery is lookup/shipping, not sales intake; an old sales product in the thread does not change that.'
     )
   }
 
