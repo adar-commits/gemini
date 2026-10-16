@@ -79,6 +79,15 @@ export function hasDeclarativeHandoffTransfer(text: string) {
   return hasDeclarativeHandoffTransferInText(text)
 }
 
+export function coerceTransferWordingAction<T extends { action: string; reply?: string }>(
+  output: T,
+  history: HistoryMessage[]
+): T {
+  if (output.action !== "reply" || !output.reply?.trim()) return output
+  if (!hasDeclarativeHandoffTransfer(output.reply)) return output
+  return { ...output, action: inferHumanHandoffAction(history, null) }
+}
+
 export function sanitizeRedundantHandoffConfirm(reply: string) {
   if (!hasDeclarativeHandoffTransfer(reply)) return reply
 

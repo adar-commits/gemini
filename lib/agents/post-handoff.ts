@@ -11,8 +11,14 @@ const HANDOFF_CONFIRMED_RE =
 const DECLARATIVE_HANDOFF_TRANSFER_RE =
   /(?:אני|אנחנו|בינתיים אני)\s+מעביר(?:ים|ה|א)?(?:\s+א(?:ות(?:ך|כם|ה)|ת(?:כם|)?))?/iu
 
+const PAST_DECLARATIVE_HANDOFF_RE =
+  /העבר(?:תי|נו)\s+א(?:ת|ת(?:כם|))?\s*(?:ה)?(?:שיחה|פנייה)/i
+
 export function hasDeclarativeHandoffTransferInText(text: string) {
-  return DECLARATIVE_HANDOFF_TRANSFER_RE.test(text.trim())
+  const trimmed = text.trim()
+  if (DECLARATIVE_HANDOFF_TRANSFER_RE.test(trimmed)) return true
+  if (PAST_DECLARATIVE_HANDOFF_RE.test(trimmed)) return true
+  return false
 }
 
 const SALES_HANDOFF_COMMITTED_RE =

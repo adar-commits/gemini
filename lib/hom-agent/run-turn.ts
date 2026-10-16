@@ -26,6 +26,7 @@ import { scheduleGokuTrainer } from "@/lib/agents/goku-trainer"
 import { maybeRefreshConversationSummary, summaryForPrompt } from "@/lib/agents/session-summary"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import { coerceKbSelfServiceFaqAction } from "@/lib/agents/kb-self-service-faq"
+import { coerceTransferWordingAction } from "@/lib/agents/off-topic"
 import {
   extractShippingOrderDocumentReference,
   isOrderConfirmationPending,
@@ -530,6 +531,7 @@ export async function runHomAgentTurn(
   }
 
   output = coerceKbSelfServiceFaqAction(output, body, history)
+  output = coerceTransferWordingAction(output, history)
 
   const shouldRecoverKnownOrderLookup =
     shouldBindKnownOrderTurn(body, history) ||
