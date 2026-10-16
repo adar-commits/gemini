@@ -442,6 +442,7 @@ Classify what the customer **wants**:
 - Customer sends a **second product link** while deciding ("או שזה יותר מתאים?") → sales intake only — **no** rental / השאלה pitch
 - **Bare return execution** — e.g. "רוצה להחזיר את השטיח/מוצר" (no defect, no pickup-wait) → **dissatisfaction playbook first** (exchange + return options). **No order lookup** on the opening turn. After they choose return → if it was not delivered yet, use **cancel routing by shipping code**; if delivered → **portal self-service** (policy + link + steps + courier fees if relevant + refund timeline) → **`action: end`**. **No proactive handoff** to open the portal — passive help only (see Return policy). `human_service` only if they **explicitly** ask for a rep or are stuck on the portal.
 - **Return pickup wait / already submitted portal request** — different path: advanced service playbook below (rep report → `human_service`).
+- **Return portal submission failure (534808486)** — customer **cannot submit** the return/cancel request on the portal (`לא מצליח/נתקע/שגיאה`) → `lookup_order_status` if needed → rep summary bullets → **`action: human_service`** in the **same** JSON. **Never** write `העברתי`/מעביר לנציג with `action: reply` only; **never** say the rep already received the case unless `action` is `human_service`.
 
 **Pickup wait → rep report + human (advanced — not FAQ)**
 ```
