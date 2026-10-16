@@ -141,6 +141,7 @@ import {
   isExchangeCourierPathCommitted,
   isExchangeCourierUndecidedTargetTurn,
   isExchangeIntakeActive,
+  isExchangeIntakeStartedInThread,
   isExchangeKindPending,
   isExchangeOrderRequired,
   isExchangeOriginalPackagingPolicyPending,
@@ -3364,7 +3365,7 @@ export function buildConversationHints(input: {
     )
   } else if (isExchangeIntakeActive(history)) {
     lines.push(
-      "Exchange intake active: stay on החלפה execution — no returns portal, no sales-intake quiz, no service defect playbook."
+      "Exchange intake active (327888951): stay on החלפה execution — no returns portal, no sales-intake quiz, no service defect playbook, **never** the combined return+exchange policy FAQ block. If they clarify packaging (opened, missing original wrap, rolled back, unused) — one short contextual reply (original-packaging rule + keep rolled/clean/dry + continue A/B/C or branch/courier path already chosen); human_sales when you cannot approve an exception from here."
     )
   } else if (isDissatisfactionRescuePending(history)) {
     lines.push(
@@ -3412,7 +3413,11 @@ export function buildConversationHints(input: {
       "PRE-DELIVERY CANCEL SHIPMENT CONFIRM (533868148 / 533685634 / 464488405): bot asked whether the order shipped — customer confirmed not yet → never returns portal (533685634); route by shipping code: empty/not received → action human_service + crm_department service; code 1 etc → packed/with courier fees explanation → action end; 6 → policy + portal → action end. Do NOT reply with only an after-hours / no-reps template."
 
     )
-  } else if (isReturnExchangePolicyFaqQuestion(body) && !postPurchaseKind) {
+  } else if (
+    isReturnExchangePolicyFaqQuestion(body) &&
+    !postPurchaseKind &&
+    !isExchangeIntakeStartedInThread(history)
+  ) {
     lines.push(
       "CANCELLATION/RETURN POLICY FAQ: include BOTH execution paths — (1) return at network branch (free), (2) home pickup via courier (paid by rug size from KB). Portal is mandatory to open the request (even for branch returns); link with phone prefill when known. Also: 14 days, ללא שימוש באריזתו המקורית, refund up to 7 business days from cancellation. Never portal-only; never 'אפשר לפתוח בקשה'. Exchanges → branch/courier fees — never portal."
     )

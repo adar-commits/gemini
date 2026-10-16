@@ -684,6 +684,9 @@ export function runStructuredKbSelfServiceFaqPreTurn(input: {
   phone?: string
 }): PreTurnResult {
   const body = summarizeTurn(input.turn)
+  if (isExchangeIntakeActive(input.history) || isExchangeIntakeStartedInThread(input.history)) {
+    return { kind: "skip", response: null }
+  }
   if (!isKbSelfServiceFaqThisTurn(body, input.history)) {
     return { kind: "skip", response: null }
   }

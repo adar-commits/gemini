@@ -1,4 +1,8 @@
-import { isExplicitExchangeExecutionTurn } from "@/lib/agents/exchange-intake"
+import {
+  isExchangeIntakeActive,
+  isExchangeIntakeStartedInThread,
+  isExplicitExchangeExecutionTurn,
+} from "@/lib/agents/exchange-intake"
 import {
   classifyPostPurchaseCase,
   isOrderModificationRequest,
@@ -50,6 +54,9 @@ export function isKbSelfServiceFaqThisTurn(
 ) {
   const text = body.trim()
   if (!text) return false
+  if (isExchangeIntakeActive(history) || isExchangeIntakeStartedInThread(history)) {
+    return false
+  }
   if (customerExplicitlyRequestsHuman(text)) return false
   if (isExplicitExchangeExecutionTurn(text, history)) return false
   if (classifyPostPurchaseCase(text) === "exchange_request") return false
