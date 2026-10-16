@@ -270,7 +270,55 @@ export function isExplicitExchangeExecutionTurn(
 
 /** After exchange policy FAQ — bot asked branch vs courier. */
 export function isExchangePolicyDeliveryMethodPending(history: HistoryMessage[]) {
-  return lastAssistantMatches(history, EXCHANGE_POLICY_DELIVERY_METHOD_Q)
+  return (
+    lastAssistantMatches(history, EXCHANGE_POLICY_DELIVERY_METHOD_Q) ||
+    lastAssistantMatches(history, BRANCH_OR_COURIER_QUESTION_RE)
+  )
+}
+
+/** Customer chose in-branch exchange right after branch vs courier question (533784162). */
+export function isExchangeBranchChoiceReply(body: string, history: HistoryMessage[] = []) {
+  if (!isExchangePolicyDeliveryMethodPending(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 80) return false
+  return /^(?:בסניף|ב(?:כל\s+)?סניף(?:\s+קרוב)?)/i.test(text)
+}
+
+/** Bot already gave in-branch steps for different-model exchange — packaging FAQ may follow (533784162). */
+export function isExchangeBranchDifferentModelGuidanceComplete(
+  history: HistoryMessage[] = []
+) {
+  const userCorpus = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .join("\n")
+  const wantsDifferentModel =
+    /(?:דגם\s+אחר|שטיח\s+אחר|לשטיח\s+אחר|להחליף\s+(?:את\s+)?(?:ה)?דגם|לא\s+(?:כל\s+כך\s+)?מרוצ(?:ה|ים)\s+מהצבע)/i.test(
+      userCorpus
+    )
+  if (!wantsDifferentModel) return false
+  return assistantMessages(history).some(
+    (message) =>
+      /(?:דגם\s+אחר|בוחרים\s+שם\s+דגם)/i.test(message.content) &&
+      /(?:בסניף|בכל\s+סניף|הגיעים\s+ל(?:כל\s+)?סניף|אין\s+צורך\s+בפורטל)/i.test(
+        message.content
+      ) &&
+      ORIGINAL_PACKAGING_POLICY_RE.test(message.content)
+  )
+}
+
+/** Missing / alternative packaging after branch different-model guidance — not alt-size (533784162). */
+export function isExchangeBranchPackagingFaqTurn(
+  body: string,
+  history: HistoryMessage[] = []
+) {
+  if (!isExchangeBranchDifferentModelGuidanceComplete(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  return (
+    ORIGINAL_PACKAGING_POLICY_RE.test(text) ||
+    /(?:אין\s+(?:לי\s+)?(?:את\s+)?(?:ה)?אריז|ללא\s+אריז|מה\s+קורה\s+אם)/i.test(text)
+  )
 }
 
 /** Order lookup found the order — continue exchange, not a shipping-status card. */

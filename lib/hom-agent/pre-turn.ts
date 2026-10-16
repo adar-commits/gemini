@@ -99,8 +99,10 @@ import {
 } from "@/lib/agents/dissatisfaction"
 import {
   buildExchangeIntakeStartReply,
+  isExchangeBranchPackagingFaqTurn,
   isExchangeIntakeActive,
   isExchangeIntakeStartedInThread,
+  isExchangePolicyDeliveryMethodPending,
   isExplicitExchangeExecutionTurn,
 } from "@/lib/agents/exchange-intake"
 import {
@@ -535,6 +537,13 @@ export function runStructuredPostPurchaseAltSizePreTurn(input: {
     return { kind: "skip", response: null }
   }
   if (!isPostPurchaseAlternateSizeThread(input.history, body)) {
+    return { kind: "skip", response: null }
+  }
+
+  if (
+    isExchangePolicyDeliveryMethodPending(input.history) ||
+    isExchangeBranchPackagingFaqTurn(body, input.history)
+  ) {
     return { kind: "skip", response: null }
   }
 

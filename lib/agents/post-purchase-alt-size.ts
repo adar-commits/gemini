@@ -1,4 +1,8 @@
 import { isOutboundDocumentDeliveryMessage } from "@/lib/agents/digital-document-flow"
+import {
+  isExchangeBranchPackagingFaqTurn,
+  isExchangePolicyDeliveryMethodPending,
+} from "@/lib/agents/exchange-intake"
 import { isDefectReplacementStatusQuestion } from "@/lib/agents/inquiry-intent"
 import type { HistoryMessage } from "@/lib/agents/types"
 import { CUSTOMER_HEADER } from "@/lib/agents/types"
@@ -144,6 +148,8 @@ export function isPostPurchaseAlternateSizeAvailabilityQuestion(
 ) {
   if (isDefectReplacementStatusQuestion(body, history)) return false
   if (isShippingAddressChangeAsk(body, history)) return false
+  if (isExchangePolicyDeliveryMethodPending(history)) return false
+  if (isExchangeBranchPackagingFaqTurn(body, history)) return false
   const text = allUserText(history, body)
   if (!hasRecentPurchaseContext(history, text)) return false
   if (
@@ -178,6 +184,7 @@ export function isPostPurchaseAlternateSizeThread(
   history: HistoryMessage[],
   body = ""
 ) {
+  if (isExchangeBranchPackagingFaqTurn(body, history)) return false
   if (isPostPurchaseAlternateSizeAvailabilityQuestion(body, history)) return true
 
   const recentUser = history

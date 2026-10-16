@@ -144,6 +144,8 @@ import {
   isExchangeKindPending,
   isExchangeOrderRequired,
   isExchangeOriginalPackagingPolicyPending,
+  isExchangeBranchChoiceReply,
+  isExchangeBranchPackagingFaqTurn,
   isExchangePolicyDeliveryMethodPending,
   isExchangePolicyFaqPackagingPending,
   isExchangeReasonPending,
@@ -3295,9 +3297,19 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isExchangePolicyDeliveryMethodPending(history)) {
+  if (isExchangeBranchPackagingFaqTurn(body, history)) {
     lines.push(
-      "EXCHANGE POLICY → DELIVERY METHOD (534464386): customer answered סניף/שליח after exchange policy FAQ — this is exchange execution. lookup_order_status may locate the order but the reply must continue with נמשיך עם החלפה / kind quiz — never open with shipping celebration (איזה כיף / הועמס לשליח) unless they asked מתי יגיע."
+      "BRANCH EXCHANGE PACKAGING FAQ (533784162): in-branch **different model** exchange steps were already sent (14 days, unused, original packaging, pick another model at branch). Customer asks about missing box / no original wrap — answer honestly from exchange policy (sealed equivalent packaging may be OK; you cannot approve exceptions). **action: reply** or **action: end** when answered — offer **human_sales** only if they insist on an exception. **Never** «מבין שאתם מחפשים את אותו דגם במידה אחרת», never מק״ט-from-photo, never unsolicited handoff offer."
+    )
+  }
+
+  if (isExchangeBranchChoiceReply(body, history)) {
+    lines.push(
+      "EXCHANGE BRANCH CHOICE (533784162): they chose **בסניף** after «בסניף או עם שליח» during post-purchase החלפה (color/model swap, not alt-size). **get_branch_info** + branch exchange policy (14 days, unused, original packaging, א'-ה' only) → **action: end**. No order lookup, no יועץ מכירות, **never** «אותו דגם במידה אחרת» or מק״ט stock check."
+    )
+  } else if (isExchangePolicyDeliveryMethodPending(history)) {
+    lines.push(
+      "EXCHANGE POLICY → DELIVERY METHOD (534464386): customer answered סניף/שליח after exchange policy FAQ — this is exchange execution. lookup_order_status may locate the order but the reply must continue with נמשיך עם החלפה / kind quiz — never open with shipping celebration (איזה כיף / הועמס לשליח) unless they asked מתי יגיע. **Never** post-purchase alt-size advisor script."
     )
   }
 
