@@ -1700,7 +1700,7 @@ export function buildConversationHints(input: {
 
   if (isFirstSubstantiveCustomerTurn(history) && !weezmoFirstCustomerTurn) {
     lines.push(
-      "FIRST CUSTOMER MESSAGE: interpret their full intent with LLM + tools this turn — no structured FAQ/order shortcuts. Answer what they actually asked; call lookup_order_status only when they ask about an existing order/shipment — never for a product page or פרטים נוספים."
+      "FIRST CUSTOMER MESSAGE: interpret their full intent with LLM + tools this turn — no structured FAQ/order shortcuts. Answer what they actually asked; call lookup_order_status only when they ask about an existing order/shipment — never for a product page or פרטים נוספים. **527516083 — partial delivery opener:** when they say one of several items did not arrive (e.g. אחד השטיחים לא הגיע / two rugs and only one came) → **Service** partial-delivery playbook in hom-bot — lookup → rep summary → human_service; **never** treat header נמסר as the whole order delivered or close with שמחתי לעזור on turn 1."
     )
   }
 
