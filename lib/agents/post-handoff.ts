@@ -371,6 +371,20 @@ export function isReplacementDeliveredStillWrongThread(history: HistoryMessage[]
   return /(?:סיומת|קאנט|קנט|לא\s+כמו\s+שמופיע|ביקורת\s+איכות|פגם)/i.test(userCorpus)
 }
 
+const REPLACEMENT_DELIVERED_WRONG_PROGRESS_CHASE_RE =
+  /(?:ממתינ(?:ה|ים|ות)?|מחכ(?:ה|ים))[^\n]{0,56}(?:ל)?(?:תשובה|תגובה|התייחסות|מענה)|איך\s+מתקדמ|דחוף\s+עם\s+פתרון/i
+
+/** Progress / callback chase after replacement arrived but still wrong (533162865 Oct 15). */
+export function isReplacementDeliveredWrongProgressChaseFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isReplacementDeliveredStillWrongThread(history)) return false
+  const text = body.trim()
+  if (!text || text.length > 520) return false
+  return REPLACEMENT_DELIVERED_WRONG_PROGRESS_CHASE_RE.test(text)
+}
+
 const PREORDER_RESTOCK_THREAD_RE =
   /(?:הזמנה\s+מוקדמת|חידוש\s+(?:ה)?מלאי|Pre\s+Order|מוקדמת)/i
 

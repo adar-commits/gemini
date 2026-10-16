@@ -284,6 +284,7 @@ import {
   isPreorderRestockCallbackWaitFollowUp,
   isReplacementDeliveryCallbackWaitFollowUp,
   isReplacementDeliveredStillWrongThread,
+  isReplacementDeliveredWrongProgressChaseFollowUp,
   isDeliveryCoordinationTimingFollowUp,
   isShippingDelayHandoffNewsFollowUp,
   isShippingDelayHandoffAnswerWaitFollowUp,
@@ -1569,7 +1570,11 @@ export function buildConversationHints(input: {
     body
   )
 
-  if (input.visit && !isServiceDefectRepHandoffAwaitingCallback(history)) {
+  if (
+    input.visit &&
+    !isServiceDefectRepHandoffAwaitingCallback(history) &&
+    !isOpenReplacementDeliveryServiceHandoffThread(history)
+  ) {
     const previous = formatHebrewCustomerDate(input.visit.previousVisitAt) ?? "earlier"
     lines.push(
       !input.visit.fresh && input.visit.anchor
@@ -3670,6 +3675,12 @@ export function buildConversationHints(input: {
   if (isReplacementDeliveredStillWrongThread(history)) {
     lines.push(
       "REPLACEMENT DELIVERED STILL WRONG (533162865): customer already reported the **replacement courier arrived** but binding/cant/סיומת or QC still fails vs site photos — service handoff bullets must say **delivered but wrong/defective** (include cant/QC asks, second replacement request, cancel/refund if stated) — **never** «השטיח החלופי עדיין לא הגיע» / «טרם הגיע» when delivery is in the thread. Re-escalation with מעביר/העברתi → **`action: human_service`** + `crm_department: service` in the **same** JSON — **one** transfer closing; **never** duplicate «מעולה, העברתi את השיחה לנציג שירות» after you already said העברתi."
+    )
+  }
+
+  if (isReplacementDeliveredWrongProgressChaseFollowUp(history, body)) {
+    lines.push(
+      "REPLACEMENT DELIVERED WRONG PROGRESS CHASE (533162865): open defect **replacement** case — customer chases progress / urgent callback (e.g. «איך מתקדמים», «ממתינה לתגובה») after reporting the replacement **already arrived** but cant/סיומת still wrong vs the site. **Not** a fresh FAQ thread — **never** NEW VISIT intake. Empathize; bullet recap from **latest** facts (delivered-but-wrong, cancel/refund if stated, phone). Re-mark urgent for נציג שירות. **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתi/מעביר עכשיו — **never** FAQ `action: reply` with transfer prose."
     )
   }
 
