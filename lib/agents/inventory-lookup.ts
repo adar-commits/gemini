@@ -1,7 +1,10 @@
 import { buildApiFailureReply } from "@/lib/agent-core/fallbacks"
 import { CUSTOMER_HEADER, CUSTOMER_NATURAL_CLOSE } from "@/lib/agents/types"
 import type { HistoryMessage } from "@/lib/agents/types"
-import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
+import {
+  isInactivityAssistantMessage,
+  lastNonInactivityAssistantText,
+} from "@/lib/agents/inactivity"
 import { isThanksAcknowledgment } from "@/lib/agents/conversation-close"
 import {
   classifyPostPurchaseCase,
@@ -104,6 +107,16 @@ export function isBackInStockAwaitingSimilarReply(body: string, history: History
 
 const BACK_IN_STOCK_WAIT_FOR_ALERT_RE =
   /^(?:אמת(?:ין|ני)|נמת(?:ין|ני)|רק\s+(?:עדכון|ה(?:ת)?ראה)|לא\s+(?:תודה|מעניין(?:\s+אות(?:י|נ[יו]))?)|בלי(?:\s+תודה)?)(?:[\s,.!?]*)$/i
+
+const BACK_IN_STOCK_REFERENCE_CONFIRM_RE =
+  /רק\s+לוודא.*(?:רפרנס|ה(?:וא|יא)\s+הרפרנס).*מידה.*צורה/i
+
+/** Bot asked reference size/shape confirm in restock + similar flow (535194806). */
+export function isBackInStockReferenceConfirmPending(history: HistoryMessage[]) {
+  if (!isBackInStockOfferThread(history)) return false
+  const last = lastNonInactivityAssistantText(history)
+  return BACK_IN_STOCK_REFERENCE_CONFIRM_RE.test(last)
+}
 
 /** Customer declines similar item and will wait for the restock alert (533765464). */
 export function isBackInStockWaitForAlertOnlyReply(body: string, history: HistoryMessage[]) {

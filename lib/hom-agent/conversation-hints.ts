@@ -186,6 +186,7 @@ import {
   isBackInStockAwaitingSimilarReply,
   isBackInStockNotificationRequest,
   isBackInStockOfferThread,
+  isBackInStockReferenceConfirmPending,
   isBackInStockSalesHandoffThread,
   isBackInStockVariantFollowUp,
   isBackInStockWaitForAlertOnlyReply,
@@ -3561,6 +3562,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'BACK-IN-STOCK SIMILAR-ITEM FLOW (operator policy 2026-10-09): this chat opened with a restock request and you offered something similar. Bind their reply to your last question. (a) They want a similar item → verify size and shape in one question, naming the requested product + size as the reference («רק לוודא — שטיח בל קרם 160*230 הוא הרפרנס הנכון למידה ולצורה?») — **534144934:** only that opening reference; never «או דומה ל-[model they never said]», action reply. (b) They confirm the reference, or give the size/shape they want → a sales advisor will send similar options and is on the way («מעביר אותך ליועץ מכירות שיציע לך…»), action human_sales, `"crm_department": "sales"`. **Recap bullets (534115284):** list **only** models/products the customer explicitly named in this thread — restock alert = the opening product + size; similar search = that reference only — **never** add other SKUs/models they did not say (e.g. do not invent JOY when they only said BUNNY). (c) Not interested / just thanks → short warm close that we have their request, action end. A sales lead that wants options always reaches a rep.'
+    )
+  }
+
+  if (isBackInStockReferenceConfirmPending(history) && isOrderConfirmationYes(body)) {
+    lines.push(
+      'BACK-IN-STOCK STEP3 CONFIRM (535194806): reference size/shape confirmed — **`action: human_sales`**, `"crm_department": "sales"`. Bullet recap (restock alert product+size + similar search). When reps are online include a short **מעביר ליועץ מכירות** line. **After-hours:** same action — **never** paste «אין יועצי», Sunday/hours, «קיבלנו את הפנייה», or «ניצור קשר» in `reply` (runtime adds one offline notice). Use **empty `reply`** or recap bullets only without queue text.'
     )
   }
 
