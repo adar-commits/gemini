@@ -756,6 +756,9 @@ export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
       /(?:לקבל|קבל(?:תי|נו)?)\s+(?:את\s+)?החזר/i.test(text) ||
       /(?:אמור(?:ה|ים|ות)?|מגיע(?:ה|ים|ות)?)[^\n]{0,32}החזר/i.test(text) ||
       /(?:לא\s+)?(?:קיבל(?:תי|נו)?|התקבל(?:ה)?)\s+אישור.{0,24}זיכוי/i.test(text) ||
+      /(?:ע(?:י)?דין|טרם)\s+(?:לא\s+)?(?:ק(?:י)?ב(?:י)?ל(?:תי|נו)?)[^\n]{0,40}זיכוי/i.test(
+        text
+      ) ||
       (/זיכוי/i.test(text) &&
         /(?:עושים|(?:מ)?(?:קבל|ראה)|מתי|אפשר|מה\s+(?:קורה|המצב|עם)|אישור)/i.test(text))
   )
@@ -767,6 +770,11 @@ export function isOpenRefundCreditFollowUpThread(history: HistoryMessage[]) {
     (userTexts.some((text) => /בסניף/i.test(text)) &&
       /(?:החזר|זיכוי|החזיר)/i.test(corpus)) ||
     /(?:החזר(?:ת|ה)|החזרת)\s+[^\n]{0,48}בסניף/i.test(corpus) ||
-    /(?:נאס(?:ף|פ(?:ה|ו)?)|(?:בוצע|עש(?:ו|ית(?:י)?))\s+איסוף)/i.test(corpus)
+    /(?:נאס(?:ף|פ(?:ה|ו)?)|(?:בוצע|עש(?:ו|ית(?:י)?))\s+איסוף)/i.test(corpus) ||
+    history.some(
+      (message) =>
+        message.role === "assistant" &&
+        /(?:החזר(?:ת|ה)|על\s+החזר(?:ה|ת))[^\n]{0,48}שטיח/i.test(message.content)
+    )
   return hasCreditAsk && hasReturnDone
 }
