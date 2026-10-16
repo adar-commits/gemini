@@ -3603,7 +3603,7 @@ export function buildConversationHints(input: {
 
   if (isRefundTimelineQuestion(body)) {
     lines.push(
-      "Refund timeline: up to 7 business days from cancellation date — not from warehouse/branch receipt."
+      "REFUND TIMING / STATUS (295276261): 7 business days from cancellation date — not from warehouse/branch receipt. If you cannot see ERP refund status and reply includes rep bullets or transfer wording (מעביר/העברתי/מעולה העברתי) → action human_service in the same JSON — never reply alone. Never write «הנציג כבר קיבל את הפנייה» unless a prior turn already used human_service."
     )
   }
 

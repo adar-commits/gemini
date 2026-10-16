@@ -12,13 +12,19 @@ const DECLARATIVE_HANDOFF_TRANSFER_RE =
   /(?:אני|אנחנו|בינתיים אני)\s+מעביר(?:ים|ה|א)?(?:\s+א(?:ות(?:ך|כם|ה)|ת(?:כם|)?))?/iu
 
 const PAST_DECLARATIVE_HANDOFF_RE =
-  /העבר(?:תי|נו)\s+א(?:ת|ת(?:כם|))?\s*(?:ה)?(?:שיחה|פנייה)/i
+  /(?:מעולה,\s*)?העבר(?:תי|נו)\s+א(?:ת|ת(?:כם|))?\s*(?:ה)?(?:שיחה|פנייה)/iu
+
+/** Rep bullet recap + transfer wording but action stayed reply (295276261). */
+function isLlmHandoffRecapWithoutCrmAssign(body: string) {
+  if (!/(?:העבר(?:תי|נו)|מעביר(?:ים|ה|א)?).{0,120}נציג/i.test(body)) return false
+  if (/מעולה,\s+העבר(?:תי|נו)/i.test(body)) return false
+  return /(?:•\s|בירור\s+סטטוס|טלפון:\s*\d|מטרת\s+הפנייה)/i.test(body)
+}
 
 export function hasDeclarativeHandoffTransferInText(text: string) {
-  const trimmed = text.trim()
-  if (DECLARATIVE_HANDOFF_TRANSFER_RE.test(trimmed)) return true
-  if (PAST_DECLARATIVE_HANDOFF_RE.test(trimmed)) return true
-  return false
+  const body = assistantBodyWithoutHeader(text) || text.trim()
+  if (DECLARATIVE_HANDOFF_TRANSFER_RE.test(body)) return true
+  return PAST_DECLARATIVE_HANDOFF_RE.test(body)
 }
 
 const SALES_HANDOFF_COMMITTED_RE =
@@ -116,6 +122,7 @@ function isBotHandoffCommitmentContent(content: string) {
 export function hasPastTenseHandoffExecutedInText(text: string) {
   const body = assistantBodyWithoutHeader(text)
   if (!body) return false
+  if (isLlmHandoffRecapWithoutCrmAssign(body)) return false
   return HANDOFF_CONFIRMED_RE.test(body) || /מעולה,\s+העברתי/i.test(body)
 }
 

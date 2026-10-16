@@ -193,10 +193,10 @@ function preTurnThreadHistory(input: {
   return input.threadHistory?.length ? input.threadHistory : input.history
 }
 
-function botPromisedHandoffInAssistantText(text: string) {
+function isUnexecutedHandoffProse(text: string) {
   return (
-    hasDeclarativeHandoffTransfer(text) ||
-    hasPastTenseHandoffExecutedInText(text)
+    hasDeclarativeHandoffTransfer(text) &&
+    !assistantTextIndicatesHandoffExecuted(text)
   )
 }
 
@@ -211,17 +211,14 @@ function isThanksAfterUnexecutedHandoffProse(
   if (hasLiveRepReplyAfterBotHandoff(threadHistory)) return false
 
   const lastVisitAssistant = lastNonInactivityAssistantText(visitHistory)
-  if (
-    lastVisitAssistant &&
-    botPromisedHandoffInAssistantText(lastVisitAssistant)
-  ) {
+  if (lastVisitAssistant && isUnexecutedHandoffProse(lastVisitAssistant)) {
     return true
   }
 
   for (let index = threadHistory.length - 1; index >= 0; index -= 1) {
     const message = threadHistory[index]
     if (message.role !== "assistant") continue
-    if (botPromisedHandoffInAssistantText(message.content)) return true
+    if (isUnexecutedHandoffProse(message.content)) return true
   }
   return false
 }
