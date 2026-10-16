@@ -1774,7 +1774,6 @@ export function buildConversationHints(input: {
 
   const pastOrderSizeRecallPending =
     !isOrderLookupCompletedInThread(history) &&
-    !isOrderConfirmationPending(history) &&
     (isPastOrderSizeRecallQuestion(body) ||
       substantiveUserMessages(history).some((message) =>
         isPastOrderSizeRecallQuestion(message.content)
@@ -3572,7 +3571,7 @@ export function buildConversationHints(input: {
 
   if (pastOrderSizeRecallPending) {
     lines.push(
-      'PAST ORDER SIZE RECALL (534159887): customer asks what size they ordered before — call lookup_order_status on the channel phone first. After order confirm, answer size from line items. If they also ask whether you are human (נציג אנושי) — say briefly you are the bot, then continue lookup; do not skip to handoff. Never claim you have no access without running the tool. Never invent a product/model name not stated by the customer in this thread. human_sales only after lookup fails or they explicitly want an advisor to reorder.'
+      'PAST ORDER SIZE RECALL (534159887 / 535133878): customer needs exact dimensions of already purchased rug(s) — stay on lookup_order_status (phone, then more order numbers if needed). After each order confirm, answer sizes from line items; when ERP shows only part of their rugs, ask for other order numbers or human_service with bullet recap. **Never** «נמשיך עם החלפה», exchange quiz, or order-modification intake — multi-order «יש עוד» is still dimension lookup, not exchange. If they also ask whether you are human (נציג אנושי) — say briefly you are the bot, then continue lookup; do not skip to handoff. Never claim you have no access without running the tool. Never invent a product/model name not stated by the customer in this thread. human_sales only after lookup fails or they explicitly want an advisor to reorder.'
     )
   }
 

@@ -99,7 +99,7 @@ export function isOutdoorBalconyRugThread(history: HistoryMessage[]) {
 }
 
 const PAST_ORDER_SIZE_RECALL_RE =
-  /(?:איז(?:ה|ו)|מה)\s+(?:ה)?(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)|(?:רוצ(?:ה|יתי)|לדעת).{0,30}(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)/i
+  /(?:איז(?:ה|ו)|מה)\s+(?:ה)?(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)|(?:רוצ(?:ה|יתי)|לדעת).{0,30}(?:מידה|גודל).{0,40}(?:הזמנ(?:תי|ה)|בעבר)|(?:מידות\s+מדוי?קות|צריכ(?:ה|ים)).{0,80}(?:שטיח|נרכש|רכש|בעבר)|(?:שטיח|נרכש).{0,80}(?:מידות\s+מדוי?קות|לדעת\s+את\s+המידות)/i
 
 /** Customer asks what size they ordered before — lookup_order_status, not handoff (534159887). */
 export function isPastOrderSizeRecallQuestion(text: string) {
