@@ -3831,8 +3831,9 @@ async function lookupAndStartOrderConfirm(
   const conversationId = getPriorityApiLogContext()?.conversationId
   const priorPhone = conversationId ? recallConversationLookupPhone(conversationId) : null
   const phoneKey = phoneForOrderApi(phone)
+  const fullHistory = context?.history ?? []
   const phoneChanged = Boolean(priorPhone && phoneKey && priorPhone !== phoneKey)
-  const history = phoneChanged ? [] : (context?.history ?? [])
+  const history = phoneChanged ? [] : fullHistory
   const sorted = sortOrdersNewestFirst(orders)
   const threadDocumentRef = documentReferenceGivenInThread(history)
   if (threadDocumentRef) {
@@ -3857,16 +3858,41 @@ async function lookupAndStartOrderConfirm(
       )
     }
   }
-  const next = pickNextOrderCandidate(sorted, history) ?? offerableOrders(sorted)[0]
-  if (!next) {
-    const reply = buildOrderPickExhaustedFallback(
-      phone,
-      history,
-      getPriorityApiLogContext()?.whatsappPhone
-    )
+  const next = pickNextOrderCandidate(sorted, fullHistory)
+  if (next) {
+    const reply = buildOrderConfirmationPrompt(next, fullHistory, context?.body)
     return empathize ? empathize(reply) : reply
   }
-  const reply = buildOrderConfirmationPrompt(next, history, context?.body)
+  const firstOfferable = offerableOrders(sorted)[0]
+  const shownNumbers = shownOrderNumbersFromHistory(fullHistory)
+  const soleOrderAlreadyShown =
+    firstOfferable &&
+    shownNumbers.some((shown) => findOrderByNumber([firstOfferable], shown))
+  if (soleOrderAlreadyShown) {
+    const typedLookupPhone = context?.body ? userProvidedPhone(context.body) : null
+    const alternatePhoneLookupDuringConfirm =
+      isOrderConfirmationPending(fullHistory) &&
+      typedLookupPhone != null &&
+      phoneForOrderApi(typedLookupPhone) === phoneKey
+    const reply =
+      phoneChanged || alternatePhoneLookupDuringConfirm
+        ? buildNoOrdersFoundReply(phone)
+        : buildOrderPickExhaustedFallback(
+            phone,
+            fullHistory,
+            getPriorityApiLogContext()?.whatsappPhone
+          )
+    return empathize ? empathize(reply) : reply
+  }
+  if (firstOfferable) {
+    const reply = buildOrderConfirmationPrompt(firstOfferable, fullHistory, context?.body)
+    return empathize ? empathize(reply) : reply
+  }
+  const reply = buildOrderPickExhaustedFallback(
+    phone,
+    fullHistory,
+    getPriorityApiLogContext()?.whatsappPhone
+  )
   return empathize ? empathize(reply) : reply
 }
 
