@@ -244,6 +244,8 @@ import {
   hasRoomPhotoInHistory,
   isAwaitingSalesIntakeAnswer,
   isBedRugSizingConsultation,
+  isCommercialEntranceSalesThread,
+  isCustomerRequestingProductPhotos,
   isOutdoorBalconyRugConsultation,
   isOutdoorBalconyRugThread,
   isOrderProductIdentityQuestion,
@@ -4421,6 +4423,15 @@ export function buildConversationHints(input: {
   }
 
   if (
+    isCommercialEntranceSalesThread(history, body) &&
+    (hasOngoingSalesIntake(history) || isAwaitingSalesIntakeAnswer(history))
+  ) {
+    lines.push(
+      "COMMERCIAL ENTRANCE SALES (535156475): עסק/כניסה/נגד החלקה — ask approximate entrance dimensions + anti-slip needs for the advisor summary. Never מידת מיטה, bedroom use, or pets unless they mentioned animals. Skip residential bedroom quiz."
+    )
+  }
+
+  if (
     pendingSalesIntakeQuestionKind(history) === "space" &&
     /^(?:ל)?סלון(?:\s|$|[,.!?])/i.test(body.trim()) &&
     hasOngoingSalesIntake(history)
@@ -4447,6 +4458,15 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'SHOWROOM VISIT (534657587): customer asks about a **physical store / showroom** to feel or try the product mid sales intake — call `get_branch_info` and answer briefly where they can visit (design centers / branches). **`action: reply`** — continue optional room photo or remaining intake; **never** `human_sales` on this question alone with a fresh invented recap. Handoff bullets must match thread product (e.g. **פוף לונגי** לסלון, תמיכה קשיחה) — **never** rewrite as **שטיח** or add **בעלי חיים** unless they answered the pets step.'
+    )
+  }
+
+  if (
+    isCustomerRequestingProductPhotos(body) &&
+    (hasOngoingSalesIntake(history) || isSalesPhotoRequestPending(history))
+  ) {
+    lines.push(
+      "PRODUCT PHOTOS REQUEST: customer wants catalog/product images from HoM — share carpetshop.co.il or the model page, or human_sales if they need an advisor to send options. Never ask again to upload a room photo after לא or when they said לקבל תמונות של השטיח."
     )
   }
 

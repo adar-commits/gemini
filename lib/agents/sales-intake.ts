@@ -434,6 +434,30 @@ export function isSalesIntakeCompleteWithOptionalPhotoPending(history: HistoryMe
 const SALES_PHOTO_SENT_CLAIM_RE =
   /שלחתי\s+תמונה|מחכ(?:ה|ים)\s+ל(?:תשובה|יועץ|נציג)/i
 
+const COMMERCIAL_ENTRANCE_SALES_RE =
+  /(?:שטיח\s+)?(?:ל)?(?:עסק|מסעדה|מסעד|חנות|משרד)|כניסה(?:\s+ו(?:יציא)?)?|נגד\s+החלקה|הרבה\s+תנועה/i
+
+/** Commercial entrance / anti-slip thread — skip residential bedroom intake steps. */
+export function isCommercialEntranceSalesThread(
+  history: HistoryMessage[],
+  body: string
+) {
+  return COMMERCIAL_ENTRANCE_SALES_RE.test(allUserText(history, body))
+}
+
+/** Customer wants product/catalog photos from HoM — not uploading a room photo. */
+export function isCustomerRequestingProductPhotos(body: string) {
+  const text = body.trim()
+  if (!text || /\[media:image:/i.test(text)) return false
+  return (
+    /(?:^|\s)(?:לא\s+)?(?:אני\s+)?(?:רוצ(?:ה|ים|ות)\s+)?(?:לקבל|לראות|שלח(?:ו|י)?(?:\s+לי)?)\s+(?:עוד\s+)?(?:תמונות?|צילומים?)/i.test(
+      text
+    ) ||
+    /תמונות?\s+של\s+(?:ה)?(?:שטיח|דגם|מוצר|דטיח)/i.test(text) ||
+    /^יש\s+תמונות\?\s*$/i.test(text.split("\n").pop()?.trim() ?? text)
+  )
+}
+
 export function turnHasCustomerImage(turn: UserTurn) {
   if (turn.media.some((part) => part.kind === "image")) return true
   return /\[media:image:/i.test(summarizeTurn(turn))
@@ -1132,7 +1156,9 @@ function applySpaceAnswer(intake: SalesIntake, answers: string[]) {
   else if (/חדר\s+שינה/.test(combined)) intake.targetSpace = "חדר שינה"
   else if (/סלון/.test(combined)) intake.targetSpace = "סלון"
   else if (/מסדרון/.test(combined)) intake.targetSpace = "מסדרון"
-  else if (OUTDOOR_SPACE_RE.test(combined)) {
+  else if (/כניסה|עסק|מסעד|חנות|משרד|החלקה|נגד\s+החלקה/i.test(combined)) {
+    intake.targetSpace = /כניסה/i.test(combined) ? "כניסה לעסק" : "עסק / מסחרי"
+  } else if (OUTDOOR_SPACE_RE.test(combined)) {
     const outdoor = combined.match(
       /(?:ל)?(חצר(?:\s+\S+)?|מרפס(?:ה|ת)(?:\s+\S+)?|גינ(?:ה|ה)(?:\s+\S+)?)/i
     )?.[1]
