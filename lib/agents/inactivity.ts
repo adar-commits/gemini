@@ -44,7 +44,7 @@ export function isInactivityStillHereReply(body: string) {
 export function isWaitingForHumanRepReply(body: string) {
   const text = body.trim()
   if (!text || text.length > 120) return false
-  return /(?:מחכ(?:ה|ים|ות)|ממת(?:ין|ינים|ינות))\s+(?:ל)?(?:נציג|יועץ)|(?:רוצ(?:ה|ים|ות)|מ(?:בקש|בקש(?:ת|ים|ות)))\s+(?:ל)?(?:נציג|יועץ)|(?:מחכ(?:ה|ים|ות)\s+ל(?:שיחה|טיפול))/iu.test(
+  return /(?:מחכ(?:ה|ים|ות)|ממת(?:ין|ינים|ינות))\s+(?:ל)?(?:נציג|יועץ|מענה|תשובה)|(?:רוצ(?:ה|ים|ות)|מ(?:בקש|בקש(?:ת|ים|ות)))\s+(?:ל)?(?:נציג|יועץ)|(?:מחכ(?:ה|ים|ות)\s+ל(?:שיחה|טיפול))/iu.test(
     text
   )
 }

@@ -9,6 +9,12 @@ export function isTransferPromisedInAssistantText(text: string) {
   if (/(?:תועבר\s+להמשך\s+טיפול|הפנייה\s+תועבר\s+להמשך)/i.test(trimmed)) {
     return true
   }
+  if (/העבר(?:תי|נו)\s+א(?:ת|ת)\s+ה(?:שיחה|פנייה)/i.test(trimmed)) {
+    return true
+  }
+  if (/(?:אני|אנחנו)\s+מעביר(?:ים|ה|א)?\s+את(?:כם|)/i.test(trimmed)) {
+    return true
+  }
   if (isRepWaitingAckInAssistantText(trimmed)) return true
   return isSalesHandoffCommittedInAssistantText(trimmed)
 }
@@ -28,6 +34,7 @@ export function isSalesHandoffCommittedInAssistantText(text: string) {
 }
 
 export function isTransferPromisedInThread(history: HistoryMessage[]) {
+  if (isPostHumanHandoff(null, history)) return true
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index]
     if (message.role !== "assistant") continue
