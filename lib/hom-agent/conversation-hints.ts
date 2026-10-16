@@ -3790,7 +3790,7 @@ export function buildConversationHints(input: {
       ))
   ) {
     lines.push(
-      'DUPLICATE / EXTRA ITEM (533672658): same product twice / extra unit not ordered — **service**, `"crm_department": "service"`. lookup_order_status only to identify מס׳ הזמנה → rep summary (פריט נוסף/כפול לא מוזמן, תיאום איסוף) → human_service. **Never** reply with delivery status alone (נמסר/שמחתי לעזור/action end). If they also ask for a **new purchase** (בנוסף + המלצה/שטיח לסלון) — finish service summary first, note the sales ask for the rep; do not pivot to sales intake before handoff.'
+      'DUPLICATE / EXTRA ITEM (533672658 / 533508330): same product twice / extra unit / wrong quantity (e.g. 2 שטיחים במקום אחד, שלחתם בטעות) — **service**, `"crm_department": "service"`. lookup_order_status only to identify מס׳ הזמנה → rep summary for **this turn only** (פריט נוסף/כפול/כמות שגויה, תיאום איסוף if they offered pickup) → human_service. **Never** attribute other thread topics (שינוי מידה, זיכוי, החלפה) as customer requests unless they repeat them in the merged turn. **Never** reply with delivery status alone (נמסר/שמחתי לעזור/action end). If they also ask for a **new purchase** (בנוסף + המלצה/שטיח לסלון) — finish service summary first, note the sales ask for the rep; do not pivot to sales intake before handoff.'
     )
   }
 

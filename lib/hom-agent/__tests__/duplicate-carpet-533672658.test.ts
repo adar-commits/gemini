@@ -54,7 +54,7 @@ describe("duplicate extra carpet (533672658)", () => {
       history: historyThroughWrongShippingReply().slice(0, -1),
       whatsappPhone: "0529999966",
     })
-    assert.match(hints, /DUPLICATE \/ EXTRA ITEM \(533672658\)/)
+    assert.match(hints, /DUPLICATE \/ EXTRA ITEM \(533672658 \/ 533508330\)/)
     assert.match(hints, /Never.*delivery status/)
     assert.doesNotMatch(hints, /ORDER STATUS OPENING/)
   })
