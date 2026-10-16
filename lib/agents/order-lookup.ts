@@ -705,7 +705,9 @@ export function findOrderByDocumentReference(
 /** Customer labels an SO/IN/OV token as order/invoice ref — not a document copy request. */
 export function isOrderReferencePresentation(body: string) {
   const text = stripMediaAndUrls(body.trim())
-  if (!text || !extractOrderNumber(text)) return false
+  if (!text || (!extractOrderNumber(text) && !extractOrderReference(text))) {
+    return false
+  }
   if (/^(?:SO|IN|OV)\s*\d+$/im.test(text)) return true
   const firstLine = text.split(/\n+/)[0]?.trim() ?? text
   if (/^(?:SO|IN|OV)\s*\d+$/i.test(firstLine)) return true

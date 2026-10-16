@@ -21,6 +21,7 @@ import { isInactivityAssistantMessage } from "@/lib/agents/inactivity"
 import {
   customerOrderNumberStyleFromHistory,
   extractOrderNumber,
+  isOrderReferencePresentation,
   formatCustomerOrderNumber,
   formatCustomerOrderNumberForThread,
   priorityReferenceDigitsFromOrder,
@@ -292,10 +293,21 @@ export function salvageReturnPickupAwaitingReply(body: string) {
   return buildReturnPickupAwaitingServiceReply(intake, trimmed)
 }
 
+/** This turn re-opens with an order id for lookup — ignore stale return-pickup lines in history (525700953). */
+export function isFreshOrderLookupTurn(body: string) {
+  const trimmed = body.trim()
+  if (!trimmed) return false
+  if (isActiveReturnExchangePickupCase(trimmed)) return false
+  if (classifyPostPurchaseCase(trimmed) === "return_pickup_pending") return false
+  return isOrderReferencePresentation(trimmed)
+}
+
 export function isReturnPickupAwaitingThread(
   history: HistoryMessage[],
   body: string
 ) {
+  if (isFreshOrderLookupTurn(body)) return false
+
   const userTexts = history
     .filter((message) => message.role === "user")
     .slice(-6)
