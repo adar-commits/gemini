@@ -336,6 +336,17 @@ function isSalesSizeFitConfirmation(body: string) {
   )
 }
 
+/** Mid-quiz product prefs (solid color, anti-slip) — sales intake note, not carpet-products FAQ. */
+function isSalesIntakeProductPreferenceNote(body: string) {
+  const text = body.trim()
+  if (!text || text.length > 220) return false
+  return (
+    /(?:צבע\s+אחיד|ש(?:לא|ל)\s+(?:יזוז|זז)|לא\s+יזוז|נגד\s+החלקה|משטח\s+נגד|שלא\s+זז)/i.test(
+      text
+    ) && /(?:שטיח|רצפה|סלון|ספה)/i.test(text)
+  )
+}
+
 function recentUserLinesIncludePriceAsk(history: HistoryMessage[], body: string) {
   const userLines = [...history, { role: "user" as const, content: body }]
     .filter((message) => message.role === "user")
@@ -4371,6 +4382,17 @@ export function buildConversationHints(input: {
       salesIntakeMode() === "llm"
         ? "SALES INTAKE QUIZ (LLM-led): you asked the last intake question — interpret their answer in thread context; never re-ask room/product/pets/practical already answered in the thread. On לא יודע/לא בטוח/לא alone: reassure, note for advisor, advance (pets → photo → practical → summary+human_sales). **Never** write ציינתי/העברתי/אעביר ליועץ mid-quiz with action reply (534144877) — ack (תודה, רשמתי) + next question, or final summary+human_sales. Never empty reply or silence — always the next question or final summary+human_sales."
         : "SALES INTAKE QUIZ: the bot asked a scripted intake question — answer it and advance to the next step (room photo, דרישות מיוחדות, or confirmation summary). Short לא/אין/ללא counts as an answer to that step. **Never** ציינתי/העברתי/אעביר ליועץ mid-quiz with action reply — save advisor notes for summary+human_sales. Always a complete Hebrew question or summary — never stub words like placeholder/TODO or empty reply."
+    )
+  }
+
+  if (
+    hasOngoingSalesIntake(history) &&
+    isAwaitingSalesIntakeAnswer(history) &&
+    isSalesIntakeProductPreferenceNote(body) &&
+    !postHandoffNoResponseReEscalation
+  ) {
+    lines.push(
+      'SALES INTAKE PRODUCT PREFS (535253793): open sales quiz — customer adds purchase preferences (צבע אחיד, שלא יזוז, anti-slip). Stay **`crm_department: sales`** — not carpet-products FAQ. Brief ack + note for advisor (optional one line on pad); bind **sofa color** from thread if they wrote it (e.g. צבע ספה); answer the **pending quiz step** (pets / photo) — **never** a long anti-slip monologue or FAQ-only pivot before intake continues.'
     )
   }
 
