@@ -7,7 +7,10 @@ import {
 } from "@/lib/agents/conversation-close"
 import { buildHumanHandoffConfirmedReply } from "@/lib/agents/human-agent-hours"
 import { shouldSkipInactivityForHumanWait } from "@/lib/agents/human-waiting"
-import { shouldSkipInactivityPingForCompleteReply } from "@/lib/agents/inactivity-policy"
+import {
+  shouldDeferInactivityForInventorySkuCollection,
+  shouldSkipInactivityPingForCompleteReply,
+} from "@/lib/agents/inactivity-policy"
 import {
   appendTurn,
   clearInactivityWatchState,
@@ -693,7 +696,11 @@ export async function handleLandbotInbound(
           isThanksAcknowledgment(body) ||
           endsWithOptionalFollowUpOffer(lastOutbound) ||
           shouldSkipInactivityPingForCompleteReply(history, result.agent ?? null)
-        if (shouldSuppressInactivityWatch(history) || optionalFollowUpClosing) {
+        if (
+          shouldSuppressInactivityWatch(history) ||
+          optionalFollowUpClosing ||
+          shouldDeferInactivityForInventorySkuCollection(history)
+        ) {
           await clearInactivityWatchState(conversationId)
         } else {
           const session = await getSessionInactivityState(conversationId)

@@ -5,7 +5,11 @@ import {
   isInactivityAssistantMessage,
   lastNonInactivityAssistantText,
 } from "@/lib/agents/inactivity"
-import { isActiveInventoryThread, isSkuRequestPending } from "@/lib/agents/inventory-lookup"
+import {
+  isActiveInventoryThread,
+  isInventoryAvailabilityReply,
+  isSkuRequestPending,
+} from "@/lib/agents/inventory-lookup"
 import {
   isBareOrderNumberDisclosureSettledThread,
   isOrderConfirmationPending,
@@ -57,6 +61,15 @@ export function shouldSkipInactivityClose(
     isActiveSalesConsultation(history, lastAgent) ||
     isActiveInventoryThread(history)
   )
+}
+
+/** Bot asked for מק״ט — customer may send photos; no ping/handoff until lookup runs. */
+export function shouldDeferInactivityForInventorySkuCollection(
+  history: HistoryMessage[]
+) {
+  const last = lastNonInactivityAssistantText(history)
+  if (!last || isInventoryAvailabilityReply(last)) return false
+  return isSkuRequestPending(history)
 }
 
 /**

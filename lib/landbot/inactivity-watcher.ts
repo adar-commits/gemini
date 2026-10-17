@@ -28,6 +28,7 @@ import {
   hasOpenFaqFollowUpQuestion,
   hasOpenSalesIntakeQuestion,
   resolveInactivityPingDelayMs,
+  shouldDeferInactivityForInventorySkuCollection,
   shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
   shouldSkipInactivityPingForCompleteReply,
@@ -213,6 +214,10 @@ async function shouldSendPing(payload: InactivityWatchPayload) {
 
   if (endsWithOptionalFollowUpOffer(lastNonInactivityAssistantText(history))) {
     return "optional_follow_up" as const
+  }
+
+  if (shouldDeferInactivityForInventorySkuCollection(history)) {
+    return "inventory_sku_pending" as const
   }
 
   if (shouldSkipInactivityPingForCompleteReply(context.history, context.lastAgent)) {
@@ -499,7 +504,8 @@ async function runPingPhase(payload: InactivityWatchPayload) {
   if (
     skip === "optional_follow_up" ||
     skip === "open_faq_question" ||
-    skip === "open_sales_intake_question"
+    skip === "open_sales_intake_question" ||
+    skip === "inventory_sku_pending"
   ) {
     await clearInactivityWatchState(payload.conversationId)
     return { ok: true, skipped: skip }

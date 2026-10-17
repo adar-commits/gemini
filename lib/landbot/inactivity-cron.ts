@@ -35,6 +35,7 @@ import {
   isAwaitingReplyAfterOrderStatusLookupOffer,
   shouldSilentAutoAssignOnQuietWindow,
   shouldSkipInactivityClose,
+  shouldDeferInactivityForInventorySkuCollection,
   shouldSkipInactivityPingForCompleteReply,
 } from "@/lib/agents/inactivity-policy"
 import { crmConversationAllowsServiceInactivity } from "@/lib/crm/conversation-department"
@@ -510,6 +511,10 @@ async function attemptSilentHandoffAssign(row: IdleSessionRow) {
 
   if (shouldSuppressInactivityWatch(history)) return "skipped" as const
   if (isOrderConfirmationPending(history)) return "skipped" as const
+  if (shouldDeferInactivityForInventorySkuCollection(history)) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
   const lastUserText = [...history]
     .reverse()
     .find((message) => message.role === "user")?.content
@@ -551,6 +556,11 @@ async function attemptInactivityPing(row: IdleSessionRow) {
   if (isOrderConfirmationPending(history)) return "skipped" as const
 
   if (endsWithOptionalFollowUpOffer(lastNonInactivityAssistantText(history))) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
+
+  if (shouldDeferInactivityForInventorySkuCollection(history)) {
     await clearInactivityWatchState(row.conversation_id)
     return "skipped" as const
   }
@@ -631,8 +641,13 @@ async function attemptInactivityClose(row: CloseCandidate) {
   if (!customerId) return "skipped" as const
   if (!shouldReplyPhone(row.customer_phone)) return "skipped" as const
 
-  const { getConversationContext } = await import("@/lib/agents/memory")
+  const { getConversationContext, getHistory } = await import("@/lib/agents/memory")
   const context = await getConversationContext(row.conversation_id)
+  const history = await getHistory(row.conversation_id)
+  if (shouldDeferInactivityForInventorySkuCollection(history)) {
+    await clearInactivityWatchState(row.conversation_id)
+    return "skipped" as const
+  }
   const salesRecovery = shouldSkipInactivityClose(context.history, context.lastAgent)
 
   const lastAssistant = await getLastAssistantMessage(row.conversation_id)
