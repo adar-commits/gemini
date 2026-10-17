@@ -123,6 +123,8 @@ import {
 } from "@/lib/agents/digital-document-flow"
 import {
   isCheckoutPaymentSplitCancelThread,
+  isCheckoutPaymentSplitCardRefundOnlyThread,
+  isCheckoutPaymentSplitRefundChaseFollowUp,
   isDuplicateChargeRefundTimelineFollowUp,
   isInstallmentChargeCallbackFollowUp,
   isMembershipClubCheckoutQuestion,
@@ -3747,7 +3749,16 @@ export function buildConversationHints(input: {
     )
   }
 
-  if (isPreDeliveryCancelHandoffResponseWaitFollowUp(history, body)) {
+  if (isCheckoutPaymentSplitRefundChaseFollowUp(history, body)) {
+    lines.push(
+      "CHECKOUT PAYMENT SPLIT REFUND CHASE (534579658): BUYME/voucher + credit charged wrong — **`human_service`** already logged; customer re-escalates with missing **card refund** / double charge (long message or «לא זיכיתם» / charged card and BUYME). Empathize; bullet recap **תיקון חיוב / זיכוי עודף בכרטיס** — **never** «ביטול ההזמנה» / BUYME reorder unless they ask again this turn. **`action: human_service`** + `crm_department: service` in the **same** JSON when you write מעביר/העברתי/סימנתי/דחופה — **never** `action: reply` only after urgent re-mark."
+    )
+  }
+
+  if (
+    isPreDeliveryCancelHandoffResponseWaitFollowUp(history, body) &&
+    !isCheckoutPaymentSplitCardRefundOnlyThread(history)
+  ) {
     lines.push(
       "PRE-DELIVERY CANCEL HANDOFF RESPONSE WAIT (533685634 / 534579658): **cancel before receipt** (undelivered / before warehouse / BUYME reorder) already got **`human_service`** with recap (including after-hours queue) — customer now complains **nobody answered**, **no credit yet**, or angry service tone (למה לא חוזרים / לא מעבירים זיכוי / ??). Brief empathize for the wait; confirm the case stays with נציג שירות and is marked urgent again — you may say סימנתי שוב לצוות / העליתי בעדיפות. During service hours you may note the team is active now — **never** «מעולה, העברתי את השיחה» / first-time handoff boilerplate. **`action: reply`** — **never** duplicate **`human_service`** unless they explicitly ask to transfer again **this turn**."
     )

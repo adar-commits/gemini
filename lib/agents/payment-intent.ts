@@ -4,6 +4,7 @@ import {
   hasLiveRepReplyAfterBotHandoff,
   isLiveRepAssistantMessage,
   isPostHumanHandoff,
+  isPreDeliveryCancelHandoffResponseWaitFollowUp,
   isSalesProductInquiryHandoffCompleteInHistory,
 } from "@/lib/agents/post-handoff"
 import { isOrderCancellationSummaryLabel } from "@/lib/agents/service-intake"
@@ -142,23 +143,78 @@ export function isPayplusPaidReceiptCallbackChaseFollowUp(
   return isNoContactOrCheckChaseAsk(body)
 }
 
+function checkoutPaymentSplitUserCorpus(history: HistoryMessage[], body = "") {
+  const userLines = history
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+  return [body, ...userLines].join("\n")
+}
+
+/** BUYME/voucher + credit balance charged wrong (534268241 / 534579658). */
+export function isCheckoutPaymentSplitIssueThread(
+  history: HistoryMessage[],
+  body = ""
+) {
+  const corpus = checkoutPaymentSplitUserCorpus(history, body)
+  if (!/buyme|buy\s*me|ביימי/i.test(corpus)) return false
+  if (!/(?:אשראי|חייב|חיוב|הפרש|כרטיס|מסטר|יתרה)/i.test(corpus)) return false
+  return (
+    isOrderCancellationSummaryLabel(corpus) ||
+    /ביטול\s+עסקה|עסקה\s+מחדש/i.test(corpus) ||
+    /(?:ת(?:זכ|זכ)|ל)?זכ(?:ה|ות?\s).{0,32}כרטיס|חייב.{0,56}(?:גם|וב(?:נוסף|מ)?).{0,32}(?:ביימי|BUYME)|(?:גם\s+)?(?:ה)?(?:כרטיס|אשראי).{0,40}(?:גם|ו).{0,24}(?:ביימי|BUYME)/i.test(
+      corpus
+    )
+  )
+}
+
 /** BUYME/voucher + credit charged wrong; customer asked ביטול עסקה / redo (534268241 / 534579658). */
 export function isCheckoutPaymentSplitCancelThread(
   history: HistoryMessage[],
   body = ""
 ) {
-  const userLines = history
-    .filter((message) => message.role === "user")
-    .map((message) => message.content)
-  const corpus = [body, ...userLines].join("\n")
-  if (!/buyme|buy\s*me|ביימי/i.test(corpus)) return false
+  const corpus = checkoutPaymentSplitUserCorpus(history, body)
+  if (!isCheckoutPaymentSplitIssueThread(history, body)) return false
+  return (
+    isOrderCancellationSummaryLabel(corpus) ||
+    /ביטול\s+עסקה|עסקה\s+מחדש/i.test(corpus)
+  )
+}
+
+/** After handoff — customer clarified card refund only, not cancel/rebuy (534579658). */
+export function isCheckoutPaymentSplitCardRefundOnlyThread(history: HistoryMessage[]) {
+  if (!isCheckoutPaymentSplitIssueThread(history)) return false
+  return history.some(
+    (message) =>
+      message.role === "user" &&
+      /(?:רק\s+)?(?:ת?(?:זכ|זכ)|ל)?זכ(?:ה|ות?\s).{0,24}כרטיס|(?:זה\s+)?לא\s+ביטול\s+הזמנה|היא\s+כבר\s+כיבה/i.test(
+        message.content
+      )
+  )
+}
+
+/** Open BUYME/card split billing case already handed to service (534579658). */
+export function isOpenCheckoutPaymentSplitServiceThread(history: HistoryMessage[]) {
+  if (!isCheckoutPaymentSplitIssueThread(history)) return false
+  return isPostHumanHandoff(null, history)
+}
+
+/** Urgent re-escalation when card refund still missing after prior human_service (534579658). */
+export function isCheckoutPaymentSplitRefundChaseFollowUp(
+  history: HistoryMessage[],
+  body: string
+) {
+  if (!isOpenCheckoutPaymentSplitServiceThread(history)) return false
+  const trimmed = body.trim()
+  if (!trimmed) return false
+  if (isPreDeliveryCancelHandoffResponseWaitFollowUp(history, body)) return false
   if (
-    !isOrderCancellationSummaryLabel(corpus) &&
-    !/ביטול\s+עסקה|עסקה\s+מחדש/i.test(corpus)
+    /(?:לא\s+זיכית|עדיין\s+לא\s+זיכ|חייב(?:תם|)[^\n]{0,48}(?:כרטיס|אשראי)|כפול|תדאגו\s+לזכות)/i.test(
+      trimmed
+    )
   ) {
-    return false
+    return true
   }
-  return /(?:אשראי|חייב|חיוב|הפרש|כרטיס|מסטר|יתרה)/i.test(corpus)
+  return trimmed.length > 160 && /(?:זיכוי|חיוב|ביימי|BUYME|8012)/i.test(trimmed)
 }
 
 function hasLiveRepPriceQuoteInHistory(history: HistoryMessage[]) {
