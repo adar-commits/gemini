@@ -2981,6 +2981,13 @@ export function buildConversationHints(input: {
         )
       } else if (
         isOrderConfirmationYes(body) &&
+        isPreDeliveryCancelWithoutPortalYet(body, history)
+      ) {
+        lines.push(
+          "PRE-DELIVERY CANCEL ORDER CONFIRM YES (535243350 / 534406245): כן confirms the order card on a cancel-before-delivery thread — call lookup_order_status now and answer with cancel routing by shipping code (464488405 / PRE-DELIVERY CANCEL OPENING). Never action end with warehouse packaging + שמחתי לעזור as the full answer."
+        )
+      } else if (
+        isOrderConfirmationYes(body) &&
         threadHasStatedCustomerIssue(history, body) &&
         !isReturnWithSalesAdvisoryInThread(history, body) &&
         !isServiceOrderIdentificationFlow(history, body)
@@ -3047,7 +3054,8 @@ export function buildConversationHints(input: {
       } else if (
         isOrderConfirmationYes(body) &&
         !threadHasStatedCustomerIssue(history, body) &&
-        !kbSelfServiceFaqThisTurn
+        !kbSelfServiceFaqThisTurn &&
+        !isPreDeliveryCancelWithoutPortalYet(body, history)
       ) {
         lines.push(
           "ORDER CONFIRM NO ISSUE STATED (534367153): order card confirmed but customer never described the problem (phone/name lookup only). Ask ONE short question what they need help with — action reply. Never service rep summary, never «פנייה לשירות לקוחות», never «משך ההמתנה» unless they explicitly stated wait duration in their words. Never invent issue labels."
