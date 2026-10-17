@@ -1574,6 +1574,15 @@ function customerClosedSalesWithoutPurchaseInThread(history: HistoryMessage[]) {
   )
 }
 
+/** Bot already explained add-to-order policy — sales lookup flow, not service handoff. */
+function isAddToExistingOrderThread(history: HistoryMessage[]) {
+  return history.some(
+    (message) =>
+      message.role === "assistant" &&
+      message.content.includes("הוספה להזמנה קיימת")
+  )
+}
+
 /** Dynamic turn hints — guide the LLM without bypassing it. */
 export function buildConversationHints(input: {
   history: HistoryMessage[]
@@ -1996,6 +2005,12 @@ export function buildConversationHints(input: {
   ) {
     lines.push(
       'ORDER MODIFICATION (441694412 / 532165595 / 422622122 / 530164166 / 498385542 / 531256545): customer wants to change color/size/model on an existing order — including bare "להחליף דגם" / "דגם אחר". Empathize → call lookup_order_status (phone confirm is OK). **Never** post-receipt exchange policy (14 days / unused packaging / "מה לא התאים?") on the opening turn before status. After status: **never** warm-close with שמחתי לעזור only — address the change in the same reply. Size/מידה/גודל/דגם while still in packaging / not yet delivered → **`action: human_sales`** when you write מעביר/העברתי ליועץ מכירות — **same JSON**, never reply alone. Customer thanks after declarative מעביר ליועץ **without** past-tense «העברתי את השיחה» in that bot turn → human_sales NOW — never action end. After «העברתי» already sent (498385542) → POST-HANDOFF thanks close only. Color → exchange intake (kind A) after confirm. Never sales-intake quiz, never empty/"לא הצלחתי להבין".'
+    )
+  }
+
+  if (isAddToExistingOrderThread(history)) {
+    lines.push(
+      'ADD TO ORDER (535214017): adding an item to an existing order is מכירות — set crm_department sales. On phone confirm (כן / זה המספר) call lookup_order_status immediately (action reply). Never human_service or after-hours service handoff for phone confirm. After order card confirm → recap what they want to add → human_sales to יועץ מכירות.'
     )
   }
 
